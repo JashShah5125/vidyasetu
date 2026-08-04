@@ -1,0 +1,132 @@
+import React, { useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { Card, CardHeader, CardTitle } from '../components/ui/Card';
+import { Table } from '../components/ui/Table';
+import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Plus } from 'lucide-react';
+
+export interface AssignmentItem {
+  title: string;
+  batch: string;
+  subject: string;
+  dueDate: string;
+  status: string;
+}
+
+export const Assignments: React.FC = () => {
+  const { batches } = useApp();
+  const [assignments, setAssignments] = useState<AssignmentItem[]>([
+    { title: 'Electrophilic Addition Quiz Problems', batch: 'JEE-Morning-A', subject: 'Chemistry', dueDate: '2026-07-25', status: 'Active' },
+    { title: 'Rotational Dynamics Exercise sheet', batch: 'JEE-Evening-B', subject: 'Physics', dueDate: '2026-07-28', status: 'Active' }
+  ]);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [title, setTitle] = useState('');
+  const [batch, setBatch] = useState(batches[0]?.name || 'JEE-Morning-A');
+  const [subject, setSubject] = useState('Chemistry');
+  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const handleOpenAddModal = () => {
+    if (batches.length > 0 && !batch) {
+      setBatch(batches[0].name);
+    }
+    setShowAddModal(true);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title) return;
+    setAssignments(prev => [...prev, {
+      title,
+      batch,
+      subject,
+      dueDate,
+      status: 'Active'
+    }]);
+    setTitle('');
+    setShowAddModal(false);
+    setSuccessMessage('New homework assignment published and assigned to batch!');
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
+
+  return (
+    <div className="space-y-6">
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
+          ✓ {successMessage}
+        </div>
+      )}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Assignments & Study Materials</h2>
+          <p className="text-sm text-slate-500 mt-1">Distribute homework files, assign batch deadlines, and review student uploads.</p>
+        </div>
+        <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
+          <Plus size={16} /> Create Assignment
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Class Assignments Ledger</CardTitle>
+        </CardHeader>
+        <Table headers={['Assignment Title', 'Allotted Batch', 'Subject Name', 'Due Deadline', 'Status']}>
+          {assignments.map((a, idx) => (
+            <tr key={idx} className="hover:bg-slate-50">
+              <td className="px-6 py-4 font-semibold text-slate-800">{a.title}</td>
+              <td className="px-6 py-4">{a.batch}</td>
+              <td className="px-6 py-4">{a.subject}</td>
+              <td className="px-6 py-4 font-mono text-xs">{a.dueDate}</td>
+              <td className="px-6 py-4">
+                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-600">
+                  {a.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </Table>
+      </Card>
+
+      {/* Creation Modal */}
+      {showAddModal && (
+        <Modal 
+          isOpen={showAddModal} 
+          onClose={() => setShowAddModal(false)} 
+          title="Create Homework Assignment"
+        >
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <Input label="Assignment Title" required placeholder="e.g. Electrophilic Addition Quiz Problems" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <Select 
+                label="Allocate to Batch" 
+                value={batch} 
+                onChange={(e) => setBatch(e.target.value)} 
+                options={batches.map(b => ({ value: b.name, label: b.name }))}
+              />
+              <Select 
+                label="Subject Area" 
+                value={subject} 
+                onChange={(e) => setSubject(e.target.value)} 
+                options={[
+                  { value: 'Chemistry', label: 'Chemistry' },
+                  { value: 'Physics', label: 'Physics' },
+                  { value: 'Mathematics', label: 'Mathematics' },
+                  { value: 'Biology', label: 'Biology' }
+                ]}
+              />
+            </div>
+            <Input label="Submission Deadline" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">Publish Assignment</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+};
