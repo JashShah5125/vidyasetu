@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import type { Role } from '../data/mockData';
 import { Button } from '../components/ui/Button';
@@ -6,6 +7,7 @@ import { Input } from '../components/ui/Input';
 
 export const Login: React.FC = () => {
   const { login } = useApp();
+  const navigate = useNavigate();
   const [emailInput, setEmailInput] = useState('admin@apexiit.com');
   const [passwordInput, setPasswordInput] = useState('password');
   const [errorMessage, setErrorMessage] = useState('');
@@ -29,7 +31,9 @@ export const Login: React.FC = () => {
     }
 
     const success = login(emailInput);
-    if (!success) {
+    if (success) {
+      navigate('/dashboard');
+    } else {
       setErrorMessage('Invalid email. Please use a valid demo email ID.');
     }
   };
