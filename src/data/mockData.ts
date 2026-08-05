@@ -81,9 +81,11 @@ export interface Course {
 export interface Batch {
   name: string;
   course: string;
+  program?: string;
+  level?: string;
+  academicYear?: string;
   timing: string;
   room: string;
-  teacher: string;
 }
 
 export interface Branch {
@@ -96,7 +98,6 @@ export interface Branch {
   capacity: number;
   status: 'Active' | 'Inactive' | 'Suspended';
   address?: string;
-  geolocation?: string; // Lat,Long or map link
   email?: string;
   phone?: string;
   operatingHours?: string;
@@ -193,20 +194,38 @@ export const INITIAL_COURSES: Course[] = [
 ];
 
 export const INITIAL_BATCHES: Batch[] = [
-  { name: 'JEE-Morning-A', course: 'JEE Prep Course', timing: '09:00 AM - 10:30 AM', room: 'Classroom 101', teacher: 'Prof. Arvind Kelkar' },
-  { name: 'JEE-Evening-B', course: 'JEE Prep Course', timing: '05:00 PM - 06:30 PM', room: 'Classroom 101', teacher: 'Prof. Arvind Kelkar' },
-  { name: 'NEET-Regular-B', course: 'NEET Batch Premium', timing: '11:00 AM - 12:30 PM', room: 'Classroom 102', teacher: 'Prof. Arvind Kelkar' }
+  // JEE Prep Course (2 Year & 1 Year & Crash Course)
+  { name: 'JEE-Morning-A1', course: 'JEE Prep Course', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '09:00 AM - 10:30 AM', room: 'Classroom 101' },
+  { name: 'JEE-Morning-A2', course: 'JEE Prep Course', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '11:00 AM - 12:30 PM', room: 'Classroom 102' },
+  { name: 'JEE-Evening-B1', course: 'JEE Prep Course', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '05:00 PM - 06:30 PM', room: 'Classroom 101' },
+  { name: 'JEE-Weekend-Pro', course: 'JEE Prep Course', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '10:00 AM - 02:00 PM', room: 'Auditorium A' },
+  { name: 'JEE-Crash-Dec', course: 'JEE Prep Course', program: 'Crash Course', level: 'year1', academicYear: '2025-26', timing: '03:00 PM - 06:00 PM', room: 'Hall 3' },
+
+  // NEET Batch Premium (1 Year & Repeater)
+  { name: 'NEET-Regular-M1', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '11:00 AM - 12:30 PM', room: 'Classroom 201' },
+  { name: 'NEET-Regular-M2', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2027-28', timing: '01:00 PM - 02:30 PM', room: 'Classroom 202' },
+  { name: 'NEET-Repeater-X', course: 'NEET Batch Premium', program: 'Repeater', level: 'year1', academicYear: '2026-27', timing: '08:00 AM - 12:00 PM', room: 'Auditorium B' },
+
+  // Class 10 Foundation (2 Year & 1 Year)
+  { name: 'F10-Morning-Alpha', course: 'Class 10 Foundation', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '07:30 AM - 09:00 AM', room: 'Lab 1' },
+  { name: 'F10-Morning-Beta', course: 'Class 10 Foundation', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '07:30 AM - 09:00 AM', room: 'Lab 2' },
+  { name: 'F10-Evening-Fast', course: 'Class 10 Foundation', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '06:00 PM - 07:30 PM', room: 'Classroom 105' },
+
+  // 8th Standard
+  { name: '8TH-ICSE-Alpha', course: '8th Standard', program: '8th std ICSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 301' },
+  { name: '8TH-CBSE-Beta', course: '8th Standard', program: '8th std CBSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 302' },
+  { name: '8TH-STATE-Gamma', course: '8th Standard', program: '8th std State Board', level: 'class8', academicYear: '2025-26', timing: '05:30 PM - 07:00 PM', room: 'Classroom 303' }
 ];
 
 export const INITIAL_BRANCHES: Branch[] = [
   { 
     id: 'B-001', name: 'Mumbai West Branch', code: 'MUM-WEST', admin: 'Mrs. Seema Deshpande', adminEmail: 'seema@apexiit.com', adminMobile: '9876543210', capacity: 300, status: 'Active',
-    address: '101, Western Heights, Andheri West, Mumbai, 400053', geolocation: '19.1136,72.8697', email: 'mumbaiwest@apexiit.com', phone: '022-26345566', operatingHours: '08:00 AM - 08:00 PM',
+    address: '101, Western Heights, Andheri West, Mumbai, 400053', email: 'mumbaiwest@apexiit.com', phone: '022-26345566', operatingHours: '08:00 AM - 08:00 PM',
     programs: ['JEE', 'NEET', 'Foundation']
   },
   { 
     id: 'B-002', name: 'Pune Camp Branch', code: 'PUN-CAMP', admin: 'Mr. Ramesh Shinde', adminEmail: 'ramesh@apexiit.com', adminMobile: '9123456789', capacity: 150, status: 'Active',
-    address: '45, MG Road, Camp, Pune, 411001', geolocation: '18.5158,73.8804', email: 'punecamp@apexiit.com', phone: '020-24445566', operatingHours: '09:00 AM - 06:00 PM',
+    address: '45, MG Road, Camp, Pune, 411001', email: 'punecamp@apexiit.com', phone: '020-24445566', operatingHours: '09:00 AM - 06:00 PM',
     programs: ['Foundation']
   }
 ];
@@ -564,21 +583,69 @@ export const INITIAL_TENANT_SUBSCRIPTIONS: TenantSubscription[] = [
   }
 ];
 
-// Use composite keys: CourseCode-ProgramName-LevelValue
 export const INITIAL_SUBJECTS_MAP: Record<string, any[]> = {
+  // 8th Standard (ICSE)
   '8TH-STD-8th std ICSE-class8': [
-    { id: 's1', name: 'Mathematics', code: 'MAT-08', type: 'Core' },
-    { id: 's2', name: 'Science', code: 'SCI-08', type: 'Core' },
-    { id: 's3', name: 'English Literature', code: 'ENG-08', type: 'Core' },
+    { id: 's1', name: 'Mathematics', code: 'MAT-08-ICSE', type: 'Core', teacherIds: ['arvind.chem@apexiit.com'] },
+    { id: 's2', name: 'Science', code: 'SCI-08-ICSE', type: 'Core' },
+    { id: 's3', name: 'English Literature', code: 'ENG-08-ICSE', type: 'Core' },
     { id: 's4', name: 'Computer Applications', code: 'COMP-08', type: 'Elective' }
   ],
+  // 8th Standard (CBSE)
+  '8TH-STD-8th std CBSE-class8': [
+    { id: 's5', name: 'Mathematics', code: 'MAT-08-CBSE', type: 'Core' },
+    { id: 's6', name: 'Science', code: 'SCI-08-CBSE', type: 'Core' },
+    { id: 's7', name: 'English', code: 'ENG-08-CBSE', type: 'Core' },
+    { id: 's8', name: 'Social Science', code: 'SST-08-CBSE', type: 'Core' }
+  ],
+  // JEE Prep (2 Year - Year 1)
   'JEE-PREP-2 Year-year1': [
-    { id: 'j1', name: 'Physics (Mechanics)', code: 'PHY101', type: 'Core' }
+    { id: 'j1', name: 'Physics (Mechanics)', code: 'PHY-101', type: 'Core' },
+    { id: 'j2', name: 'Chemistry (Physical)', code: 'CHE-101', type: 'Core' },
+    { id: 'j3', name: 'Mathematics (Algebra)', code: 'MAT-101', type: 'Core' }
+  ],
+  // JEE Prep (2 Year - Year 2)
+  'JEE-PREP-2 Year-year2': [
+    { id: 'j4', name: 'Physics (Electromagnetism)', code: 'PHY-201', type: 'Core' },
+    { id: 'j5', name: 'Chemistry (Organic)', code: 'CHE-201', type: 'Core' },
+    { id: 'j6', name: 'Mathematics (Calculus)', code: 'MAT-201', type: 'Core' },
+    { id: 'j7', name: 'Mock Test Series', code: 'MOCK-JEE', type: 'Elective' }
+  ],
+  // NEET (1 Year)
+  'NEET-PREM-1 Year-year1': [
+    { id: 'n1', name: 'Physics', code: 'PHY-NEET', type: 'Core' },
+    { id: 'n2', name: 'Chemistry', code: 'CHE-NEET', type: 'Core' },
+    { id: 'n3', name: 'Botany', code: 'BOT-NEET', type: 'Core' },
+    { id: 'n4', name: 'Zoology', code: 'ZOO-NEET', type: 'Core' }
+  ],
+  // Foundation (2 Year - Year 1)
+  'FOUND-10-2 Year-year1': [
+    { id: 'f1', name: 'Advanced Math', code: 'MAT-F9', type: 'Core' },
+    { id: 'f2', name: 'Science Foundations', code: 'SCI-F9', type: 'Core' },
+    { id: 'f3', name: 'Mental Ability', code: 'MAT-NTSE', type: 'Core' }
   ]
 };
 
 export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {
   '8TH-STD-8th std ICSE-class8': [
-    { id: 'b1', name: 'Core Subjects Bundle', subjectIds: ['s1', 's2', 's3'] }
+    { id: 'b1', name: 'Core Subjects Bundle', subjectIds: ['s1', 's2', 's3'] },
+    { id: 'b2', name: 'Full Package (with IT)', subjectIds: ['s1', 's2', 's3', 's4'] }
+  ],
+  '8TH-STD-8th std CBSE-class8': [
+    { id: 'b3', name: 'CBSE Standard Pack', subjectIds: ['s5', 's6', 's7', 's8'] }
+  ],
+  'JEE-PREP-2 Year-year1': [
+    { id: 'b4', name: 'PCM Complete (11th)', subjectIds: ['j1', 'j2', 'j3'] }
+  ],
+  'JEE-PREP-2 Year-year2': [
+    { id: 'b5', name: 'PCM Complete (12th)', subjectIds: ['j4', 'j5', 'j6'] },
+    { id: 'b6', name: 'PCM + Mock Tests', subjectIds: ['j4', 'j5', 'j6', 'j7'] }
+  ],
+  'NEET-PREM-1 Year-year1': [
+    { id: 'b7', name: 'PCB Foundation', subjectIds: ['n1', 'n2', 'n3', 'n4'] },
+    { id: 'b8', name: 'Biology Only (Bot+Zoo)', subjectIds: ['n3', 'n4'] }
+  ],
+  'FOUND-10-2 Year-year1': [
+    { id: 'b9', name: 'NTSE Prep Combo', subjectIds: ['f1', 'f2', 'f3'] }
   ]
 };

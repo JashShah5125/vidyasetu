@@ -1,0 +1,119 @@
+import React from 'react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  pageSizeOptions?: number[];
+}
+
+export const Pagination: React.FC<PaginationProps> = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50],
+}) => {
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  // Build page number array with ellipsis
+  const getPages = (): (number | '...')[] => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '...')[] = [1];
+    if (currentPage > 3) pages.push('...');
+    for (let p = Math.max(2, currentPage - 1); p <= Math.min(totalPages - 1, currentPage + 1); p++) {
+      pages.push(p);
+    }
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  };
+
+  const btnBase =
+    'inline-flex items-center justify-center h-8 min-w-[2rem] px-2 rounded-lg text-sm font-medium transition-all duration-150 select-none';
+  const btnActive = 'bg-blue-600 text-white shadow-sm';
+  const btnIdle = 'text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white rounded-b-xl">
+      {/* Left: item range + rows per page */}
+      <div className="flex items-center gap-3 text-sm text-slate-500">
+        <span>
+          {totalItems === 0 ? 'No items' : `${startItem}–${endItem} of ${totalItems}`}
+        </span>
+        {onPageSizeChange && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400">Rows:</span>
+            <select
+              value={pageSize}
+              onChange={e => { onPageSizeChange(Number(e.target.value)); onPageChange(1); }}
+              className="border border-slate-200 rounded-md px-2 py-0.5 text-sm text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer"
+            >
+              {pageSizeOptions.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Right: page controls */}
+      <div className="flex items-center gap-1">
+        <button
+          className={`${btnBase} ${btnIdle}`}
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          title="First page"
+        >
+          <ChevronsLeft size={15} />
+        </button>
+        <button
+          className={`${btnBase} ${btnIdle}`}
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          title="Previous page"
+        >
+          <ChevronLeft size={15} />
+        </button>
+
+        {getPages().map((p, i) =>
+          p === '...' ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-slate-400 text-sm select-none">…</span>
+          ) : (
+            <button
+              key={p}
+              className={`${btnBase} ${p === currentPage ? btnActive : btnIdle}`}
+              onClick={() => onPageChange(p as number)}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        <button
+          className={`${btnBase} ${btnIdle}`}
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          title="Next page"
+        >
+          <ChevronRight size={15} />
+        </button>
+        <button
+          className={`${btnBase} ${btnIdle}`}
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          title="Last page"
+        >
+          <ChevronsRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+};
