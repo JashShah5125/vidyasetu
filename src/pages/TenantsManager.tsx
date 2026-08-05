@@ -6,11 +6,13 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Upload, Trash, Edit } from 'lucide-react';
+import { Plus, Upload, Trash } from 'lucide-react';
 import { formatDate } from '../data/mockData';
+import { useNavigate } from 'react-router-dom';
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
-  const { tenants, addTenant, updateTenant, toggleTenantStatus } = useApp();
+  const { tenants, addTenant, updateTenant } = useApp();
+  const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
 
   React.useEffect(() => {
@@ -46,10 +48,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [altEmails, setAltEmails] = useState<string[]>([]);
   const [defaultEmailIdx, setDefaultEmailIdx] = useState<number>(-1);
   
-  // Viewer states
-  const [viewingTenant, setViewingTenant] = useState<any | null>(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [manageTab, setManageTab] = useState<'profile' | 'billing' | 'limits' | 'status' | 'payments'>('profile');
+
 
   const [showSaved, setShowSaved] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -100,40 +99,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     setShowAddModal(true);
   };
 
-  const handleOpenEditModal = (t: any) => {
-    setEditingTenantId(t.id);
-    
-    setName(t.name || '');
-    setAddress(t.address || '401, Western Express Highway, Mumbai');
-    setGstNo(t.gstNo || '27AAAAA0000A1Z5');
-    setOwnerName(t.ownerName || '');
-    setEmail(t.email || '');
-    setMobile(t.mobile || '');
-    setPlan(t.plan || 'Growth Plan');
-    setStartDate(t.startDate || new Date().toISOString().split('T')[0]);
-    setDefaultPassword('********'); // prefilled dummy
-    setLogoUploaded(true);
-    setAltEmails(t.altEmails || []);
-    
-    if (t.defaultEmail) {
-      if (t.defaultEmail === t.email) {
-        setDefaultEmailIdx(-1);
-      } else {
-        const idx = (t.altEmails || []).indexOf(t.defaultEmail);
-        setDefaultEmailIdx(idx !== -1 ? idx : -1);
-      }
-    } else {
-      setDefaultEmailIdx(-1);
-    }
-    
-    setMaxBranches(t.maxBranches || '5');
-    setMaxStudents(t.maxStudents || '1000');
-    setMaxStorage(t.maxStorage || '20 GB');
-    setMaxFileSize(t.maxFileSize || '20 MB');
-    
-    setShowViewModal(false);
-    setShowAddModal(true);
-  };
+
 
   const handleAddAltEmail = () => {
     setAltEmails(prev => [...prev, '']);
@@ -284,7 +250,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               </td>
               <td className="px-6 py-4">
                   <button
-                     onClick={() => { setViewingTenant(t); setManageTab('profile'); setShowViewModal(true); }}
+                     onClick={() => navigate(`/tenants/${t.id}`)}
                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors shadow-sm"
                   >
                     Manage
@@ -595,232 +561,6 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </form>
       </Modal>
 
-      {/* Manage Tenant Details Modal */}
-      {showViewModal && viewingTenant && (
-        <Modal 
-          isOpen={showViewModal} 
-          onClose={() => { setShowViewModal(false); setViewingTenant(null); }} 
-          title={`Manage Tenant: ${viewingTenant.name}`}
-          size="4xl"
-        >
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 bg-slate-50 border border-slate-150 p-4 rounded-xl shadow-inner">
-              <div className="w-12 h-12 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-lg shadow flex-shrink-0">
-                {viewingTenant.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="text-base font-bold text-slate-900 truncate">{viewingTenant.name}</h4>
-                <div className="text-xs text-slate-400 font-mono mt-0.5">Tenant ID: {viewingTenant.id}</div>
-              </div>
-              <div className="flex items-center gap-3 select-none flex-shrink-0">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                  viewingTenant.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
-                }`}>
-                  {viewingTenant.status}
-                </span>
-                <span className="text-[10px] text-slate-550 font-bold bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full uppercase">
-                  {viewingTenant.plan}
-                </span>
-              </div>
-            </div>
-
-            {/* Tabs Selector */}
-            <div className="flex border-b border-slate-200 gap-1 flex-wrap">
-              {[
-                { id: 'profile', label: 'General & Admin' },
-                { id: 'billing', label: 'Plan & Subscription' },
-                { id: 'limits', label: 'Resource Limits' },
-                { id: 'payments', label: 'Payment & Invoice History' },
-                { id: 'status', label: 'SaaS Status Actions' }
-              ].map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setManageTab(t.id as any)}
-                  className={`px-4 py-2 text-xs font-bold border-b-2 transition-all ${
-                    manageTab === t.id
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-slate-400 hover:text-slate-700'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab Contents */}
-            <div className="min-h-[220px]">
-              {manageTab === 'profile' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                  <div className="space-y-3">
-                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Institute Profile</h5>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-xs text-slate-400 font-semibold block">GSTIN Registration:</span>
-                        <span className="font-semibold text-slate-800">{viewingTenant.gstNo || '27AAAAA0000A1Z5'}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-400 font-semibold block">Physical Address:</span>
-                        <span className="font-semibold text-slate-800 text-xs block mt-0.5">{viewingTenant.address || '401, Western Express Highway, Mumbai'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Admin Account</h5>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-xs text-slate-400 font-semibold block">Admin Username:</span>
-                        <span className="font-semibold text-slate-800">{viewingTenant.ownerName}</span>
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-400 font-semibold block">Admin Email Login:</span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-semibold text-slate-800 font-mono text-xs">{viewingTenant.email}</span>
-                          {(!viewingTenant.defaultEmail || viewingTenant.defaultEmail === viewingTenant.email) && (
-                            <span className="bg-blue-50 text-blue-600 border border-blue-100 text-[9px] font-bold px-1.5 py-0.2 rounded shadow-sm">
-                              ★ Default Login
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-xs text-slate-400 font-semibold block">Mobile Contact:</span>
-                        <span className="font-semibold text-slate-800 font-mono text-xs">{viewingTenant.mobile}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {manageTab === 'billing' && (
-                <div className="space-y-4 text-sm">
-                  <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Billing Lifecycle &amp; Subscription Terms</h5>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                      <span className="text-xs text-slate-400 font-semibold block">Plan Template:</span>
-                      <span className="font-semibold text-slate-800">{viewingTenant.plan}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-slate-400 font-semibold block">Start Date:</span>
-                      <span className="font-semibold text-slate-800">{formatDate(viewingTenant.startDate || '2026-04-15')}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-slate-400 font-semibold block">Expiration Date:</span>
-                      <span className="font-semibold text-slate-800">{formatDate(viewingTenant.renewalDate)}</span>
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-500">
-                    ℹ Terms and renewal actions can be configured on the <strong>Tenant Subscriptions</strong> tab under Subscription Management.
-                  </div>
-                </div>
-              )}
-
-              {manageTab === 'limits' && (
-                <div className="space-y-4">
-                  <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Scalability Boundaries &amp; Resource Allotments</h5>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Max Branches</span>
-                      <span className="text-xl font-bold text-slate-800 block mt-1">{viewingTenant.maxBranches || '5'}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Max Students</span>
-                      <span className="text-xl font-bold text-slate-800 block mt-1">{viewingTenant.maxStudents || '1000'}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Cloud Storage</span>
-                      <span className="text-xl font-bold text-slate-800 block mt-1">{viewingTenant.maxStorage || '20 GB'}</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Max File Size</span>
-                      <span className="text-xl font-bold text-slate-800 block mt-1">{viewingTenant.maxFileSize || '20 MB'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {manageTab === 'payments' && (
-                <div className="space-y-4">
-                  <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Payment &amp; Invoice History</h5>
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase">
-                          <th className="px-4 py-3">Invoice ID</th>
-                          <th className="px-4 py-3">Billing Cycle</th>
-                          <th className="px-4 py-3">Paid Date</th>
-                          <th className="px-4 py-3">Amount Paid</th>
-                          <th className="px-4 py-3">Gateway Reference</th>
-                          <th className="px-4 py-3">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-slate-700">
-                        {[
-                          { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Settled' },
-                          { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Settled' }
-                        ].map((inv) => (
-                          <tr key={inv.id} className="hover:bg-slate-50/50">
-                            <td className="px-4 py-3 font-mono font-bold text-slate-600">{inv.id}</td>
-                            <td className="px-4 py-3 font-semibold">{inv.plan}</td>
-                            <td className="px-4 py-3 font-mono">{inv.date}</td>
-                            <td className="px-4 py-3 font-bold text-slate-900">{inv.amt}</td>
-                            <td className="px-4 py-3 font-mono text-slate-400">{inv.ref}</td>
-                            <td className="px-4 py-3">
-                              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                {inv.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {manageTab === 'status' && (
-                <div className="space-y-4">
-                  <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Active Status Suspensions / Activations</h5>
-                  <div className="flex items-center gap-4 bg-slate-50 border border-slate-100 rounded-xl p-4">
-                    <div className="flex-1">
-                      <h6 className="text-xs font-bold text-slate-800">Current Status: {viewingTenant.status}</h6>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        Suspending a tenant prevents their staff, teachers, and students from accessing their portals immediately.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toggleTenantStatus(viewingTenant.id);
-                        // Toggle local state to sync layout immediately
-                        setViewingTenant((prev: any) => ({ ...prev, status: prev.status === 'Active' ? 'Suspended' : 'Active' }));
-                      }}
-                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-4 py-2 border rounded-xl cursor-pointer transition-colors shadow-sm ${
-                        viewingTenant.status === 'Active'
-                          ? 'border-red-200 text-red-600 bg-red-50/50 hover:bg-red-50'
-                          : 'border-emerald-200 text-emerald-600 bg-emerald-50/50 hover:bg-emerald-50'
-                      }`}
-                    >
-                      {viewingTenant.status === 'Active' ? 'Suspend Access' : 'Activate Access'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer with Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="secondary" onClick={() => { setShowViewModal(false); setViewingTenant(null); }}>
-                Dismiss
-              </Button>
-              <Button variant="primary" style={{ gap: '6px' }} onClick={() => handleOpenEditModal(viewingTenant)}>
-                <Edit size={14} /> Edit Tenant Profile
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 };

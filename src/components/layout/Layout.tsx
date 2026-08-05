@@ -5,14 +5,10 @@ import { useApp } from '../../context/AppContext';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
-  children,
-  activeTab,
-  setActiveTab
+  children
 }) => {
   const { currentUser, toasts } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -25,8 +21,6 @@ export const Layout: React.FC<LayoutProps> = ({
     <div className="flex w-screen h-screen overflow-hidden bg-slate-50">
       {/* Sidebar navigation */}
       <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
       />

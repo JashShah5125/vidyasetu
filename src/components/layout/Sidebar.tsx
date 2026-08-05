@@ -19,16 +19,17 @@ import {
   BarChart3
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface SidebarProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { currentUser } = useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   if (!currentUser) return null;
 
@@ -36,68 +37,68 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
     switch (role) {
       case 'saas-admin':
         return [
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'Tenants Manager', icon: Building2 },
-          { name: 'Plan Master', icon: CreditCard },
-          { name: 'Tenant Subscriptions', icon: FileText },
-          { name: 'Global Providers', icon: Settings },
-          { name: 'Audit Logs', icon: ClipboardList }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'Tenants Manager', path: '/tenants', icon: Building2 },
+          { name: 'Plan Master', path: '/plans', icon: CreditCard },
+          { name: 'Tenant Subscriptions', path: '/tenant-subscriptions', icon: FileText },
+          { name: 'Global Providers', path: '/providers', icon: Settings },
+          { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
         ];
       case 'inst-admin':
         return [
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'Institute Setup', icon: Settings },
-          { name: 'Branches Manager', icon: Building2 },
-          { name: 'Courses & Batches', icon: BookOpen },
-          { name: 'Staff & Roles', icon: ShieldCheck },
-          { name: 'Leads CRM', icon: Users },
-          { name: 'Admissions', icon: ClipboardList },
-          { name: 'Students Roster', icon: GraduationCap },
-          { name: 'Record Fee', icon: DollarSign },
-          { name: 'Mark Attendance', icon: CheckSquare },
-          { name: 'Assignments', icon: BookOpen },
-          { name: 'Exam Marks', icon: ClipboardList },
-          { name: 'Reports', icon: ClipboardList },
-          { name: 'Notifications', icon: Bell },
-          { name: 'Settings', icon: Settings },
-          { name: 'Audit Logs', icon: ClipboardList }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'Institute Setup', path: '/institute', icon: Settings },
+          { name: 'Branches Manager', path: '/branches', icon: Building2 },
+          { name: 'Courses & Batches', path: '/courses', icon: BookOpen },
+          { name: 'Staff & Roles', path: '/staff', icon: ShieldCheck },
+          { name: 'Leads CRM', path: '/leads', icon: Users },
+          { name: 'Admissions', path: '/admissions', icon: ClipboardList },
+          { name: 'Students Roster', path: '/students', icon: GraduationCap },
+          { name: 'Record Fee', path: '/fees', icon: DollarSign },
+          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
+          { name: 'Assignments', path: '/assignments', icon: BookOpen },
+          { name: 'Exam Marks', path: '/exams', icon: ClipboardList },
+          { name: 'Reports', path: '/reports', icon: ClipboardList },
+          { name: 'Notifications', path: '/notifications', icon: Bell },
+          { name: 'Settings', path: '/settings', icon: Settings },
+          { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
         ];
       case 'branch-admin':
         return [
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'Students Roster', icon: GraduationCap },
-          { name: 'Leads CRM', icon: Users },
-          { name: 'Admissions', icon: ClipboardList },
-          { name: 'Courses & Batches', icon: BookOpen },
-          { name: 'Staff & Roles', icon: ShieldCheck },
-          { name: 'Mark Attendance', icon: CheckSquare },
-          { name: 'Record Fee', icon: DollarSign },
-          { name: 'Defaulters Ledger', icon: AlertTriangle },
-          { name: 'Academic Timetable', icon: Calendar },
-          { name: 'Reports', icon: ClipboardList }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'Students Roster', path: '/students', icon: GraduationCap },
+          { name: 'Leads CRM', path: '/leads', icon: Users },
+          { name: 'Admissions', path: '/admissions', icon: ClipboardList },
+          { name: 'Courses & Batches', path: '/courses', icon: BookOpen },
+          { name: 'Staff & Roles', path: '/staff', icon: ShieldCheck },
+          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
+          { name: 'Record Fee', path: '/fees', icon: DollarSign },
+          { name: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle },
+          { name: 'Academic Timetable', path: '/timetable', icon: Calendar },
+          { name: 'Reports', path: '/reports', icon: ClipboardList }
         ];
       case 'counsellor':
         return [
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'Leads CRM', icon: Users },
-          { name: 'Convert Wizard', icon: ShieldCheck },
-          { name: 'Admissions', icon: ClipboardList }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'Leads CRM', path: '/leads', icon: Users },
+          { name: 'Convert Wizard', path: '/convert-wizard', icon: ShieldCheck },
+          { name: 'Admissions', path: '/admissions', icon: ClipboardList }
         ];
       case 'teacher':
         return [
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'My Schedule', icon: Calendar },
-          { name: 'Mark Attendance', icon: CheckSquare },
-          { name: 'Assignments', icon: BookOpen },
-          { name: 'Exam Marks', icon: ClipboardList },
-          { name: 'Doubt Chats', icon: MessageSquare, badge: 1 }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'My Schedule', path: '/my-schedule', icon: Calendar },
+          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
+          { name: 'Assignments', path: '/assignments', icon: BookOpen },
+          { name: 'Exam Marks', path: '/exams', icon: ClipboardList },
+          { name: 'Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
         ];
       case 'finance':
         return [
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'Record Fee', icon: DollarSign },
-          { name: 'Defaulters Ledger', icon: AlertTriangle },
-          { name: 'Reports', icon: ClipboardList }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'Record Fee', path: '/fees', icon: DollarSign },
+          { name: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle },
+          { name: 'Reports', path: '/reports', icon: ClipboardList }
         ];
       default:
         return [];
@@ -106,59 +107,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
 
   const saasAdminSections: {
     title?: string;
-    links: { name: string; label: string; icon: any; badge?: number }[];
+    links: { name: string; label: string; path: string; icon: any; badge?: number }[];
   }[] = [
     {
-      links: [{ name: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+      links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }]
     },
     {
       title: 'Tenant Management',
       links: [
-        { name: 'Tenants Manager', label: 'Tenants', icon: Building2 }
+        { name: 'Tenants Manager', label: 'Tenants', path: '/tenants', icon: Building2 }
       ]
     },
     {
       title: 'Subscription Management',
       links: [
-        { name: 'Plan Master', label: 'Plans', icon: CreditCard },
-        { name: 'Tenant Subscriptions', label: 'Tenant Subscriptions', icon: FileText }
+        { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard },
+        { name: 'Tenant Subscriptions', label: 'Tenant Subscriptions', path: '/tenant-subscriptions', icon: FileText }
       ]
     },
     {
       title: 'Platform',
       links: [
-        { name: 'Feature Flags', label: 'Feature Flags', icon: CheckSquare },
-        { name: 'Module Management', label: 'Module Management', icon: BookOpen }
+        { name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare },
+        { name: 'Module Management', label: 'Module Management', path: '/modules', icon: BookOpen }
       ]
     },
     {
       title: 'Operations',
       links: [
-        { name: 'Approval Center', label: 'Approval Center', icon: CheckSquare },
-        { name: 'Support Tickets', label: 'Support Tickets', icon: Ticket, badge: 3 },
-        { name: 'Communication', label: 'Communication', icon: MessageSquare }
+        { name: 'Approval Center', label: 'Approval Center', path: '/approvals', icon: CheckSquare },
+        { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 },
+        { name: 'Communication', label: 'Communication', path: '/communication', icon: MessageSquare }
       ]
     },
     {
       title: 'Business',
       links: [
-        { name: 'Billing & Revenue', label: 'Billing & Revenue', icon: DollarSign },
-        { name: 'SaaS Reports', label: 'Reports', icon: ClipboardList },
-        { name: 'Product Analytics', label: 'Product Analytics', icon: BarChart3 }
+        { name: 'Billing & Revenue', label: 'Billing & Revenue', path: '/billing', icon: DollarSign },
+        { name: 'SaaS Reports', label: 'Reports', path: '/saas-reports', icon: ClipboardList },
+        { name: 'Product Analytics', label: 'Product Analytics', path: '/analytics', icon: BarChart3 }
       ]
     },
     {
       title: 'System',
       links: [
-        { name: 'Global Providers', label: 'Integrations', icon: Settings },
-        { name: 'Audit Logs', label: 'Audit Logs', icon: ClipboardList },
-        { name: 'System Configuration', label: 'System Configuration', icon: Settings }
+        { name: 'Global Providers', label: 'Integrations', path: '/providers', icon: Settings },
+        { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
+        { name: 'System Configuration', label: 'System Configuration', path: '/system-config', icon: Settings }
       ]
     },
     {
       title: 'Support Desk',
       links: [
-        { name: 'Settings', label: 'Settings', icon: Settings }
+        { name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }
       ]
     }
   ];
@@ -201,11 +202,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
               )}
               {section.links.map((link, idx) => {
                 const Icon = link.icon;
-                const isActive = activeTab === link.name;
+                const isActive = location.pathname.startsWith(link.path);
                 return (
                   <div
                     key={idx}
-                    onClick={() => { setActiveTab(link.name); onClose(); }}
+                    onClick={() => { navigate(link.path); onClose(); }}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer select-none ${
                       isActive
                         ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10'
@@ -229,13 +230,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">
               Management Desk
             </div>
-            {links.map((link, idx) => {
+            {links.map((link: any, idx) => {
               const Icon = link.icon;
-              const isActive = activeTab === link.name;
+              const isActive = location.pathname.startsWith(link.path);
               return (
                 <div
                   key={idx}
-                  onClick={() => { setActiveTab(link.name); onClose(); }}
+                  onClick={() => { navigate(link.path); onClose(); }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer select-none ${
                     isActive
                       ? 'bg-blue-600/10 text-blue-400 border border-blue-500/10'
@@ -259,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       {/* Sidebar Footer User Details */}
       <div className="p-4 border-t border-slate-800 bg-slate-950/40">
         <div 
-          onClick={() => { setActiveTab('Settings'); onClose(); }}
+          onClick={() => { navigate('/settings'); onClose(); }}
           className="flex items-center gap-3 p-2 bg-slate-800/20 hover:bg-slate-800/40 rounded-xl border border-slate-800/40 cursor-pointer select-none transition-all duration-150"
         >
           <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
