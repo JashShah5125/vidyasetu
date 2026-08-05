@@ -344,6 +344,7 @@ export interface SubscriptionPlan {
   integrations: IntegrationConfig;
   // Section 8 – Notes
   notes: string;
+  visibleTo?: string[];
 }
 
 // ─── Tenant Subscription (Plan assignment to a Tenant) ─────────────────────
@@ -441,7 +442,8 @@ export const INITIAL_PLANS: SubscriptionPlan[] = [
     support: { emailSupport: true, chatSupport: false, phoneSupport: false, dedicatedAccountManager: false, onboardingAssistance: false },
     branding: { whiteLabel: false, customDomain: false, customLogo: false, customEmailTemplates: false },
     integrations: { razorpay: false, cashfree: false, biometricDevices: false, zoom: false, googleMeet: false, googleCalendar: false, whatsappBusiness: false, apiAccess: false },
-    notes: ''
+    notes: '',
+    visibleTo: ['All']
   },
   {
     id: 'PLAN-002',
@@ -479,7 +481,8 @@ export const INITIAL_PLANS: SubscriptionPlan[] = [
     support: { emailSupport: true, chatSupport: true, phoneSupport: false, dedicatedAccountManager: false, onboardingAssistance: true },
     branding: { whiteLabel: false, customDomain: false, customLogo: true, customEmailTemplates: false },
     integrations: { razorpay: true, cashfree: false, biometricDevices: false, zoom: true, googleMeet: true, googleCalendar: true, whatsappBusiness: true, apiAccess: false },
-    notes: 'Best-seller plan for mid-size coaching centres.'
+    notes: 'Best-seller plan for mid-size coaching centres.',
+    visibleTo: ['All']
   },
   {
     id: 'PLAN-003',
@@ -517,7 +520,8 @@ export const INITIAL_PLANS: SubscriptionPlan[] = [
     support: { emailSupport: true, chatSupport: true, phoneSupport: true, dedicatedAccountManager: true, onboardingAssistance: true },
     branding: { whiteLabel: true, customDomain: true, customLogo: true, customEmailTemplates: true },
     integrations: { razorpay: true, cashfree: true, biometricDevices: true, zoom: true, googleMeet: true, googleCalendar: true, whatsappBusiness: true, apiAccess: true },
-    notes: 'Enterprise tier with dedicated SLA and account manager.'
+    notes: 'Enterprise tier with dedicated SLA and account manager.',
+    visibleTo: ['All']
   }
 ];
 

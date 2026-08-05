@@ -14,6 +14,11 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const { tenants, addTenant, updateTenant } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterPlan, setFilterPlan] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('name');
 
   React.useEffect(() => {
     if (initialOpenCreate) {
@@ -201,6 +206,58 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     }, 8000);
   };
 
+  const filteredAndSortedTenants = tenants
+    .filter(t => {
+      const matchSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          t.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          t.id.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchPlan = filterPlan === 'All' || t.plan === filterPlan;
+      const matchStatus = filterStatus === 'All' || t.status === filterStatus;
+      return matchSearch && matchPlan && matchStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'id') return a.id.localeCompare(b.id);
+      if (sortBy === 'startDate') return (a.startDate || '').localeCompare(b.startDate || '');
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedTenants.map(t => ({
+      'Tenant ID': t.id,
+      'Institute Name': t.name,
+      'Owner': t.ownerName,
+      'Email': t.email,
+      'Mobile': t.mobile,
+      'Plan Tier': t.plan,
+      'Start Date': t.startDate,
+      'Status': t.status
+    }));
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "institutes_directory.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {showSaved && (
@@ -218,47 +275,142 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </Button>
       </div>
 
+      {/* Search, Filter, Sort Controls & Export CSV */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
+          <Input 
+            placeholder="Search by ID, name, owner..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+          />
+          <Select 
+            label="Plan Tier" 
+            value={filterPlan} 
+            onChange={(e) => setFilterPlan(e.target.value)} 
+            options={[
+              { value: 'All', label: 'All Plans' },
+              { value: 'Basic Plan', label: 'Basic Plan' },
+              { value: 'Growth Plan', label: 'Growth Plan' },
+              { value: 'Enterprise Plan', label: 'Enterprise Plan' }
+            ]} 
+          />
+          <Select 
+            label="Status" 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value)} 
+            options={[
+              { value: 'All', label: 'All Status' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Suspended', label: 'Suspended' }
+            ]} 
+          />
+          <Select 
+            label="Sort By" 
+            value={sortBy} 
+            onChange={(e) => setSortBy(e.target.value)} 
+            options={[
+              { value: 'name', label: 'Institute Name' },
+              { value: 'id', label: 'Tenant ID' },
+              { value: 'startDate', label: 'Start Date' }
+            ]} 
+          />
+        </div>
+        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Platform Tenant Registry</CardTitle>
         </CardHeader>
         <Table headers={['Tenant ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status', 'Actions']}>
-          {tenants.map((t, idx) => (
-            <tr key={idx} className="hover:bg-slate-50">
-              <td className="px-6 py-4 font-mono font-bold text-xs">{t.id}</td>
-              <td className="px-6 py-4 font-semibold text-slate-800">{t.name}</td>
-              <td className="px-6 py-4 text-xs font-semibold text-slate-700">{t.ownerName}</td>
-              <td className="px-6 py-4">
-                <div className="text-slate-800 flex items-center gap-1.5 flex-wrap">
-                  <span className="font-semibold">{t.defaultEmail || t.email}</span>
-                  <span className="bg-blue-50 text-blue-600 border border-blue-150 text-[9px] font-bold px-1.5 py-0.2 rounded flex items-center shadow-sm">
-                    Login
-                  </span>
-                </div>
-                {t.defaultEmail && t.defaultEmail !== t.email && (
-                  <div className="text-[10px] text-slate-500 mt-0.5">Primary: {t.email}</div>
-                )}
-                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.mobile}</div>
-              </td>
-              <td className="px-6 py-4"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs">{t.plan}</span></td>
-              <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.startDate || '2026-04-15')}</td>
-              <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.renewalDate)}</td>
-              <td className="px-6 py-4">
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${t.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                  {t.status}
-                </span>
-              </td>
-              <td className="px-6 py-4">
-                  <button
-                     onClick={() => navigate(`/tenants/${t.id}`)}
-                     className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors shadow-sm"
-                  >
-                    Manage
-                  </button>
-              </td>
-            </tr>
-          ))}
+          {(() => {
+            const itemsPerPage = 3;
+            const paginatedTenants = filteredAndSortedTenants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            return (
+              <>
+                {paginatedTenants.map((t, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-mono font-bold text-xs">{t.id}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-800">{t.name}</td>
+                    <td className="px-6 py-4 text-xs font-semibold text-slate-700">{t.ownerName}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-slate-800 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold">{t.defaultEmail || t.email}</span>
+                        <span className="bg-blue-50 text-blue-600 border border-blue-150 text-[9px] font-bold px-1.5 py-0.2 rounded flex items-center shadow-sm">
+                          Login
+                        </span>
+                      </div>
+                      {t.defaultEmail && t.defaultEmail !== t.email && (
+                        <div className="text-[10px] text-slate-550 mt-0.5">Primary: {t.email}</div>
+                      )}
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.mobile}</div>
+                    </td>
+                    <td className="px-6 py-4"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs">{t.plan}</span></td>
+                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.startDate || '2026-04-15')}</td>
+                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.renewalDate)}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${t.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                        {t.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                        <button
+                           onClick={() => navigate(`/tenants/${t.id}`)}
+                           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors shadow-sm"
+                        >
+                          Manage
+                        </button>
+                    </td>
+                  </tr>
+                ))}
+              </>
+            );
+          })()}
         </Table>
+        {(() => {
+          const itemsPerPage = 3;
+          const totalPages = Math.ceil(filteredAndSortedTenants.length / itemsPerPage);
+          if (totalPages <= 1) return null;
+          return (
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+              <div>
+                Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedTenants.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedTenants.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedTenants.length}</span> tenants
+              </div>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                      currentPage === i + 1
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* Create / Edit Tenant Modal with Wide landscape 3xl Layout */}

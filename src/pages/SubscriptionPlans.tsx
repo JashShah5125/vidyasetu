@@ -57,12 +57,16 @@ const FeatureGroup: React.FC<{
 const STEPS = ['Basic Info', 'Billing', 'Resource Limits', 'Features', 'Support', 'Branding', 'Integrations', 'Notes'];
 
 export const SubscriptionPlans: React.FC = () => {
-  const { plans, addPlan, updatePlan, deletePlan } = useApp();
+  const { plans, addPlan, updatePlan, deletePlan, tenants } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [showUpdateExistingPrompt, setShowUpdateExistingPrompt] = useState(false);
   const [pendingEditFields, setPendingEditFields] = useState<Omit<SubscriptionPlan, 'id'> | null>(null);
+
+  const [managingVisibilityPlan, setManagingVisibilityPlan] = useState<SubscriptionPlan | null>(null);
+  const [visAll, setVisAll] = useState(true);
+  const [visTenants, setVisTenants] = useState<string[]>([]);
 
   // Section 1
   const [name, setName] = useState('');
@@ -140,24 +144,37 @@ export const SubscriptionPlans: React.FC = () => {
     setNotes(p.notes);
   };
 
-  const buildPlanFields = (): Omit<SubscriptionPlan, 'id'> => ({
-    name, code: code.toUpperCase().replace(/\s+/g, '-'), description, status,
-    displayOrder: parseInt(displayOrder) || 1,
-    billingType, price: parseFloat(price) || 0, currency,
-    trialDays: parseInt(trialDays) || 0, setupFee: parseFloat(setupFee) || 0,
-    renewalPrice: parseFloat(renewalPrice) || 0, autoRenewal,
-    maxInstances: parseInt(maxInstances) || 1,
-    maxBranches: parseInt(maxBranches) || 0,
-    maxStaffUsers: parseInt(maxStaffUsers) || 0,
-    maxStudents: parseInt(maxStudents) || 0,
-    maxParents: parseInt(maxParents) || 0,
-    maxTeachers: parseInt(maxTeachers) || 0,
-    maxStorage: maxStorage || '5 GB', maxFileSize: maxFileSize || '5 MB',
-    maxSmsCredits: parseInt(maxSmsCredits) || 0,
-    maxWhatsappMsgs: parseInt(maxWhatsappMsgs) || 0,
-    maxApiCalls: parseInt(maxApiCalls) || 0,
-    features, support, branding, integrations, notes
-  });
+  const buildPlanFields = (): Omit<SubscriptionPlan, 'id'> => {
+    const existing = plans.find(p => p.id === editingPlanId);
+    const visibleTo = existing ? existing.visibleTo : ['All'];
+
+    return {
+      name, code: code.toUpperCase().replace(/\s+/g, '-'), description, status,
+      displayOrder: parseInt(displayOrder) || 1,
+      billingType, price: parseFloat(price) || 0, currency,
+      trialDays: parseInt(trialDays) || 0, setupFee: parseFloat(setupFee) || 0,
+      renewalPrice: parseFloat(renewalPrice) || 0, autoRenewal,
+      maxInstances: parseInt(maxInstances) || 1,
+      maxBranches: parseInt(maxBranches) || 0,
+      maxStaffUsers: parseInt(maxStaffUsers) || 0,
+      maxStudents: parseInt(maxStudents) || 0,
+      maxParents: parseInt(maxParents) || 0,
+      maxTeachers: parseInt(maxTeachers) || 0,
+      maxStorage: maxStorage || '5 GB', maxFileSize: maxFileSize || '5 MB',
+      maxSmsCredits: parseInt(maxSmsCredits) || 0,
+      maxWhatsappMsgs: parseInt(maxWhatsappMsgs) || 0,
+      maxApiCalls: parseInt(maxApiCalls) || 0,
+      features, support, branding, integrations, notes,
+      visibleTo
+    };
+  };
+
+  const handleOpenVisibilityModal = (p: SubscriptionPlan) => {
+    setManagingVisibilityPlan(p);
+    const hasAll = !p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0;
+    setVisAll(hasAll);
+    setVisTenants(p.visibleTo ? p.visibleTo.filter(t => t !== 'All') : []);
+  };
 
   const handleOpenAddModal = () => {
     setEditingPlanId(null); resetForm(); setShowAddModal(true);
@@ -462,10 +479,22 @@ export const SubscriptionPlans: React.FC = () => {
 
                 {/* Card body */}
                 <div className="flex flex-col flex-1 p-6 gap-4">
-                  {/* Plan name + code */}
+                  {/* Plan name + code & Visibility toggle */}
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 pr-16">{p.name}</h3>
-                    <span className="text-[10px] font-bold font-mono text-slate-400 uppercase tracking-widest">{p.code}</span>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="text-[10px] font-bold font-mono text-slate-400 uppercase tracking-widest">{p.code}</span>
+                      <span className="w-1 h-1 rounded-full bg-slate-350" />
+                      <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-650`}>
+                        Visibility: {(!p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0) ? 'All' : `${p.visibleTo.length} Inst.`}
+                      </span>
+                      <button
+                        onClick={() => handleOpenVisibilityModal(p)}
+                        className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded transition-all cursor-pointer select-none"
+                      >
+                        👁 Manage
+                      </button>
+                    </div>
                   </div>
 
                   {/* Price */}
@@ -847,6 +876,92 @@ export const SubscriptionPlans: React.FC = () => {
               <Button variant="secondary" onClick={() => { setShowViewModal(false); setViewingPlan(null); }}>Close</Button>
               <Button variant="primary" style={{ gap: '6px' }} onClick={() => handleOpenEditModal(viewingPlan)}>
                 <Edit size={14} /> Edit Plan
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Visibility Manager Modal ── */}
+      {managingVisibilityPlan && (
+        <Modal 
+          isOpen={!!managingVisibilityPlan} 
+          onClose={() => setManagingVisibilityPlan(null)} 
+          title={`Plan Visibility: ${managingVisibilityPlan.name}`}
+          size="md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Define which institutes can view and subscribe to this plan. Private plans will be hidden from other tenants.
+            </p>
+            
+            <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={visAll} 
+                  onChange={(e) => {
+                    setVisAll(e.target.checked);
+                    if (e.target.checked) {
+                      setVisTenants([]);
+                    }
+                  }}
+                  className="rounded border-slate-300 h-4.5 w-4.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <div>
+                  <span className="text-sm font-bold text-slate-800">All Institutes (Public Plan)</span>
+                  <span className="text-xs text-slate-400 block mt-0.5">Visible to every tenant on the platform.</span>
+                </div>
+              </label>
+            </div>
+
+            {!visAll && (
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Select Permitted Institutes</label>
+                <div className="border border-slate-200 rounded-xl bg-white max-h-[220px] overflow-y-auto divide-y divide-slate-100 shadow-inner">
+                  {tenants.map(t => {
+                    const isChecked = visTenants.includes(t.id);
+                    return (
+                      <label key={t.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked} 
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setVisTenants(prev => [...prev, t.id]);
+                            } else {
+                              setVisTenants(prev => prev.filter(tid => tid !== t.id));
+                            }
+                          }}
+                          className="rounded border-slate-300 h-4.5 w-4.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-sm font-semibold text-slate-850 block">{t.name}</span>
+                          <span className="text-[10px] font-mono text-slate-400 font-bold block mt-0.5">ID: {t.id} • Owner: {t.ownerName}</span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                  {tenants.length === 0 && (
+                    <div className="p-4 text-center text-xs text-slate-400 italic">No registered institutes found</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
+              <Button variant="secondary" onClick={() => setManagingVisibilityPlan(null)}>Cancel</Button>
+              <Button 
+                variant="primary" 
+                onClick={() => {
+                  const visibleTo = visAll ? ['All'] : visTenants;
+                  updatePlan(managingVisibilityPlan.id, { visibleTo });
+                  setSuccessMsg(`Visibility settings updated for "${managingVisibilityPlan.name}".`);
+                  setManagingVisibilityPlan(null);
+                  setTimeout(() => setSuccessMsg(''), 4000);
+                }}
+              >
+                Save Visibility Config
               </Button>
             </div>
           </div>

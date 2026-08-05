@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Table } from '../ui/Table';
@@ -6,6 +6,8 @@ import { GraduationCap, Users, BookOpen, ClipboardCheck } from 'lucide-react';
 
 export const BranchAdminDashboard: React.FC = () => {
   const { currentUser, students, staff, batches } = useApp();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
 
   const branchName = currentUser?.branch || 'Mumbai West';
 
@@ -13,6 +15,9 @@ export const BranchAdminDashboard: React.FC = () => {
   const localStudents = students.filter(s => s.branch === branchName);
   const localStaff = staff.filter(s => s.branch === branchName);
   const localBatches = batches.filter(b => b.room.includes('101') || b.room.includes('102') || b.teacher.includes('Kelkar'));
+
+  const paginatedStaff = localStaff.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(localStaff.length / itemsPerPage);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -77,10 +82,10 @@ export const BranchAdminDashboard: React.FC = () => {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Branch Faculty & Instructors</CardTitle>
+              <CardTitle>Branch Faculty &amp; Instructors</CardTitle>
             </CardHeader>
             <Table headers={['Faculty Name', 'Email Login', 'Assigned Role', 'Current Status']}>
-              {localStaff.map((s, idx) => (
+              {paginatedStaff.map((s, idx) => (
                 <tr key={idx} className="hover:bg-slate-50">
                   <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
                   <td className="px-6 py-4 font-mono text-xs">{s.email}</td>
@@ -95,6 +100,45 @@ export const BranchAdminDashboard: React.FC = () => {
                 </tr>
               ))}
             </Table>
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                <div>
+                  Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, localStaff.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, localStaff.length)}</span> of <span className="text-slate-855 font-bold">{localStaff.length}</span> staff
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                        currentPage === i + 1
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
 

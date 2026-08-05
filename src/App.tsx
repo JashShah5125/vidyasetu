@@ -63,6 +63,11 @@ const GlobalProvidersPlaceholder = () => (
 
 const AuditLogsPlaceholder = () => {
   const { auditLogs } = useApp();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(auditLogs.length / itemsPerPage);
+  const paginatedLogs = auditLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
       <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-3">Platform Audit Registers</h3>
@@ -77,7 +82,7 @@ const AuditLogsPlaceholder = () => {
             </tr>
           </thead>
           <tbody className="text-sm text-slate-600 divide-y divide-slate-100">
-            {auditLogs.map((log, idx) => (
+            {paginatedLogs.map((log, idx) => (
               <tr key={idx} className="hover:bg-slate-50">
                 <td className="px-6 py-4 font-mono text-xs">{log.timestamp}</td>
                 <td className="px-6 py-4 font-semibold text-slate-800">
@@ -90,6 +95,47 @@ const AuditLogsPlaceholder = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Bar */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold text-slate-500 shadow-sm select-none">
+          <div>
+            Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, auditLogs.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, auditLogs.length)}</span> of <span className="text-slate-850 font-bold">{auditLogs.length}</span> logs
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(currentPage - 1)}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setCurrentPage(i + 1)}
+                className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                  currentPage === i + 1
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(currentPage + 1)}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-55 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
