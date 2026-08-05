@@ -5,18 +5,79 @@ import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import type { Student } from '../data/mockData';
 
 export const Students: React.FC = () => {
   const { students, addToast } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCourse, setFilterCourse] = useState('All');
+  const [filterBatch, setFilterBatch] = useState('All');
+  const [sortBy, setSortBy] = useState('name');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [profileTab, setProfileTab] = useState<'overview' | 'parents' | 'fees' | 'results'>('overview');
 
-  const filteredStudents = students.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.studentId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Unique lists for filtering options
+  const uniqueCourses = Array.from(new Set(students.map(s => s.course)));
+  const uniqueBatches = Array.from(new Set(students.map(s => s.batch)));
+
+  const filteredAndSortedStudents = students
+    .filter(s => {
+      const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          s.studentId.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCourse = filterCourse === 'All' || s.course === filterCourse;
+      const matchBatch = filterBatch === 'All' || s.batch === filterBatch;
+      return matchSearch && matchCourse && matchBatch;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'studentId') return a.studentId.localeCompare(b.studentId);
+      if (sortBy === 'pendingFees') return b.feePlan.pending - a.feePlan.pending;
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedStudents.map(s => ({
+      'Student ID': s.studentId,
+      'Name': s.name,
+      'Course': s.course,
+      'Batch': s.batch,
+      'Mobile': s.mobile,
+      'Parent Contact': s.parentMobile,
+      'Total Fees': s.feePlan.total,
+      'Paid Fees': s.feePlan.paid,
+      'Pending Fees': s.feePlan.pending
+    }));
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "students_directory.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    addToast('Student profile records exported to CSV successfully.');
+  };
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+  const paginatedStudents = filteredAndSortedStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(filteredAndSortedStudents.length / itemsPerPage);
 
   return (
     <div className="space-y-6">
@@ -25,19 +86,45 @@ export const Students: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Student Profile Directory</h2>
           <p className="text-sm text-slate-500 mt-1">Review active student academic rosters, search details, and view payment ledgers.</p>
         </div>
-        <Button variant="secondary" onClick={() => addToast('Student profile records exported to CSV successfully.')}>
+        <Button variant="secondary" onClick={handleExportCSV}>
           Export CSV
         </Button>
       </div>
 
-      <div className="flex gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm">
-        <div className="flex-1">
-          <Input 
-            placeholder="Search students by name or ID..." 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder="Search students by name or ID..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select
+          label="Course"
+          value={filterCourse}
+          onChange={(e) => setFilterCourse(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Courses' },
+            ...uniqueCourses.map(c => ({ value: c, label: c }))
+          ]}
+        />
+        <Select
+          label="Batch"
+          value={filterBatch}
+          onChange={(e) => setFilterBatch(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Batches' },
+            ...uniqueBatches.map(b => ({ value: b, label: b }))
+          ]}
+        />
+        <Select
+          label="Sort By"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          options={[
+            { value: 'name', label: 'Student Name' },
+            { value: 'studentId', label: 'Student ID' },
+            { value: 'pendingFees', label: 'Highest Pending Fees' }
+          ]}
+        />
       </div>
 
       <Card>
@@ -45,7 +132,7 @@ export const Students: React.FC = () => {
           <CardTitle>Enrolled Student Profiles</CardTitle>
         </CardHeader>
         <Table headers={['Student ID', 'Name', 'Course', 'Batch Name', 'Mobile', 'Pending Fees', 'Actions']}>
-          {filteredStudents.map((s, idx) => (
+          {paginatedStudents.map((s, idx) => (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="px-6 py-4 font-mono font-bold text-xs">{s.studentId}</td>
               <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
@@ -61,6 +148,45 @@ export const Students: React.FC = () => {
             </tr>
           ))}
         </Table>
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+            <div>
+              Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedStudents.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedStudents.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedStudents.length}</span> students
+            </div>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    currentPage === i + 1
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Student Profile Dialog */}

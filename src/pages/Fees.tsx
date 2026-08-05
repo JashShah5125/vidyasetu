@@ -17,7 +17,64 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
   const [studentId, setStudentId] = useState(students[0]?.id || '');
   const [amount, setAmount] = useState(10000);
   const [mode, setMode] = useState('UPI');
-  
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCourse, setFilterCourse] = useState('All');
+  const [sortBy, setSortBy] = useState('name');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+
+  const uniqueCourses = Array.from(new Set(students.map(s => s.course)));
+
+  const filteredAndSortedStudents = students
+    .filter(s => {
+      const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          s.studentId.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCourse = filterCourse === 'All' || s.course === filterCourse;
+      return matchSearch && matchCourse;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'pendingFees') return b.feePlan.pending - a.feePlan.pending;
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedStudents.map(s => ({
+      'Student ID': s.studentId,
+      'Name': s.name,
+      'Course': s.course,
+      'Total Fees': s.feePlan.total,
+      'Paid Fees': s.feePlan.paid,
+      'Pending Fees': s.feePlan.pending
+    }));
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", subTab === 'record' ? "fees_registry.csv" : "defaulters_ledger.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const totalPages = Math.ceil(filteredAndSortedStudents.length / itemsPerPage);
+  const paginatedStudents = filteredAndSortedStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const [receipt, setReceipt] = useState<any>(null);
   const [showReceipt, setShowReceipt] = useState(false);
 
@@ -37,15 +94,45 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-display font-bold text-slate-900">
-          {subTab === 'record' ? 'Finance & Fee Registry' : 'Branch Defaulters Ledger'}
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          {subTab === 'record' 
-            ? 'Record payments, generate billing slips, and track installment schedules.'
-            : 'Review outstanding dues profiles, warning status logs, and collection alerts.'}
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-display font-bold text-slate-900">
+            {subTab === 'record' ? 'Finance &amp; Fee Registry' : 'Branch Defaulters Ledger'}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {subTab === 'record' 
+              ? 'Record payments, generate billing slips, and track installment schedules.'
+              : 'Review outstanding dues profiles, warning status logs, and collection alerts.'}
+          </p>
+        </div>
+        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+      </div>
+
+      {/* Search, Filter, Sort Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder="Search students by name or ID..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select
+          label="Course"
+          value={filterCourse}
+          onChange={(e) => setFilterCourse(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Courses' },
+            ...uniqueCourses.map(c => ({ value: c, label: c }))
+          ]}
+        />
+        <Select
+          label="Sort By"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          options={[
+            { value: 'name', label: 'Student Name' },
+            { value: 'pendingFees', label: 'Highest Pending Fees' }
+          ]}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -84,7 +171,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
                 />
               </div>
               <Button type="submit" variant="primary" fullWidth style={{ padding: '12px' }}>
-                Confirm Payment & Generate Slip
+                Confirm Payment &amp; Generate Slip
               </Button>
             </form>
           </Card>
@@ -127,7 +214,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
           <CardTitle>Dues Audit Register</CardTitle>
         </CardHeader>
         <Table headers={['Student ID', 'Student Name', 'Total Bill', 'Paid Amount', 'Dues Remaining', 'Status']}>
-          {students.map((s, idx) => (
+          {paginatedStudents.map((s, idx) => (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="px-6 py-4 font-mono font-bold text-xs">{s.studentId}</td>
               <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
@@ -144,6 +231,45 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
             </tr>
           ))}
         </Table>
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+            <div>
+              Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedStudents.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedStudents.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedStudents.length}</span> accounts
+            </div>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    currentPage === i + 1
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Printable Receipt Modal */}

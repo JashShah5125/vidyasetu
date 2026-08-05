@@ -13,6 +13,66 @@ export const Users: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState('All');
+  const [filterBranch, setFilterBranch] = useState('All');
+  const [sortBy, setSortBy] = useState('name');
+
+  const uniqueRoles = Array.from(new Set(staff.map(s => s.role)));
+  const uniqueBranches = Array.from(new Set(staff.map(s => s.branch)));
+
+  const filteredAndSortedStaff = staff
+    .filter(s => {
+      const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          s.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchRole = filterRole === 'All' || s.role === filterRole;
+      const matchBranch = filterBranch === 'All' || s.branch === filterBranch;
+      return matchSearch && matchRole && matchBranch;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'email') return a.email.localeCompare(b.email);
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedStaff.map(s => ({
+      'Name': s.name,
+      'Email': s.email,
+      'Role': s.role,
+      'Branch': s.branch,
+      'Status': s.status
+    }));
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "staff_directory.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+  const totalPages = Math.ceil(filteredAndSortedStaff.length / itemsPerPage);
+  const paginatedStaff = filteredAndSortedStaff.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -74,20 +134,61 @@ export const Users: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">User & Staff Directory</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">User &amp; Staff Directory</h2>
           <p className="text-sm text-slate-500 mt-1">Manage personnel profile records, assign security role boundaries, and allocate active branch hubs.</p>
         </div>
-        <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
-          <Plus size={16} /> Add Staff Account
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleExportCSV}>
+            Export CSV
+          </Button>
+          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
+            <Plus size={16} /> Add Staff Account
+          </Button>
+        </div>
+      </div>
+
+      {/* Search, Filter, Sort Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder="Search by name, email..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select
+          label="Role"
+          value={filterRole}
+          onChange={(e) => setFilterRole(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Roles' },
+            ...uniqueRoles.map(r => ({ value: r, label: r }))
+          ]}
+        />
+        <Select
+          label="Branch"
+          value={filterBranch}
+          onChange={(e) => setFilterBranch(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Branches' },
+            ...uniqueBranches.map(b => ({ value: b, label: b }))
+          ]}
+        />
+        <Select
+          label="Sort By"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          options={[
+            { value: 'name', label: 'Staff Name' },
+            { value: 'email', label: 'Email Address' }
+          ]}
+        />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Institute Faculty & Counsel staff</CardTitle>
+          <CardTitle>Institute Faculty &amp; Counsel staff</CardTitle>
         </CardHeader>
         <Table headers={['Staff Name', 'Email Address', 'Security Role', 'Primary Branch', 'Status', 'Actions']}>
-          {staff.map((s, idx) => (
+          {paginatedStaff.map((s, idx) => (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="px-6 py-4 flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs uppercase border border-slate-200">
@@ -125,6 +226,45 @@ export const Users: React.FC = () => {
             </tr>
           ))}
         </Table>
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+            <div>
+              Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedStaff.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedStaff.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedStaff.length}</span> staff members
+            </div>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    currentPage === i + 1
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Creation Modal */}

@@ -25,6 +25,11 @@ export const Assignments: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 2;
+  const totalPages = Math.ceil(assignments.length / itemsPerPage);
+  const paginatedAssignments = assignments.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const [title, setTitle] = useState('');
   const [batch, setBatch] = useState(batches[0]?.name || 'JEE-Morning-A');
   const [subject, setSubject] = useState('Chemistry');
@@ -62,7 +67,7 @@ export const Assignments: React.FC = () => {
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Assignments & Study Materials</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Assignments &amp; Study Materials</h2>
           <p className="text-sm text-slate-500 mt-1">Distribute homework files, assign batch deadlines, and review student uploads.</p>
         </div>
         <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
@@ -75,7 +80,7 @@ export const Assignments: React.FC = () => {
           <CardTitle>Class Assignments Ledger</CardTitle>
         </CardHeader>
         <Table headers={['Assignment Title', 'Allotted Batch', 'Subject Name', 'Due Deadline', 'Status']}>
-          {assignments.map((a, idx) => (
+          {paginatedAssignments.map((a, idx) => (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="px-6 py-4 font-semibold text-slate-800">{a.title}</td>
               <td className="px-6 py-4">{a.batch}</td>
@@ -89,6 +94,45 @@ export const Assignments: React.FC = () => {
             </tr>
           ))}
         </Table>
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+            <div>
+              Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, assignments.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, assignments.length)}</span> of <span className="text-slate-855 font-bold">{assignments.length}</span> assignments
+            </div>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                    currentPage === i + 1
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Creation Modal */}
