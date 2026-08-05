@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/layout/Layout';
 import { Button } from './components/ui/Button';
+import { Modal } from './components/ui/Modal';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
@@ -67,6 +68,7 @@ const GlobalProvidersPlaceholder = () => (
 const AuditLogsPlaceholder = () => {
   const { auditLogs } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
   const itemsPerPage = 5;
   const totalPages = Math.ceil(auditLogs.length / itemsPerPage);
   const paginatedLogs = auditLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -80,24 +82,74 @@ const AuditLogsPlaceholder = () => {
             <tr className="bg-slate-50 border-b border-slate-200">
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Timestamp</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Actor</th>
+              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">IP Address</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Action</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Details</th>
             </tr>
           </thead>
           <tbody className="text-sm text-slate-600 divide-y divide-slate-100">
             {paginatedLogs.map((log, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
+              <tr 
+                key={idx} 
+                onClick={() => setSelectedLog(log)}
+                className="hover:bg-slate-50 cursor-pointer transition-colors"
+              >
                 <td className="px-6 py-4 font-mono text-xs">{log.timestamp}</td>
                 <td className="px-6 py-4 font-semibold text-slate-800">
                   {log.actor} <span className="text-[10px] text-slate-400 uppercase font-normal">({log.role})</span>
                 </td>
+                <td className="px-6 py-4 font-mono text-xs text-slate-500">{log.ipAddress || '192.168.1.1'}</td>
                 <td className="px-6 py-4 font-mono text-xs text-blue-600">{log.action}</td>
-                <td className="px-6 py-4">{log.details}</td>
+                <td className="px-6 py-4 truncate max-w-xs">{log.details}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {selectedLog && (
+        <Modal 
+          isOpen={true} 
+          onClose={() => setSelectedLog(null)} 
+          title="Audit Log Entry Details"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Log Entry ID</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.id}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Timestamp</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.timestamp}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Actor / Operator</span>
+                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.actor}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Operator Role</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.role}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Action Identifier</span>
+                <span className="font-mono text-blue-600 font-bold mt-0.5 block">{selectedLog.action}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Origin IP Address</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.ipAddress || '192.168.1.1'}</span>
+              </div>
+            </div>
+            <div className="border-t border-slate-100 pt-3">
+              <span className="text-xs font-bold text-slate-400 block uppercase">Operation Details</span>
+              <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 mt-1 leading-relaxed whitespace-pre-wrap">{selectedLog.details}</p>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={() => setSelectedLog(null)}>Close View</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Pagination Bar */}
       {totalPages > 1 && (
@@ -262,9 +314,20 @@ const MainContent: React.FC = () => {
   );
 };
 
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
 export default function App() {
   return (
     <AppProvider>
+      <ScrollToTop />
       <MainContent />
     </AppProvider>
   );

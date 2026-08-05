@@ -587,8 +587,11 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                       const dataToExport = filteredAndSortedList.map(s => ({
                         'Student ID': s.studentId,
                         'Name': s.name,
+                        'Mobile': s.mobile || '',
+                        'Parent Mobile': s.parentMobile || '',
                         'Course': s.course,
                         'Batch': s.batch,
+                        'Branch': s.branch || '',
                         'Admission Date': s.admissionDate,
                         'Total Fee': s.feePlan.total,
                         'Paid Fee': s.feePlan.paid,
@@ -599,21 +602,20 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                       if (dataToExport.length === 0) return;
                       const csvRows = [];
                       const headers = Object.keys(dataToExport[0]);
-                      csvRows.push(headers.join(','));
+                      csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
                       
                       for (const row of dataToExport) {
                         const values = headers.map(header => {
-                          const val = row[header as keyof typeof row] || '';
-                          const escaped = ('' + val).replace(/"/g, '\\"');
+                          const val = row[header as keyof typeof row];
+                          const escaped = String(val ?? '').replace(/"/g, '""');
                           return `"${escaped}"`;
                         });
                         csvRows.push(values.join(','));
                       }
                       
-                      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-                      const encodedUri = encodeURI(csvContent);
+                      const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join("\n"));
                       const link = document.createElement("a");
-                      link.setAttribute("href", encodedUri);
+                      link.setAttribute("href", csvContent);
                       link.setAttribute("download", `students_tenant_${viewingTenant.id}.csv`);
                       document.body.appendChild(link);
                       link.click();

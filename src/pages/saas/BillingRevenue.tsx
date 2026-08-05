@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 
 interface Invoice {
   id: string;
@@ -17,6 +19,20 @@ export const BillingRevenue: React.FC = () => {
     { id: 'INV-2026-003', tenantName: 'Vanguard Global', amount: 300000, tax: 54000, date: '2026-08-01', dueDate: '2026-08-15', status: 'Unpaid' },
     { id: 'INV-2026-004', tenantName: 'Zenith Career Hub', amount: 45000, tax: 8100, date: '2026-06-10', dueDate: '2026-07-10', status: 'Overdue' }
   ];
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterTenant, setFilterTenant] = useState('All');
+
+  const uniqueTenants = Array.from(new Set(invoices.map(inv => inv.tenantName)));
+
+  const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = inv.tenantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          inv.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'All' || inv.status === filterStatus;
+    const matchesTenant = filterTenant === 'All' || inv.tenantName === filterTenant;
+    return matchesSearch && matchesStatus && matchesTenant;
+  });
 
   const statusColors = {
     Paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -58,6 +74,36 @@ export const BillingRevenue: React.FC = () => {
         </div>
       </div>
 
+      {/* Search & Filter Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder="Search by invoice ID or tenant name..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select 
+          label="Tenant Name" 
+          value={filterTenant} 
+          onChange={(e) => setFilterTenant(e.target.value)} 
+          options={[
+            { value: 'All', label: 'All Tenants' },
+            ...uniqueTenants.map(t => ({ value: t, label: t }))
+          ]} 
+        />
+        <Select 
+          label="Payment Status" 
+          value={filterStatus} 
+          onChange={(e) => setFilterStatus(e.target.value)} 
+          options={[
+            { value: 'All', label: 'All Statuses' },
+            { value: 'Paid', label: 'Paid' },
+            { value: 'Unpaid', label: 'Unpaid' },
+            { value: 'Overdue', label: 'Overdue' },
+            { value: 'Refunded', label: 'Refunded' }
+          ]} 
+        />
+      </div>
+
       {/* Invoices register */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -65,38 +111,44 @@ export const BillingRevenue: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Invoice ID</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tenant Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Billing Date</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Due Date</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Base Amount</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Estimated GST</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Total Payable</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-mono text-xs font-bold text-slate-600">{inv.id}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-900">{inv.tenantName}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{inv.date}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{inv.dueDate}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">₹{inv.amount.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-slate-500">₹{inv.tax.toLocaleString()}</td>
-                  <td className="px-6 py-4 font-bold text-slate-900">₹{(inv.amount + inv.tax).toLocaleString()}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColors[inv.status]}`}>
-                      {inv.status}
-                    </span>
-                  </td>
+          {filteredInvoices.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm">
+              No invoices found matching the filters.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Invoice ID</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tenant Name</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Billing Date</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Due Date</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Base Amount</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Estimated GST</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Total Payable</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                {filteredInvoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-mono text-xs font-bold text-slate-600">{inv.id}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">{inv.tenantName}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500">{inv.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500">{inv.dueDate}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-800">₹{inv.amount.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-slate-500">₹{inv.tax.toLocaleString()}</td>
+                    <td className="px-6 py-4 font-bold text-slate-900">₹{(inv.amount + inv.tax).toLocaleString()}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColors[inv.status]}`}>
+                        {inv.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

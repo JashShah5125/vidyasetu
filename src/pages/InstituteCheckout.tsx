@@ -20,7 +20,7 @@ export const InstituteCheckout: React.FC = () => {
   // Form State
   const [billingEmail, setBillingEmail] = useState(myTenant?.email || '');
   const [billingPhone, setBillingPhone] = useState(myTenant?.mobile || '');
-  const [gstin, setGstin] = useState(myTenant?.gstin || '');
+  const [gstin, setGstin] = useState(myTenant?.gstNo || '');
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!targetPlan || !myTenant) {

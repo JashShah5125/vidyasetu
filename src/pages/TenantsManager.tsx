@@ -223,35 +223,46 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     });
 
   const handleExportCSV = () => {
+    if (filteredAndSortedTenants.length === 0) return;
+    
     const dataToExport = filteredAndSortedTenants.map(t => ({
       'Tenant ID': t.id,
       'Institute Name': t.name,
       'Owner': t.ownerName,
       'Email': t.email,
       'Mobile': t.mobile,
+      'Status': t.status,
       'Plan Tier': t.plan,
-      'Start Date': t.startDate,
-      'Status': t.status
+      'Start Date': t.startDate || '',
+      'Renewal Date': t.renewalDate || '',
+      'Branch Count': t.branchCount,
+      'Student Count': t.studentCount,
+      'Address': t.address || '123 Educational Way, Block C, New Delhi',
+      'GST Number': t.gstNo || '07AAAAA1111A1Z1',
+      'Max Branches Limit': t.maxBranches || '10',
+      'Max Students Limit': t.maxStudents || '500',
+      'Max Storage Limit': t.maxStorage || '20 GB',
+      'Max File Size Limit': t.maxFileSize || '10 MB',
+      'Default Email': t.defaultEmail || t.email,
+      'Alternative Emails': (t.altEmails || []).join('; ')
     }));
-    
-    if (dataToExport.length === 0) return;
-    const csvRows = [];
+
     const headers = Object.keys(dataToExport[0]);
-    csvRows.push(headers.join(','));
+    const csvRows = [];
+    csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
     
     for (const row of dataToExport) {
       const values = headers.map(header => {
-        const val = row[header as keyof typeof row] || '';
-        const escaped = ('' + val).replace(/"/g, '\\"');
+        const val = row[header as keyof typeof row];
+        const escaped = String(val ?? '').replace(/"/g, '""');
         return `"${escaped}"`;
       });
       csvRows.push(values.join(','));
     }
     
-    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join("\n"));
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", csvContent);
     link.setAttribute("download", "institutes_directory.csv");
     document.body.appendChild(link);
     link.click();
@@ -322,14 +333,18 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         <CardHeader>
           <CardTitle>Platform Tenant Registry</CardTitle>
         </CardHeader>
-        <Table headers={['Tenant ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status', 'Actions']}>
+        <Table headers={['Tenant ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status']}>
           {(() => {
             const itemsPerPage = 3;
             const paginatedTenants = filteredAndSortedTenants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
             return (
               <>
                 {paginatedTenants.map((t, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
+                  <tr 
+                    key={idx} 
+                    onClick={() => navigate(`/tenants/${t.id}`)}
+                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  >
                     <td className="px-6 py-4 font-mono font-bold text-xs">{t.id}</td>
                     <td className="px-6 py-4 font-semibold text-slate-800">{t.name}</td>
                     <td className="px-6 py-4 text-xs font-semibold text-slate-700">{t.ownerName}</td>
@@ -352,14 +367,6 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${t.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
                         {t.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                        <button
-                           onClick={() => navigate(`/tenants/${t.id}`)}
-                           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors shadow-sm"
-                        >
-                          Manage
-                        </button>
                     </td>
                   </tr>
                 ))}

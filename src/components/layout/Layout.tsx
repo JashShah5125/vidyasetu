@@ -43,11 +43,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Main Content Workspace */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-          {/* Header bar */}
           <Header
             onMenuClick={() => setIsSidebarOpen(true)}
-            isSidebarCollapsed={isSidebarCollapsed}
-            onToggleSidebar={toggleSidebar}
           />
 
           {/* Dynamic content scroll workspace */}
