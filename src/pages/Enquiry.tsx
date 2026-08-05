@@ -19,6 +19,9 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
   const [successMessage, setSuccessMessage] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterSource, setFilterSource] = useState('All');
+  const [sortBy, setSortBy] = useState('name');
   
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -77,10 +80,65 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
     }
   };
 
-  const filteredLeads = leads.filter(l => 
-    l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.course.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [pipelinePage, setPipelinePage] = useState(1);
+  const [convertPage, setConvertPage] = useState(1);
+  const itemsPerPage = 3;
+
+  const filteredAndSortedLeads = leads
+    .filter(l => {
+      const matchSearch = l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          l.course.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = filterStatus === 'All' || l.status === filterStatus;
+      const matchSource = filterSource === 'All' || l.source === filterSource;
+      return matchSearch && matchStatus && matchSource;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'status') return a.status.localeCompare(b.status);
+      if (sortBy === 'course') return a.course.localeCompare(b.course);
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedLeads.map(l => ({
+      'Lead Name': l.name,
+      'Mobile': l.mobile,
+      'Course': l.course,
+      'Source': l.source,
+      'Status': l.status,
+      'Remarks': l.remarks
+    }));
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "crm_enquiries.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const paginatedPipelineLeads = filteredAndSortedLeads.slice((pipelinePage - 1) * itemsPerPage, pipelinePage * itemsPerPage);
+  const totalPipelinePages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
+
+  const conversionLeads = filteredAndSortedLeads.filter(l => l.status !== 'Interested');
+  const paginatedConversionLeads = conversionLeads.slice((convertPage - 1) * itemsPerPage, convertPage * itemsPerPage);
+  const totalConversionPages = Math.ceil(conversionLeads.length / itemsPerPage);
 
   return (
     <div className="space-y-6">
@@ -91,7 +149,7 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
       )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900 text-slate-800">
+          <h2 className="text-2xl font-display font-bold text-slate-800">
             {subTab === 'pipeline' ? 'Enquiry CRM Pipeline' : 'Admission Conversion Wizard'}
           </h2>
           <p className="text-sm text-slate-500 mt-1">
@@ -116,6 +174,7 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
                 <Kanban size={16} />
               </button>
             </div>
+            <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
             <Button variant="primary" style={{ gap: '6px' }} onClick={() => setShowAddModal(true)}>
               <Plus size={16} /> Log Enquiry
             </Button>
@@ -124,14 +183,45 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm">
-        <div className="flex-1">
-          <Input 
-            placeholder="Search leads by name or course preference..." 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder="Search leads by name or course preference..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select
+          label="Stage Status"
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Stages' },
+            { value: 'New Enquiry', label: 'New Enquiry' },
+            { value: 'Follow-up', label: 'Follow-up' },
+            { value: 'Interested', label: 'Interested' }
+          ]}
+        />
+        <Select
+          label="Discovery Source"
+          value={filterSource}
+          onChange={(e) => setFilterSource(e.target.value)}
+          options={[
+            { value: 'All', label: 'All Sources' },
+            { value: 'Google Ads', label: 'Google Ads' },
+            { value: 'Walk-in', label: 'Walk-in' },
+            { value: 'Website', label: 'Website' },
+            { value: 'Referral', label: 'Referral' }
+          ]}
+        />
+        <Select
+          label="Sort By"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          options={[
+            { value: 'name', label: 'Lead Name' },
+            { value: 'status', label: 'Stage Status' },
+            { value: 'course', label: 'Course Preference' }
+          ]}
+        />
       </div>
 
       {subTab === 'pipeline' ? (
@@ -141,7 +231,7 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
               <CardTitle>Active Lead Registrations</CardTitle>
             </CardHeader>
             <Table headers={['Student Name', 'Mobile', 'Course Interest', 'Discovery Source', 'Assigned Counsellor', 'Stage Status', 'Actions']}>
-              {filteredLeads.map((l, idx) => (
+              {paginatedPipelineLeads.map((l, idx) => (
                 <tr key={idx} className="hover:bg-slate-50">
                   <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
@@ -168,15 +258,54 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
                 </tr>
               ))}
             </Table>
+            {totalPipelinePages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                <div>
+                  Showing <span className="text-slate-800 font-bold">{Math.min((pipelinePage - 1) * itemsPerPage + 1, filteredAndSortedLeads.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(pipelinePage * itemsPerPage, filteredAndSortedLeads.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedLeads.length}</span> leads
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={pipelinePage === 1}
+                    onClick={() => setPipelinePage(pipelinePage - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPipelinePages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setPipelinePage(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                        pipelinePage === i + 1
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={pipelinePage === totalPipelinePages}
+                    onClick={() => setPipelinePage(pipelinePage + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-slate-100/60 border border-slate-200/80 rounded-xl p-4 flex flex-col gap-4">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-2 flex justify-between">
                 <span>New Enquiry</span>
-                <span className="bg-slate-200/80 text-slate-600 px-2 rounded-full font-mono">{filteredLeads.filter(l => l.status === 'New Enquiry').length}</span>
+                <span className="bg-slate-200/80 text-slate-600 px-2 rounded-full font-mono">{filteredAndSortedLeads.filter(l => l.status === 'New Enquiry').length}</span>
               </h3>
-              {filteredLeads.filter(l => l.status === 'New Enquiry').map((l, idx) => (
+              {filteredAndSortedLeads.filter(l => l.status === 'New Enquiry').map((l, idx) => (
                 <div key={idx} onClick={() => { setSelectedLead(l); setShowConvertModal(true); }} className="bg-white border border-slate-200 p-4 rounded-lg shadow-sm hover:border-blue-500 hover:shadow transition cursor-pointer space-y-2">
                   <div className="font-semibold text-slate-800 text-sm">{l.name}</div>
                   <div className="text-xs text-slate-500">{l.course}</div>
@@ -187,9 +316,9 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
             <div className="bg-slate-100/60 border border-slate-200/80 rounded-xl p-4 flex flex-col gap-4">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-2 flex justify-between">
                 <span>Follow-up</span>
-                <span className="bg-slate-200/80 text-slate-600 px-2 rounded-full font-mono">{filteredLeads.filter(l => l.status === 'Follow-up').length}</span>
+                <span className="bg-slate-200/80 text-slate-600 px-2 rounded-full font-mono">{filteredAndSortedLeads.filter(l => l.status === 'Follow-up').length}</span>
               </h3>
-              {filteredLeads.filter(l => l.status === 'Follow-up').map((l, idx) => (
+              {filteredAndSortedLeads.filter(l => l.status === 'Follow-up').map((l, idx) => (
                 <div key={idx} onClick={() => { setSelectedLead(l); setShowFollowupModal(true); }} className="bg-white border border-slate-200 p-4 rounded-lg shadow-sm hover:border-blue-500 hover:shadow transition cursor-pointer space-y-2">
                   <div className="font-semibold text-slate-800 text-sm">{l.name}</div>
                   <div className="text-xs text-slate-500">{l.course}</div>
@@ -201,9 +330,9 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
             <div className="bg-slate-100/60 border border-slate-200/80 rounded-xl p-4 flex flex-col gap-4">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-2 flex justify-between">
                 <span>Interested</span>
-                <span className="bg-slate-200/80 text-slate-600 px-2 rounded-full font-mono">{filteredLeads.filter(l => l.status === 'Interested').length}</span>
+                <span className="bg-slate-200/80 text-slate-600 px-2 rounded-full font-mono">{filteredAndSortedLeads.filter(l => l.status === 'Interested').length}</span>
               </h3>
-              {filteredLeads.filter(l => l.status === 'Interested').map((l, idx) => (
+              {filteredAndSortedLeads.filter(l => l.status === 'Interested').map((l, idx) => (
                 <div key={idx} className="bg-white border border-slate-200 p-4 rounded-lg shadow-sm space-y-2">
                   <div className="font-semibold text-slate-800 text-sm">{l.name}</div>
                   <div className="text-xs text-slate-500">{l.course}</div>
@@ -219,7 +348,7 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
             <CardTitle>Admissions Quick Conversion Ledger</CardTitle>
           </CardHeader>
           <Table headers={['Student Name', 'Mobile', 'Course Interest', 'Stage Status', 'Action']}>
-            {filteredLeads.filter(l => l.status !== 'Interested').map((l, idx) => (
+            {paginatedConversionLeads.map((l, idx) => (
               <tr key={idx} className="hover:bg-slate-50">
                 <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
                 <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
@@ -237,6 +366,45 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
               </tr>
             ))}
           </Table>
+          {totalConversionPages > 1 && (
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+              <div>
+                Showing <span className="text-slate-800 font-bold">{Math.min((convertPage - 1) * itemsPerPage + 1, conversionLeads.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(convertPage * itemsPerPage, conversionLeads.length)}</span> of <span className="text-slate-855 font-bold">{conversionLeads.length}</span> leads
+              </div>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={convertPage === 1}
+                  onClick={() => setConvertPage(convertPage - 1)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalConversionPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setConvertPage(i + 1)}
+                    className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                      convertPage === i + 1
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={convertPage === totalConversionPages}
+                  onClick={() => setConvertPage(convertPage + 1)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

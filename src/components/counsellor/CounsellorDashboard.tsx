@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Table } from '../ui/Table';
@@ -6,17 +6,22 @@ import { Phone, Users, CheckSquare, RefreshCw } from 'lucide-react';
 
 export const CounsellorDashboard: React.FC = () => {
   const { currentUser, leads } = useApp();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
 
   // Filter callback leads and lead conversions
   const newLeads = leads.filter(l => l.status === 'New Enquiry');
   const followups = leads.filter(l => l.status === 'Follow-up');
   const interested = leads.filter(l => l.status === 'Interested');
 
+  const paginatedLeads = leads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(leads.length / itemsPerPage);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">
-          Admissions & Enquiry CRM Desk
+          Admissions &amp; Enquiry CRM Desk
         </h2>
         <p className="text-sm text-slate-500 mt-1">
           Welcome back, <strong className="font-semibold text-slate-800">{currentUser?.name}</strong>. Log client enquiries and manage registration followups.
@@ -78,7 +83,7 @@ export const CounsellorDashboard: React.FC = () => {
               <CardTitle>Active Client Enquiries Registry</CardTitle>
             </CardHeader>
             <Table headers={['Student Name', 'Mobile Contact', 'Course Target', 'Source Channel', 'Status']}>
-              {leads.map((l, idx) => (
+              {paginatedLeads.map((l, idx) => (
                 <tr key={idx} className="hover:bg-slate-50">
                   <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs">{l.mobile}</td>
@@ -95,6 +100,45 @@ export const CounsellorDashboard: React.FC = () => {
                 </tr>
               ))}
             </Table>
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                <div>
+                  Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, leads.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, leads.length)}</span> of <span className="text-slate-855 font-bold">{leads.length}</span> leads
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                        currentPage === i + 1
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
 

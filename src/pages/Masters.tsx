@@ -28,6 +28,20 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
 
+  const [branchesPage, setBranchesPage] = useState(1);
+  const [coursesPage, setCoursesPage] = useState(1);
+  const [batchesPage, setBatchesPage] = useState(1);
+  const [subjectsPage, setSubjectsPage] = useState(1);
+  const itemsPerPage = 3;
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+
+  const [subjects] = useState([
+    { name: 'Organic Chemistry', department: 'Chemistry Department', batches: 'JEE-Morning-A, NEET-Regular-B' },
+    { name: 'Electromagnetism', department: 'Physics Department', batches: 'JEE-Evening-B' }
+  ]);
+
   // Form states - Branch
   const [branchName, setBranchName] = useState('');
   const [branchCode, setBranchCode] = useState('');
@@ -163,6 +177,80 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
     setEditingName(null);
   };
 
+  const filteredAndSortedBranches = branches
+    .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()) || b.code.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'code') return a.code.localeCompare(b.code);
+      return 0;
+    });
+
+  const filteredAndSortedCourses = courses
+    .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'code') return a.code.localeCompare(b.code);
+      return 0;
+    });
+
+  const filteredAndSortedBatches = batches
+    .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()) || b.course.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'course') return a.course.localeCompare(b.course);
+      return 0;
+    });
+
+  const filteredAndSortedSubjects = subjects
+    .filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.department.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'department') return a.department.localeCompare(b.department);
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    let dataToExport: any[] = [];
+    let filename = '';
+    
+    if (subTab === 'branches') {
+      dataToExport = filteredAndSortedBranches.map(b => ({ 'Branch Name': b.name, 'Branch Code': b.code, 'Admin Owner': b.admin, 'Capacity': b.capacity }));
+      filename = 'branches.csv';
+    } else if (subTab === 'courses') {
+      dataToExport = filteredAndSortedCourses.map(c => ({ 'Course Name': c.name, 'Course Code': c.code, 'Fees (Rs.)': c.fees, 'Duration': c.duration }));
+      filename = 'courses.csv';
+    } else if (subTab === 'batches') {
+      dataToExport = filteredAndSortedBatches.map(b => ({ 'Batch Name': b.name, 'Course': b.course, 'Room': b.room, 'Teacher': b.teacher, 'Timings': b.timing }));
+      filename = 'batches.csv';
+    } else if (subTab === 'subjects') {
+      dataToExport = filteredAndSortedSubjects.map(s => ({ 'Subject Name': s.name, 'Department': s.department, 'Batches': s.batches }));
+      filename = 'subjects.csv';
+    }
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -170,9 +258,32 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
           <h2 className="text-2xl font-display font-bold text-slate-900">Masters Configuration</h2>
           <p className="text-sm text-slate-500 mt-1">Configure active branches, course details, timetable sessions, and subjects master.</p>
         </div>
-        <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
-          <Plus size={16} /> Add Master Record
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
+            <Plus size={16} /> Add Master Record
+          </Button>
+        </div>
+      </div>
+
+      {/* Search, Filter, Sort Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder={`Search ${subTab}...`} 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select
+          label="Sort By"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          options={[
+            { value: 'name', label: `Name (${subTab})` },
+            ...(subTab === 'branches' || subTab === 'courses' ? [{ value: 'code', label: 'Code' }] : []),
+            ...(subTab === 'batches' ? [{ value: 'course', label: 'Course' }] : []),
+            ...(subTab === 'subjects' ? [{ value: 'department', label: 'Department' }] : [])
+          ]}
+        />
       </div>
 
       {/* Tab Selectors */}
@@ -213,163 +324,324 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
 
       {/* Render sub-tabs */}
       {subTab === 'branches' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Institute Branches Registry</CardTitle>
-          </CardHeader>
-          <Table headers={['Branch Name', 'Code', 'Branch Admin', 'Max Capacity', 'Status', 'Actions']}>
-            {branches.map((b, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="px-6 py-4 font-semibold text-slate-800">{b.name}</td>
-                <td className="px-6 py-4 font-mono font-bold text-xs">{b.code}</td>
-                <td className="px-6 py-4">{b.admin}</td>
-                <td className="px-6 py-4">{b.capacity} Students</td>
-                <td className="px-6 py-4">
-                  <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
-                    {b.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleEdit(b)}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+        (() => {
+          const paginatedBranches = filteredAndSortedBranches.slice((branchesPage - 1) * itemsPerPage, branchesPage * itemsPerPage);
+          const totalPages = Math.ceil(filteredAndSortedBranches.length / itemsPerPage);
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Institute Branches Registry</CardTitle>
+              </CardHeader>
+              <Table headers={['Branch Name', 'Code', 'Branch Admin', 'Max Capacity', 'Status', 'Actions']}>
+                {paginatedBranches.map((b, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-semibold text-slate-800">{b.name}</td>
+                    <td className="px-6 py-4 font-mono font-bold text-xs">{b.code}</td>
+                    <td className="px-6 py-4">{b.admin}</td>
+                    <td className="px-6 py-4">{b.capacity} Students</td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
+                        {b.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleEdit(b)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(b.name)}
+                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                  <div>
+                    Showing <span className="text-slate-800 font-bold">{Math.min((branchesPage - 1) * itemsPerPage + 1, filteredAndSortedBranches.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(branchesPage * itemsPerPage, filteredAndSortedBranches.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedBranches.length}</span> branches
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={branchesPage === 1}
+                      onClick={() => setBranchesPage(branchesPage - 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Edit2 size={14} />
+                      Previous
                     </button>
-                    <button 
-                      onClick={() => handleDelete(b.name)}
-                      className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setBranchesPage(i + 1)}
+                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                          branchesPage === i + 1
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={branchesPage === totalPages}
+                      onClick={() => setBranchesPage(branchesPage + 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Trash2 size={14} />
+                      Next
                     </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </Card>
+                </div>
+              )}
+            </Card>
+          );
+        })()
       )}
 
       {subTab === 'courses' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Offered Courses & Curriculums</CardTitle>
-          </CardHeader>
-          <Table headers={['Course Title', 'Code', 'Course Fees', 'Duration', 'Actions']}>
-            {courses.map((c, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="px-6 py-4 font-semibold text-slate-800">{c.name}</td>
-                <td className="px-6 py-4 font-mono font-bold text-xs">{c.code}</td>
-                <td className="px-6 py-4 font-semibold text-slate-700">Rs. {c.fees}</td>
-                <td className="px-6 py-4">{c.duration}</td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleEdit(c)}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+        (() => {
+          const paginatedCourses = filteredAndSortedCourses.slice((coursesPage - 1) * itemsPerPage, coursesPage * itemsPerPage);
+          const totalPages = Math.ceil(filteredAndSortedCourses.length / itemsPerPage);
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Offered Courses &amp; Curriculums</CardTitle>
+              </CardHeader>
+              <Table headers={['Course Title', 'Code', 'Course Fees', 'Duration', 'Actions']}>
+                {paginatedCourses.map((c, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-semibold text-slate-800">{c.name}</td>
+                    <td className="px-6 py-4 font-mono font-bold text-xs">{c.code}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-700">Rs. {c.fees}</td>
+                    <td className="px-6 py-4">{c.duration}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleEdit(c)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(c.name)}
+                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                  <div>
+                    Showing <span className="text-slate-800 font-bold">{Math.min((coursesPage - 1) * itemsPerPage + 1, filteredAndSortedCourses.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(coursesPage * itemsPerPage, filteredAndSortedCourses.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedCourses.length}</span> courses
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={coursesPage === 1}
+                      onClick={() => setCoursesPage(coursesPage - 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Edit2 size={14} />
+                      Previous
                     </button>
-                    <button 
-                      onClick={() => handleDelete(c.name)}
-                      className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setCoursesPage(i + 1)}
+                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                          coursesPage === i + 1
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={coursesPage === totalPages}
+                      onClick={() => setCoursesPage(coursesPage + 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Trash2 size={14} />
+                      Next
                     </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </Card>
+                </div>
+              )}
+            </Card>
+          );
+        })()
       )}
 
       {subTab === 'batches' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Academic Batches Allocation</CardTitle>
-          </CardHeader>
-          <Table headers={['Batch Name', 'Mapped Course', 'Lecture Timings', 'Allotted Classroom', 'Primary Teacher', 'Actions']}>
-            {batches.map((b, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="px-6 py-4 font-semibold text-slate-800">{b.name}</td>
-                <td className="px-6 py-4 text-xs text-slate-500">{b.course}</td>
-                <td className="px-6 py-4 font-mono text-xs">{b.timing}</td>
-                <td className="px-6 py-4">{b.room}</td>
-                <td className="px-6 py-4">{b.teacher}</td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleEdit(b)}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+        (() => {
+          const paginatedBatches = filteredAndSortedBatches.slice((batchesPage - 1) * itemsPerPage, batchesPage * itemsPerPage);
+          const totalPages = Math.ceil(filteredAndSortedBatches.length / itemsPerPage);
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Academic Batches Allocation</CardTitle>
+              </CardHeader>
+              <Table headers={['Batch Name', 'Mapped Course', 'Lecture Timings', 'Allotted Classroom', 'Primary Teacher', 'Actions']}>
+                {paginatedBatches.map((b, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-semibold text-slate-800">{b.name}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500">{b.course}</td>
+                    <td className="px-6 py-4 font-mono text-xs">{b.timing}</td>
+                    <td className="px-6 py-4">{b.room}</td>
+                    <td className="px-6 py-4">{b.teacher}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleEdit(b)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(b.name)}
+                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-650 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                  <div>
+                    Showing <span className="text-slate-800 font-bold">{Math.min((batchesPage - 1) * itemsPerPage + 1, filteredAndSortedBatches.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(batchesPage * itemsPerPage, filteredAndSortedBatches.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedBatches.length}</span> batches
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={batchesPage === 1}
+                      onClick={() => setBatchesPage(batchesPage - 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Edit2 size={14} />
+                      Previous
                     </button>
-                    <button 
-                      onClick={() => handleDelete(b.name)}
-                      className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setBatchesPage(i + 1)}
+                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                          batchesPage === i + 1
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={batchesPage === totalPages}
+                      onClick={() => setBatchesPage(batchesPage + 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Trash2 size={14} />
+                      Next
                     </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </Card>
+                </div>
+              )}
+            </Card>
+          );
+        })()
       )}
 
       {subTab === 'subjects' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Subjects Syllabus Config</CardTitle>
-          </CardHeader>
-          <Table headers={['Subject Name', 'Primary Department', 'Assigned Batches', 'Actions']}>
-            <tr className="hover:bg-slate-50">
-              <td className="px-6 py-4 font-semibold text-slate-800">Organic Chemistry</td>
-              <td className="px-6 py-4">Chemistry Department</td>
-              <td className="px-6 py-4">JEE-Morning-A, NEET-Regular-B</td>
-              <td className="px-6 py-4">
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleEdit({ name: 'Organic Chemistry' })}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete('Organic Chemistry')}
-                    className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+        (() => {
+          const paginatedSubjects = filteredAndSortedSubjects.slice((subjectsPage - 1) * itemsPerPage, subjectsPage * itemsPerPage);
+          const totalPages = Math.ceil(filteredAndSortedSubjects.length / itemsPerPage);
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Subjects Syllabus Config</CardTitle>
+              </CardHeader>
+              <Table headers={['Subject Name', 'Primary Department', 'Assigned Batches', 'Actions']}>
+                {paginatedSubjects.map((s, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
+                    <td className="px-6 py-4">{s.department}</td>
+                    <td className="px-6 py-4 text-xs">{s.batches}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleEdit(s)}
+                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(s.name)}
+                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-650 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                  <div>
+                    Showing <span className="text-slate-800 font-bold">{Math.min((subjectsPage - 1) * itemsPerPage + 1, filteredAndSortedSubjects.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(subjectsPage * itemsPerPage, filteredAndSortedSubjects.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedSubjects.length}</span> subjects
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={subjectsPage === 1}
+                      onClick={() => setSubjectsPage(subjectsPage - 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSubjectsPage(i + 1)}
+                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                          subjectsPage === i + 1
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={subjectsPage === totalPages}
+                      onClick={() => setSubjectsPage(subjectsPage + 1)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-              </td>
-            </tr>
-            <tr className="hover:bg-slate-50">
-              <td className="px-6 py-4 font-semibold text-slate-800">Electromagnetism</td>
-              <td className="px-6 py-4">Physics Department</td>
-              <td className="px-6 py-4">JEE-Evening-B</td>
-              <td className="px-6 py-4">
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleEdit({ name: 'Electromagnetism' })}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete('Electromagnetism')}
-                    className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </Table>
-        </Card>
+              )}
+            </Card>
+          );
+        })()
       )}
 
       {/* Creation Modal */}

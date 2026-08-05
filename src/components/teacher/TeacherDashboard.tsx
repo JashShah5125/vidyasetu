@@ -15,6 +15,11 @@ export const TeacherDashboard: React.FC = () => {
   const [activeDoubtId, setActiveDoubtId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 2;
+  const paginatedDoubts = doubts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(doubts.length / itemsPerPage);
+
   const handleQuickAnswer = (id: string) => {
     setActiveDoubtId(id);
     setResponseText('');
@@ -95,10 +100,10 @@ export const TeacherDashboard: React.FC = () => {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Academic doubts forum Q&A</CardTitle>
+              <CardTitle>Academic doubts forum Q&amp;A</CardTitle>
             </CardHeader>
             <div className="space-y-4">
-              {doubts.map((d, idx) => (
+              {paginatedDoubts.map((d, idx) => (
                 <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <div className="flex justify-between items-center text-xs font-bold text-slate-400">
                     <span>STUDENT: {d.studentName} ({d.subject})</span>
@@ -127,6 +132,45 @@ export const TeacherDashboard: React.FC = () => {
                 </div>
               ))}
             </div>
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold text-slate-500 shadow-sm select-none mt-4">
+                <div>
+                  Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, doubts.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, doubts.length)}</span> of <span className="text-slate-855 font-bold">{doubts.length}</span> doubts
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                        currentPage === i + 1
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
 

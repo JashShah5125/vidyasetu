@@ -26,6 +26,11 @@ export const TenantSubscriptions: React.FC = () => {
   const [viewingItem, setViewingItem] = useState<TenantSubscription | null>(null);
   const [showView, setShowView] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterPlan, setFilterPlan] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('tenantName');
 
   // Form state – Tenant
   const [tenantId, setTenantId] = useState('');
@@ -54,6 +59,13 @@ export const TenantSubscriptions: React.FC = () => {
   const [ovApiCalls, setOvApiCalls] = useState('');
 
   const activePlans = plans.filter(p => p.status === 'Active');
+
+  const visiblePlans = activePlans.filter(p => {
+    if (!tenantId) return !p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0;
+    const isPublic = !p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0;
+    const isSpecific = p.visibleTo && p.visibleTo.includes(tenantId);
+    return isPublic || isSpecific;
+  });
 
   // Auto-populate final price when plan or discount changes
   const selectedPlan: SubscriptionPlan | undefined = plans.find(p => p.id === planId);
@@ -161,16 +173,71 @@ export const TenantSubscriptions: React.FC = () => {
     return planVal === -1 ? 'Unlimited' : planVal.toLocaleString();
   };
 
+
+
+  const filteredAndSortedSubs = tenantSubscriptions
+    .filter(sub => {
+      const matchSearch = sub.tenantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          sub.tenantId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          sub.planName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchPlan = filterPlan === 'All' || sub.planName === filterPlan;
+      const matchStatus = filterStatus === 'All' || sub.status === filterStatus;
+      return matchSearch && matchPlan && matchStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'tenantName') return a.tenantName.localeCompare(b.tenantName);
+      if (sortBy === 'planName') return a.planName.localeCompare(b.planName);
+      if (sortBy === 'startDate') return a.startDate.localeCompare(b.startDate);
+      return 0;
+    });
+
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedSubs.map(s => ({
+      'Tenant ID': s.tenantId,
+      'Tenant Name': s.tenantName,
+      'Plan Name': s.planName,
+      'Billing Cycle': s.billingCycle,
+      'Start Date': s.startDate,
+      'Expiry Date': s.expiryDate,
+      'Final Price': s.finalPrice,
+      'Status': s.status
+    }));
+    
+    if (dataToExport.length === 0) return;
+    const csvRows = [];
+    const headers = Object.keys(dataToExport[0]);
+    csvRows.push(headers.join(','));
+    
+    for (const row of dataToExport) {
+      const values = headers.map(header => {
+        const val = row[header as keyof typeof row] || '';
+        const escaped = ('' + val).replace(/"/g, '\\"');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "subscriptions.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {successMsg && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">✓ {successMsg}</div>
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
+          ✓ {successMsg}
+        </div>
       )}
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Tenant Subscriptions</h2>
-          <p className="text-sm text-slate-500 mt-1">Assign plans to tenants, set commercial terms, and override specific limits per customer agreement.</p>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Tenant Subscription manager</h2>
+          <p className="text-sm text-slate-500 mt-1">Assign plans to tenants, adjust billing cycle parameters, and override limits.</p>
         </div>
         <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAdd}>
           <Plus size={16} /> Assign Plan to Tenant
@@ -187,77 +254,175 @@ export const TenantSubscriptions: React.FC = () => {
         </div>
       </div>
 
+      {/* Search, Filter, Sort Controls & Export CSV */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
+          <Input 
+            placeholder="Search by ID, name, plan..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+          />
+          <Select 
+            label="Plan Template" 
+            value={filterPlan} 
+            onChange={(e) => setFilterPlan(e.target.value)} 
+            options={[
+              { value: 'All', label: 'All Plans' },
+              ...plans.map(p => ({ value: p.name, label: p.name }))
+            ]} 
+          />
+          <Select 
+            label="Status" 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value)} 
+            options={[
+              { value: 'All', label: 'All Status' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Expired', label: 'Expired' }
+            ]} 
+          />
+          <Select 
+            label="Sort By" 
+            value={sortBy} 
+            onChange={(e) => setSortBy(e.target.value)} 
+            options={[
+              { value: 'tenantName', label: 'Tenant Name' },
+              { value: 'planName', label: 'Plan Name' },
+              { value: 'startDate', label: 'Start Date' }
+            ]} 
+          />
+        </div>
+        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+      </div>
+
       <Card>
         <CardHeader><CardTitle>Active Subscriptions</CardTitle></CardHeader>
         <Table headers={['Tenant', 'Plan', 'Billing Cycle', 'Start Date', 'Expiry Date', 'Price', 'Status', 'Payment Status', 'Overrides', 'Actions']}>
-          {tenantSubscriptions.map((sub, idx) => {
-            const plan = plans.find(p => p.id === sub.planId);
-            const hasOverrides = Object.keys(sub.overrides).length > 0;
+          {(() => {
+            const itemsPerPage = 3;
+            const paginatedSubs = filteredAndSortedSubs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            
+            if (paginatedSubs.length === 0 && filteredAndSortedSubs.length > 0 && currentPage > 1) {
+              setCurrentPage(currentPage - 1);
+            }
+            
             return (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="px-4 py-4">
-                  <div className="font-semibold text-slate-800">{sub.tenantName}</div>
-                  <div className="text-xs text-slate-400 font-mono">{sub.tenantId}</div>
-                </td>
-                <td className="px-4 py-4">
-                  <div className="font-semibold text-slate-700 text-sm">{sub.planName}</div>
-                  {plan && <div className="text-xs text-slate-400">{plan.code}</div>}
-                </td>
-                <td className="px-4 py-4"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs">{sub.billingCycle}</span></td>
-                <td className="px-4 py-4 font-mono text-xs whitespace-nowrap text-slate-600">{formatDate(sub.startDate)}</td>
-                <td className="px-4 py-4 font-mono text-xs whitespace-nowrap text-slate-600">{formatDate(sub.expiryDate)}</td>
-                <td className="px-4 py-4 font-semibold text-slate-800 whitespace-nowrap text-sm">
-                  {sub.finalPrice === 0
-                    ? <span className="text-emerald-600 font-bold">Free</span>
-                    : `₹${sub.finalPrice.toLocaleString()}`}
-                  {sub.discount > 0 && <span className="text-xs text-emerald-600 ml-1">({sub.discount}% off)</span>}
-                </td>
-                <td className="px-4 py-4">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${statusColors[sub.status]}`}>{sub.status}</span>
-                </td>
-                <td className="px-4 py-4">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold border ${
-                    sub.finalPrice === 0
-                      ? 'bg-slate-100 text-slate-600 border-slate-200'
-                      : sub.status === 'Expired'
-                      ? 'bg-red-50 text-red-600 border-red-200'
-                      : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  }`}>
-                    {sub.finalPrice === 0 ? 'Exempt' : sub.status === 'Expired' ? 'Unpaid' : 'Paid'}
-                  </span>
-                </td>
-                <td className="px-4 py-4">
-                  {hasOverrides
-                    ? <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><AlertTriangle size={10} /> Custom</span>
-                    : <span className="text-xs text-slate-400">Plan defaults</span>}
-                </td>
-                <td className="px-4 py-4">
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button onClick={() => { setViewingItem(sub); setShowView(true); }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
-                      <Eye size={13} /> View
-                    </button>
-                    <button onClick={() => handleOpenEdit(sub)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors">
-                      <Edit size={13} /> Edit
-                    </button>
-                    <button onClick={() => handleDelete(sub.id, sub.tenantName)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-red-100 text-red-600 bg-red-50/50 hover:bg-red-50 rounded-lg cursor-pointer transition-colors">
-                      <Trash size={13} /> Cancel
-                    </button>
-                  </div>
-                </td>
-              </tr>
+              <>
+                {paginatedSubs.map((sub, idx) => {
+                  const plan = plans.find(p => p.id === sub.planId);
+                  const hasOverrides = Object.keys(sub.overrides).length > 0;
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-slate-800">{sub.tenantName}</div>
+                        <div className="text-xs text-slate-400 font-mono">{sub.tenantId}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-slate-700 text-sm">{sub.planName}</div>
+                        {plan && <div className="text-xs text-slate-400">{plan.code}</div>}
+                      </td>
+                      <td className="px-4 py-4"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs">{sub.billingCycle}</span></td>
+                      <td className="px-4 py-4 font-mono text-xs whitespace-nowrap text-slate-600">{formatDate(sub.startDate)}</td>
+                      <td className="px-4 py-4 font-mono text-xs whitespace-nowrap text-slate-600">{formatDate(sub.expiryDate)}</td>
+                      <td className="px-4 py-4 font-semibold text-slate-800 whitespace-nowrap text-sm">
+                        {sub.finalPrice === 0
+                          ? <span className="text-emerald-600 font-bold">Free</span>
+                          : `₹${sub.finalPrice.toLocaleString()}`}
+                        {sub.discount > 0 && <span className="text-xs text-emerald-600 ml-1">({sub.discount}% off)</span>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${statusColors[sub.status]}`}>{sub.status}</span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold border ${
+                          sub.finalPrice === 0
+                            ? 'bg-slate-100 text-slate-600 border-slate-200'
+                            : sub.status === 'Expired'
+                            ? 'bg-red-50 text-red-650 border-red-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {sub.finalPrice === 0 ? 'Exempt' : sub.status === 'Expired' ? 'Unpaid' : 'Paid'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        {hasOverrides
+                          ? <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><AlertTriangle size={10} /> Custom</span>
+                          : <span className="text-xs text-slate-400">Plan defaults</span>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-1.5 flex-wrap">
+                          <button onClick={() => { setViewingItem(sub); setShowView(true); }}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
+                            <Eye size={13} /> View
+                          </button>
+                          <button onClick={() => handleOpenEdit(sub)}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors">
+                            <Edit size={13} /> Edit
+                          </button>
+                          <button onClick={() => handleDelete(sub.id, sub.tenantName)}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-red-100 text-red-600 bg-red-50/50 hover:bg-red-50 rounded-lg cursor-pointer transition-colors">
+                            <Trash size={13} /> Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredAndSortedSubs.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-6 py-12 text-center text-slate-400 text-sm">
+                      No subscriptions match the selected criteria.
+                    </td>
+                  </tr>
+                )}
+              </>
             );
-          })}
-          {tenantSubscriptions.length === 0 && (
-            <tr>
-              <td colSpan={9} className="px-6 py-12 text-center text-slate-400 text-sm">
-                No subscriptions yet. Click "Assign Plan to Tenant" to get started.
-              </td>
-            </tr>
-          )}
+          })()}
         </Table>
+        {(() => {
+          const itemsPerPage = 3;
+          const totalPages = Math.ceil(filteredAndSortedSubs.length / itemsPerPage);
+          if (totalPages <= 1) return null;
+          return (
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+              <div>
+                Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedSubs.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedSubs.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedSubs.length}</span> subscriptions
+              </div>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                      currentPage === i + 1
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* ── Assign / Edit Subscription Modal ── */}
@@ -277,7 +442,7 @@ export const TenantSubscriptions: React.FC = () => {
               <Select label="Subscription Plan" required value={planId} onChange={e => { setPlanId(e.target.value); }}
                 options={[
                   { value: '', label: 'Select Plan' },
-                  ...activePlans.map(p => ({ value: p.id, label: `${p.name} — ${p.currency} ${p.price === 0 ? 'Free' : p.price.toLocaleString()} / ${p.billingType}` }))
+                  ...visiblePlans.map(p => ({ value: p.id, label: `${p.name} — ${p.currency} ${p.price === 0 ? 'Free' : p.price.toLocaleString()} / ${p.billingType}` }))
                 ]} />
             </div>
             {selectedPlan && (
