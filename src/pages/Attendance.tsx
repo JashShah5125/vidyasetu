@@ -24,6 +24,11 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     'S-202': 'Present'
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 2;
+  const totalPages = Math.ceil(students.length / itemsPerPage);
+  const paginatedStudents = students.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   React.useEffect(() => {
     setSubTab(initialTab);
   }, [initialTab]);
@@ -100,7 +105,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
               <CardTitle>Attendance Sheet Checklist</CardTitle>
             </CardHeader>
             <div className="divide-y divide-slate-100">
-              {students.map((s, idx) => (
+              {paginatedStudents.map((s, idx) => (
                 <div key={idx} className="flex justify-between items-center py-4">
                   <div>
                     <div className="font-semibold text-slate-800">{s.name}</div>
@@ -108,35 +113,35 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                   </div>
                   <div className="flex gap-2">
                     <button
-                      type="button"
-                      onClick={() => handleMark(s.id, 'Present')}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                        records[s.id] === 'Present'
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm'
-                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                      }`}
+                       type="button"
+                       onClick={() => handleMark(s.id, 'Present')}
+                       className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                         records[s.id] === 'Present'
+                           ? 'bg-emerald-50 text-emerald-650 border-emerald-200 shadow-sm'
+                           : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                       }`}
                     >
                       Present
                     </button>
                     <button
-                      type="button"
-                      onClick={() => handleMark(s.id, 'Absent')}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                        records[s.id] === 'Absent'
-                          ? 'bg-red-50 text-red-600 border-red-200 shadow-sm'
-                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                      }`}
+                       type="button"
+                       onClick={() => handleMark(s.id, 'Absent')}
+                       className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                         records[s.id] === 'Absent'
+                           ? 'bg-red-50 text-red-600 border-red-200 shadow-sm'
+                           : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                       }`}
                     >
                       Absent
                     </button>
                     <button
-                      type="button"
-                      onClick={() => handleMark(s.id, 'Late')}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                        records[s.id] === 'Late'
-                          ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm'
-                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                      }`}
+                       type="button"
+                       onClick={() => handleMark(s.id, 'Late')}
+                       className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                         records[s.id] === 'Late'
+                           ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm'
+                           : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                       }`}
                     >
                       Late
                     </button>
@@ -144,6 +149,45 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                 </div>
               ))}
             </div>
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none mt-4">
+                <div>
+                  Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, students.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, students.length)}</span> of <span className="text-slate-855 font-bold">{students.length}</span> students
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                        currentPage === i + 1
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex justify-end pt-4 border-t border-slate-100 mt-4">
               <Button variant="primary" onClick={handleSave}>
                 Save Daily Sheets

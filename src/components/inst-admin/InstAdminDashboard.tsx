@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Table } from '../ui/Table';
@@ -6,8 +6,13 @@ import { GraduationCap, Users, BookOpen, ClipboardCheck } from 'lucide-react';
 
 export const InstAdminDashboard: React.FC = () => {
   const { currentUser, students, leads, auditLogs } = useApp();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
 
   if (!currentUser) return null;
+
+  const paginatedStudents = students.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(students.length / itemsPerPage);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -75,7 +80,7 @@ export const InstAdminDashboard: React.FC = () => {
               <CardTitle>Recent Student Registrations</CardTitle>
             </CardHeader>
             <Table headers={['Student ID', 'Name', 'Course', 'Branch', 'Admission Date', 'Status']}>
-              {students.map((s, idx) => (
+              {paginatedStudents.map((s, idx) => (
                 <tr key={idx} className="hover:bg-slate-50">
                   <td className="px-6 py-4 font-mono font-bold text-xs">{s.studentId}</td>
                   <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
@@ -92,6 +97,45 @@ export const InstAdminDashboard: React.FC = () => {
                 </tr>
               ))}
             </Table>
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
+                <div>
+                  Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, students.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, students.length)}</span> of <span className="text-slate-855 font-bold">{students.length}</span> students
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                        currentPage === i + 1
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
 

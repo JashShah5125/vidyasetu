@@ -7,11 +7,10 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({
-  children
-}) => {
+export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { currentUser, toasts } = useApp();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   if (!currentUser) {
     return <div className="w-full h-full">{children}</div>;
@@ -20,16 +19,20 @@ export const Layout: React.FC<LayoutProps> = ({
   return (
     <div className="flex w-screen h-screen overflow-hidden bg-slate-50">
       {/* Sidebar navigation */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
+      <Sidebar
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={() => setIsCollapsed(c => !c)}
       />
-      
+
       {/* Main Content Workspace */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div
+        className="flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ease-in-out"
+      >
         {/* Header bar metadata */}
-        <Header onMenuClick={() => setIsSidebarOpen(true)} />
-        
+        <Header onMenuClick={() => setIsMobileSidebarOpen(true)} />
+
         {/* Dynamic content scroll workspace */}
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8 animate-fade-in">
           <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 pb-12">
