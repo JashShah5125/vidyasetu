@@ -66,6 +66,7 @@ export interface AuditLog {
   role: string;
   action: string;
   details: string;
+  ipAddress?: string;
 }
 
 export interface Course {
@@ -249,8 +250,8 @@ export const INITIAL_DOUBTS: Doubt[] = [
 ];
 
 export const INITIAL_AUDIT_LOGS: AuditLog[] = [
-  { id: 'AL-901', timestamp: '2026-07-21 10:15:23', actor: 'SaaS Platform Owner', role: 'SaaS Super Admin', action: 'CREATE_TENANT', details: 'Created tenant: Apex IIT Academy (VS-001)' },
-  { id: 'AL-902', timestamp: '2026-07-21 11:30:12', actor: 'Dr. Ramesh Kumar', role: 'Institute Admin', action: 'UPDATE_FEES', details: 'Configured NEET Fee Plan structure' }
+  { id: 'AL-901', timestamp: '2026-07-21 10:15:23', actor: 'SaaS Platform Owner', role: 'SaaS Super Admin', action: 'CREATE_TENANT', details: 'Created tenant: Apex IIT Academy (VS-001)', ipAddress: '192.168.1.45' },
+  { id: 'AL-902', timestamp: '2026-07-21 11:30:12', actor: 'Dr. Ramesh Kumar', role: 'Institute Admin', action: 'UPDATE_FEES', details: 'Configured NEET Fee Plan structure', ipAddress: '192.168.1.88' }
 ];
 
 export const formatDate = (dateStr: string | undefined): string => {

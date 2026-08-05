@@ -21,7 +21,6 @@ export const InstituteCheckout: React.FC = () => {
   const [billingName, setBillingName] = useState(myTenant?.ownerName || myTenant?.name || '');
   const [billingEmail, setBillingEmail] = useState(myTenant?.email || myTenant?.defaultEmail || '');
   const [billingPhone, setBillingPhone] = useState(myTenant?.mobile || '');
-  const [billingAddress, setBillingAddress] = useState(myTenant?.address || '');
   const [gstin, setGstin] = useState(myTenant?.gstNo || '');
   const [isProcessing, setIsProcessing] = useState(false);
 

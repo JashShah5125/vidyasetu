@@ -1,14 +1,12 @@
 import React from 'react';
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
-  isSidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMenuClick, isSidebarCollapsed = false, onToggleSidebar }) => {
+export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { currentUser, logout } = useApp();
 
   if (!currentUser) return null;

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 
 interface ApprovalRequest {
   id: string;
@@ -19,6 +21,9 @@ export const ApprovalCenter: React.FC = () => {
     { id: 'REQ-005', type: 'Custom Domain Request', requester: 'Apex IIT Academy', details: 'Mapped portals.apexiit.com successfully.', timestamp: '2026-08-02 14:00:00', status: 'Approved' }
   ]);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+
   const [toast, setToast] = useState('');
 
   const handleAction = (id: string, action: 'Approved' | 'Rejected') => {
@@ -31,6 +36,14 @@ export const ApprovalCenter: React.FC = () => {
       return r;
     }));
   };
+
+  const filteredRequests = requests.filter(r => {
+    const matchesSearch = r.requester.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          r.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          r.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'All' || r.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="space-y-6">
@@ -47,50 +60,76 @@ export const ApprovalCenter: React.FC = () => {
         </p>
       </div>
 
+      {/* Search & Filter Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end">
+        <Input 
+          placeholder="Search by requester, details, ID..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)} 
+        />
+        <Select 
+          label="Decision Status" 
+          value={filterStatus} 
+          onChange={(e) => setFilterStatus(e.target.value)} 
+          options={[
+            { value: 'All', label: 'All Statuses' },
+            { value: 'Pending', label: 'Pending' },
+            { value: 'Approved', label: 'Approved' },
+            { value: 'Rejected', label: 'Rejected' }
+          ]} 
+        />
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800 text-sm">Awaiting Decisions</h3>
           <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">
-            {requests.filter(r => r.status === 'Pending').length} Pending
+            {filteredRequests.filter(r => r.status === 'Pending').length} Pending
           </span>
         </div>
 
         <div className="divide-y divide-slate-100">
-          {requests.map((r) => (
-            <div key={r.id} className="p-6 hover:bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition">
-              <div className="space-y-1.5 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded border border-blue-100">
-                    {r.type}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">{r.id}</span>
-                  <span className="text-xs text-slate-400">•</span>
-                  <span className="text-xs text-slate-400 font-mono">{r.timestamp}</span>
-                </div>
-                <h4 className="text-base font-bold text-slate-800">{r.requester}</h4>
-                <p className="text-xs text-slate-500 max-w-2xl">{r.details}</p>
-              </div>
-
-              <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                {r.status === 'Pending' ? (
-                  <>
-                    <Button variant="secondary" size="sm" onClick={() => handleAction(r.id, 'Rejected')}>
-                      Reject
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={() => handleAction(r.id, 'Approved')}>
-                      Approve Request
-                    </Button>
-                  </>
-                ) : (
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                    r.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'
-                  }`}>
-                    {r.status}
-                  </span>
-                )}
-              </div>
+          {filteredRequests.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm">
+              No approval requests found matching the filters.
             </div>
-          ))}
+          ) : (
+            filteredRequests.map((r) => (
+              <div key={r.id} className="p-6 hover:bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition">
+                <div className="space-y-1.5 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded border border-blue-100">
+                      {r.type}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">{r.id}</span>
+                    <span className="text-xs text-slate-400">•</span>
+                    <span className="text-xs text-slate-400 font-mono">{r.timestamp}</span>
+                  </div>
+                  <h4 className="text-base font-bold text-slate-800">{r.requester}</h4>
+                  <p className="text-xs text-slate-500 max-w-2xl">{r.details}</p>
+                </div>
+
+                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                  {r.status === 'Pending' ? (
+                    <>
+                      <Button variant="secondary" size="sm" onClick={() => handleAction(r.id, 'Rejected')}>
+                        Reject
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={() => handleAction(r.id, 'Approved')}>
+                        Approve Request
+                      </Button>
+                    </>
+                  ) : (
+                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                      r.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'
+                    }`}>
+                      {r.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

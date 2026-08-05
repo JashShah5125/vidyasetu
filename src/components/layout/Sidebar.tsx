@@ -309,11 +309,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           <span className="flex-shrink-0 flex items-center justify-center">
             {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </span>
-          {!isCollapsed && (
-            <span className="text-sm font-medium whitespace-nowrap">
-              Collapse Sidebar
-            </span>
-          )}
         </button>
 
         {/* Nav links */}

@@ -16,12 +16,6 @@ type TimeFilter = 'today' | 'week' | 'month' | 'year';
 
 // ─── Reusable Sub-components ──────────────────────────────────────────────────
 
-const Badge: React.FC<{ children: React.ReactNode; color: string }> = ({ children, color }) => (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${color}`}>
-    {children}
-  </span>
-);
-
 const ProgressBar: React.FC<{ value: number; max: number; color: string }> = ({ value, max, color }) => {
   const pct = Math.min(100, Math.round((value / Math.max(max, 1)) * 100));
   return (

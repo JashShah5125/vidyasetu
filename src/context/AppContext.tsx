@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import type {
   Role,
   UserProfile,
@@ -99,7 +99,18 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('vs_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('vs_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('vs_current_user');
+    }
+  }, [currentUser]);
 
   const [tenants, setTenants] = useState<Tenant[]>(INITIAL_TENANTS);
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
@@ -117,13 +128,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logAction = (action: string, details: string) => {
     const actorName = currentUser ? currentUser.name : 'System';
     const actorRole = currentUser ? currentUser.role : 'System';
+    
+    let ipAddress = '127.0.0.1';
+    if (actorName === 'System') {
+      ipAddress = '10.0.0.1';
+    } else if (actorRole === 'saas-admin') {
+      ipAddress = '192.168.1.100';
+    } else {
+      ipAddress = `192.168.1.${Math.floor(10 + Math.random() * 90)}`;
+    }
+
     const newLog: AuditLog = {
       id: `AL-${Math.floor(100 + Math.random() * 900)}`,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
       actor: actorName,
       role: actorRole,
       action,
-      details
+      details,
+      ipAddress
     };
     setAuditLogs(prev => [newLog, ...prev]);
   };

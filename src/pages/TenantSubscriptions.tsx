@@ -192,36 +192,25 @@ export const TenantSubscriptions: React.FC = () => {
     });
 
   const handleExportCSV = () => {
-    const dataToExport = filteredAndSortedSubs.map(s => ({
-      'Tenant ID': s.tenantId,
-      'Tenant Name': s.tenantName,
-      'Plan Name': s.planName,
-      'Billing Cycle': s.billingCycle,
-      'Start Date': s.startDate,
-      'Expiry Date': s.expiryDate,
-      'Final Price': s.finalPrice,
-      'Status': s.status
-    }));
-    
-    if (dataToExport.length === 0) return;
+    if (filteredAndSortedSubs.length === 0) return;
+    const headers = Object.keys(filteredAndSortedSubs[0]);
     const csvRows = [];
-    const headers = Object.keys(dataToExport[0]);
-    csvRows.push(headers.join(','));
+    csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
     
-    for (const row of dataToExport) {
+    for (const row of filteredAndSortedSubs) {
       const values = headers.map(header => {
-        const val = row[header as keyof typeof row] || '';
-        const escaped = ('' + val).replace(/"/g, '\\"');
+        const val = row[header as keyof typeof row];
+        const strVal = typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '');
+        const escaped = strVal.replace(/"/g, '""');
         return `"${escaped}"`;
       });
       csvRows.push(values.join(','));
     }
     
-    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join("\n"));
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "subscriptions.csv");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", "subscriptions_registry.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -5,8 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { 
-  Building2, CreditCard, Shield, Sliders, Puzzle, 
-  Palette, Download, UploadCloud, CheckCircle, Save,
+  Download, UploadCloud, CheckCircle, Save,
   Plus, Trash2, Star
 } from 'lucide-react';
 import { formatDate } from '../data/mockData';
@@ -89,7 +88,7 @@ export const Institute: React.FC = () => {
 
   // ── Computed effective limits ──
   // Takes plan default, applies override if present
-  const getLimit = (key: keyof typeof myPlan.maxBranches): number => {
+  const getLimit = (key: 'maxBranches' | 'maxStaffUsers' | 'maxStudents' | 'maxParents' | 'maxTeachers' | 'maxSmsCredits' | 'maxWhatsappMsgs'): number => {
     if (!myPlan) return -1;
     const ov = mySub?.overrides?.[key] as number | undefined;
     return ov !== undefined ? ov : (myPlan[key] as number);

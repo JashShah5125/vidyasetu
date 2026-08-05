@@ -5,10 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 
 export const InstituteUpgradePlan: React.FC = () => {
-  const { currentUser, tenants, tenantSubscriptions, plans, addToast } = useApp();
+  const { currentUser, tenants, tenantSubscriptions, plans } = useApp();
   const navigate = useNavigate();
 
-  const myTenant = tenants.find(t => t.id === currentUser?.tenantId);
   const mySub = tenantSubscriptions.find(s => s.tenantId === currentUser?.tenantId && s.status === 'Active');
 
   return (
