@@ -6,6 +6,8 @@ import { Button } from './components/ui/Button';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
+import { InstituteUpgradePlan } from './pages/InstituteUpgradePlan';
+import { InstituteCheckout } from './pages/InstituteCheckout';
 import { Masters } from './pages/Masters';
 import { Users } from './pages/Users';
 import { Enquiry } from './pages/Enquiry';
@@ -206,6 +208,8 @@ const ContentRouter = () => {
       <Route path="/system-config" element={<SystemConfiguration />} />
       <Route path="/saas-reports" element={<Reports />} />
       <Route path="/institute" element={<Institute />} />
+      <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
+      <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
       <Route path="/providers" element={<GlobalProvidersPlaceholder />} />
       <Route path="/audit-logs" element={<AuditLogsPlaceholder />} />
       <Route path="/branches" element={<Masters initialSubTab="branches" />} />
