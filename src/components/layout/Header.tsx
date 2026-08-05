@@ -46,19 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, isSidebarCollapsed 
           <Menu size={20} />
         </button>
 
-        {/* Desktop sidebar collapse toggle */}
-        {onToggleSidebar && (
-          <button
-            onClick={onToggleSidebar}
-            className="hidden lg:flex p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 cursor-pointer transition-colors"
-            title={isSidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
-          >
-            {isSidebarCollapsed
-              ? <PanelLeftOpen size={18} />
-              : <PanelLeftClose size={18} />
-            }
-          </button>
-        )}
+
 
         {/* Tenant name badge */}
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 shadow-sm">

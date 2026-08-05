@@ -33,13 +33,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     <LayoutContext.Provider value={{ isSidebarCollapsed, toggleSidebar }}>
       <div className="flex w-screen h-screen overflow-hidden bg-slate-50">
 
-        {/* Sidebar navigation — hidden when collapsed on desktop */}
-        {!isSidebarCollapsed && (
-          <Sidebar
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-          />
-        )}
+        {/* Sidebar navigation */}
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
 
         {/* Main Content Workspace */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
