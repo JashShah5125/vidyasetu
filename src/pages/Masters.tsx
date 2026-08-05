@@ -9,22 +9,19 @@ import { Select } from '../components/ui/Select';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 
 interface MastersProps {
-  initialSubTab?: 'branches' | 'courses' | 'batches' | 'subjects';
+  initialSubTab?: 'courses' | 'batches' | 'subjects';
 }
 
-export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) => {
-  const { 
+export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) => {
+  const {
     courses, 
     batches, 
-    branches, 
     addCourse, 
     addBatch, 
-    addBranch,
     setCourses,
-    setBatches,
-    setBranches
+    setBatches
   } = useApp();
-  const [subTab, setSubTab] = useState<'branches' | 'courses' | 'batches' | 'subjects'>(initialSubTab);
+  const [subTab, setSubTab] = useState<'courses' | 'batches' | 'subjects'>(initialSubTab);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
 
@@ -57,10 +54,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
       return;
     }
     setEditingName(null);
-    setBranchName('');
-    setBranchCode('');
-    setBranchAdmin('');
-    setBranchCapacity(100);
 
     setCourseName('');
     setCourseCode('');
@@ -78,12 +71,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
 
   const handleEdit = (item: any) => {
     setEditingName(item.name);
-    if (subTab === 'branches') {
-      setBranchName(item.name);
-      setBranchCode(item.code);
-      setBranchAdmin(item.admin);
-      setBranchCapacity(item.capacity);
-    } else if (subTab === 'courses') {
+    if (subTab === 'courses') {
       setCourseName(item.name);
       setCourseCode(item.code);
       setCourseFees(item.fees);
@@ -110,23 +98,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (subTab === 'branches') {
-      if (!branchName || !branchCode) return;
-      if (editingName) {
-        setBranches(prev => prev.map(b => b.name === editingName 
-          ? { ...b, name: branchName, code: branchCode, admin: branchAdmin, capacity: branchCapacity } 
-          : b
-        ));
-      } else {
-        addBranch({
-          name: branchName,
-          code: branchCode,
-          admin: branchAdmin || 'TBD',
-          capacity: Number(branchCapacity),
-          status: 'Active'
-        });
-      }
-    } else if (subTab === 'courses') {
+    if (subTab === 'courses') {
       if (!courseName || !courseCode) return;
       if (editingName) {
         setCourses(prev => prev.map(c => c.name === editingName 
@@ -178,14 +150,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
       {/* Tab Selectors */}
       <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none">
         <button
-          onClick={() => setSubTab('branches')}
-          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer select-none ${
-            subTab === 'branches' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          Branches
-        </button>
-        <button
           onClick={() => setSubTab('courses')}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer select-none ${
             subTab === 'courses' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -212,45 +176,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
       </div>
 
       {/* Render sub-tabs */}
-      {subTab === 'branches' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Institute Branches Registry</CardTitle>
-          </CardHeader>
-          <Table headers={['Branch Name', 'Code', 'Branch Admin', 'Max Capacity', 'Status', 'Actions']}>
-            {branches.map((b, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="px-6 py-4 font-semibold text-slate-800">{b.name}</td>
-                <td className="px-6 py-4 font-mono font-bold text-xs">{b.code}</td>
-                <td className="px-6 py-4">{b.admin}</td>
-                <td className="px-6 py-4">{b.capacity} Students</td>
-                <td className="px-6 py-4">
-                  <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
-                    {b.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => handleEdit(b)}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(b.name)}
-                      className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        </Card>
-      )}
-
       {subTab === 'courses' && (
         <Card>
           <CardHeader>
@@ -380,17 +305,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'branches' }) 
           title={editingName ? `Edit Record: ${editingName}` : `Create Master Record: ${subTab.toUpperCase()}`}
         >
           <form onSubmit={handleFormSubmit} className="space-y-4">
-            {subTab === 'branches' && (
-              <>
-                <Input label="Branch Office Name" required placeholder="e.g. Pune Camp" value={branchName} onChange={(e) => setBranchName(e.target.value)} />
-                <div className="grid grid-cols-2 gap-4">
-                  <Input label="Branch Unique Code" required placeholder="e.g. PUN" value={branchCode} onChange={(e) => setBranchCode(e.target.value)} />
-                  <Input label="Allowed Capacity" type="number" value={branchCapacity} onChange={(e) => setBranchCapacity(Number(e.target.value))} />
-                </div>
-                <Input label="Assigned Branch Admin" placeholder="Mr. Ramesh Shinde" value={branchAdmin} onChange={(e) => setBranchAdmin(e.target.value)} />
-              </>
-            )}
-
             {subTab === 'courses' && (
               <>
                 <Input label="Course Title Name" required placeholder="e.g. NEET Batch Premium" value={courseName} onChange={(e) => setCourseName(e.target.value)} />

@@ -8,6 +8,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
 import { InstituteUpgradePlan } from './pages/InstituteUpgradePlan';
 import { InstituteCheckout } from './pages/InstituteCheckout';
+import { BranchSetup } from './pages/BranchSetup';
+import { BranchDetail } from './pages/BranchDetail';
 import { Masters } from './pages/Masters';
 import { Users } from './pages/Users';
 import { Enquiry } from './pages/Enquiry';
@@ -166,7 +168,8 @@ const ContentRouter = () => {
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
       <Route path="/providers" element={<GlobalProvidersPlaceholder />} />
       <Route path="/audit-logs" element={<AuditLogsPlaceholder />} />
-      <Route path="/branches" element={<Masters initialSubTab="branches" />} />
+      <Route path="/branches" element={<BranchSetup />} />
+      <Route path="/branches/:id" element={<BranchDetail />} />
       <Route path="/courses" element={<Masters initialSubTab="courses" />} />
       <Route path="/staff" element={<Users />} />
       <Route path="/admissions" element={<Admissions />} />
