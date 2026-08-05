@@ -150,6 +150,7 @@ export const Users: React.FC = () => {
       {/* Search, Filter, Sort Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
         <Input 
+          label="Search"
           placeholder="Search by name, email..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 

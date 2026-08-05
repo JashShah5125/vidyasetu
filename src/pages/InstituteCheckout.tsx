@@ -17,10 +17,12 @@ export const InstituteCheckout: React.FC = () => {
   // The plan they are checking out for (either renewal or upgrade)
   const targetPlan = plans.find(p => p.id === planId);
   
-  // Form State
-  const [billingEmail, setBillingEmail] = useState(myTenant?.email || '');
+  // Form State — pre-filled from tenant data
+  const [billingName, setBillingName] = useState(myTenant?.ownerName || myTenant?.name || '');
+  const [billingEmail, setBillingEmail] = useState(myTenant?.email || myTenant?.defaultEmail || '');
   const [billingPhone, setBillingPhone] = useState(myTenant?.mobile || '');
-  const [gstin, setGstin] = useState(myTenant?.gstin || '');
+  const [billingAddress, setBillingAddress] = useState(myTenant?.address || '');
+  const [gstin, setGstin] = useState(myTenant?.gstNo || '');
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!targetPlan || !myTenant) {
@@ -39,10 +41,9 @@ export const InstituteCheckout: React.FC = () => {
   // Financial Calculations
   const basePrice = targetPlan.price;
   const setupFee = targetPlan.setupFee || 0;
-  // If it's a renewal, usually setup fee is waived, but we'll include it if it's an upgrade.
   const applicableSetupFee = isRenewal ? 0 : setupFee; 
   const subtotal = basePrice + applicableSetupFee;
-  const gstRate = 0.18; // 18% GST
+  const gstRate = 0.18;
   const taxes = subtotal * gstRate;
   const totalAmount = subtotal + taxes;
 
@@ -73,32 +74,58 @@ export const InstituteCheckout: React.FC = () => {
         {/* Left Column: Form Details */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <div className="p-6 border-b border-slate-100 flex items-center gap-2">
-              <Receipt className="text-blue-600" size={20} />
-              <h3 className="font-bold text-slate-800 text-lg">Billing Details</h3>
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="text-blue-600" size={20} />
+                <h3 className="font-bold text-slate-800 text-lg">Billing Details</h3>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                Pre-filled from Institute Profile
+              </span>
             </div>
             <div className="p-6 space-y-5 bg-slate-50/50">
-              <Input 
-                label="Billing Email" 
-                value={billingEmail} 
-                onChange={(e) => setBillingEmail(e.target.value)} 
-                placeholder="Invoices will be sent here"
-              />
-              <Input 
-                label="Billing Phone Number" 
-                value={billingPhone} 
-                onChange={(e) => setBillingPhone(e.target.value)} 
-                placeholder="For payment communications"
-              />
-              <Input 
-                label="GSTIN / Tax ID (Optional)" 
-                value={gstin} 
-                onChange={(e) => setGstin(e.target.value)} 
-                placeholder="For B2B tax invoice"
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <Input
+                  label="Billing Contact Name"
+                  value={billingName}
+                  onChange={(e) => setBillingName(e.target.value)}
+                  placeholder="e.g. Dr. Ramesh Kumar"
+                />
+                <Input
+                  label="Billing Email"
+                  type="email"
+                  value={billingEmail}
+                  onChange={(e) => setBillingEmail(e.target.value)}
+                  placeholder="Invoices will be sent here"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <Input
+                  label="Billing Phone Number"
+                  value={billingPhone}
+                  onChange={(e) => setBillingPhone(e.target.value)}
+                  placeholder="For payment communications"
+                />
+                <Input
+                  label="GSTIN / Tax ID (Optional)"
+                  value={gstin}
+                  onChange={(e) => setGstin(e.target.value)}
+                  placeholder="For B2B GST invoice"
+                />
+              </div>
+
+              <Input
+                label="Billing Address"
+                value={billingAddress}
+                onChange={(e) => setBillingAddress(e.target.value)}
+                placeholder="Full address for invoice"
               />
               
-              <div className="pt-2 text-xs text-slate-500 italic">
-                Note: Updating these details will only affect this and future invoices. It will not change your primary login email.
+              <div className="pt-2 flex items-start gap-2 text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+                <ShieldCheck size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                <span>These details are pre-filled from your Institute Profile and are fully editable. Changes here apply only to this invoice and will not update your primary profile.</span>
               </div>
             </div>
           </Card>

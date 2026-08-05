@@ -19,7 +19,7 @@ export const BranchDetail: React.FC = () => {
 
   const [formData, setFormData] = useState<Partial<Branch>>({
     name: '', code: '', admin: '', adminEmail: '', adminMobile: '', capacity: 0, status: 'Active',
-    address: '', geolocation: '', email: '', phone: '', operatingHours: '', programs: [],
+    address: '', email: '', phone: '', operatingHours: '', programs: [],
     bankDetails: { accountName: '', accountNumber: '', ifsc: '', bankName: '' }
   });
 
@@ -135,7 +135,6 @@ export const BranchDetail: React.FC = () => {
               </div>
               <div className="p-5 space-y-4">
                 <Input label="Full Address" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Street, City, State, Pincode" />
-                <Input label="Geolocation (Maps Link or Lat,Long)" value={formData.geolocation} onChange={e => setFormData({...formData, geolocation: e.target.value})} placeholder="https://maps.google.com/..." />
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Branch Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="contact@branch.com" />
                   <Input label="Branch Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="022-XXXXXXX" />
