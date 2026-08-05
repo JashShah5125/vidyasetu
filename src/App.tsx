@@ -10,7 +10,10 @@ import { InstituteUpgradePlan } from './pages/InstituteUpgradePlan';
 import { InstituteCheckout } from './pages/InstituteCheckout';
 import { BranchSetup } from './pages/BranchSetup';
 import { BranchDetail } from './pages/BranchDetail';
-import { Masters } from './pages/Masters';
+import { CourseSetup } from './pages/CourseSetup';
+import { CourseDetail } from './pages/CourseDetail';
+import { BatchSetup } from './pages/BatchSetup';
+import { SubjectSetup } from './pages/SubjectSetup';
 import { Users } from './pages/Users';
 import { Enquiry } from './pages/Enquiry';
 import { Admissions } from './pages/Admissions';
@@ -216,7 +219,10 @@ const ContentRouter = () => {
       <Route path="/audit-logs" element={<AuditLogsPlaceholder />} />
       <Route path="/branches" element={<BranchSetup />} />
       <Route path="/branches/:id" element={<BranchDetail />} />
-      <Route path="/courses" element={<Masters initialSubTab="courses" />} />
+      <Route path="/courses" element={<CourseSetup />} />
+      <Route path="/courses/:code" element={<CourseDetail />} />
+      <Route path="/batches" element={<BatchSetup />} />
+      <Route path="/subjects" element={<SubjectSetup />} />
       <Route path="/staff" element={<Users />} />
       <Route path="/admissions" element={<Admissions />} />
       <Route path="/students" element={<Students />} />

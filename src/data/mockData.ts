@@ -71,9 +71,10 @@ export interface AuditLog {
 export interface Course {
   name: string;
   code: string;
-  fees: number;
+  fees?: number;
   duration: string;
-  batches: string;
+  batches?: string;
+  programs: string[];
 }
 
 export interface Batch {
@@ -184,9 +185,10 @@ export const INITIAL_STUDENTS: Student[] = [
 ];
 
 export const INITIAL_COURSES: Course[] = [
-  { name: 'JEE Prep Course', code: 'JEE-PREP', fees: 120000, duration: '2 Years', batches: 'JEE-Morning-A, JEE-Evening-B' },
-  { name: 'NEET Batch Premium', code: 'NEET-PREM', fees: 150000, duration: '1 Year', batches: 'NEET-Regular-B' },
-  { name: 'Class 10 Foundation', code: 'FOUND-10', fees: 60000, duration: '1 Year', batches: 'FOUND-Class-A' }
+  { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', programs: ['2 Year', '1 Year', 'Crash Course'] },
+  { name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', programs: ['1 Year', 'Repeater'] },
+  { name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', programs: ['2 Year', '1 Year'] },
+  { name: '8th Standard', code: '8TH-STD', duration: '1 Year', programs: ['8th std ICSE', '8th std State Board', '8th std CBSE'] }
 ];
 
 export const INITIAL_BATCHES: Batch[] = [
@@ -561,3 +563,21 @@ export const INITIAL_TENANT_SUBSCRIPTIONS: TenantSubscription[] = [
   }
 ];
 
+// Use composite keys: CourseCode-ProgramName-LevelValue
+export const INITIAL_SUBJECTS_MAP: Record<string, any[]> = {
+  '8TH-STD-8th std ICSE-class8': [
+    { id: 's1', name: 'Mathematics', code: 'MAT-08', type: 'Core' },
+    { id: 's2', name: 'Science', code: 'SCI-08', type: 'Core' },
+    { id: 's3', name: 'English Literature', code: 'ENG-08', type: 'Core' },
+    { id: 's4', name: 'Computer Applications', code: 'COMP-08', type: 'Elective' }
+  ],
+  'JEE-PREP-2 Year-year1': [
+    { id: 'j1', name: 'Physics (Mechanics)', code: 'PHY101', type: 'Core' }
+  ]
+};
+
+export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {
+  '8TH-STD-8th std ICSE-class8': [
+    { id: 'b1', name: 'Core Subjects Bundle', subjectIds: ['s1', 's2', 's3'] }
+  ]
+};

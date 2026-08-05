@@ -66,11 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, isSidebarCollapsed 
           <span className="whitespace-nowrap truncate max-w-[100px] sm:max-w-none">{currentUser.tenantName}</span>
         </div>
 
-        {currentUser.branch && (
-          <span className="hidden sm:inline-block text-xs text-slate-500 font-medium bg-slate-100 px-2 py-1 rounded whitespace-nowrap">
-            Branch: {currentUser.branch}
-          </span>
-        )}
+
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
