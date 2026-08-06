@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Pagination } from '../../components/ui/Pagination';
 
 interface ModuleMetric {
   moduleName: string;
@@ -339,27 +340,13 @@ export const ProductAnalytics: React.FC = () => {
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 select-none">
-            <div>Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, usageMetrics.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, usageMetrics.length)}</span> of <span className="font-bold">{usageMetrics.length}</span> modules</div>
-            <div className="flex gap-1">
-              <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors">
-                Previous
-              </button>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button key={i} type="button" onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${currentPage === i + 1 ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-                  {i + 1}
-                </button>
-              ))}
-              <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors">
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={usageMetrics.length}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

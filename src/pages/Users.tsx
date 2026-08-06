@@ -6,6 +6,7 @@ import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { Pagination } from '../components/ui/Pagination';
 import { Plus, ArrowLeft } from 'lucide-react';
 
 export const Users: React.FC = () => {
@@ -235,24 +236,26 @@ export const Users: React.FC = () => {
             ...uniqueBranches.map(b => ({ value: b, label: b }))
           ]}
         />
-        <Select
-          label="Sort By"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          options={[
-            { value: 'name', label: 'Name (A → Z)' },
-            { value: 'name-desc', label: 'Name (Z → A)' },
-            { value: 'email', label: 'Email (A → Z)' },
-            { value: 'role', label: 'Role' },
-            { value: 'branch', label: 'Branch' },
-            { value: 'status', label: 'Status' },
-          ]}
-        />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Institute Faculty &amp; Counsel staff</CardTitle>
+          <CardTitle>Institute Faculty & Counsel Staff</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
+            >
+              <option value="name">Name (A → Z)</option>
+              <option value="name-desc">Name (Z → A)</option>
+              <option value="email">Email (A → Z)</option>
+              <option value="role">Role</option>
+              <option value="branch">Branch</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
         </CardHeader>
         <Table headers={['Staff Name', 'Email Address', 'Security Role', 'Primary Branch', 'Status', 'Actions']}>
           {paginatedStaff.map((s, idx) => (
@@ -293,44 +296,13 @@ export const Users: React.FC = () => {
             </tr>
           ))}
         </Table>
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-            <div>
-              Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedStaff.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedStaff.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedStaff.length}</span> staff members
-            </div>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${currentPage === i + 1
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredAndSortedStaff.length}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </Card>
     </div>
   );

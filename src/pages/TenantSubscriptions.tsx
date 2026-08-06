@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { Pagination } from '../components/ui/Pagination';
 import { Plus, Edit, Eye, Trash, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { TenantSubscription, SubscriptionPlan } from '../data/mockData';
 import { formatDate } from '../data/mockData';
@@ -393,22 +394,26 @@ export const TenantSubscriptions: React.FC = () => {
               { value: 'Expired', label: 'Expired' }
             ]} 
           />
-          <Select 
-            label="Sort By" 
-            value={sortBy} 
-            onChange={(e) => setSortBy(e.target.value)} 
-            options={[
-              { value: 'tenantName', label: 'Tenant Name' },
-              { value: 'planName', label: 'Plan Name' },
-              { value: 'startDate', label: 'Start Date' }
-            ]} 
-          />
         </div>
         <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Active Subscriptions</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Active Subscriptions</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
+            >
+              <option value="tenantName">Tenant Name</option>
+              <option value="planName">Plan Name</option>
+              <option value="startDate">Start Date</option>
+            </select>
+          </div>
+        </CardHeader>
         <Table headers={['Tenant', 'Plan', 'Billing Cycle', 'Start Date', 'Expiry Date', 'Price', 'Status', 'Payment Status', 'Overrides', 'Actions']}>
           {(() => {
             const itemsPerPage = 3;
@@ -491,50 +496,13 @@ export const TenantSubscriptions: React.FC = () => {
             );
           })()}
         </Table>
-        {(() => {
-          const itemsPerPage = 3;
-          const totalPages = Math.ceil(filteredAndSortedSubs.length / itemsPerPage);
-          if (totalPages <= 1) return null;
-          return (
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-              <div>
-                Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedSubs.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedSubs.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedSubs.length}</span> subscriptions
-              </div>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  Previous
-                </button>
-                {Array.from({ length: totalPages }).map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                      currentPage === i + 1
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          );
-        })()}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(filteredAndSortedSubs.length / 3)}
+          totalItems={filteredAndSortedSubs.length}
+          pageSize={3}
+          onPageChange={setCurrentPage}
+        />
       </Card>
 
       {/* ── View Details Modal ── */}

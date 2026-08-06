@@ -4,6 +4,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/layout/Layout';
 import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
+import { Pagination } from './components/ui/Pagination';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
@@ -181,46 +182,13 @@ const AuditLogsPlaceholder = () => {
         </Modal>
       )}
 
-      {/* Pagination Bar */}
-      {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold text-slate-500 shadow-sm select-none">
-          <div>
-            Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, auditLogs.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, auditLogs.length)}</span> of <span className="text-slate-850 font-bold">{auditLogs.length}</span> logs
-          </div>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-            >
-              Previous
-            </button>
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setCurrentPage(i + 1)}
-                className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                  currentPage === i + 1
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-            <button
-              type="button"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-55 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={auditLogs.length}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 };

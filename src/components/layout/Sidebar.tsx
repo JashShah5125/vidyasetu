@@ -19,8 +19,7 @@ import {
   FileText,
   Ticket,
   BarChart3,
-  PanelLeftClose,
-  PanelLeftOpen
+  ChevronLeft
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -279,37 +278,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         `}
       >
         {/* Brand header */}
-        <div className="h-16 border-b border-slate-800 flex items-center flex-shrink-0 px-4 gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-blue-500/20 flex-shrink-0">
-            VS
-          </div>
-          <span
-            className={`font-display font-bold text-xl text-white tracking-tight whitespace-nowrap transition-opacity duration-300 ${
-              isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
-            }`}
-          >
-            Vidya Setu
-          </span>
-        </div>
-
-        {/* Collapse toggle — desktop only, sits between logo and nav */}
-        <button
-          onClick={onToggleCollapse}
-          className={`
-            hidden lg:flex items-center border-b border-slate-800/60 flex-shrink-0
-            text-slate-500 hover:text-slate-300 hover:bg-slate-800/50
-            transition-all duration-150 cursor-pointer group
-            ${isCollapsed
-              ? 'w-10 h-10 mx-auto justify-center rounded-lg my-1.5'
-              : 'w-full gap-3 px-3 py-2.5'
-            }
-          `}
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        <div 
+          onClick={isCollapsed ? onToggleCollapse : undefined}
+          className={`h-16 border-b border-slate-800 flex items-center flex-shrink-0 px-4 justify-between gap-3 ${
+            isCollapsed ? 'cursor-pointer hover:bg-slate-800/30' : ''
+          }`}
+          title={isCollapsed ? 'Expand sidebar' : undefined}
         >
-          <span className="flex-shrink-0 flex items-center justify-center">
-            {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </span>
-        </button>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-blue-500/20 flex-shrink-0">
+              VS
+            </div>
+            <span
+              className={`font-display font-bold text-xl text-white tracking-tight whitespace-nowrap transition-opacity duration-300 ${
+                isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
+              Vidya Setu
+            </span>
+          </div>
+          {!isCollapsed && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse();
+              }}
+              className="text-slate-500 hover:text-slate-300 p-1 hover:bg-slate-800 rounded transition-colors cursor-pointer flex items-center justify-center"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          )}
+        </div>
 
         {/* Nav links */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5">

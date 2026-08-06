@@ -114,20 +114,28 @@ export const CourseSetup: React.FC = () => {
           value={filterBranch}
           onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
         />
-        <Select
-          label="Sort By"
-          options={sortOptions}
-          value={sortBy}
-          onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
-        />
       </div>
 
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-          <BookOpen size={18} className="text-blue-600" />
-          <h3 className="font-bold text-slate-800">All Courses</h3>
-          <span className="ml-auto text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <BookOpen size={18} className="text-blue-600" />
+            <h3 className="font-bold text-slate-800">All Courses</h3>
+            <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
+            <select
+              value={sortBy}
+              onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
+            >
+              {sortOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {filtered.length === 0 ? (
