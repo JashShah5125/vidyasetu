@@ -25,7 +25,7 @@ import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
 import { Assignments } from './pages/Assignments';
-import { Exams } from './pages/Exams';
+import { ExamMarks } from './pages/ExamMarks';
 import { Reports } from './pages/Reports';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
@@ -262,7 +262,7 @@ const ContentRouter = () => {
       <Route path="/billing" element={<BillingRevenue />} />
       <Route path="/analytics" element={<ProductAnalytics />} />
       <Route path="/system-config" element={<SystemConfiguration />} />
-      <Route path="/saas-reports" element={<Reports />} />
+      <Route path="/saas-reports" element={<Reports mode="saas" />} />
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
@@ -284,11 +284,11 @@ const ContentRouter = () => {
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="counselling" />} />
       <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
       <Route path="/assignments" element={<Assignments />} />
-      <Route path="/exams" element={<Exams />} />
+      <Route path="/exams" element={<ExamMarks />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
       <Route path="/fees-master" element={<FeesMaster />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
-      <Route path="/reports" element={<Reports />} />
+      <Route path="/reports" element={<Reports mode="institute" />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/doubts" element={<DoubtChatsPlaceholder />} />

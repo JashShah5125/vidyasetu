@@ -76,6 +76,7 @@ export interface AuditLog {
 }
 
 export interface Course {
+  id?: string;
   name: string;
   code: string;
   fees?: number;
@@ -94,6 +95,7 @@ export interface Batch {
   timing: string;
   room: string;
   branch?: string;
+  teacher?: string;
 }
 
 export interface Branch {
@@ -281,8 +283,13 @@ export const INITIAL_LEADS: Lead[] = [
 ];
 
 export const INITIAL_STUDENTS: Student[] = [
-  { id: 'S-201', studentId: 'STU-MUM-2601', name: 'Rohan Deshmukh', mobile: '9877112233', parentMobile: '9877112200', course: 'JEE Prep Course', batch: 'JEE-Morning-A', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-15', feePlan: { total: 120000, paid: 80000, pending: 40000 } },
-  { id: 'S-202', studentId: 'STU-PUN-2602', name: 'Ishita Roy', mobile: '9554321098', parentMobile: '9554321000', course: 'NEET Batch Premium', batch: 'NEET-Regular-B', branch: 'Pune Camp', status: 'Verification Pending', admissionDate: '2026-07-02', feePlan: { total: 150000, paid: 50000, pending: 100000 } }
+  { id: 'S-201', studentId: 'STU-MUM-2601', name: 'Rohan Deshmukh', mobile: '9877112233', parentMobile: '9877112200', course: 'JEE Prep Course', batch: 'JEE-Morning-A1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-15', feePlan: { total: 120000, paid: 80000, pending: 40000 } },
+  { id: 'S-202', studentId: 'STU-MUM-2602', name: 'Sameer Mehta', mobile: '9877112244', parentMobile: '9877112201', course: 'JEE Prep Course', batch: 'JEE-Morning-A1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-16', feePlan: { total: 120000, paid: 90000, pending: 30000 } },
+  { id: 'S-203', studentId: 'STU-MUM-2603', name: 'Aditya Sharma', mobile: '9877112255', parentMobile: '9877112202', course: 'JEE Prep Course', batch: 'JEE-Morning-A1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-17', feePlan: { total: 120000, paid: 60000, pending: 60000 } },
+  { id: 'S-204', studentId: 'STU-MUM-2604', name: 'Sneha Patil', mobile: '9877112266', parentMobile: '9877112203', course: 'JEE Prep Course', batch: 'JEE-Evening-B1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2025-06-15', feePlan: { total: 120000, paid: 120000, pending: 0 } },
+  { id: 'S-205', studentId: 'STU-MUM-2605', name: 'Kunal Sen', mobile: '9877112277', parentMobile: '9877112204', course: 'JEE Prep Course', batch: 'JEE-Evening-B1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2025-06-16', feePlan: { total: 120000, paid: 70000, pending: 50000 } },
+  { id: 'S-206', studentId: 'STU-PUN-2602', name: 'Ishita Roy', mobile: '9554321098', parentMobile: '9554321000', course: 'NEET Batch Premium', batch: 'NEET-Regular-M1', branch: 'Pune Camp', status: 'Verification Pending', admissionDate: '2026-07-02', feePlan: { total: 150000, paid: 50000, pending: 100000 } },
+  { id: 'S-207', studentId: 'STU-PUN-2603', name: 'Priya Nair', mobile: '9554321099', parentMobile: '9554321001', course: 'NEET Batch Premium', batch: 'NEET-Regular-M1', branch: 'Pune Camp', status: 'Active Student', admissionDate: '2026-07-03', feePlan: { total: 150000, paid: 150000, pending: 0 } }
 ];
 
 export const INITIAL_COURSES: Course[] = [
@@ -748,3 +755,18 @@ export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {
     { id: 'b9', name: 'NTSE Prep Combo', fee: 75000, subjectIds: ['f1', 'f2', 'f3'] }
   ]
 };
+
+export interface ExamItem {
+  name: string;
+  batch: string;
+  totalMarks: number;
+  passingMarks: number;
+  average: string;
+  status: string;
+  studentMarks?: { [studentId: string]: number };
+}
+
+export const INITIAL_EXAMS: ExamItem[] = [
+  { name: 'Periodic Chemistry Evaluation Test #3', batch: 'JEE-Morning-A1', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 35 } },
+  { name: 'Physics Mechanics Weekly Quiz #2', batch: 'JEE-Evening-B1', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2604': 38, 'STU-MUM-2605': 18 } }
+];

@@ -72,10 +72,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           { name: 'Students Roster', path: '/students', icon: GraduationCap },
           { name: 'Record Fee', path: '/fees', icon: DollarSign },
           { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
-          { name: 'Assignments', path: '/assignments', icon: BookOpen },
-          { name: 'Exam Marks', path: '/exams', icon: ClipboardList },
+          { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
+          { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
           { name: 'Reports', path: '/reports', icon: ClipboardList },
-          { name: 'Notifications', path: '/notifications', icon: Bell },
+          { name: 'Broadcast Notification', path: '/notifications', icon: Bell },
           { name: 'Settings', path: '/settings', icon: Settings },
           { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
         ];
@@ -105,8 +105,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
           { name: 'My Schedule', path: '/my-schedule', icon: Calendar },
           { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
-          { name: 'Assignments', path: '/assignments', icon: BookOpen },
-          { name: 'Exam Marks', path: '/exams', icon: ClipboardList },
+          { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
+          { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
           { name: 'Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
         ];
       case 'finance':

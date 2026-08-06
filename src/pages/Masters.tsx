@@ -9,19 +9,21 @@ import { Pagination } from '../components/ui/Pagination';
 import { Plus, Edit2, Trash2, ArrowLeft } from 'lucide-react';
 
 interface MastersProps {
-  initialSubTab?: 'courses' | 'batches' | 'subjects';
+  initialSubTab?: 'courses' | 'batches' | 'subjects' | 'branches';
 }
 
 export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) => {
   const {
     courses, 
     batches, 
+    branches,
     addCourse, 
     addBatch, 
     setCourses,
-    setBatches
+    setBatches,
+    setBranches
   } = useApp();
-  const [subTab, setSubTab] = useState<'courses' | 'batches' | 'subjects'>(initialSubTab);
+  const [subTab, setSubTab] = useState<'courses' | 'batches' | 'subjects' | 'branches'>(initialSubTab);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
 
@@ -125,7 +127,8 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
           code: courseCode,
           fees: Number(courseFees),
           duration: courseDuration,
-          batches: '0 Batches'
+          batches: '0 Batches',
+          programs: []
         });
       }
     } else if (subTab === 'batches') {
