@@ -35,12 +35,16 @@ export interface Lead {
   id: string;
   name: string;
   mobile: string;
+  parentMobile?: string;
   course: string;
+  program?: string;
+  level?: string;
   branch: string;
   preferredBranch?: string;
   source: string;
   counsellor: string;
   status: 'New Enquiry' | 'Contacted' | 'Follow-up' | 'Demo Scheduled' | 'Interested' | 'Not Interested';
+  demoScheduledOn?: string;
   nextFollowUp: string;
   remarks: string;
   followups: { date: string; type: string; outcome: string; nextDate: string }[];
@@ -230,7 +234,7 @@ export const INITIAL_LEADS: Lead[] = [
     id: 'L-101',
     name: 'Aarav Mehta',
     mobile: '9898012345',
-    course: 'JEE Prep',
+    course: 'JEE Prep Course',
     branch: 'Mumbai West',
     preferredBranch: 'Mumbai West',
     source: 'Google Ads',
@@ -244,7 +248,7 @@ export const INITIAL_LEADS: Lead[] = [
     id: 'L-102',
     name: 'Sneha Patil',
     mobile: '9767112233',
-    course: 'NEET Batch',
+    course: 'NEET Batch Premium',
     branch: 'Pune Camp',
     preferredBranch: 'Pune Camp',
     source: 'Referral',
@@ -277,15 +281,15 @@ export const INITIAL_LEADS: Lead[] = [
 ];
 
 export const INITIAL_STUDENTS: Student[] = [
-  { id: 'S-201', studentId: 'STU-MUM-2601', name: 'Rohan Deshmukh', mobile: '9877112233', parentMobile: '9877112200', course: 'JEE Prep', batch: 'JEE-Morning-A', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-15', feePlan: { total: 120000, paid: 80000, pending: 40000 } },
-  { id: 'S-202', studentId: 'STU-PUN-2602', name: 'Ishita Roy', mobile: '9554321098', parentMobile: '9554321000', course: 'NEET Batch', batch: 'NEET-Regular-B', branch: 'Pune Camp', status: 'Verification Pending', admissionDate: '2026-07-02', feePlan: { total: 150000, paid: 50000, pending: 100000 } }
+  { id: 'S-201', studentId: 'STU-MUM-2601', name: 'Rohan Deshmukh', mobile: '9877112233', parentMobile: '9877112200', course: 'JEE Prep Course', batch: 'JEE-Morning-A', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-15', feePlan: { total: 120000, paid: 80000, pending: 40000 } },
+  { id: 'S-202', studentId: 'STU-PUN-2602', name: 'Ishita Roy', mobile: '9554321098', parentMobile: '9554321000', course: 'NEET Batch Premium', batch: 'NEET-Regular-B', branch: 'Pune Camp', status: 'Verification Pending', admissionDate: '2026-07-02', feePlan: { total: 150000, paid: 50000, pending: 100000 } }
 ];
 
 export const INITIAL_COURSES: Course[] = [
-  { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', programs: ['2 Year', '1 Year', 'Crash Course'], branches: ['Mumbai West', 'Pune Camp', 'Delhi South'] },
-  { name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', programs: ['1 Year', 'Repeater'], branches: ['Mumbai West', 'Pune Camp'] },
-  { name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', programs: ['2 Year', '1 Year'], branches: ['Mumbai West', 'Delhi South'] },
-  { name: '8th Standard', code: '8TH-STD', duration: '1 Year', programs: ['8th std ICSE', '8th std State Board', '8th std CBSE'], branches: ['Pune Camp'] }
+  { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', fees: 150000, programs: ['2 Year', '1 Year', 'Crash Course'], branches: ['Mumbai West', 'Pune Camp', 'Delhi South'] },
+  { name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', fees: 120000, programs: ['1 Year', 'Repeater'], branches: ['Mumbai West', 'Pune Camp'] },
+  { name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', fees: 80000, programs: ['2 Year', '1 Year'], branches: ['Mumbai West', 'Delhi South'] },
+  { name: '8th Standard', code: '8TH-STD', duration: '1 Year', fees: 60000, programs: ['8th std ICSE', '8th std State Board', '8th std CBSE'], branches: ['Pune Camp'] }
 ];
 
 export const INITIAL_BATCHES: Batch[] = [
@@ -681,66 +685,66 @@ export const INITIAL_TENANT_SUBSCRIPTIONS: TenantSubscription[] = [
 export const INITIAL_SUBJECTS_MAP: Record<string, any[]> = {
   // 8th Standard (ICSE)
   '8TH-STD-8th std ICSE-class8': [
-    { id: 's1', name: 'Mathematics', code: 'MAT-08-ICSE', type: 'Core', teacherIds: ['arvind.chem@apexiit.com'] },
-    { id: 's2', name: 'Science', code: 'SCI-08-ICSE', type: 'Core' },
-    { id: 's3', name: 'English Literature', code: 'ENG-08-ICSE', type: 'Core' },
-    { id: 's4', name: 'Computer Applications', code: 'COMP-08', type: 'Elective' }
+    { id: 's1', name: 'Mathematics', code: 'MAT-08-ICSE', type: 'Core', fee: 20000, teacherIds: ['arvind.chem@apexiit.com'] },
+    { id: 's2', name: 'Science', code: 'SCI-08-ICSE', type: 'Core', fee: 20000 },
+    { id: 's3', name: 'English Literature', code: 'ENG-08-ICSE', type: 'Core', fee: 15000 },
+    { id: 's4', name: 'Computer Applications', code: 'COMP-08', type: 'Elective', fee: 10000 }
   ],
   // 8th Standard (CBSE)
   '8TH-STD-8th std CBSE-class8': [
-    { id: 's5', name: 'Mathematics', code: 'MAT-08-CBSE', type: 'Core' },
-    { id: 's6', name: 'Science', code: 'SCI-08-CBSE', type: 'Core' },
-    { id: 's7', name: 'English', code: 'ENG-08-CBSE', type: 'Core' },
-    { id: 's8', name: 'Social Science', code: 'SST-08-CBSE', type: 'Core' }
+    { id: 's5', name: 'Mathematics', code: 'MAT-08-CBSE', type: 'Core', fee: 18000 },
+    { id: 's6', name: 'Science', code: 'SCI-08-CBSE', type: 'Core', fee: 18000 },
+    { id: 's7', name: 'English', code: 'ENG-08-CBSE', type: 'Core', fee: 12000 },
+    { id: 's8', name: 'Social Science', code: 'SST-08-CBSE', type: 'Core', fee: 12000 }
   ],
   // JEE Prep (2 Year - Year 1)
   'JEE-PREP-2 Year-year1': [
-    { id: 'j1', name: 'Physics (Mechanics)', code: 'PHY-101', type: 'Core' },
-    { id: 'j2', name: 'Chemistry (Physical)', code: 'CHE-101', type: 'Core' },
-    { id: 'j3', name: 'Mathematics (Algebra)', code: 'MAT-101', type: 'Core' }
+    { id: 'j1', name: 'Physics (Mechanics)', code: 'PHY-101', type: 'Core', fee: 40000 },
+    { id: 'j2', name: 'Chemistry (Physical)', code: 'CHE-101', type: 'Core', fee: 40000 },
+    { id: 'j3', name: 'Mathematics (Algebra)', code: 'MAT-101', type: 'Core', fee: 40000 }
   ],
   // JEE Prep (2 Year - Year 2)
   'JEE-PREP-2 Year-year2': [
-    { id: 'j4', name: 'Physics (Electromagnetism)', code: 'PHY-201', type: 'Core' },
-    { id: 'j5', name: 'Chemistry (Organic)', code: 'CHE-201', type: 'Core' },
-    { id: 'j6', name: 'Mathematics (Calculus)', code: 'MAT-201', type: 'Core' },
-    { id: 'j7', name: 'Mock Test Series', code: 'MOCK-JEE', type: 'Elective' }
+    { id: 'j4', name: 'Physics (Electromagnetism)', code: 'PHY-201', type: 'Core', fee: 45000 },
+    { id: 'j5', name: 'Chemistry (Organic)', code: 'CHE-201', type: 'Core', fee: 45000 },
+    { id: 'j6', name: 'Mathematics (Calculus)', code: 'MAT-201', type: 'Core', fee: 45000 },
+    { id: 'j7', name: 'Mock Test Series', code: 'MOCK-JEE', type: 'Elective', fee: 15000 }
   ],
   // NEET (1 Year)
   'NEET-PREM-1 Year-year1': [
-    { id: 'n1', name: 'Physics', code: 'PHY-NEET', type: 'Core' },
-    { id: 'n2', name: 'Chemistry', code: 'CHE-NEET', type: 'Core' },
-    { id: 'n3', name: 'Botany', code: 'BOT-NEET', type: 'Core' },
-    { id: 'n4', name: 'Zoology', code: 'ZOO-NEET', type: 'Core' }
+    { id: 'n1', name: 'Physics', code: 'PHY-NEET', type: 'Core', fee: 35000 },
+    { id: 'n2', name: 'Chemistry', code: 'CHE-NEET', type: 'Core', fee: 35000 },
+    { id: 'n3', name: 'Botany', code: 'BOT-NEET', type: 'Core', fee: 25000 },
+    { id: 'n4', name: 'Zoology', code: 'ZOO-NEET', type: 'Core', fee: 25000 }
   ],
   // Foundation (2 Year - Year 1)
   'FOUND-10-2 Year-year1': [
-    { id: 'f1', name: 'Advanced Math', code: 'MAT-F9', type: 'Core' },
-    { id: 'f2', name: 'Science Foundations', code: 'SCI-F9', type: 'Core' },
-    { id: 'f3', name: 'Mental Ability', code: 'MAT-NTSE', type: 'Core' }
+    { id: 'f1', name: 'Advanced Math', code: 'MAT-F9', type: 'Core', fee: 30000 },
+    { id: 'f2', name: 'Science Foundations', code: 'SCI-F9', type: 'Core', fee: 30000 },
+    { id: 'f3', name: 'Mental Ability', code: 'MAT-NTSE', type: 'Core', fee: 20000 }
   ]
 };
 
 export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {
   '8TH-STD-8th std ICSE-class8': [
-    { id: 'b1', name: 'Core Subjects Bundle', subjectIds: ['s1', 's2', 's3'] },
-    { id: 'b2', name: 'Full Package (with IT)', subjectIds: ['s1', 's2', 's3', 's4'] }
+    { id: 'b1', name: 'Core Subjects Bundle', fee: 50000, subjectIds: ['s1', 's2', 's3'] },
+    { id: 'b2', name: 'Full Package (with IT)', fee: 55000, subjectIds: ['s1', 's2', 's3', 's4'] }
   ],
   '8TH-STD-8th std CBSE-class8': [
-    { id: 'b3', name: 'CBSE Standard Pack', subjectIds: ['s5', 's6', 's7', 's8'] }
+    { id: 'b3', name: 'CBSE Standard Pack', fee: 55000, subjectIds: ['s5', 's6', 's7', 's8'] }
   ],
   'JEE-PREP-2 Year-year1': [
-    { id: 'b4', name: 'PCM Complete (11th)', subjectIds: ['j1', 'j2', 'j3'] }
+    { id: 'b4', name: 'PCM Complete (11th)', fee: 110000, subjectIds: ['j1', 'j2', 'j3'] }
   ],
   'JEE-PREP-2 Year-year2': [
-    { id: 'b5', name: 'PCM Complete (12th)', subjectIds: ['j4', 'j5', 'j6'] },
-    { id: 'b6', name: 'PCM + Mock Tests', subjectIds: ['j4', 'j5', 'j6', 'j7'] }
+    { id: 'b5', name: 'PCM Complete (12th)', fee: 125000, subjectIds: ['j4', 'j5', 'j6'] },
+    { id: 'b6', name: 'PCM + Mock Tests', fee: 135000, subjectIds: ['j4', 'j5', 'j6', 'j7'] }
   ],
   'NEET-PREM-1 Year-year1': [
-    { id: 'b7', name: 'PCB Foundation', subjectIds: ['n1', 'n2', 'n3', 'n4'] },
-    { id: 'b8', name: 'Biology Only (Bot+Zoo)', subjectIds: ['n3', 'n4'] }
+    { id: 'b7', name: 'PCB Foundation', fee: 110000, subjectIds: ['n1', 'n2', 'n3', 'n4'] },
+    { id: 'b8', name: 'Biology Only (Bot+Zoo)', fee: 45000, subjectIds: ['n3', 'n4'] }
   ],
   'FOUND-10-2 Year-year1': [
-    { id: 'b9', name: 'NTSE Prep Combo', subjectIds: ['f1', 'f2', 'f3'] }
+    { id: 'b9', name: 'NTSE Prep Combo', fee: 75000, subjectIds: ['f1', 'f2', 'f3'] }
   ]
 };

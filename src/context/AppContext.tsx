@@ -75,7 +75,7 @@ interface AppContextType {
   addTenantSubscription: (sub: Omit<TenantSubscription, 'id'>) => void;
   updateTenantSubscription: (id: string, fields: Partial<TenantSubscription>) => void;
   deleteTenantSubscription: (id: string) => void;
-  addLead: (name: string, mobile: string, course: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string) => void;
+  addLead: (name: string, mobile: string, parentMobile: string, course: string, program: string, level: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string, followups?: any[], demoScheduledOn?: string) => void;
   updateLead: (id: string, updates: Partial<Lead>) => void;
   addFollowup: (leadId: string, type: string, outcome: string, nextDate: string) => void;
   convertLeadToStudent: (leadId: string, course: string, batch: string, totalFee: number, discount: number, paidFee: number) => void;
@@ -311,20 +311,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('DELETE_SUBSCRIPTION', `Cancelled/deleted subscription: ${id}`);
   };
 
-  const addLead = (name: string, mobile: string, course: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string) => {
+  const addLead = (name: string, mobile: string, parentMobile: string, course: string, program: string, level: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string, followups?: any[], demoScheduledOn?: string) => {
     const newL: Lead = {
       id: `L-${Math.floor(100 + Math.random() * 900)}`,
       name,
       mobile,
+      parentMobile,
       course,
+      program,
+      level,
       branch: assignedBranch || currentUser?.branch || 'Mumbai West',
       preferredBranch,
       source,
       counsellor: currentUser?.name || 'Receptionist',
       status: (status as Lead['status']) || 'New Enquiry',
+      demoScheduledOn,
       nextFollowUp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       remarks,
-      followups: []
+      followups: followups || []
     };
     setLeads(prev => [newL, ...prev]);
     logAction('ADD_LEAD', `Logged new lead: ${newL.name} (${newL.id})`);

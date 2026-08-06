@@ -9,12 +9,14 @@ import { Pagination } from '../components/ui/Pagination';
 import {
   Plus, ArrowLeft, Users, PhoneCall, MessageSquare, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, XCircle, ChevronRight,
-  Download, Search, UserCheck, FileText, Zap
+  Download, Search, UserCheck, FileText, Zap, X
 } from 'lucide-react';
+import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../data/mockData';
+import { useFeeConfig } from '../context/FeeConfigContext';
 import type { Lead, Student } from '../data/mockData';
 
 interface LeadsAdmissionsProps {
-  initialTab?: 'pipeline' | 'counselling' | 'fee' | 'admission' | 'batch' | 'payment';
+  initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
 }
 
 // ─── Status badge helper ────────────────────────────────────────────────────
@@ -41,7 +43,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 // ─── Phase progress bar ────────────────────────────────────────────────────
 const phases = [
   { id: 'pipeline',    label: 'Lead Pipeline',          icon: Users },
-  { id: 'counselling', label: 'Counselling & Follow-up', icon: PhoneCall },
   { id: 'fee',         label: 'Fee Discussion',          icon: DollarSign },
   { id: 'admission',   label: 'Admission & Docs',        icon: ClipboardList },
   { id: 'batch',       label: 'Batch Allocation',        icon: Layers },
@@ -52,6 +53,7 @@ type TabId = typeof phases[number]['id'];
 
 export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = 'pipeline' }) => {
   const { leads, students, courses, batches, branches, addLead, updateLead, addFollowup, convertLeadToStudent, approveStudentRegistration } = useApp();
+  const { plans, customBundles, subjectsData } = useFeeConfig();
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [successMsg, setSuccessMsg] = useState('');
@@ -79,12 +81,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [fName,    setFName]    = useState('');
   const [fMobile,  setFMobile]  = useState('');
   const [fCourse,  setFCourse]  = useState('JEE Prep');
+  const [fProgram, setFProgram] = useState('');
+  const [fLevel,   setFLevel]   = useState('');
   const [fSource,  setFSource]  = useState('Walk-in');
   const [fRemarks, setFRemarks] = useState('');
   const [fParent,  setFParent]  = useState('');
   const [fBranch,  setFBranch]  = useState('');
   const [fAssignedBranch, setFAssignedBranch] = useState('');
   const [fStatus,  setFStatus]  = useState('New Enquiry');
+  const [fDemoScheduledOn, setFDemoScheduledOn] = useState('');
 
   // ── follow-up form ──
   const [fuType,    setFuType]    = useState('Call #1');
@@ -93,6 +98,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [fuDemo,    setFuDemo]    = useState(false);
   const [fuDemoDate, setFuDemoDate] = useState('');
 
+  const [newInteractions, setNewInteractions] = useState<{type: string, status: string, remarks: string, date: string, nextDate: string}[]>([]);
+
+  // ── modal tabs ──
+  const [modalTab, setModalTab] = useState<'profile' | 'course' | 'history' | 'fee'>('profile');
+
   // ── fee / convert form ──
   const [feeBatch,    setFeeBatch]    = useState('');
   const [feeTotal,    setFeeTotal]    = useState(120000);
@@ -100,6 +110,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [feePaid,     setFeePaid]     = useState(40000);
   const [enrollType,  setEnrollType]  = useState('Standard');
   const [feeInstall,  setFeeInstall]  = useState('Full Payment');
+  const [feeSelectedStandard, setFeeSelectedStandard] = useState('');
+  const [feeSelectedBundle, setFeeSelectedBundle] = useState('');
+  const [feeSelectedSubjects, setFeeSelectedSubjects] = useState<string[]>([]);
 
   // ── batch allocation form (for already-converted student) ──
   const [batchStudent,  setBatchStudent]  = useState<Student | null>(null);
@@ -110,6 +123,32 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [batchEnrollType, setBatchEnrollType] = useState('Standard');
   const [batchSubjects,  setBatchSubjects]  = useState<string[]>([]);
 
+  useEffect(() => {
+    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
+    if (!courseObj) return;
+
+    const courseCode = courseObj.code;
+    const mapKey = `${courseCode}-${fProgram}-${fLevel}`;
+
+    if (enrollType === 'Standard') {
+      const selected = plans.find(p => p.id === feeSelectedStandard);
+      if (selected) {
+        setFeeTotal(selected.totalFees);
+        setFeePaid(selected.downPayment);
+      } else {
+        setFeeTotal(courseObj.fees || 0);
+      }
+    } else if (enrollType === 'Custom Combo') {
+      const bundles = customBundles.filter(b => b.category === mapKey);
+      const selected = bundles.find(b => b.id === feeSelectedBundle);
+      setFeeTotal(selected ? selected.fee : 0);
+    } else if (enrollType === 'Subject-wise') {
+      const subjects = subjectsData.filter(s => s.category === mapKey);
+      const total = subjects.filter(s => feeSelectedSubjects.includes(s.id)).reduce((acc: number, s: any) => acc + (s.fee || 0), 0);
+      setFeeTotal(total);
+    }
+  }, [enrollType, fCourse, fProgram, fLevel, feeSelectedBundle, feeSelectedSubjects, feeSelectedStandard, plans, customBundles, subjectsData]);
+
   // ── pagination ──
   const [page, setPage] = useState(1);
   const [stuPage, setStuPage] = useState(1);
@@ -119,6 +158,48 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
+
+  const resetLeadForm = () => {
+    setFName('');
+    setFMobile('');
+    setFCourse('JEE Prep');
+    setFProgram('');
+    setFLevel('');
+    setFBranch('');
+    setFAssignedBranch('');
+    setFSource('Walk-in');
+    setFStatus('New Enquiry');
+    setFRemarks('');
+    setFParent('');
+    setFDemoScheduledOn('');
+    setNewInteractions([]);
+    setModalTab('profile');
+  };
+
+  const handleOpenLeadDetail = (l: Lead) => {
+    setSelectedLead(l);
+    setFName(l.name);
+    setFMobile(l.mobile);
+    setFParent(l.parentMobile || '');
+    setFDemoScheduledOn(l.demoScheduledOn || '');
+    setFCourse(l.course);
+    setFProgram(l.program || '');
+    setFLevel(l.level || '');
+    setFBranch(l.preferredBranch || '');
+    setFAssignedBranch(l.branch || '');
+    setFSource(l.source);
+    setFStatus(l.status);
+    setFRemarks(l.remarks || '');
+    setNewInteractions([{ type: 'Call', status: l.status, remarks: '', date: new Date().toISOString().split('T')[0], nextDate: '' }]);
+    setModalTab('profile');
+    setShowLeadDetail(true);
+  };
+
+  const handleAddInteractionField = () => {
+    setNewInteractions([...newInteractions, { type: 'Call', status: fStatus, remarks: '', date: new Date().toISOString().split('T')[0], nextDate: '' }]);
+  };
+
+
 
   // ── filter options ──
   const branchFilterOptions = useMemo(() => [
@@ -220,7 +301,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     return (
       <div className="space-y-6 w-full animate-fade-in">
         <div className="flex items-center gap-3">
-          <button onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
+          <button onClick={() => { setShowLeadDetail(false); setSelectedLead(null); resetLeadForm(); }} className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
             <ArrowLeft size={26} />
           </button>
           <div>
@@ -231,14 +312,45 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="w-full">
           <form onSubmit={e => {
             e.preventDefault();
+            const validInteractions = newInteractions.filter(ni => ni.remarks.trim() !== '');
+            const additionalFollowups = validInteractions.map(ni => ({
+              id: Math.random().toString(36).substr(2, 9),
+              date: new Date(ni.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+              type: ni.type,
+              outcome: ni.remarks,
+              nextDate: ni.nextDate ? new Date(ni.nextDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : ''
+            }));
+            const finalStatus = validInteractions.length > 0 ? validInteractions[validInteractions.length - 1].status : fStatus;
+
+            // If the last valid interaction has a next date, update the lead's global nextFollowUp
+            const finalNextFollowUp = validInteractions.length > 0 && validInteractions[validInteractions.length - 1].nextDate 
+              ? validInteractions[validInteractions.length - 1].nextDate 
+              : selectedLead.nextFollowUp;
+
             updateLead(selectedLead.id, {
-              name: fName, mobile: fMobile, course: fCourse, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, status: fStatus as Lead['status'], remarks: fRemarks
+              name: fName, mobile: fMobile, course: fCourse, program: fProgram, level: fLevel, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, status: finalStatus as Lead['status'], demoScheduledOn: fDemoScheduledOn, remarks: fRemarks, nextFollowUp: finalNextFollowUp,
+              followups: [...(selectedLead.followups || []), ...additionalFollowups]
             });
             setShowLeadDetail(false);
             setSelectedLead(null);
             showSuccess('Lead updated successfully.');
           }} className="space-y-4">
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+            <div className="flex gap-4 border-b border-slate-200 mb-6">
+              {['profile', 'course', 'history', 'fee'].map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setModalTab(t as any)}
+                  className={`pb-3 font-semibold text-sm border-b-2 transition-colors ${modalTab === t ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                >
+                  {t === 'profile' ? 'Profile Details' : t === 'course' ? 'Course & Status' : t === 'history' ? 'Follow-up History' : 'Fee & Admission'}
+                </button>
+              ))}
+            </div>
+
+            {modalTab === 'profile' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Student & Contact Details</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Student Name" required value={fName} onChange={e => setFName(e.target.value)} />
@@ -258,15 +370,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 ]} />
               </div>
             </div>
+            </div>
+            )}
+
+            {modalTab === 'course' && (
+            <div className="space-y-4 animate-fade-in">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={[
-                  { value: 'JEE Prep', label: 'JEE Prep Course' },
-                  { value: 'NEET Batch', label: 'NEET Batch Premium' },
-                  { value: 'Class 10 Foundation', label: 'Class 10 Foundation' },
-                  { value: '8th Standard', label: '8th Standard' },
-                ]} />
+                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={courseOptions} />
+                <Select label="Program" value={fProgram} onChange={e => setFProgram(e.target.value)} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
+                <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[{ value: '', label: 'Select Level' }, { value: 'Beginner', label: 'Beginner' }, { value: 'Intermediate', label: 'Intermediate' }, { value: 'Advanced', label: 'Advanced' }]} />
                 <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
                   { value: 'Walk-in', label: 'Walk-in at Branch' },
                   { value: 'Phone Call', label: 'Phone Call' },
@@ -293,6 +407,182 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 <textarea className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[60px]" value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
               </div>
             </div>
+
+            {fStatus === 'Demo Scheduled' && (
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-4">
+                <h4 className="text-xs font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
+                <div className="grid grid-cols-1 gap-4">
+                  <Input label="Demo Scheduled On (Status Change Date)" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+                </div>
+              </div>
+            )}
+            </div>
+            )}
+
+            {modalTab === 'history' && (
+            <div className="space-y-4 animate-fade-in">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Follow-up History</h4>
+              
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Log New Interactions</h4>
+                <Button type="button" variant="secondary" onClick={handleAddInteractionField} style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}>+ Add Interaction</Button>
+              </div>
+
+              {newInteractions.map((ni, idx) => (
+                <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg shadow-sm space-y-3 relative">
+                  {newInteractions.length > 1 && (
+                    <button type="button" onClick={() => setNewInteractions(newInteractions.filter((_, i) => i !== idx))} className="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition-colors">
+                      <X size={16} />
+                    </button>
+                  )}
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Interaction #{idx + 1}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <Input label="Date" type="date" value={ni.date} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].date = e.target.value; setNewInteractions(copy);
+                    }} />
+                    <Select label="Type" value={ni.type} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].type = e.target.value; setNewInteractions(copy);
+                    }} options={[
+                      { value: 'Call', label: 'Phone Call' },
+                      { value: 'Walk-in', label: 'Walk-in Meet' },
+                      { value: 'WhatsApp', label: 'WhatsApp' },
+                      { value: 'Email', label: 'Email' },
+                    ]} />
+                    <Select label="Update Status To" value={ni.status} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].status = e.target.value; setNewInteractions(copy);
+                    }} options={[
+                      { value: 'New Enquiry', label: 'New Enquiry' },
+                      { value: 'Follow-up', label: 'Follow-up' },
+                      { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                      { value: 'Interested', label: 'Interested' },
+                      { value: 'Not Interested', label: 'Not Interested' },
+                    ]} />
+                    <Input label="Next Follow-up" type="date" value={ni.nextDate} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].nextDate = e.target.value; setNewInteractions(copy);
+                    }} />
+                  </div>
+                  <textarea className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[50px]" placeholder="Meeting notes, remarks, or call outcome..." value={ni.remarks} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].remarks = e.target.value; setNewInteractions(copy);
+                  }} />
+                  {ni.status === 'Demo Scheduled' && (
+                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+                      <h4 className="text-[10px] font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        <Input label="Demo Scheduled On" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {selectedLead.followups && selectedLead.followups.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedLead.followups.map((fu, idx) => (
+                    <div key={idx} className="flex gap-3 text-sm bg-white p-3 border border-slate-100 rounded-lg shadow-sm">
+                      <div className="w-24 shrink-0 font-mono text-xs font-semibold text-slate-500 pt-0.5">{fu.date}</div>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800">{fu.type}</span>
+                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">{(fu as any).counsellor || selectedLead.counsellor}</span>
+                        </div>
+                        <div className="text-slate-600 leading-snug">{fu.outcome}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500 italic py-2 text-center bg-white border border-slate-100 rounded-lg">No follow-ups recorded yet.</div>
+              )}
+            </div>
+            </div>
+            )}
+
+            {modalTab === 'fee' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Enrollment Type</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {['Standard', 'Custom Combo', 'Subject-wise'].map(et => (
+                      <label key={et} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                        <input type="radio" name="enrollType" value={et} checked={enrollType === et} onChange={() => setEnrollType(et)} className="text-blue-600" />
+                        <span className="text-sm font-semibold text-slate-700">{et}</span>
+                      </label>
+                    ))}
+                  </div>
+                  
+                  {enrollType === 'Custom Combo' && (() => {
+                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
+                    if (!courseObj) return null;
+                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
+                    const bundles = INITIAL_BUNDLES_MAP[mapKey] || [];
+                    if (bundles.length === 0) return <div className="text-sm text-red-500">No bundles configured for this course/program.</div>;
+                    return (
+                      <div className="mt-4">
+                        <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
+                          { value: '', label: 'Choose a bundle...' },
+                          ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
+                        ]} />
+                      </div>
+                    );
+                  })()}
+
+                  {enrollType === 'Subject-wise' && (() => {
+                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
+                    if (!courseObj) return null;
+                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
+                    const subjects = INITIAL_SUBJECTS_MAP[mapKey] || [];
+                    if (subjects.length === 0) return <div className="text-sm text-red-500">No subjects configured for this course/program.</div>;
+                    return (
+                      <div className="mt-4 space-y-2">
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {subjects.map((s: any) => (
+                            <label key={s.id} className="flex items-center gap-2">
+                              <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
+                                if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
+                                else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
+                              }} />
+                              <span className="text-sm text-slate-700">{s.name} (₹{(s.fee || 0).toLocaleString()})</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Fee Structure</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Input label="Base Course Fee (₹)" type="number" value={feeTotal} onChange={e => setFeeTotal(Number(e.target.value))} />
+                    <Input label="Discount / Scholarship (₹)" type="number" value={feeDiscount} onChange={e => setFeeDiscount(Number(e.target.value))} />
+                    <Input label="Initial Deposit (₹)" type="number" value={feePaid} onChange={e => setFeePaid(Number(e.target.value))} />
+                  </div>
+                  <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
+                    { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
+                    { value: '2 Installments', label: '2 Equal Installments' },
+                    { value: '3 Installments', label: '3 Quarterly Installments' },
+                    { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
+                  ]} />
+                  <div className="grid grid-cols-3 gap-3 mt-4">
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
+                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Discounted Fee</div>
+                      <div className="text-lg font-bold text-slate-800">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
+                    </div>
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
+                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Initial Deposit</div>
+                      <div className="text-lg font-bold text-emerald-600">₹{feePaid.toLocaleString()}</div>
+                    </div>
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
+                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Outstanding</div>
+                      <div className={`text-lg font-bold ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
               <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button">Cancel</Button>
               <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit">Save Changes</Button>
@@ -321,12 +611,38 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="w-full">
           <form onSubmit={e => {
             e.preventDefault();
-            addLead(fName, fMobile, fCourse, fSource, fRemarks, fAssignedBranch, fBranch, fStatus);
-            setFName(''); setFMobile(''); setFRemarks(''); setFParent(''); setFBranch(''); setFAssignedBranch(''); setFStatus('New Enquiry');
+            const validInteractions = newInteractions.filter(ni => ni.remarks.trim() !== '');
+            const additionalFollowups = validInteractions.map(ni => ({
+              id: Math.random().toString(36).substr(2, 9),
+              date: new Date(ni.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+              type: ni.type,
+              outcome: ni.remarks,
+              nextDate: ni.nextDate ? new Date(ni.nextDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : ''
+            }));
+            const finalStatus = validInteractions.length > 0 ? validInteractions[validInteractions.length - 1].status : fStatus;
+
+            addLead(fName, fMobile, fParent, fCourse, fProgram, fLevel, fSource, fRemarks, fAssignedBranch, fBranch, finalStatus, additionalFollowups, fDemoScheduledOn);
+            
+            setFName(''); setFMobile(''); setFRemarks(''); setFParent(''); setFBranch(''); setFAssignedBranch(''); setFStatus('New Enquiry'); setFProgram(''); setFLevel(''); setFDemoScheduledOn(''); setNewInteractions([]);
             setShowAddLead(false);
             showSuccess('Enquiry logged successfully and assigned to counsellor.');
           }} className="space-y-4">
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+            <div className="flex gap-4 border-b border-slate-200 mb-6">
+              {['profile', 'course', 'history', 'fee'].map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setModalTab(t as any)}
+                  className={`pb-3 font-semibold text-sm border-b-2 transition-colors ${modalTab === t ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                >
+                  {t === 'profile' ? 'Profile Details' : t === 'course' ? 'Course & Status' : t === 'history' ? 'Follow-up History' : 'Fee & Admission'}
+                </button>
+              ))}
+            </div>
+
+            {modalTab === 'profile' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Student & Contact Details</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Student Name" required placeholder="e.g. Aarav Sharma" value={fName} onChange={e => setFName(e.target.value)} />
@@ -347,15 +663,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 ]} />
               </div>
             </div>
+            </div>
+            )}
+
+            {modalTab === 'course' && (
+            <div className="space-y-4 animate-fade-in">
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={[
-                  { value: 'JEE Prep', label: 'JEE Prep Course' },
-                  { value: 'NEET Batch', label: 'NEET Batch Premium' },
-                  { value: 'Class 10 Foundation', label: 'Class 10 Foundation' },
-                  { value: '8th Standard', label: '8th Standard' },
-                ]} />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={courseOptions} />
+                <Select label="Program" value={fProgram} onChange={e => setFProgram(e.target.value)} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
+                <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[{ value: '', label: 'Select Level' }, { value: 'Beginner', label: 'Beginner' }, { value: 'Intermediate', label: 'Intermediate' }, { value: 'Advanced', label: 'Advanced' }]} />
                 <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
                   { value: 'Walk-in', label: 'Walk-in at Branch' },
                   { value: 'Phone Call', label: 'Phone Call' },
@@ -368,7 +686,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   { value: 'Staff Entry', label: 'Staff Manual Entry' },
                   { value: 'Bulk Import', label: 'Bulk Import' },
                 ]} />
-                <Select label="Initial Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value)} options={[
+                <Select label="Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value)} options={[
                   { value: 'New Enquiry', label: 'New Enquiry' },
                   { value: 'Contacted', label: 'Contacted' },
                   { value: 'Follow-up', label: 'Follow-up' },
@@ -378,11 +696,200 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 ]} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Initial Remarks</label>
-                <textarea rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="Needs weekend slot, interested in demo..." value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Remarks</label>
+                <textarea rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[60px]" placeholder="Needs weekend slot, interested in demo..." value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+
+            {fStatus === 'Demo Scheduled' && (
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-4">
+                <h4 className="text-xs font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
+                <div className="grid grid-cols-1 gap-4">
+                  <Input label="Demo Scheduled On (Status Change Date)" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+                </div>
+              </div>
+            )}
+            </div>
+            )}
+
+            {modalTab === 'history' && (
+            <div className="space-y-4 animate-fade-in">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Initial Interactions (Optional)</h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Log New Interactions</h4>
+                <Button type="button" variant="secondary" onClick={handleAddInteractionField} style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}>+ Add Interaction</Button>
+              </div>
+
+              {newInteractions.map((ni, idx) => (
+                <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg shadow-sm space-y-3 relative">
+                  {newInteractions.length > 1 && (
+                    <button type="button" onClick={() => setNewInteractions(newInteractions.filter((_, i) => i !== idx))} className="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition-colors">
+                      <X size={16} />
+                    </button>
+                  )}
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Interaction #{idx + 1}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <Input label="Date" type="date" value={ni.date} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].date = e.target.value; setNewInteractions(copy);
+                    }} />
+                    <Select label="Type" value={ni.type} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].type = e.target.value; setNewInteractions(copy);
+                    }} options={[
+                      { value: 'Call', label: 'Phone Call' },
+                      { value: 'Walk-in', label: 'Walk-in Meet' },
+                      { value: 'WhatsApp', label: 'WhatsApp' },
+                      { value: 'Email', label: 'Email' },
+                    ]} />
+                    <Select label="Update Status To" value={ni.status} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].status = e.target.value; setNewInteractions(copy);
+                    }} options={[
+                      { value: 'New Enquiry', label: 'New Enquiry' },
+                      { value: 'Follow-up', label: 'Follow-up' },
+                      { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                      { value: 'Interested', label: 'Interested' },
+                      { value: 'Not Interested', label: 'Not Interested' },
+                    ]} />
+                    <Input label="Next Follow-up" type="date" value={ni.nextDate} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].nextDate = e.target.value; setNewInteractions(copy);
+                    }} />
+                  </div>
+                  <textarea className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[50px]" placeholder="Meeting notes, remarks, or call outcome..." value={ni.remarks} onChange={e => {
+                      const copy = [...newInteractions]; copy[idx].remarks = e.target.value; setNewInteractions(copy);
+                  }} />
+                  {ni.status === 'Demo Scheduled' && (
+                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+                      <h4 className="text-[10px] font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        <Input label="Demo Scheduled On" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            </div>
+            )}
+
+            {modalTab === 'fee' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Academic Context</h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <Select label="Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); }} options={courses.map(c => ({ value: c.name, label: c.name }))} />
+                    <Select label="Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); }} options={[{ value: '', label: 'Select Program...' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
+                    <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[
+                      { value: '', label: 'Select Level...' },
+                      { value: 'year1', label: 'Year 1' },
+                      { value: 'year2', label: 'Year 2' },
+                      { value: 'class8', label: 'Class 8' },
+                      { value: 'Repeater', label: 'Repeater' }
+                    ]} />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Enrollment Type</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {['Standard', 'Custom Combo', 'Subject-wise'].map(et => (
+                      <label key={et} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                        <input type="radio" name="enrollType" value={et} checked={enrollType === et} onChange={() => setEnrollType(et)} className="text-blue-600" />
+                        <span className="text-sm font-semibold text-slate-700">{et}</span>
+                      </label>
+                    ))}
+                  </div>
+                  
+                  {enrollType === 'Standard' && (() => {
+                    if (!fProgram) return <div className="text-sm text-amber-600 mt-2">Please select a Program above to view available standard plans.</div>;
+                    const availablePlans = plans.filter(p => p.course === fCourse && p.program === fProgram);
+                    if (availablePlans.length === 0) return <div className="text-sm text-amber-600 mt-2">No standard plans configured for this course/program in Fees Master.</div>;
+                    return (
+                      <div className="mt-4">
+                        <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} options={[
+                          { value: '', label: 'Choose a plan...' },
+                          ...availablePlans.map((p: any) => ({ value: p.id, label: `Base Plan - ₹${(p.totalFees||0).toLocaleString()}` }))
+                        ]} />
+                      </div>
+                    );
+                  })()}
+
+                  {enrollType === 'Custom Combo' && (() => {
+                    if (!fProgram || !fLevel) return <div className="text-sm text-amber-600 mt-2">Please select both a Program and Level above.</div>;
+                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
+                    if (!courseObj) return null;
+                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
+                    const bundles = customBundles.filter((b: any) => b.category === mapKey);
+                    if (bundles.length === 0) return <div className="text-sm text-amber-600 mt-2">No bundles configured for this course/program in Fees Master.</div>;
+                    return (
+                      <div className="mt-4">
+                        <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
+                          { value: '', label: 'Choose a bundle...' },
+                          ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
+                        ]} />
+                      </div>
+                    );
+                  })()}
+
+                  {enrollType === 'Subject-wise' && (() => {
+                    if (!fProgram || !fLevel) return <div className="text-sm text-amber-600 mt-2">Please select both a Program and Level above.</div>;
+                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
+                    if (!courseObj) return null;
+                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
+                    const subjects = subjectsData.filter((s: any) => s.category === mapKey);
+                    if (subjects.length === 0) return <div className="text-sm text-amber-600 mt-2">No subjects configured for this course/program in Fees Master.</div>;
+                    return (
+                      <div className="mt-4 space-y-2">
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {subjects.map((s: any) => (
+                            <label key={s.id} className="flex items-center gap-2">
+                              <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
+                                if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
+                                else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
+                              }} className="w-4 h-4 text-blue-600 rounded border-slate-300" />
+                              <span className="text-sm text-slate-700">{s.name} <span className="font-semibold text-emerald-600">(₹{(s.fee || 0).toLocaleString()})</span></span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Fee Structure</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Input label="Base Course Fee (₹)" type="number" value={feeTotal} onChange={e => setFeeTotal(Number(e.target.value))} />
+                    <Input label="Discount / Scholarship (₹)" type="number" value={feeDiscount} onChange={e => setFeeDiscount(Number(e.target.value))} />
+                    <Input label="Initial Deposit (₹)" type="number" value={feePaid} onChange={e => setFeePaid(Number(e.target.value))} />
+                  </div>
+                  <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
+                    { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
+                    { value: '2 Installments', label: '2 Equal Installments' },
+                    { value: '3 Installments', label: '3 Quarterly Installments' },
+                    { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
+                  ]} />
+                  <div className="grid grid-cols-3 gap-3 mt-4">
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
+                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Discounted Fee</div>
+                      <div className="text-lg font-bold text-slate-800">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
+                    </div>
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
+                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Initial Deposit</div>
+                      <div className="text-lg font-bold text-emerald-600">₹{feePaid.toLocaleString()}</div>
+                    </div>
+                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
+                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Outstanding</div>
+                      <div className={`text-lg font-bold ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
               <Button type="button" variant="ghost" onClick={() => setShowAddLead(false)}>Cancel</Button>
               <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }}>Save Enquiry</Button>
             </div>
@@ -715,7 +1222,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <Button variant="secondary" onClick={exportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
-          <Button variant="primary" onClick={() => setShowAddLead(true)} style={{ backgroundColor: '#2563eb', color: 'white' }} className="flex items-center gap-1.5">
+          <Button variant="primary" onClick={() => { resetLeadForm(); setShowAddLead(true); }} style={{ backgroundColor: '#2563eb', color: 'white' }} className="flex items-center gap-1.5">
             <Plus size={15} /> Log Enquiry
           </Button>
         </div>
@@ -764,14 +1271,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder={activeTab === 'pipeline' || activeTab === 'counselling' || activeTab === 'fee' ? 'Search leads by name, mobile or course...' : 'Search students by name or ID...'}
+                placeholder={activeTab === 'pipeline' || activeTab === 'fee' ? 'Search leads by name, mobile or course...' : 'Search students by name or ID...'}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
               />
             </div>
           </div>
-          {activeTab === 'pipeline' || activeTab === 'counselling' || activeTab === 'fee' ? (
+          {activeTab === 'pipeline' || activeTab === 'fee' ? (
             <>
               <Select label="Stage Status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} options={[
                 { value: 'All', label: 'All Stages' },
@@ -836,18 +1343,22 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <CardTitle>Active Lead Registrations</CardTitle>
               <span className="text-xs text-slate-400 font-medium">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>
             </CardHeader>
-            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Preferred Branch', 'Assigned Branch', 'Discovery Source', 'Assigned Counsellor', 'Stage Status', 'Next Follow-up']}>
+            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Preferred Branch', 'Assigned Branch', 'Discovery Source', 'Assigned Counsellor', 'Stage Status', 'Last Follow-up', 'Next Follow-up']}>
               {pipelineLeads.map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono text-[10px] font-bold text-slate-400">{l.id}</td>
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetail(true); }}>{l.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l)}>{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    <div>{l.course}</div>
+                    {l.program && <div className="text-xs text-slate-400 mt-0.5">{l.program} {l.level ? `(${l.level})` : ''}</div>}
+                  </td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
                   <td className="px-6 py-4"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">{l.source}</span></td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.counsellor}</td>
                   <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.followups && l.followups.length > 0 ? l.followups[l.followups.length - 1].date : '-'}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.nextFollowUp}</td>
                 </tr>
               ))}
@@ -857,58 +1368,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-           PHASE 2 — COUNSELLING & FOLLOW-UP
-      ════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'counselling' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: 'Awaiting Contact',   value: leads.filter(l => l.status === 'New Enquiry').length,      color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Follow-up Pending',  value: leads.filter(l => l.status === 'Follow-up').length,        color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Demo Scheduled',     value: leads.filter(l => l.status === 'Demo Scheduled').length,   color: 'bg-purple-50 border-purple-200', text: 'text-purple-700' },
-              { label: 'Ready to Proceed',   value: leads.filter(l => l.status === 'Interested').length,       color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-            ].map(s => (
-              <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center`}>
-                <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
-                <div className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Counselling & Follow-up Queue</CardTitle>
-              <span className="text-xs text-slate-400 font-medium">{filteredLeads.length} leads</span>
-            </CardHeader>
-            <Table headers={['Student Name', 'Mobile', 'Course', 'Preferred Branch', 'Assigned Branch', 'Counsellor', 'Stage', 'Follow-ups Logged', 'Next Date', 'Last Remark', 'Actions']}>
-              {pipelineLeads.map(l => (
-                <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetail(true); }}>{l.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
-                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
-                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
-                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.counsellor}</td>
-                  <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
-                  <td className="px-6 py-4">
-                    <span className={`text-sm font-bold ${l.followups.length > 0 ? 'text-blue-600' : 'text-slate-300'}`}>{l.followups.length}</span>
-                    {l.followups.length > 0 && <span className="text-xs text-slate-400 ml-1">calls</span>}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.nextFollowUp}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500 max-w-[160px] truncate">{l.remarks}</td>
-                  <td className="px-6 py-4">
-                    <Button variant="secondary" size="sm" onClick={() => { setSelectedLead(l); setShowFollowup(true); }}>
-                      <PhoneCall size={13} className="mr-1" /> Log Call
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-            <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredLeads.length} pageSize={PER_PAGE} onPageChange={setPage} />
-          </Card>
-        </div>
-      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
            PHASE 3 — FEE DISCUSSION
@@ -916,7 +1376,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       {activeTab === 'fee' && (
         <div className="space-y-4">
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-            <strong>Phase 3 — Fee Discussion:</strong> Show leads that are in <em>Follow-up</em> or <em>Interested</em> stage and need fee finalisation before conversion.
+            <strong>Phase 2 — Fee Discussion:</strong> Show leads that are in <em>Follow-up</em> or <em>Interested</em> stage and need fee finalisation before conversion.
           </div>
           <Card>
             <CardHeader>
@@ -926,7 +1386,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <Table headers={['Student Name', 'Mobile', 'Course', 'Preferred Branch', 'Assigned Branch', 'Stage', 'Counsellor', 'Remarks', 'Actions']}>
               {pipelineLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetail(true); }}>{l.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l)}>{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
@@ -1013,12 +1473,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════
-           PHASE 5 — BATCH ALLOCATION
+           PHASE 4 — BATCH ALLOCATION
       ════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'batch' && (
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
-            <strong>Phase 5 — Batch Allocation:</strong> Assign each registered student to a Course → Program → Academic Level → Batch. Set enrollment type (Standard / Custom Combo / Subject-wise).
+            <strong>Phase 4 — Batch Allocation:</strong> Assign each registered student to a Course — Program — Academic Level — Batch. Set enrollment type (Standard / Custom Combo / Subject-wise).
           </div>
           <Card>
             <CardHeader>

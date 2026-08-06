@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import { FeeConfigProvider } from './context/FeeConfigContext';
 import { Layout } from './components/layout/Layout';
 import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
@@ -21,6 +22,7 @@ import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
 import { Students } from './pages/Students';
 import { Fees } from './pages/Fees';
+import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
 import { Assignments } from './pages/Assignments';
 import { Exams } from './pages/Exams';
@@ -284,6 +286,7 @@ const ContentRouter = () => {
       <Route path="/assignments" element={<Assignments />} />
       <Route path="/exams" element={<Exams />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
+      <Route path="/fees-master" element={<FeesMaster />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/reports" element={<Reports />} />
       <Route path="/notifications" element={<Notifications />} />
@@ -325,8 +328,10 @@ const ScrollToTop = () => {
 export default function App() {
   return (
     <AppProvider>
-      <ScrollToTop />
-      <MainContent />
+      <FeeConfigProvider>
+        <ScrollToTop />
+        <MainContent />
+      </FeeConfigProvider>
     </AppProvider>
   );
 }
