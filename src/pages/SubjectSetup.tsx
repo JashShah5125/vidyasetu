@@ -563,9 +563,16 @@ export const SubjectSetup: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Subject Management</h2>
           <p className="text-sm text-slate-500 mt-1">Manage subjects and bundles across all courses, programs, and levels.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={16} /> Export CSV
+          </Button>
+          <Button 
+            variant="primary"
+            onClick={handleOpenAddSubject} 
+            style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+          >
+            <Plus size={16} className="mr-2" /> Add Subject
           </Button>
         </div>
       </div>
@@ -624,15 +631,6 @@ export const SubjectSetup: React.FC = () => {
               <h3 className="font-bold text-slate-800">Subjects</h3>
               <span className="ml-2 text-xs text-slate-400 font-medium">{filteredSubjects.length} result{filteredSubjects.length !== 1 ? 's' : ''}</span>
             </div>
-            <Button 
-              size="sm" 
-              variant="primary"
-              onClick={handleOpenAddSubject} 
-              className="flex items-center gap-1.5"
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              <Plus size={16} /> Add Subject
-            </Button>
           </div>
           
           {filteredSubjects.length === 0 ? (
