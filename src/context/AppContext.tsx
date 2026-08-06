@@ -75,7 +75,8 @@ interface AppContextType {
   addTenantSubscription: (sub: Omit<TenantSubscription, 'id'>) => void;
   updateTenantSubscription: (id: string, fields: Partial<TenantSubscription>) => void;
   deleteTenantSubscription: (id: string) => void;
-  addLead: (name: string, mobile: string, course: string, source: string, remarks: string) => void;
+  addLead: (name: string, mobile: string, course: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string) => void;
+  updateLead: (id: string, updates: Partial<Lead>) => void;
   addFollowup: (leadId: string, type: string, outcome: string, nextDate: string) => void;
   convertLeadToStudent: (leadId: string, course: string, batch: string, totalFee: number, discount: number, paidFee: number) => void;
   recordPayment: (studentId: string, amount: number, mode: string) => any;
@@ -310,22 +311,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('DELETE_SUBSCRIPTION', `Cancelled/deleted subscription: ${id}`);
   };
 
-  const addLead = (name: string, mobile: string, course: string, source: string, remarks: string) => {
+  const addLead = (name: string, mobile: string, course: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string) => {
     const newL: Lead = {
       id: `L-${Math.floor(100 + Math.random() * 900)}`,
       name,
       mobile,
       course,
-      branch: currentUser?.branch || 'Mumbai West',
+      branch: assignedBranch || currentUser?.branch || 'Mumbai West',
+      preferredBranch,
       source,
       counsellor: currentUser?.name || 'Receptionist',
-      status: 'New Enquiry',
+      status: (status as Lead['status']) || 'New Enquiry',
       nextFollowUp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       remarks,
       followups: []
     };
     setLeads(prev => [newL, ...prev]);
-    logAction('CREATE_LEAD', `Logged new lead enquiry: ${name}`);
+    logAction('ADD_LEAD', `Logged new lead: ${newL.name} (${newL.id})`);
+  };
+
+  const updateLead = (id: string, updates: Partial<Lead>) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+    logAction('UPDATE_LEAD', `Updated lead details: ${id}`);
   };
 
   const addFollowup = (leadId: string, type: string, outcome: string, nextDate: string) => {
@@ -510,7 +517,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addTenantSubscription,
       updateTenantSubscription,
       deleteTenantSubscription,
-      addLead,
+      addLead: (name, mobile, course, source, remarks, assignedBranch?, preferredBranch?, status?) => addLead(name, mobile, course, source, remarks, assignedBranch, preferredBranch, status),
+      updateLead,
       addFollowup,
       convertLeadToStudent,
       recordPayment,

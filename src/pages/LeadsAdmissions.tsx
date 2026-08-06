@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -51,7 +51,7 @@ const phases = [
 type TabId = typeof phases[number]['id'];
 
 export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = 'pipeline' }) => {
-  const { leads, students, courses, batches, branches, addLead, addFollowup, convertLeadToStudent, approveStudentRegistration } = useApp();
+  const { leads, students, courses, batches, branches, addLead, updateLead, addFollowup, convertLeadToStudent, approveStudentRegistration } = useApp();
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [successMsg, setSuccessMsg] = useState('');
@@ -69,6 +69,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // ── modal states ──
   const [showAddLead,    setShowAddLead]    = useState(false);
+  const [showLeadDetail, setShowLeadDetail] = useState(false);
   const [showFollowup,   setShowFollowup]   = useState(false);
   const [showConvert,    setShowConvert]    = useState(false);
   const [showFeeModal,   setShowFeeModal]   = useState(false);
@@ -82,6 +83,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [fRemarks, setFRemarks] = useState('');
   const [fParent,  setFParent]  = useState('');
   const [fBranch,  setFBranch]  = useState('');
+  const [fAssignedBranch, setFAssignedBranch] = useState('');
+  const [fStatus,  setFStatus]  = useState('New Enquiry');
 
   // ── follow-up form ──
   const [fuType,    setFuType]    = useState('Call #1');
@@ -211,6 +214,96 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+  //  VIEW: Lead Details
+  // ─────────────────────────────────────────────────────────────────────────
+  if (showLeadDetail && selectedLead) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Lead Details: {selectedLead.name}</h2>
+            <p className="text-sm text-slate-500">Edit enquiry details below.</p>
+          </div>
+        </div>
+        <div className="w-full">
+          <form onSubmit={e => {
+            e.preventDefault();
+            updateLead(selectedLead.id, {
+              name: fName, mobile: fMobile, course: fCourse, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, status: fStatus as Lead['status'], remarks: fRemarks
+            });
+            setShowLeadDetail(false);
+            setSelectedLead(null);
+            showSuccess('Lead updated successfully.');
+          }} className="space-y-4">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Student & Contact Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Student Name" required value={fName} onChange={e => setFName(e.target.value)} />
+                <Input label="Mobile Contact" required value={fMobile} onChange={e => setFMobile(e.target.value)} />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Branch Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
+                  { value: '', label: 'No Preference' },
+                  ...branchFilterOptions.filter(o => o.value !== 'All')
+                ]} />
+                <Select label="Assigned Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
+                  { value: '', label: 'Assign Later' },
+                  ...branchFilterOptions.filter(o => o.value !== 'All')
+                ]} />
+              </div>
+            </div>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={[
+                  { value: 'JEE Prep', label: 'JEE Prep Course' },
+                  { value: 'NEET Batch', label: 'NEET Batch Premium' },
+                  { value: 'Class 10 Foundation', label: 'Class 10 Foundation' },
+                  { value: '8th Standard', label: '8th Standard' },
+                ]} />
+                <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
+                  { value: 'Walk-in', label: 'Walk-in at Branch' },
+                  { value: 'Phone Call', label: 'Phone Call' },
+                  { value: 'Website', label: 'Website / Landing Page' },
+                  { value: 'Social Media', label: 'Social Media' },
+                  { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
+                  { value: 'Referral', label: 'Student Referral' },
+                  { value: 'Flyer Campaign', label: 'Offline Campaign / Event' },
+                  { value: 'Google Ads', label: 'Google Ads' },
+                  { value: 'Staff Entry', label: 'Staff Manual Entry' },
+                  { value: 'Bulk Import', label: 'Bulk Import' },
+                ]} />
+                <Select label="Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value)} options={[
+                  { value: 'New Enquiry', label: 'New Enquiry' },
+                  { value: 'Contacted', label: 'Contacted' },
+                  { value: 'Follow-up', label: 'Follow-up' },
+                  { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                  { value: 'Interested', label: 'Interested' },
+                  { value: 'Not Interested', label: 'Not Interested' },
+                ]} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Remarks</label>
+                <textarea className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[60px]" value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
+              <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button">Cancel</Button>
+              <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit">Save Changes</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   //  MODAL: Add Lead
   // ─────────────────────────────────────────────────────────────────────────
   if (showAddLead) {
@@ -228,8 +321,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="w-full">
           <form onSubmit={e => {
             e.preventDefault();
-            addLead(fName, fMobile, fCourse, fSource, fRemarks);
-            setFName(''); setFMobile(''); setFRemarks(''); setFParent('');
+            addLead(fName, fMobile, fCourse, fSource, fRemarks, fAssignedBranch, fBranch, fStatus);
+            setFName(''); setFMobile(''); setFRemarks(''); setFParent(''); setFBranch(''); setFAssignedBranch(''); setFStatus('New Enquiry');
             setShowAddLead(false);
             showSuccess('Enquiry logged successfully and assigned to counsellor.');
           }} className="space-y-4">
@@ -240,6 +333,19 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 <Input label="Mobile Contact" required placeholder="9876543210" value={fMobile} onChange={e => setFMobile(e.target.value)} />
               </div>
               <Input label="Parent / Guardian Mobile" placeholder="9876543211" value={fParent} onChange={e => setFParent(e.target.value)} />
+            </div>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Branch Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
+                  { value: '', label: 'No Preference' },
+                  ...branchFilterOptions.filter(o => o.value !== 'All')
+                ]} />
+                <Select label="Assigned Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
+                  { value: '', label: 'Assign Later' },
+                  ...branchFilterOptions.filter(o => o.value !== 'All')
+                ]} />
+              </div>
             </div>
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
@@ -261,6 +367,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   { value: 'Google Ads', label: 'Google Ads' },
                   { value: 'Staff Entry', label: 'Staff Manual Entry' },
                   { value: 'Bulk Import', label: 'Bulk Import' },
+                ]} />
+                <Select label="Initial Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value)} options={[
+                  { value: 'New Enquiry', label: 'New Enquiry' },
+                  { value: 'Contacted', label: 'Contacted' },
+                  { value: 'Follow-up', label: 'Follow-up' },
+                  { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                  { value: 'Interested', label: 'Interested' },
+                  { value: 'Not Interested', label: 'Not Interested' },
                 ]} />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -722,29 +836,19 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <CardTitle>Active Lead Registrations</CardTitle>
               <span className="text-xs text-slate-400 font-medium">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>
             </CardHeader>
-            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Discovery Source', 'Assigned Counsellor', 'Stage Status', 'Next Follow-up', 'Actions']}>
+            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Preferred Branch', 'Assigned Branch', 'Discovery Source', 'Assigned Counsellor', 'Stage Status', 'Next Follow-up']}>
               {pipelineLeads.map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono text-[10px] font-bold text-slate-400">{l.id}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetail(true); }}>{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
                   <td className="px-6 py-4"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">{l.source}</span></td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.counsellor}</td>
                   <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.nextFollowUp}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2 flex-wrap">
-                      <Button variant="secondary" size="sm" onClick={() => { setSelectedLead(l); setShowFollowup(true); }}>
-                        Log Call
-                      </Button>
-                      {l.status !== 'Not Interested' && l.status !== 'Interested' && (
-                        <Button variant="primary" size="sm" style={{ backgroundColor: '#2563eb', color: 'white' }} onClick={() => { setSelectedLead(l); setFeeTotal(120000); setFeeDiscount(0); setFeePaid(40000); setFeeBatch(''); setShowConvert(true); }}>
-                          Convert
-                        </Button>
-                      )}
-                    </div>
-                  </td>
                 </tr>
               ))}
             </Table>
@@ -777,12 +881,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <CardTitle>Counselling & Follow-up Queue</CardTitle>
               <span className="text-xs text-slate-400 font-medium">{filteredLeads.length} leads</span>
             </CardHeader>
-            <Table headers={['Student Name', 'Mobile', 'Course', 'Counsellor', 'Stage', 'Follow-ups Logged', 'Next Date', 'Last Remark', 'Actions']}>
+            <Table headers={['Student Name', 'Mobile', 'Course', 'Preferred Branch', 'Assigned Branch', 'Counsellor', 'Stage', 'Follow-ups Logged', 'Next Date', 'Last Remark', 'Actions']}>
               {pipelineLeads.map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetail(true); }}>{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.counsellor}</td>
                   <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
                   <td className="px-6 py-4">
@@ -817,12 +923,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <CardTitle>Fee Discussion Queue</CardTitle>
               <span className="text-xs text-slate-400">Leads ready for fee negotiation</span>
             </CardHeader>
-            <Table headers={['Student Name', 'Mobile', 'Course', 'Stage', 'Counsellor', 'Remarks', 'Actions']}>
+            <Table headers={['Student Name', 'Mobile', 'Course', 'Preferred Branch', 'Assigned Branch', 'Stage', 'Counsellor', 'Remarks', 'Actions']}>
               {pipelineLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetail(true); }}>{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
                   <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
                   <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
                   <td className="px-6 py-4 text-xs text-slate-500 max-w-[200px] truncate">{l.remarks}</td>

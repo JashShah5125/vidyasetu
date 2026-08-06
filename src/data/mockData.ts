@@ -37,6 +37,7 @@ export interface Lead {
   mobile: string;
   course: string;
   branch: string;
+  preferredBranch?: string;
   source: string;
   counsellor: string;
   status: 'New Enquiry' | 'Contacted' | 'Follow-up' | 'Demo Scheduled' | 'Interested' | 'Not Interested';
@@ -231,6 +232,7 @@ export const INITIAL_LEADS: Lead[] = [
     mobile: '9898012345',
     course: 'JEE Prep',
     branch: 'Mumbai West',
+    preferredBranch: 'Mumbai West',
     source: 'Google Ads',
     counsellor: 'Priya Sen',
     status: 'New Enquiry',
@@ -244,6 +246,7 @@ export const INITIAL_LEADS: Lead[] = [
     mobile: '9767112233',
     course: 'NEET Batch',
     branch: 'Pune Camp',
+    preferredBranch: 'Pune Camp',
     source: 'Referral',
     counsellor: 'Priya Sen',
     status: 'Follow-up',
@@ -260,6 +263,7 @@ export const INITIAL_LEADS: Lead[] = [
     mobile: '9922001144',
     course: 'Class 10 Foundation',
     branch: 'Mumbai West',
+    preferredBranch: 'Delhi South',
     source: 'Flyer Campaign',
     counsellor: 'Amit Verma',
     status: 'Interested',
