@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
 import {
   ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import {
 interface AcademicLevel {
   id: string;
   name: string; // e.g. "Class XI", "Year 1"
+  duration?: string;
 }
 
 interface Program {
@@ -90,14 +92,30 @@ const LevelCard: React.FC<{
   onDelete: () => void;
 }> = ({ level, onChange, onDelete }) => {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex items-center p-3 gap-3">
-      <Layers size={16} className="text-indigo-500 shrink-0" />
-      <Input
-        label=""
-        value={level.name}
-        placeholder="Level Name (e.g. Class XI)"
-        onChange={e => onChange({ ...level, name: e.target.value })}
-      />
+    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex flex-col md:flex-row items-center p-3 gap-3">
+      <Layers size={16} className="text-indigo-500 shrink-0 hidden md:block" />
+      <div className="flex-1 w-full">
+        <Input
+          label=""
+          value={level.name}
+          placeholder="Level Name (e.g. Class XI)"
+          onChange={e => onChange({ ...level, name: e.target.value })}
+        />
+      </div>
+      <div className="w-full md:w-48 shrink-0">
+        <Select
+          label=""
+          options={[
+            { value: '', label: 'Select Duration' },
+            { value: '2 Months', label: '2 Months' },
+            { value: '3 Months', label: '3 Months' },
+            { value: '6 Months', label: '6 Months' },
+            { value: '1 Year', label: '1 Year' },
+          ]}
+          value={level.duration || ''}
+          onChange={e => onChange({ ...level, duration: e.target.value })}
+        />
+      </div>
       <button
         onClick={onDelete}
         className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer mt-1"
@@ -284,12 +302,6 @@ export const CourseDetail: React.FC = () => {
                 value={formData.code}
                 placeholder="e.g. JEE-PREP"
                 onChange={e => setFormData({ ...formData, code: e.target.value })}
-              />
-              <Input
-                label="Duration"
-                value={formData.duration}
-                placeholder="e.g. 2 Years / 1 Year"
-                onChange={e => setFormData({ ...formData, duration: e.target.value })}
               />
             </div>
           </Card>

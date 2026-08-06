@@ -310,12 +310,12 @@ export const INITIAL_BATCHES: Batch[] = [
 
 export const INITIAL_BRANCHES: Branch[] = [
   { 
-    id: 'B-001', name: 'Mumbai West Branch', code: 'MUM-WEST', admin: 'Mrs. Seema Deshpande', adminEmail: 'seema@apexiit.com', adminMobile: '9876543210', capacity: 300, status: 'Active',
+    id: 'B-001', name: 'Mumbai West', code: 'MUM-WEST', admin: 'Mrs. Seema Deshpande', adminEmail: 'seema@apexiit.com', adminMobile: '9876543210', capacity: 300, status: 'Active',
     address: '101, Western Heights, Andheri West, Mumbai, 400053', email: 'mumbaiwest@apexiit.com', phone: '022-26345566', operatingHours: '08:00 AM - 08:00 PM',
     programs: ['JEE', 'NEET', 'Foundation']
   },
   { 
-    id: 'B-002', name: 'Pune Camp Branch', code: 'PUN-CAMP', admin: 'Mr. Ramesh Shinde', adminEmail: 'ramesh@apexiit.com', adminMobile: '9123456789', capacity: 150, status: 'Active',
+    id: 'B-002', name: 'Pune Camp', code: 'PUN-CAMP', admin: 'Mr. Ramesh Shinde', adminEmail: 'ramesh@apexiit.com', adminMobile: '9123456789', capacity: 150, status: 'Active',
     address: '45, MG Road, Camp, Pune, 411001', email: 'punecamp@apexiit.com', phone: '020-24445566', operatingHours: '09:00 AM - 06:00 PM',
     programs: ['Foundation']
   }
