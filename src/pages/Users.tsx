@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus } from 'lucide-react';
+import { Plus, ArrowLeft } from 'lucide-react';
 
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff } = useApp();
@@ -129,6 +128,63 @@ export const Users: React.FC = () => {
     setEditingEmail(null);
     alert(editingEmail ? 'Staff details updated successfully!' : 'New staff profile created successfully!');
   };
+
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingEmail ? `Edit Staff Profile: ${name}` : 'Create Staff Profile'}
+            </h2>
+            <p className="text-sm text-slate-500">Configure staff account parameters, login access, branch office, and security roles.</p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <Input label="Full Name" required placeholder="e.g. Mrs. Seema Deshpande" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input label="Email Address Login" type="email" required placeholder="seema@apexiit.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <Select 
+                label="Primary Security Role" 
+                value={role} 
+                onChange={(e) => setRole(e.target.value)} 
+                options={[
+                  { value: 'SuperAdmin', label: 'Super Admin' },
+                  { value: 'Admin', label: 'Admin Executive' },
+                  { value: 'Counsellor', label: 'Counsellor' },
+                  { value: 'Teacher', label: 'Teacher / Faculty' },
+                  { value: 'Finance', label: 'Finance Staff' }
+                ]}
+              />
+              <Select 
+                label="Allotted Branch Office" 
+                value={branch} 
+                onChange={(e) => setBranch(e.target.value)} 
+                options={[
+                  { value: 'Mumbai West', label: 'Mumbai West' },
+                  { value: 'Pune Camp', label: 'Pune Camp' }
+                ]}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">
+                {editingEmail ? 'Update Details' : 'Register Staff Member'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -267,49 +323,6 @@ export const Users: React.FC = () => {
           </div>
         )}
       </Card>
-
-      {/* Creation Modal */}
-      {showAddModal && (
-        <Modal 
-          isOpen={showAddModal} 
-          onClose={() => setShowAddModal(false)} 
-          title={editingEmail ? `Edit Staff Profile: ${name}` : 'Create Staff Profile'}
-        >
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            <Input label="Full Name" required placeholder="e.g. Mrs. Seema Deshpande" value={name} onChange={(e) => setName(e.target.value)} />
-            <Input label="Email Address Login" type="email" required placeholder="seema@apexiit.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <div className="grid grid-cols-2 gap-4">
-              <Select 
-                label="Primary Security Role" 
-                value={role} 
-                onChange={(e) => setRole(e.target.value)} 
-                options={[
-                  { value: 'SuperAdmin', label: 'Super Admin' },
-                  { value: 'Admin', label: 'Admin Executive' },
-                  { value: 'Counsellor', label: 'Counsellor' },
-                  { value: 'Teacher', label: 'Teacher / Faculty' },
-                  { value: 'Finance', label: 'Finance Staff' }
-                ]}
-              />
-              <Select 
-                label="Allotted Branch Office" 
-                value={branch} 
-                onChange={(e) => setBranch(e.target.value)} 
-                options={[
-                  { value: 'Mumbai West', label: 'Mumbai West' },
-                  { value: 'Pune Camp', label: 'Pune Camp' }
-                ]}
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary">
-                {editingEmail ? 'Update Details' : 'Register Staff Member'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 };

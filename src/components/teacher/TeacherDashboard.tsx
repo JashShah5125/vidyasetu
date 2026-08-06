@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
-import { BookOpen, Calendar, HelpCircle, GraduationCap } from 'lucide-react';
+import { BookOpen, Calendar, HelpCircle, GraduationCap, ArrowLeft } from 'lucide-react';
 
 export const TeacherDashboard: React.FC = () => {
   const { currentUser, doubts, sendDoubtReply, addToast } = useApp();
@@ -36,6 +35,45 @@ export const TeacherDashboard: React.FC = () => {
       addToast('Academic response submitted successfully!');
     }
   };
+
+  if (showAnswerModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAnswerModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Compose Academic Response</h2>
+            <p className="text-sm text-slate-500">Provide an explanation or reply details to the student doubt question.</p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleAnswerSubmit} className="space-y-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Teacher Answer text</label>
+              <textarea 
+                required 
+                rows={5}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 font-medium"
+                placeholder="Type your explanation or response details here..."
+                value={responseText}
+                onChange={(e) => setResponseText(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAnswerModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">Submit Response</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -208,33 +246,6 @@ export const TeacherDashboard: React.FC = () => {
           </Card>
         </div>
       </div>
-
-      {/* Answer Doubt Modal */}
-      {showAnswerModal && (
-        <Modal 
-          isOpen={showAnswerModal} 
-          onClose={() => setShowAnswerModal(false)} 
-          title="Compose Academic Response"
-        >
-          <form onSubmit={handleAnswerSubmit} className="space-y-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Teacher Answer text</label>
-              <textarea 
-                required 
-                rows={5}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 font-medium"
-                placeholder="Type your explanation or response details here..."
-                value={responseText}
-                onChange={(e) => setResponseText(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAnswerModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary">Submit Response</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 };

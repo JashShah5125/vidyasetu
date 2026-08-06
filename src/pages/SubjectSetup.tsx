@@ -2,9 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
-import { BookOpen, Layers, Plus, Search, Download } from 'lucide-react';
+import { BookOpen, Layers, Plus, Search, Download, ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
 
@@ -316,6 +315,222 @@ export const SubjectSetup: React.FC = () => {
     });
   };
 
+  if (isAddSubjectModalOpen) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAddSubjectModalOpen(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingSubjectId ? "Edit Subject" : "Create New Subject"}
+            </h2>
+            <p className="text-sm text-slate-500">
+              {editingSubjectId ? "Update details for this subject profile." : "Create a new subject and select its course level mapping."}
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full space-y-4">
+          <Input 
+            label="Subject Name" 
+            placeholder="e.g. Advanced Mechanics" 
+            value={subjectForm.name}
+            onChange={e => setSubjectForm(prev => ({ ...prev, name: e.target.value }))}
+          />
+          <Input 
+            label="Subject Code" 
+            placeholder="e.g. PHY201" 
+            value={subjectForm.code}
+            onChange={e => setSubjectForm(prev => ({ ...prev, code: e.target.value }))}
+          />
+          <Select 
+            label="Subject Type" 
+            options={[
+              { value: 'Core', label: 'Core / Mandatory' },
+              { value: 'Elective', label: 'Elective / Optional' },
+              { value: 'Practical', label: 'Practical / Lab' }
+            ]} 
+            value={subjectForm.type}
+            onChange={e => setSubjectForm(prev => ({ ...prev, type: e.target.value }))}
+          />
+
+          <div>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-2">Map Teachers</label>
+            <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 bg-white">
+              {teachers.length === 0 ? (
+                <div className="p-3 text-center text-xs text-slate-500">No teachers found in directory.</div>
+              ) : (
+                teachers.map(teacher => (
+                  <label key={teacher.email} className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                     <input 
+                       type="checkbox" 
+                       className="w-4 h-4 mr-3 text-blue-600 border-slate-300 rounded" 
+                       checked={subjectForm.teacherIds.includes(teacher.email)}
+                       onChange={() => handleToggleSubjectTeacher(teacher.email)}
+                     />
+                     <span className="text-sm text-slate-800 font-medium">{teacher.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+          
+          {!editingSubjectId && (
+            <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 mt-4">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
+              <Select
+                label="Assign to Course"
+                options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
+                value={subjectForm.formCourse}
+                onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
+              />
+              <Select
+                label="Assign to Program"
+                options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
+                value={subjectForm.formProgram}
+                onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
+                disabled={!subjectForm.formCourse}
+              />
+              <Select
+                label="Assign to Level"
+                options={[
+                  { value: '', label: 'Select a level...' },
+                  ...(subjectForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
+                    subjectForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
+                    subjectForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
+                ]}
+                value={subjectForm.formLevel}
+                onChange={e => setSubjectForm(prev => ({ ...prev, formLevel: e.target.value }))}
+                disabled={!subjectForm.formProgram}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button variant="ghost" onClick={() => setAddSubjectModalOpen(false)}>Cancel</Button>
+            <Button 
+              variant="primary"
+              onClick={handleSaveSubject} 
+              disabled={!subjectForm.name || !subjectForm.code || !subjectForm.formCourse || !subjectForm.formProgram || !subjectForm.formLevel}
+              className="disabled:opacity-50"
+              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+            >
+              {editingSubjectId ? "Save Changes" : "Create & Assign Subject"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isBundleModalOpen) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setBundleModalOpen(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingBundleId ? "Edit Subject Bundle" : "Create Subject Bundle"}
+            </h2>
+            <p className="text-sm text-slate-500">Configure PCM/PCB core bundles, course contexts, and map subjects.</p>
+          </div>
+        </div>
+
+        <div className="w-full space-y-5">
+          <Input 
+            label="Bundle Name" 
+            placeholder="e.g. PCM Foundation" 
+            value={bundleForm.name}
+            onChange={e => setBundleForm(prev => ({ ...prev, name: e.target.value }))}
+          />
+          
+          {!editingBundleId && (
+            <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Context</h4>
+              <Select
+                label="Course"
+                options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
+                value={bundleForm.formCourse}
+                onChange={e => setBundleForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '', subjectIds: [] }))}
+              />
+              <Select
+                label="Program"
+                options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === bundleForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
+                value={bundleForm.formProgram}
+                onChange={e => setBundleForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '', subjectIds: [] }))}
+                disabled={!bundleForm.formCourse}
+              />
+              <Select
+                label="Level"
+                options={[
+                  { value: '', label: 'Select a level...' },
+                  ...(bundleForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
+                    bundleForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
+                    bundleForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
+                ]}
+                value={bundleForm.formLevel}
+                onChange={e => setBundleForm(prev => ({ ...prev, formLevel: e.target.value, subjectIds: [] }))}
+                disabled={!bundleForm.formProgram}
+              />
+            </div>
+          )}
+
+          {bundleForm.formLevel && (
+            <div>
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-2">Select Subjects for Bundle</label>
+              
+              <div className="border border-slate-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-slate-100">
+                {(() => {
+                  const bundleActiveKey = `${bundleForm.formCourse}-${bundleForm.formProgram}-${bundleForm.formLevel}`;
+                  const availableSubjects = flatSubjects.filter(s => s.activeKey === bundleActiveKey);
+                  
+                  if (availableSubjects.length === 0) {
+                    return <div className="p-4 text-center text-sm text-slate-500">No subjects available in this level to bundle.</div>;
+                  }
+                  
+                  return availableSubjects.map(sub => (
+                    <label key={sub.id} className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                       <input 
+                         type="checkbox" 
+                         className="w-4 h-4 mr-3 text-blue-600 border-slate-300 rounded" 
+                         checked={bundleForm.subjectIds.includes(sub.id)}
+                         onChange={() => handleToggleBundleSubject(sub.id)}
+                       />
+                       <span className="text-sm text-slate-800 font-medium">{sub.name} <span className="text-slate-400 font-normal">({sub.code})</span></span>
+                    </label>
+                  ));
+                })()}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button variant="ghost" onClick={() => setBundleModalOpen(false)}>Cancel</Button>
+            <Button 
+              variant="primary"
+              disabled={!bundleForm.name || bundleForm.subjectIds.length === 0 || !bundleForm.formCourse || !bundleForm.formProgram || !bundleForm.formLevel}
+              className="disabled:opacity-50"
+              onClick={handleSaveBundle}
+              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+            >
+              {editingBundleId ? "Save Changes" : "Create Bundle"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in p-6">
       
@@ -399,7 +614,7 @@ export const SubjectSetup: React.FC = () => {
           ) : (
             <>
               <Table headers={['Subject Code', 'Subject Name', 'Teachers', 'Course', 'Program', 'Level', 'Type', 'Actions']}>
-                {paginatedSubjects.map((subject, idx) => (
+                {paginatedSubjects.map((subject) => (
                   <tr key={subject.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-xs font-mono font-bold text-slate-500 uppercase">{subject.code}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-800">{subject.name}</td>
@@ -518,206 +733,6 @@ export const SubjectSetup: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* MODALS */}
-      {/* Add Subject Modal */}
-      <Modal 
-        isOpen={isAddSubjectModalOpen} 
-        onClose={() => setAddSubjectModalOpen(false)} 
-        title={editingSubjectId ? "Edit Subject" : "Create New Subject"}
-        size="md"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setAddSubjectModalOpen(false)}>Cancel</Button>
-            <Button 
-              variant="primary"
-              onClick={handleSaveSubject} 
-              disabled={!subjectForm.name || !subjectForm.code || !subjectForm.formCourse || !subjectForm.formProgram || !subjectForm.formLevel}
-              className="disabled:opacity-50"
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              {editingSubjectId ? "Save Changes" : "Create & Assign Subject"}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-           <p className="text-sm text-slate-500 mb-2">
-             {editingSubjectId ? "Update the details for this subject." : "Create a new subject and select its context."}
-           </p>
-           
-           <div className="space-y-4 pt-2">
-             <Input 
-               label="Subject Name" 
-               placeholder="e.g. Advanced Mechanics" 
-               value={subjectForm.name}
-               onChange={e => setSubjectForm(prev => ({ ...prev, name: e.target.value }))}
-             />
-             <Input 
-               label="Subject Code" 
-               placeholder="e.g. PHY201" 
-               value={subjectForm.code}
-               onChange={e => setSubjectForm(prev => ({ ...prev, code: e.target.value }))}
-             />
-             <Select 
-               label="Subject Type" 
-               options={[
-                 { value: 'Core', label: 'Core / Mandatory' },
-                 { value: 'Elective', label: 'Elective / Optional' },
-                 { value: 'Practical', label: 'Practical / Lab' }
-               ]} 
-               value={subjectForm.type}
-               onChange={e => setSubjectForm(prev => ({ ...prev, type: e.target.value }))}
-             />
-
-             <div>
-               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-2">Map Teachers</label>
-               <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100 bg-white">
-                 {teachers.length === 0 ? (
-                   <div className="p-3 text-center text-xs text-slate-500">No teachers found in directory.</div>
-                 ) : (
-                   teachers.map(teacher => (
-                     <label key={teacher.email} className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="w-4 h-4 mr-3 text-blue-600 border-slate-300 rounded" 
-                          checked={subjectForm.teacherIds.includes(teacher.email)}
-                          onChange={() => handleToggleSubjectTeacher(teacher.email)}
-                        />
-                        <span className="text-sm text-slate-800 font-medium">{teacher.name}</span>
-                     </label>
-                   ))
-                 )}
-               </div>
-             </div>
-             
-             {!editingSubjectId && (
-               <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 mt-4">
-                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
-                 <Select
-                   label="Assign to Course"
-                   options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
-                   value={subjectForm.formCourse}
-                   onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
-                 />
-                 <Select
-                   label="Assign to Program"
-                   options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
-                   value={subjectForm.formProgram}
-                   onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
-                   disabled={!subjectForm.formCourse}
-                 />
-                 <Select
-                   label="Assign to Level"
-                   options={[
-                     { value: '', label: 'Select a level...' },
-                     ...(subjectForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
-                       subjectForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
-                       subjectForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
-                   ]}
-                   value={subjectForm.formLevel}
-                   onChange={e => setSubjectForm(prev => ({ ...prev, formLevel: e.target.value }))}
-                   disabled={!subjectForm.formProgram}
-                 />
-               </div>
-             )}
-           </div>
-        </div>
-      </Modal>
-
-      {/* Create Bundle Modal */}
-      <Modal 
-        isOpen={isBundleModalOpen} 
-        onClose={() => setBundleModalOpen(false)} 
-        title={editingBundleId ? "Edit Subject Bundle" : "Create Subject Bundle"}
-        size="md"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setBundleModalOpen(false)}>Cancel</Button>
-            <Button 
-              variant="primary"
-              disabled={!bundleForm.name || bundleForm.subjectIds.length === 0 || !bundleForm.formCourse || !bundleForm.formProgram || !bundleForm.formLevel}
-              className="disabled:opacity-50"
-              onClick={handleSaveBundle}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              {editingBundleId ? "Save Changes" : "Create Bundle"}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-5">
-           <div>
-             <Input 
-               label="Bundle Name" 
-               placeholder="e.g. PCM Foundation" 
-               value={bundleForm.name}
-               onChange={e => setBundleForm(prev => ({ ...prev, name: e.target.value }))}
-             />
-           </div>
-           
-           {!editingBundleId && (
-             <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Context</h4>
-               <Select
-                 label="Course"
-                 options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
-                 value={bundleForm.formCourse}
-                 onChange={e => setBundleForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '', subjectIds: [] }))}
-               />
-               <Select
-                 label="Program"
-                 options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === bundleForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
-                 value={bundleForm.formProgram}
-                 onChange={e => setBundleForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '', subjectIds: [] }))}
-                 disabled={!bundleForm.formCourse}
-               />
-               <Select
-                 label="Level"
-                 options={[
-                   { value: '', label: 'Select a level...' },
-                   ...(bundleForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
-                     bundleForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
-                     bundleForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
-                 ]}
-                 value={bundleForm.formLevel}
-                 onChange={e => setBundleForm(prev => ({ ...prev, formLevel: e.target.value, subjectIds: [] }))}
-                 disabled={!bundleForm.formProgram}
-               />
-             </div>
-           )}
-
-           {bundleForm.formLevel && (
-             <div>
-               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-2">Select Subjects for Bundle</label>
-               
-               <div className="border border-slate-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-slate-100">
-                 {(() => {
-                   const bundleActiveKey = `${bundleForm.formCourse}-${bundleForm.formProgram}-${bundleForm.formLevel}`;
-                   const availableSubjects = flatSubjects.filter(s => s.activeKey === bundleActiveKey);
-                   
-                   if (availableSubjects.length === 0) {
-                     return <div className="p-4 text-center text-sm text-slate-500">No subjects available in this level to bundle.</div>;
-                   }
-                   
-                   return availableSubjects.map(sub => (
-                     <label key={sub.id} className="flex items-center px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="w-4 h-4 mr-3 text-blue-600 border-slate-300 rounded" 
-                          checked={bundleForm.subjectIds.includes(sub.id)}
-                          onChange={() => handleToggleBundleSubject(sub.id)}
-                        />
-                        <span className="text-sm text-slate-800 font-medium">{sub.name} <span className="text-slate-400 font-normal">({sub.code})</span></span>
-                     </label>
-                   ));
-                 })()}
-               </div>
-             </div>
-           )}
-        </div>
-      </Modal>
-
     </div>
   );
 };

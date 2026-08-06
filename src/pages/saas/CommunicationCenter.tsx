@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { Modal } from '../../components/ui/Modal';
+import { ArrowLeft } from 'lucide-react';
 
 interface NotificationBroadcast {
   id: string;
@@ -60,6 +60,100 @@ export const CommunicationCenter: React.FC = () => {
     'Emergency Alert': 'bg-red-50 text-red-700 border-red-200 animate-pulse',
     'Email Campaign': 'bg-purple-50 text-purple-700 border-purple-200'
   };
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              Create New Broadcast Alert
+            </h2>
+            <p className="text-sm text-slate-500">
+              Draft or dispatch platform-wide announcements, emergency notices, or email campaign updates.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleBroadcast} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Broadcast Type" value={type} onChange={e => setType(e.target.value as typeof type)}
+                options={[
+                  { value: 'Announcement', label: 'Announcement' },
+                  { value: 'Maintenance', label: 'Maintenance Warning' },
+                  { value: 'Emergency Alert', label: 'Emergency Alert' },
+                  { value: 'Email Campaign', label: 'Email Campaign' }
+                ]} />
+              <Select label="Target Audience" value={targetAudience} onChange={e => setTargetAudience(e.target.value as typeof targetAudience)}
+                options={[
+                  { value: 'All Tenants', label: 'All Tenants' },
+                  { value: 'Trial Tenants Only', label: 'Trial Tenants Only' },
+                  { value: 'Active Tenants Only', label: 'Active Tenants Only' },
+                  { value: 'Enterprise Only', label: 'Enterprise Custom Only' }
+                ]} />
+            </div>
+
+            <Input label="Title / Header" required placeholder="e.g. Server updates notice" value={title} onChange={e => setTitle(e.target.value)} />
+            
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Message Body</label>
+              <textarea required placeholder="Write details here..."
+                className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 h-28 resize-none"
+                value={body} onChange={e => setBody(e.target.value)} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Delivery Channels</label>
+              <div className="flex flex-wrap gap-4 bg-slate-50 border border-slate-200/80 p-3 rounded-xl">
+                {['Email', 'WhatsApp', 'SMS', 'In-App System Notification'].map(ch => {
+                  const isChecked = channels.includes(ch);
+                  return (
+                    <label key={ch} className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700">
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setChannels(prev => [...prev, ch]);
+                          } else {
+                            if (channels.length > 1) {
+                              setChannels(prev => prev.filter(item => item !== ch));
+                            }
+                          }
+                        }}
+                        className="rounded border-slate-350 h-4.5 w-4.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      {ch}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Select label="Dispatch Schedule" value={status} onChange={e => setStatus(e.target.value as typeof status)}
+              options={[
+                { value: 'Sent', label: 'Send Immediately' },
+                { value: 'Scheduled', label: 'Schedule for Later Date' },
+                { value: 'Draft', label: 'Save as Draft Template' }
+              ]} />
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">Disseminate Campaign</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -122,82 +216,6 @@ export const CommunicationCenter: React.FC = () => {
           ))}
         </div>
       </div>
-
-      {/* Broadcast Creation Modal */}
-      <Modal 
-        isOpen={showAddModal} 
-        onClose={() => setShowAddModal(false)}
-        title="Create New Broadcast Alert" 
-        size="xl"
-      >
-        <form onSubmit={handleBroadcast} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Broadcast Type" value={type} onChange={e => setType(e.target.value as typeof type)}
-              options={[
-                { value: 'Announcement', label: 'Announcement' },
-                { value: 'Maintenance', label: 'Maintenance Warning' },
-                { value: 'Emergency Alert', label: 'Emergency Alert' },
-                { value: 'Email Campaign', label: 'Email Campaign' }
-              ]} />
-            <Select label="Target Audience" value={targetAudience} onChange={e => setTargetAudience(e.target.value as typeof targetAudience)}
-              options={[
-                { value: 'All Tenants', label: 'All Tenants' },
-                { value: 'Trial Tenants Only', label: 'Trial Tenants Only' },
-                { value: 'Active Tenants Only', label: 'Active Tenants Only' },
-                { value: 'Enterprise Only', label: 'Enterprise Custom Only' }
-              ]} />
-          </div>
-
-          <Input label="Title / Header" required placeholder="e.g. Server updates notice" value={title} onChange={e => setTitle(e.target.value)} />
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Message Body</label>
-            <textarea required placeholder="Write details here..."
-              className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 h-28 resize-none"
-              value={body} onChange={e => setBody(e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Delivery Channels</label>
-            <div className="flex flex-wrap gap-4 bg-slate-50 border border-slate-200/80 p-3 rounded-xl">
-              {['Email', 'WhatsApp', 'SMS', 'In-App System Notification'].map(ch => {
-                const isChecked = channels.includes(ch);
-                return (
-                  <label key={ch} className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-700">
-                    <input 
-                      type="checkbox" 
-                      checked={isChecked}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setChannels(prev => [...prev, ch]);
-                        } else {
-                          if (channels.length > 1) {
-                            setChannels(prev => prev.filter(item => item !== ch));
-                          }
-                        }
-                      }}
-                      className="rounded border-slate-350 h-4.5 w-4.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                    {ch}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <Select label="Dispatch Schedule" value={status} onChange={e => setStatus(e.target.value as typeof status)}
-            options={[
-              { value: 'Sent', label: 'Send Immediately' },
-              { value: 'Scheduled', label: 'Schedule for Later Date' },
-              { value: 'Draft', label: 'Save as Draft Template' }
-            ]} />
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">Disseminate Campaign</Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 };

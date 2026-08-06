@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus } from 'lucide-react';
+import { Plus, ArrowLeft } from 'lucide-react';
 
 export interface ExamItem {
   name: string;
@@ -111,6 +110,45 @@ export const Exams: React.FC = () => {
     setSuccessMessage('New classroom evaluation test scheduled successfully!');
     setTimeout(() => setSuccessMessage(''), 4000);
   };
+
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Schedule Classroom Test</h2>
+            <p className="text-sm text-slate-500">Define offline evaluation tests, assign target batches, and record scores.</p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <Input label="Test Name Title" required placeholder="e.g. Periodic Chemistry Evaluation Test #4" value={name} onChange={(e) => setName(e.target.value)} />
+            <Select 
+              label="Allocate Target Batch" 
+              value={batch} 
+              onChange={(e) => setBatch(e.target.value)} 
+              options={batches.map(b => ({ value: b.name, label: b.name }))}
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Total Score Marks" type="number" value={totalMarks} onChange={(e) => setTotalMarks(Number(e.target.value))} />
+              <Input label="Passing Threshold" type="number" value={passingMarks} onChange={(e) => setPassingMarks(Number(e.target.value))} />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">Schedule Test</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -221,33 +259,6 @@ export const Exams: React.FC = () => {
           </div>
         )}
       </Card>
-
-      {/* Creation Modal */}
-      {showAddModal && (
-        <Modal 
-          isOpen={showAddModal} 
-          onClose={() => setShowAddModal(false)} 
-          title="Schedule Classroom offline test"
-        >
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            <Input label="Test Name Title" required placeholder="e.g. Periodic Chemistry Evaluation Test #4" value={name} onChange={(e) => setName(e.target.value)} />
-            <Select 
-              label="Allocate Target Batch" 
-              value={batch} 
-              onChange={(e) => setBatch(e.target.value)} 
-              options={batches.map(b => ({ value: b.name, label: b.name }))}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Total Score Marks" type="number" value={totalMarks} onChange={(e) => setTotalMarks(Number(e.target.value))} />
-              <Input label="Passing Threshold" type="number" value={passingMarks} onChange={(e) => setPassingMarks(Number(e.target.value))} />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary">Schedule Test</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 };

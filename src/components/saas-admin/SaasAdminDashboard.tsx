@@ -172,6 +172,7 @@ export const SaasAdminDashboard: React.FC = () => {
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
                 <th className="px-6 py-4">Timestamp</th>
                 <th className="px-6 py-4">Actor</th>
+                <th className="px-6 py-4">Institute</th>
                 <th className="px-6 py-4">Action Event</th>
                 <th className="px-6 py-4">Details Summary</th>
               </tr>
@@ -183,6 +184,7 @@ export const SaasAdminDashboard: React.FC = () => {
                   <td className="px-6 py-4 font-semibold text-slate-800">
                     {log.actor} <span className="text-[9px] text-slate-400 uppercase font-normal">({log.role})</span>
                   </td>
+                  <td className="px-6 py-4 text-slate-700 font-semibold">{log.institute || 'System / Platform'}</td>
                   <td className="px-6 py-4 font-mono text-[10px] text-purple-600">{log.action}</td>
                   <td className="px-6 py-4 text-slate-600">{log.details}</td>
                 </tr>

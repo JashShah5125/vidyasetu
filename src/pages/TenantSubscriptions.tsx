@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Edit, Eye, Trash, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Eye, Trash, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { TenantSubscription, SubscriptionPlan } from '../data/mockData';
 import { formatDate } from '../data/mockData';
 
@@ -216,6 +216,129 @@ export const TenantSubscriptions: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+  if (showModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingId ? 'Edit Tenant Subscription' : 'Assign Plan to Tenant'}
+            </h2>
+            <p className="text-sm text-slate-500">
+              Set tenant subscription levels, custom contract overrides, and invoice billing details.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleSubmit} className="space-y-6">
+
+            {/* Tenant & Plan */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">01. Tenant &amp; Plan</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select label="Tenant" required value={tenantId} onChange={e => setTenantId(e.target.value)}
+                  options={[
+                    { value: '', label: 'Select Tenant' },
+                    ...tenants.map(t => ({ value: t.id, label: `${t.name} (${t.id})` }))
+                  ]} />
+                <Select label="Subscription Plan" required value={planId} onChange={e => { setPlanId(e.target.value); }}
+                  options={[
+                    { value: '', label: 'Select Plan' },
+                    ...visiblePlans.map(p => ({ value: p.id, label: `${p.name} — ${p.currency} ${p.price === 0 ? 'Free' : p.price.toLocaleString()} / ${p.billingType}` }))
+                  ]} />
+              </div>
+              {selectedPlan && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <div><span className="text-blue-400 font-bold block">Plan Code</span><span className="font-mono font-bold text-blue-800">{selectedPlan.code}</span></div>
+                  <div><span className="text-blue-400 font-bold block">Price</span><span className="font-bold text-blue-800">{selectedPlan.currency} {selectedPlan.price.toLocaleString()}</span></div>
+                  <div><span className="text-blue-400 font-bold block">Trial Days</span><span className="font-bold text-blue-800">{selectedPlan.trialDays}d</span></div>
+                  <div><span className="text-blue-400 font-bold block">Auto Renewal</span><span className="font-bold text-blue-800">{selectedPlan.autoRenewal ? 'Yes' : 'No'}</span></div>
+                </div>
+              )}
+            </div>
+
+            {/* Subscription period */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">02. Subscription Period</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Start Date" type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} />
+                <Input label="Expiry Date" type="date" required value={expiryDate} onChange={e => setExpiryDate(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select label="Billing Cycle" value={billingCycle} onChange={e => setBillingCycle(e.target.value as typeof billingCycle)}
+                  options={[
+                    { value: 'Monthly', label: 'Monthly' }, { value: 'Quarterly', label: 'Quarterly' },
+                    { value: 'Yearly', label: 'Yearly' }, { value: 'Lifetime', label: 'Lifetime' }
+                  ]} />
+                <Select label="Status" value={status} onChange={e => setStatus(e.target.value as typeof status)}
+                  options={[
+                    { value: 'Active', label: 'Active' }, { value: 'Trial', label: 'Trial' },
+                    { value: 'Pending', label: 'Pending' }, { value: 'Expired', label: 'Expired' },
+                    { value: 'Cancelled', label: 'Cancelled' }
+                  ]} />
+              </div>
+            </div>
+
+            {/* Commercial */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">03. Commercial</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Input label="Discount %" type="number" min={0} max={100} placeholder="e.g. 10"
+                    value={discount} onChange={e => { setDiscount(e.target.value); setFinalPrice(autoFinalPrice()); }} />
+                </div>
+                <div>
+                  <Input label="Final Price" type="number" placeholder="Auto-calculated or override"
+                    value={finalPrice || autoFinalPrice()} onChange={e => setFinalPrice(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Tax %" type="number" placeholder="e.g. 18" value={tax} onChange={e => setTax(e.target.value)} />
+                <Input label="Invoice Number" placeholder="e.g. INV-2026-042" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Override limits */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">04. Override Limits <span className="text-slate-400 font-normal normal-case tracking-normal">(leave blank to use plan defaults)</span></h4>
+              {selectedPlan && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                  <strong>Plan defaults:</strong> Branches {selectedPlan.maxBranches === -1 ? 'Unlimited' : selectedPlan.maxBranches} · Students {selectedPlan.maxStudents === -1 ? 'Unlimited' : selectedPlan.maxStudents} · Staff {selectedPlan.maxStaffUsers === -1 ? 'Unlimited' : selectedPlan.maxStaffUsers}
+                </div>
+              )}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Input label="Max Branches" type="number" placeholder="Plan default" value={ovMaxBranches} onChange={e => setOvMaxBranches(e.target.value)} />
+                <Input label="Max Staff Users" type="number" placeholder="Plan default" value={ovMaxStaff} onChange={e => setOvMaxStaff(e.target.value)} />
+                <Input label="Max Students" type="number" placeholder="Plan default" value={ovMaxStudents} onChange={e => setOvMaxStudents(e.target.value)} />
+                <Input label="Max Parents" type="number" placeholder="Plan default" value={ovMaxParents} onChange={e => setOvMaxParents(e.target.value)} />
+                <Input label="Max Teachers" type="number" placeholder="Plan default" value={ovMaxTeachers} onChange={e => setOvMaxTeachers(e.target.value)} />
+                <Select label="Max Storage" value={ovMaxStorage} onChange={e => setOvMaxStorage(e.target.value)}
+                  options={[{ value: '', label: 'Plan default' }, { value: '5 GB', label: '5 GB' }, { value: '20 GB', label: '20 GB' }, { value: '100 GB', label: '100 GB' }, { value: '500 GB', label: '500 GB' }]} />
+                <Select label="Max File Size" value={ovMaxFileSize} onChange={e => setOvMaxFileSize(e.target.value)}
+                  options={[{ value: '', label: 'Plan default' }, { value: '5 MB', label: '5 MB' }, { value: '20 MB', label: '20 MB' }, { value: '50 MB', label: '50 MB' }, { value: '200 MB', label: '200 MB' }]} />
+                <Input label="Max SMS Credits" type="number" placeholder="Plan default" value={ovSms} onChange={e => setOvSms(e.target.value)} />
+                <Input label="Max WhatsApp Msgs" type="number" placeholder="Plan default" value={ovWhatsapp} onChange={e => setOvWhatsapp(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">{editingId ? 'Save Changes' : 'Create Subscription'}</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {successMsg && (
@@ -413,107 +536,6 @@ export const TenantSubscriptions: React.FC = () => {
           );
         })()}
       </Card>
-
-      {/* ── Assign / Edit Subscription Modal ── */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)}
-        title={editingId ? 'Edit Tenant Subscription' : 'Assign Plan to Tenant'} size="3xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
-
-          {/* Tenant & Plan */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">01. Tenant &amp; Plan</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select label="Tenant" required value={tenantId} onChange={e => setTenantId(e.target.value)}
-                options={[
-                  { value: '', label: 'Select Tenant' },
-                  ...tenants.map(t => ({ value: t.id, label: `${t.name} (${t.id})` }))
-                ]} />
-              <Select label="Subscription Plan" required value={planId} onChange={e => { setPlanId(e.target.value); }}
-                options={[
-                  { value: '', label: 'Select Plan' },
-                  ...visiblePlans.map(p => ({ value: p.id, label: `${p.name} — ${p.currency} ${p.price === 0 ? 'Free' : p.price.toLocaleString()} / ${p.billingType}` }))
-                ]} />
-            </div>
-            {selectedPlan && (
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                <div><span className="text-blue-400 font-bold block">Plan Code</span><span className="font-mono font-bold text-blue-800">{selectedPlan.code}</span></div>
-                <div><span className="text-blue-400 font-bold block">Price</span><span className="font-bold text-blue-800">{selectedPlan.currency} {selectedPlan.price.toLocaleString()}</span></div>
-                <div><span className="text-blue-400 font-bold block">Trial Days</span><span className="font-bold text-blue-800">{selectedPlan.trialDays}d</span></div>
-                <div><span className="text-blue-400 font-bold block">Auto Renewal</span><span className="font-bold text-blue-800">{selectedPlan.autoRenewal ? 'Yes' : 'No'}</span></div>
-              </div>
-            )}
-          </div>
-
-          {/* Subscription period */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">02. Subscription Period</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Start Date" type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} />
-              <Input label="Expiry Date" type="date" required value={expiryDate} onChange={e => setExpiryDate(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select label="Billing Cycle" value={billingCycle} onChange={e => setBillingCycle(e.target.value as typeof billingCycle)}
-                options={[
-                  { value: 'Monthly', label: 'Monthly' }, { value: 'Quarterly', label: 'Quarterly' },
-                  { value: 'Yearly', label: 'Yearly' }, { value: 'Lifetime', label: 'Lifetime' }
-                ]} />
-              <Select label="Status" value={status} onChange={e => setStatus(e.target.value as typeof status)}
-                options={[
-                  { value: 'Active', label: 'Active' }, { value: 'Trial', label: 'Trial' },
-                  { value: 'Pending', label: 'Pending' }, { value: 'Expired', label: 'Expired' },
-                  { value: 'Cancelled', label: 'Cancelled' }
-                ]} />
-            </div>
-          </div>
-
-          {/* Commercial */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">03. Commercial</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Input label="Discount %" type="number" min={0} max={100} placeholder="e.g. 10"
-                  value={discount} onChange={e => { setDiscount(e.target.value); setFinalPrice(autoFinalPrice()); }} />
-              </div>
-              <div>
-                <Input label="Final Price" type="number" placeholder="Auto-calculated or override"
-                  value={finalPrice || autoFinalPrice()} onChange={e => setFinalPrice(e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Tax %" type="number" placeholder="e.g. 18" value={tax} onChange={e => setTax(e.target.value)} />
-              <Input label="Invoice Number" placeholder="e.g. INV-2026-042" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
-            </div>
-          </div>
-
-          {/* Override limits */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none">04. Override Limits <span className="text-slate-400 font-normal normal-case tracking-normal">(leave blank to use plan defaults)</span></h4>
-            {selectedPlan && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                <strong>Plan defaults:</strong> Branches {selectedPlan.maxBranches === -1 ? 'Unlimited' : selectedPlan.maxBranches} · Students {selectedPlan.maxStudents === -1 ? 'Unlimited' : selectedPlan.maxStudents} · Staff {selectedPlan.maxStaffUsers === -1 ? 'Unlimited' : selectedPlan.maxStaffUsers}
-              </div>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <Input label="Max Branches" type="number" placeholder="Plan default" value={ovMaxBranches} onChange={e => setOvMaxBranches(e.target.value)} />
-              <Input label="Max Staff Users" type="number" placeholder="Plan default" value={ovMaxStaff} onChange={e => setOvMaxStaff(e.target.value)} />
-              <Input label="Max Students" type="number" placeholder="Plan default" value={ovMaxStudents} onChange={e => setOvMaxStudents(e.target.value)} />
-              <Input label="Max Parents" type="number" placeholder="Plan default" value={ovMaxParents} onChange={e => setOvMaxParents(e.target.value)} />
-              <Input label="Max Teachers" type="number" placeholder="Plan default" value={ovMaxTeachers} onChange={e => setOvMaxTeachers(e.target.value)} />
-              <Select label="Max Storage" value={ovMaxStorage} onChange={e => setOvMaxStorage(e.target.value)}
-                options={[{ value: '', label: 'Plan default' }, { value: '5 GB', label: '5 GB' }, { value: '20 GB', label: '20 GB' }, { value: '100 GB', label: '100 GB' }, { value: '500 GB', label: '500 GB' }]} />
-              <Select label="Max File Size" value={ovMaxFileSize} onChange={e => setOvMaxFileSize(e.target.value)}
-                options={[{ value: '', label: 'Plan default' }, { value: '5 MB', label: '5 MB' }, { value: '20 MB', label: '20 MB' }, { value: '50 MB', label: '50 MB' }, { value: '200 MB', label: '200 MB' }]} />
-              <Input label="Max SMS Credits" type="number" placeholder="Plan default" value={ovSms} onChange={e => setOvSms(e.target.value)} />
-              <Input label="Max WhatsApp Msgs" type="number" placeholder="Plan default" value={ovWhatsapp} onChange={e => setOvWhatsapp(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">{editingId ? 'Save Changes' : 'Create Subscription'}</Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* ── View Details Modal ── */}
       {showView && viewingItem && (

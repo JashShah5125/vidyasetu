@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Kanban, List } from 'lucide-react';
+import { Plus, Kanban, List, ArrowLeft } from 'lucide-react';
 import type { Lead } from '../data/mockData';
 
 interface EnquiryProps {
@@ -139,6 +138,144 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
   const conversionLeads = filteredAndSortedLeads.filter(l => l.status !== 'Interested');
   const paginatedConversionLeads = conversionLeads.slice((convertPage - 1) * itemsPerPage, convertPage * itemsPerPage);
   const totalConversionPages = Math.ceil(conversionLeads.length / itemsPerPage);
+
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Log Prospect Enquiry (CRM)</h2>
+            <p className="text-sm text-slate-500">Record new enquiries in the CRM funnel.</p>
+          </div>
+        </div>
+        <div className="w-full">
+          <form onSubmit={handleAddLeadSubmit} className="space-y-4">
+            <Input label="Student Name" required placeholder="Aarav Sharma" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input label="Mobile Contact" required placeholder="9876543210" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Interested Course" value={course} onChange={(e) => setCourse(e.target.value)} options={[
+                { value: 'JEE Prep', label: 'JEE Prep Course' },
+                { value: 'NEET Batch', label: 'NEET Batch Premium' },
+                { value: 'Class 10 Foundation', label: 'Class 10 Foundation' }
+              ]} />
+              <Select label="Discovery Source" value={source} onChange={(e) => setSource(e.target.value)} options={[
+                { value: 'Google Ads', label: 'Google Ads' },
+                { value: 'Referral', label: 'Student Referral' },
+                { value: 'Walk-in', label: 'Direct Walk-in' },
+                { value: 'Flyer Campaign', label: 'Flyer Campaign' }
+              ]} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Remarks</label>
+              <textarea rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="Needs weekend slot..." value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">Save Enquiry</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (showFollowupModal && selectedLead) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowFollowupModal(false); setSelectedLead(null); }}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Log Callback: {selectedLead.name}</h2>
+            <p className="text-sm text-slate-500">Record counseling discussions or callbacks.</p>
+          </div>
+        </div>
+        <div className="w-full">
+          <form onSubmit={handleFollowupSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Call Attempt" value={followupType} onChange={(e) => setFollowupType(e.target.value)} options={[
+                { value: 'Call #1', label: 'Call #1 (First intro)' },
+                { value: 'Call #2', label: 'Call #2 (Demo check)' },
+                { value: 'Call #3', label: 'Call #3 (Negotiation)' },
+                { value: 'Walk-in', label: 'In-office Counseling' }
+              ]} />
+              <Input label="Next Date" type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Discussion Outcome</label>
+              <textarea required rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" value={outcome} onChange={(e) => setOutcome(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => { setShowFollowupModal(false); setSelectedLead(null); }}>Cancel</Button>
+              <Button type="submit" variant="primary">Log Outcome</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (showConvertModal && selectedLead) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowConvertModal(false); setSelectedLead(null); }}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Convert to Student: {selectedLead.name}</h2>
+            <p className="text-sm text-slate-500">Allocate batch, adjust fees, and register student account.</p>
+          </div>
+        </div>
+        <div className="w-full">
+          <form onSubmit={handleConvertSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Confirmed Course" value={selectedLead.course} readOnly />
+              <Select label="Allocate Batch" value={convertBatch} onChange={(e) => setConvertBatch(e.target.value)} options={[
+                { value: 'JEE-Morning-A', label: 'JEE-Morning-A' },
+                { value: 'JEE-Evening-B', label: 'JEE-Evening-B' },
+                { value: 'NEET-Regular-B', label: 'NEET-Regular-B' }
+              ]} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Base Course Fee" type="number" value={totalFee} onChange={(e) => setTotalFee(Number(e.target.value))} />
+              <Input label="Discount (Rs.)" type="number" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
+            </div>
+            <Input label="Initial Deposit Payment (Rs.)" type="number" value={paidFee} onChange={(e) => setPaidFee(Number(e.target.value))} />
+            
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center text-sm">
+              <div>
+                <div className="text-xs text-slate-500 font-medium">Net Outstanding Balance:</div>
+                <div className="text-lg font-bold text-red-600">Rs. {totalFee - discount - paidFee}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500 font-medium">Discounted Fee:</div>
+                <div className="text-lg font-bold text-slate-800">Rs. {totalFee - discount}</div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => { setShowConvertModal(false); setSelectedLead(null); }}>Cancel</Button>
+              <Button type="submit" variant="primary">Confirm Admission</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -406,98 +543,6 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
             </div>
           )}
         </Card>
-      )}
-
-      {/* 1. Log Enquiry Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Log Prospect Enquiry (CRM)">
-        <form onSubmit={handleAddLeadSubmit} className="space-y-4">
-          <Input label="Student Name" required placeholder="Aarav Sharma" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input label="Mobile Contact" required placeholder="9876543210" value={mobile} onChange={(e) => setMobile(e.target.value)} />
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Interested Course" value={course} onChange={(e) => setCourse(e.target.value)} options={[
-              { value: 'JEE Prep', label: 'JEE Prep Course' },
-              { value: 'NEET Batch', label: 'NEET Batch Premium' },
-              { value: 'Class 10 Foundation', label: 'Class 10 Foundation' }
-            ]} />
-            <Select label="Discovery Source" value={source} onChange={(e) => setSource(e.target.value)} options={[
-              { value: 'Google Ads', label: 'Google Ads' },
-              { value: 'Referral', label: 'Student Referral' },
-              { value: 'Walk-in', label: 'Direct Walk-in' },
-              { value: 'Flyer Campaign', label: 'Flyer Campaign' }
-            ]} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Remarks</label>
-            <textarea rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" placeholder="Needs weekend slot..." value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-          </div>
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">Save Enquiry</Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* 2. Followup Call Modal */}
-      {showFollowupModal && selectedLead && (
-        <Modal isOpen={showFollowupModal} onClose={() => { setShowFollowupModal(false); setSelectedLead(null); }} title={`Log Callback: ${selectedLead.name}`}>
-          <form onSubmit={handleFollowupSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Select label="Call Attempt" value={followupType} onChange={(e) => setFollowupType(e.target.value)} options={[
-                { value: 'Call #1', label: 'Call #1 (First intro)' },
-                { value: 'Call #2', label: 'Call #2 (Demo check)' },
-                { value: 'Call #3', label: 'Call #3 (Negotiation)' },
-                { value: 'Walk-in', label: 'In-office Counseling' }
-              ]} />
-              <Input label="Next Date" type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Discussion Outcome</label>
-              <textarea required rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" value={outcome} onChange={(e) => setOutcome(e.target.value)} />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => { setShowFollowupModal(false); setSelectedLead(null); }}>Cancel</Button>
-              <Button type="submit" variant="primary">Log Outcome</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* 3. Conversion Wizard Modal */}
-      {showConvertModal && selectedLead && (
-        <Modal isOpen={showConvertModal} onClose={() => { setShowConvertModal(false); setSelectedLead(null); }} title={`Convert to Student: ${selectedLead.name}`}>
-          <form onSubmit={handleConvertSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Confirmed Course" value={selectedLead.course} readOnly />
-              <Select label="Allocate Batch" value={convertBatch} onChange={(e) => setConvertBatch(e.target.value)} options={[
-                { value: 'JEE-Morning-A', label: 'JEE-Morning-A' },
-                { value: 'JEE-Evening-B', label: 'JEE-Evening-B' },
-                { value: 'NEET-Regular-B', label: 'NEET-Regular-B' }
-              ]} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Base Course Fee" type="number" value={totalFee} onChange={(e) => setTotalFee(Number(e.target.value))} />
-              <Input label="Discount (Rs.)" type="number" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
-            </div>
-            <Input label="Initial Deposit Payment (Rs.)" type="number" value={paidFee} onChange={(e) => setPaidFee(Number(e.target.value))} />
-            
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center text-sm">
-              <div>
-                <div className="text-xs text-slate-500 font-medium">Net Outstanding Balance:</div>
-                <div className="text-lg font-bold text-red-600">Rs. {totalFee - discount - paidFee}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-slate-500 font-medium">Discounted Fee:</div>
-                <div className="text-lg font-bold text-slate-800">Rs. {totalFee - discount}</div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => { setShowConvertModal(false); setSelectedLead(null); }}>Cancel</Button>
-              <Button type="submit" variant="primary">Confirm Admission</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
+      )}    </div>
   );
 };

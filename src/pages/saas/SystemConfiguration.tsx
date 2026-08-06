@@ -187,7 +187,7 @@ export const SystemConfiguration: React.FC = () => {
       </div>
 
       {activeTab !== 'permissions' ? (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
+        <div className="w-full space-y-6">
           <form onSubmit={handleSave} className="space-y-6">
               
               {activeTab === 'general' && (

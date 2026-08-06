@@ -207,7 +207,7 @@ export const ProductAnalytics: React.FC = () => {
           <div className="p-5 space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Active Branches Registered</span>
             <div className="flex items-end justify-between gap-2 flex-wrap">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 w-full">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalBranches} Branches</span>
                 <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                   <span>↑ 8.3% growth rate</span>
@@ -238,7 +238,7 @@ export const ProductAnalytics: React.FC = () => {
           <div className="p-5 space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Global SaaS Cloud Storage Load</span>
             <div className="flex items-end justify-between gap-2 flex-wrap">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 w-full">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalUsedGB.toFixed(1)} GB / {TOTAL_PLATFORM_GB} GB</span>
                 <div className="text-xs text-slate-400 flex items-center gap-2">
                   <div className="w-full bg-slate-100 rounded-full h-1.5 min-w-[100px]">
@@ -274,7 +274,7 @@ export const ProductAnalytics: React.FC = () => {
           <div className="p-5 space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Peak Active Concurrency Load</span>
             <div className="flex items-end justify-between gap-2 flex-wrap">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 w-full">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalActiveUsers.toLocaleString()} Active Users</span>
                 <div className="text-xs text-emerald-600 font-semibold">
                   <span>● 99.98% Service Level Agreement met</span>

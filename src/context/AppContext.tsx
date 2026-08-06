@@ -145,7 +145,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: actorRole,
       action,
       details,
-      ipAddress
+      ipAddress,
+      institute: currentUser ? currentUser.tenantName : 'System'
     };
     setAuditLogs(prev => [newLog, ...prev]);
   };
