@@ -74,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
           { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
           { name: 'Reports', path: '/reports', icon: ClipboardList },
-          { name: 'Notifications', path: '/notifications', icon: Bell },
+          { name: 'Broadcast Notification', path: '/notifications', icon: Bell },
           { name: 'Settings', path: '/settings', icon: Settings },
           { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
         ];

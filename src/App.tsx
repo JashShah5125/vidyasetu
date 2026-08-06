@@ -260,7 +260,7 @@ const ContentRouter = () => {
       <Route path="/billing" element={<BillingRevenue />} />
       <Route path="/analytics" element={<ProductAnalytics />} />
       <Route path="/system-config" element={<SystemConfiguration />} />
-      <Route path="/saas-reports" element={<Reports />} />
+      <Route path="/saas-reports" element={<Reports mode="saas" />} />
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
@@ -285,7 +285,7 @@ const ContentRouter = () => {
       <Route path="/exams" element={<ExamMarks />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
-      <Route path="/reports" element={<Reports />} />
+      <Route path="/reports" element={<Reports mode="institute" />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/doubts" element={<DoubtChatsPlaceholder />} />
