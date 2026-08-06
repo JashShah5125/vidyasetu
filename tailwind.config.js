@@ -22,8 +22,8 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
-        display: ['Outfit', 'sans-serif'],
+        sans: ['Geist', 'sans-serif'],
+        display: ['Geist', 'sans-serif'],
       }
     },
   },

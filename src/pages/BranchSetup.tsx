@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
-import { Building2, Plus, Search, ArrowRight, Download } from 'lucide-react';
+import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
 
@@ -14,8 +14,18 @@ export const BranchSetup: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const sortOptions = [
+    { value: 'name-asc', label: 'Name (A → Z)' },
+    { value: 'name-desc', label: 'Name (Z → A)' },
+    { value: 'code-asc', label: 'Code (A → Z)' },
+    { value: 'status', label: 'Status' },
+    { value: 'capacity-desc', label: 'Capacity (High → Low)' },
+    { value: 'capacity-asc', label: 'Capacity (Low → High)' },
+  ];
 
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
@@ -25,7 +35,7 @@ export const BranchSetup: React.FC = () => {
   ];
 
   const filtered = useMemo(() => {
-    return branches.filter(b => {
+    const list = branches.filter(b => {
       const matchSearch =
         b.name.toLowerCase().includes(search.toLowerCase()) ||
         b.code.toLowerCase().includes(search.toLowerCase()) ||
@@ -33,7 +43,16 @@ export const BranchSetup: React.FC = () => {
       const matchStatus = filterStatus === 'All' || b.status === filterStatus;
       return matchSearch && matchStatus;
     });
-  }, [branches, search, filterStatus]);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'code-asc') return a.code.localeCompare(b.code);
+      if (sortBy === 'status') return a.status.localeCompare(b.status);
+      if (sortBy === 'capacity-desc') return (b.capacity || 0) - (a.capacity || 0);
+      if (sortBy === 'capacity-asc') return (a.capacity || 0) - (b.capacity || 0);
+      return 0;
+    });
+  }, [branches, search, filterStatus, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -89,7 +108,7 @@ export const BranchSetup: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
         <div className="sm:col-span-2 flex flex-col gap-1.5 w-full">
           <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
           <div className="relative w-full">
@@ -108,6 +127,12 @@ export const BranchSetup: React.FC = () => {
           options={statusOptions}
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
+        />
+        <Select
+          label="Sort By"
+          options={sortOptions}
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
         />
       </div>
 

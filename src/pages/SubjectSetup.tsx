@@ -19,6 +19,15 @@ export const SubjectSetup: React.FC = () => {
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
+  const [sortBy, setSortBy] = useState('name-asc');
+
+  const sortOptions = [
+    { value: 'name-asc', label: 'Name (A → Z)' },
+    { value: 'name-desc', label: 'Name (Z → A)' },
+    { value: 'code-asc', label: 'Code (A → Z)' },
+    { value: 'type', label: 'Type' },
+    { value: 'course-asc', label: 'Course (A → Z)' },
+  ];
 
   // Pagination State
   const [subjPage, setSubjPage] = useState(1);
@@ -120,24 +129,38 @@ export const SubjectSetup: React.FC = () => {
 
   // Applying Filters
   const filteredSubjects = useMemo(() => {
-    return flatSubjects.filter(s => {
+    const list = flatSubjects.filter(s => {
       const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.code.toLowerCase().includes(search.toLowerCase());
       const matchCourse = filterCourse === 'All' || s.courseCode === filterCourse;
       const matchProgram = filterProgram === 'All' || s.programName === filterProgram;
       const matchLevel = filterLevel === 'All' || s.levelValue === filterLevel;
       return matchSearch && matchCourse && matchProgram && matchLevel;
     });
-  }, [flatSubjects, search, filterCourse, filterProgram, filterLevel]);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'code-asc') return a.code.localeCompare(b.code);
+      if (sortBy === 'type') return (a.type || '').localeCompare(b.type || '');
+      if (sortBy === 'course-asc') return a.courseName.localeCompare(b.courseName);
+      return 0;
+    });
+  }, [flatSubjects, search, filterCourse, filterProgram, filterLevel, sortBy]);
 
   const filteredBundles = useMemo(() => {
-    return flatBundles.filter(b => {
+    const list = flatBundles.filter(b => {
       const matchSearch = b.name.toLowerCase().includes(search.toLowerCase());
       const matchCourse = filterCourse === 'All' || b.courseCode === filterCourse;
       const matchProgram = filterProgram === 'All' || b.programName === filterProgram;
       const matchLevel = filterLevel === 'All' || b.levelValue === filterLevel;
       return matchSearch && matchCourse && matchProgram && matchLevel;
     });
-  }, [flatBundles, search, filterCourse, filterProgram, filterLevel]);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'course-asc') return a.courseName.localeCompare(b.courseName);
+      return 0;
+    });
+  }, [flatBundles, search, filterCourse, filterProgram, filterLevel, sortBy]);
 
   // Pagination Data
   const subjTotalPages = Math.max(1, Math.ceil(filteredSubjects.length / subjPageSize));
@@ -548,7 +571,7 @@ export const SubjectSetup: React.FC = () => {
       </div>
 
       {/* Top Filter Bar */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
+      <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
         <div className="relative xl:col-span-2 flex flex-col gap-1.5 w-full">
           <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
           <div className="relative w-full">
@@ -581,6 +604,12 @@ export const SubjectSetup: React.FC = () => {
           value={filterLevel}
           onChange={(e) => setFilterLevel(e.target.value)}
           disabled={filterProgram === 'All'}
+        />
+        <Select
+          label="Sort By"
+          options={sortOptions}
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value); setSubjPage(1); setBunPage(1); }}
         />
       </div>
 
