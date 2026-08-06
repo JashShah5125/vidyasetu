@@ -12,7 +12,8 @@ import type {
   Staff,
   Doubt,
   SubscriptionPlan,
-  TenantSubscription
+  TenantSubscription,
+  ExamItem
 } from '../data/mockData';
 import {
   INITIAL_TENANTS,
@@ -25,7 +26,8 @@ import {
   INITIAL_DOUBTS,
   INITIAL_AUDIT_LOGS,
   INITIAL_PLANS,
-  INITIAL_TENANT_SUBSCRIPTIONS
+  INITIAL_TENANT_SUBSCRIPTIONS,
+  INITIAL_EXAMS
 } from '../data/mockData';
 
 export interface ToastMessage {
@@ -48,6 +50,8 @@ interface AppContextType {
   auditLogs: AuditLog[];
   plans: SubscriptionPlan[];
   tenantSubscriptions: TenantSubscription[];
+  exams: ExamItem[];
+  setExams: React.Dispatch<React.SetStateAction<ExamItem[]>>;
   login: (email: string) => boolean;
   logout: () => void;
   addTenant: (
@@ -124,6 +128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
   const [plans, setPlans] = useState<SubscriptionPlan[]>(INITIAL_PLANS);
   const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>(INITIAL_TENANT_SUBSCRIPTIONS);
+  const [exams, setExams] = useState<ExamItem[]>(INITIAL_EXAMS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const logAction = (action: string, details: string) => {
@@ -506,6 +511,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       auditLogs,
       plans,
       tenantSubscriptions,
+      exams,
+      setExams,
       login,
       logout,
       addTenant,
