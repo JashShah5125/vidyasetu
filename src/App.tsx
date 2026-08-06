@@ -18,8 +18,7 @@ import { BatchSetup } from './pages/BatchSetup';
 import { SubjectSetup } from './pages/SubjectSetup';
 import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
-import { Enquiry } from './pages/Enquiry';
-import { Admissions } from './pages/Admissions';
+import { LeadsAdmissions } from './pages/LeadsAdmissions';
 import { Students } from './pages/Students';
 import { Fees } from './pages/Fees';
 import { Attendance } from './pages/Attendance';
@@ -275,12 +274,12 @@ const ContentRouter = () => {
       <Route path="/subjects" element={<SubjectSetup />} />
       <Route path="/staff" element={<Users />} />
       <Route path="/staff/new" element={<StaffCreate />} />
-      <Route path="/admissions" element={<Admissions />} />
+      <Route path="/admissions" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/students" element={<Students />} />
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={<Attendance initialTab="timetable" />} />
-      <Route path="/leads" element={<Enquiry initialTab="pipeline" />} />
-      <Route path="/convert-wizard" element={<Enquiry initialTab="convert" />} />
+      <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="counselling" />} />
       <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
       <Route path="/assignments" element={<Assignments />} />
       <Route path="/exams" element={<Exams />} />

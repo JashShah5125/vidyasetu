@@ -67,8 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           { name: 'Subject Management', path: '/subjects', icon: BookOpen },
           { name: 'Batch Management', path: '/batches', icon: Layers },
           { name: 'Staff & Roles', path: '/staff', icon: ShieldCheck },
-          { name: 'Leads CRM', path: '/leads', icon: Users },
-          { name: 'Admissions', path: '/admissions', icon: ClipboardList },
+          { name: 'Leads & Admissions', path: '/leads', icon: Users },
           { name: 'Students Roster', path: '/students', icon: GraduationCap },
           { name: 'Record Fee', path: '/fees', icon: DollarSign },
           { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
@@ -83,8 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         return [
           { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
           { name: 'Students Roster', path: '/students', icon: GraduationCap },
-          { name: 'Leads CRM', path: '/leads', icon: Users },
-          { name: 'Admissions', path: '/admissions', icon: ClipboardList },
+          { name: 'Leads & Admissions', path: '/leads', icon: Users },
           { name: 'Courses', path: '/courses', icon: BookOpen },
           { name: 'Subject Management', path: '/subjects', icon: BookOpen },
           { name: 'Batch Management', path: '/batches', icon: Layers },
@@ -98,9 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       case 'counsellor':
         return [
           { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Leads CRM', path: '/leads', icon: Users },
-          { name: 'Convert Wizard', path: '/convert-wizard', icon: ShieldCheck },
-          { name: 'Admissions', path: '/admissions', icon: ClipboardList }
+          { name: 'Leads & Admissions', path: '/leads', icon: Users }
         ];
       case 'teacher':
         return [
