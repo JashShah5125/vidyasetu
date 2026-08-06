@@ -131,6 +131,8 @@ export const StaffCreate: React.FC = () => {
   const { addStaff, branches, courses } = useApp();
   const [activeTab, setActiveTab] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [workingDaysMode, setWorkingDaysMode] = useState<'Full Week' | 'Custom Days'>('Custom Days');
+  const [uploadedDocs, setUploadedDocs] = useState<Record<string, File>>({});
 
   const [form, setForm] = useState({
     firstName: '', middleName: '', lastName: '', gender: '', dob: '',
@@ -400,7 +402,28 @@ export const StaffCreate: React.FC = () => {
                   </div>
                 )}
                 <SectionTitle>Schedule</SectionTitle>
-                <MultiSelect label="Working Days" options={DAYS} selected={form.workingDays} onChange={v => set('workingDays', v)} />
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <Select
+                    label="Working Days Option"
+                    value={workingDaysMode}
+                    onChange={e => {
+                      const mode = e.target.value as 'Full Week' | 'Custom Days';
+                      setWorkingDaysMode(mode);
+                      if (mode === 'Full Week') {
+                        set('workingDays', DAYS);
+                      } else {
+                        set('workingDays', []);
+                      }
+                    }}
+                    options={[
+                      { value: 'Custom Days', label: 'Custom Days selection' },
+                      { value: 'Full Week', label: 'Full Week (Monday – Sunday)' }
+                    ]}
+                  />
+                </div>
+                {workingDaysMode === 'Custom Days' && (
+                  <MultiSelect label="Select Custom Working Days" options={DAYS} selected={form.workingDays} onChange={v => set('workingDays', v)} />
+                )}
                 <FieldGrid cols={2}>
                   <Select label="Default Shift" value={form.defaultShift} onChange={e => set('defaultShift', e.target.value)}
                     options={[{value:'',label:'Select'},{value:'Morning',label:'Morning (7am–1pm)'},{value:'Afternoon',label:'Afternoon (1pm–7pm)'},{value:'Evening',label:'Evening (3pm–9pm)'},{value:'Full Day',label:'Full Day'}]} />
@@ -443,10 +466,9 @@ export const StaffCreate: React.FC = () => {
                 <SectionTitle>Salary Structure</SectionTitle>
                 <FieldGrid cols={2}>
                   <Select label="Salary Type" value={form.salaryType} onChange={e => set('salaryType', e.target.value)}
-                    options={[{value:'Monthly',label:'Monthly Fixed'},{value:'Hourly',label:'Hourly Rate'},{value:'Contract',label:'Contract Amount'}]} />
+                    options={[{value:'Monthly',label:'Monthly Fixed'},{value:'Hourly',label:'Hourly Rate'}]} />
                   {form.salaryType === 'Monthly' && <Input label="Monthly Salary (₹)" type="number" value={form.monthlySalary} onChange={e => set('monthlySalary', e.target.value)} placeholder="e.g. 50000" />}
                   {form.salaryType === 'Hourly' && <Input label="Hourly Rate (₹)" type="number" value={form.hourlyRate} onChange={e => set('hourlyRate', e.target.value)} placeholder="e.g. 500" />}
-                  {form.salaryType === 'Contract' && <Input label="Contract Amount (₹)" type="number" value={form.contractAmount} onChange={e => set('contractAmount', e.target.value)} placeholder="e.g. 200000" />}
                 </FieldGrid>
                 <SectionTitle>Bank Details</SectionTitle>
                 <FieldGrid>
@@ -480,13 +502,43 @@ export const StaffCreate: React.FC = () => {
                 </div>
                 <SectionTitle>Documents Checklist</SectionTitle>
                 <div className="grid grid-cols-2 gap-3">
-                  {['Aadhaar Card', 'PAN Card', 'Resume / CV', 'Appointment Letter', 'Qualification Certificates', 'Experience Letters', 'Passport Photo', 'Police Verification'].map(doc => (
-                    <div key={doc} className="flex items-center gap-3 p-3 border border-dashed border-slate-200 rounded-lg bg-slate-50 text-sm text-slate-500">
-                      <FileText size={16} className="text-slate-300 flex-shrink-0" />
-                      <span>{doc}</span>
-                      <span className="ml-auto text-[10px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-semibold whitespace-nowrap">Pending</span>
-                    </div>
-                  ))}
+                  {['Aadhaar Card', 'PAN Card', 'Resume / CV', 'Appointment Letter', 'Qualification Certificates', 'Experience Letters', 'Passport Photo', 'Police Verification'].map(doc => {
+                    const isUploaded = !!uploadedDocs[doc];
+                    return (
+                      <div key={doc} className="flex items-center gap-3 p-3 border border-dashed border-slate-200 rounded-lg bg-slate-50 text-sm text-slate-500">
+                        <FileText size={16} className="text-slate-300 flex-shrink-0" />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="font-semibold text-slate-700 truncate block">{doc}</span>
+                          {isUploaded && (
+                            <span className="text-[10px] text-emerald-650 truncate font-medium block">
+                              ✓ {uploadedDocs[doc].name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-semibold whitespace-nowrap ${
+                            isUploaded ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {isUploaded ? 'Uploaded' : 'Pending'}
+                          </span>
+                          <label className="cursor-pointer bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-800 border border-slate-200 px-2 py-1 rounded text-xs font-semibold shadow-sm transition-all flex items-center justify-center">
+                            <span>Add</span>
+                            <input
+                              type="file"
+                              accept=".pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  setUploadedDocs(prev => ({ ...prev, [doc]: file }));
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -503,6 +555,18 @@ export const StaffCreate: React.FC = () => {
                       <Input label="Login Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="Prefilled from Contact" />
                       <Input label="Temporary Password" type="password" value={form.tempPassword} onChange={e => set('tempPassword', e.target.value)} placeholder="Min 8 characters" />
                     </FieldGrid>
+                    <div className="flex justify-start pt-1">
+                      <Button 
+                        type="button" 
+                        variant="secondary"
+                        disabled={!form.email || !form.tempPassword}
+                        onClick={() => {
+                          alert(`Credentials details sent successfully to ${form.email}!\n\nUsername: ${form.username || form.email}\nPassword: ${form.tempPassword}`);
+                        }}
+                      >
+                        Send Credentials to Email
+                      </Button>
+                    </div>
                     <SectionTitle>Security Settings</SectionTitle>
                     <FieldGrid cols={2}>
                       <Select label="Account Status" value={form.accountStatus} onChange={e => set('accountStatus', e.target.value)}

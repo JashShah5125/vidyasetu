@@ -5,6 +5,7 @@ import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { Pagination } from '../components/ui/Pagination';
 
 export const Admissions: React.FC = () => {
   const { students, approveStudentRegistration } = useApp();
@@ -105,21 +106,23 @@ export const Admissions: React.FC = () => {
             ...uniqueStatuses.map(st => ({ value: st, label: st }))
           ]}
         />
-        <Select
-          label="Sort By"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          options={[
-            { value: 'name', label: 'Student Name' },
-            { value: 'studentId', label: 'Student ID' },
-            { value: 'admissionDate', label: 'Admission Date' }
-          ]}
-        />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Verification Pipeline</CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
+            >
+              <option value="name">Student Name</option>
+              <option value="studentId">Student ID</option>
+              <option value="admissionDate">Admission Date</option>
+            </select>
+          </div>
         </CardHeader>
         <Table headers={['Student ID', 'Student Name', 'Allocated Course', 'Branch Location', 'Admission Date', 'Documents', 'Verification Status', 'Actions']}>
           {paginatedStudents.map((s, idx) => (
@@ -151,45 +154,13 @@ export const Admissions: React.FC = () => {
             </tr>
           ))}
         </Table>
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-            <div>
-              Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedStudents.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedStudents.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedStudents.length}</span> students
-            </div>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                    currentPage === i + 1
-                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredAndSortedStudents.length}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </Card>
     </div>
   );

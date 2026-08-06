@@ -5,7 +5,8 @@ import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Kanban, List, ArrowLeft } from 'lucide-react';
+import { Pagination } from '../components/ui/Pagination';
+import { Plus, ArrowLeft } from 'lucide-react';
 import type { Lead } from '../data/mockData';
 
 interface EnquiryProps {
@@ -16,7 +17,7 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
   const { leads, addLead, addFollowup, convertLeadToStudent } = useApp();
   const [subTab, setSubTab] = useState<'pipeline' | 'convert'>(initialTab);
   const [successMessage, setSuccessMessage] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const viewMode = 'list';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterSource, setFilterSource] = useState('All');
@@ -297,20 +298,6 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
         </div>
         {subTab === 'pipeline' && (
           <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-            <div className="bg-white border border-slate-200 rounded-lg p-0.5 flex">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md cursor-pointer ${viewMode === 'list' ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                <List size={16} />
-              </button>
-              <button
-                onClick={() => setViewMode('kanban')}
-                className={`p-1.5 rounded-md cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                <Kanban size={16} />
-              </button>
-            </div>
             <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
             <Button variant="primary" style={{ gap: '6px' }} onClick={() => setShowAddModal(true)}>
               <Plus size={16} /> Log Enquiry
@@ -349,16 +336,6 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
             { value: 'Referral', label: 'Referral' }
           ]}
         />
-        <Select
-          label="Sort By"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          options={[
-            { value: 'name', label: 'Lead Name' },
-            { value: 'status', label: 'Stage Status' },
-            { value: 'course', label: 'Course Preference' }
-          ]}
-        />
       </div>
 
       {subTab === 'pipeline' ? (
@@ -366,6 +343,18 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
           <Card>
             <CardHeader>
               <CardTitle>Active Lead Registrations</CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
+                >
+                  <option value="name">Lead Name</option>
+                  <option value="status">Stage Status</option>
+                  <option value="course">Course Preference</option>
+                </select>
+              </div>
             </CardHeader>
             <Table headers={['Student Name', 'Mobile', 'Course Interest', 'Discovery Source', 'Assigned Counsellor', 'Stage Status', 'Actions']}>
               {paginatedPipelineLeads.map((l, idx) => (
@@ -395,45 +384,13 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
                 </tr>
               ))}
             </Table>
-            {totalPipelinePages > 1 && (
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-                <div>
-                  Showing <span className="text-slate-800 font-bold">{Math.min((pipelinePage - 1) * itemsPerPage + 1, filteredAndSortedLeads.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(pipelinePage * itemsPerPage, filteredAndSortedLeads.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedLeads.length}</span> leads
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    disabled={pipelinePage === 1}
-                    onClick={() => setPipelinePage(pipelinePage - 1)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                  >
-                    Previous
-                  </button>
-                  {Array.from({ length: totalPipelinePages }).map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setPipelinePage(i + 1)}
-                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                        pipelinePage === i + 1
-                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    disabled={pipelinePage === totalPipelinePages}
-                    onClick={() => setPipelinePage(pipelinePage + 1)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
+            <Pagination
+              currentPage={pipelinePage}
+              totalPages={totalPipelinePages}
+              totalItems={filteredAndSortedLeads.length}
+              pageSize={itemsPerPage}
+              onPageChange={setPipelinePage}
+            />
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -503,45 +460,13 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
               </tr>
             ))}
           </Table>
-          {totalConversionPages > 1 && (
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-              <div>
-                Showing <span className="text-slate-800 font-bold">{Math.min((convertPage - 1) * itemsPerPage + 1, conversionLeads.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(convertPage * itemsPerPage, conversionLeads.length)}</span> of <span className="text-slate-855 font-bold">{conversionLeads.length}</span> leads
-              </div>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  disabled={convertPage === 1}
-                  onClick={() => setConvertPage(convertPage - 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  Previous
-                </button>
-                {Array.from({ length: totalConversionPages }).map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setConvertPage(i + 1)}
-                    className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                      convertPage === i + 1
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={convertPage === totalConversionPages}
-                  onClick={() => setConvertPage(convertPage + 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={convertPage}
+            totalPages={totalConversionPages}
+            totalItems={conversionLeads.length}
+            pageSize={itemsPerPage}
+            onPageChange={setConvertPage}
+          />
         </Card>
       )}    </div>
   );

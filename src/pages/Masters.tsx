@@ -5,6 +5,7 @@ import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { Pagination } from '../components/ui/Pagination';
 import { Plus, Edit2, Trash2, ArrowLeft } from 'lucide-react';
 
 interface MastersProps {
@@ -382,45 +383,13 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                   </tr>
                 ))}
               </Table>
-              {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-                  <div>
-                    Showing <span className="text-slate-800 font-bold">{Math.min((coursesPage - 1) * itemsPerPage + 1, filteredAndSortedCourses.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(coursesPage * itemsPerPage, filteredAndSortedCourses.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedCourses.length}</span> courses
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      disabled={coursesPage === 1}
-                      onClick={() => setCoursesPage(coursesPage - 1)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Previous
-                    </button>
-                    {Array.from({ length: totalPages }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setCoursesPage(i + 1)}
-                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                          coursesPage === i + 1
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      disabled={coursesPage === totalPages}
-                      onClick={() => setCoursesPage(coursesPage + 1)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                currentPage={coursesPage}
+                totalPages={totalPages}
+                totalItems={filteredAndSortedCourses.length}
+                pageSize={itemsPerPage}
+                onPageChange={setCoursesPage}
+              />
             </Card>
           );
         })()
@@ -462,45 +431,13 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                   </tr>
                 ))}
               </Table>
-              {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-                  <div>
-                    Showing <span className="text-slate-800 font-bold">{Math.min((batchesPage - 1) * itemsPerPage + 1, filteredAndSortedBatches.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(batchesPage * itemsPerPage, filteredAndSortedBatches.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedBatches.length}</span> batches
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      disabled={batchesPage === 1}
-                      onClick={() => setBatchesPage(batchesPage - 1)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Previous
-                    </button>
-                    {Array.from({ length: totalPages }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setBatchesPage(i + 1)}
-                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                          batchesPage === i + 1
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      disabled={batchesPage === totalPages}
-                      onClick={() => setBatchesPage(batchesPage + 1)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                currentPage={batchesPage}
+                totalPages={totalPages}
+                totalItems={filteredAndSortedBatches.length}
+                pageSize={itemsPerPage}
+                onPageChange={setBatchesPage}
+              />
             </Card>
           );
         })()
@@ -540,45 +477,13 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                   </tr>
                 ))}
               </Table>
-              {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border-t border-slate-200 p-4 text-xs font-semibold text-slate-500 shadow-sm select-none">
-                  <div>
-                    Showing <span className="text-slate-800 font-bold">{Math.min((subjectsPage - 1) * itemsPerPage + 1, filteredAndSortedSubjects.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(subjectsPage * itemsPerPage, filteredAndSortedSubjects.length)}</span> of <span className="text-slate-855 font-bold">{filteredAndSortedSubjects.length}</span> subjects
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      disabled={subjectsPage === 1}
-                      onClick={() => setSubjectsPage(subjectsPage - 1)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Previous
-                    </button>
-                    {Array.from({ length: totalPages }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setSubjectsPage(i + 1)}
-                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                          subjectsPage === i + 1
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      disabled={subjectsPage === totalPages}
-                      onClick={() => setSubjectsPage(subjectsPage + 1)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                currentPage={subjectsPage}
+                totalPages={totalPages}
+                totalItems={filteredAndSortedSubjects.length}
+                pageSize={itemsPerPage}
+                onPageChange={setSubjectsPage}
+              />
             </Card>
           );
         })()
