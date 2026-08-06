@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, ArrowLeft } from 'lucide-react';
 
 interface MastersProps {
   initialSubTab?: 'courses' | 'batches' | 'subjects';
@@ -222,6 +221,66 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     link.click();
     document.body.removeChild(link);
   };
+
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingName ? `Edit Record: ${editingName}` : `Create Master Record: ${subTab.toUpperCase()}`}
+            </h2>
+            <p className="text-sm text-slate-500">Configure core attributes for course templates, branch locations, batches, or subject structures.</p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            {subTab === 'courses' && (
+              <>
+                <Input label="Course Title Name" required placeholder="e.g. NEET Batch Premium" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Course Unique Code" required placeholder="e.g. NEET-PREM" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} />
+                  <Input label="Target Duration" placeholder="e.g. 1 Year" value={courseDuration} onChange={(e) => setCourseDuration(e.target.value)} />
+                </div>
+                <Input label="Course Fee Amount (Rs.)" type="number" value={courseFees} onChange={(e) => setCourseFees(Number(e.target.value))} />
+              </>
+            )}
+
+            {subTab === 'batches' && (
+              <>
+                <Input label="Batch Name Label" required placeholder="e.g. NEET-Regular-B" value={batchName} onChange={(e) => setBatchName(e.target.value)} />
+                <Select 
+                  label="Target Course Mapping" 
+                  value={batchCourse} 
+                  onChange={(e) => setBatchCourse(e.target.value)} 
+                  options={courses.map(c => ({ value: c.name, label: c.name }))}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Daily Lecture Timings" placeholder="e.g. 09:00 AM - 10:30 AM" value={batchTiming} onChange={(e) => setBatchTiming(e.target.value)} />
+                  <Input label="Allotted Classroom" placeholder="e.g. Room 102" value={batchRoom} onChange={(e) => setBatchRoom(e.target.value)} />
+                </div>
+                <Input label="Primary Lecturer / Teacher" placeholder="Prof. Arvind Kelkar" value={batchTeacher} onChange={(e) => setBatchTeacher(e.target.value)} />
+              </>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">
+                {editingName ? 'Update Record' : 'Save Master Record'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -523,53 +582,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
             </Card>
           );
         })()
-      )}
-
-      {/* Creation Modal */}
-      {showAddModal && (
-        <Modal 
-          isOpen={showAddModal} 
-          onClose={() => setShowAddModal(false)} 
-          title={editingName ? `Edit Record: ${editingName}` : `Create Master Record: ${subTab.toUpperCase()}`}
-        >
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            {subTab === 'courses' && (
-              <>
-                <Input label="Course Title Name" required placeholder="e.g. NEET Batch Premium" value={courseName} onChange={(e) => setCourseName(e.target.value)} />
-                <div className="grid grid-cols-2 gap-4">
-                  <Input label="Course Unique Code" required placeholder="e.g. NEET-PREM" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} />
-                  <Input label="Target Duration" placeholder="e.g. 1 Year" value={courseDuration} onChange={(e) => setCourseDuration(e.target.value)} />
-                </div>
-                <Input label="Course Fee Amount (Rs.)" type="number" value={courseFees} onChange={(e) => setCourseFees(Number(e.target.value))} />
-              </>
-            )}
-
-            {subTab === 'batches' && (
-              <>
-                <Input label="Batch Name Label" required placeholder="e.g. NEET-Regular-B" value={batchName} onChange={(e) => setBatchName(e.target.value)} />
-                <Select 
-                  label="Target Course Mapping" 
-                  value={batchCourse} 
-                  onChange={(e) => setBatchCourse(e.target.value)} 
-                  options={courses.map(c => ({ value: c.name, label: c.name }))}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <Input label="Daily Lecture Timings" placeholder="e.g. 09:00 AM - 10:30 AM" value={batchTiming} onChange={(e) => setBatchTiming(e.target.value)} />
-                  <Input label="Allotted Classroom" placeholder="e.g. Room 102" value={batchRoom} onChange={(e) => setBatchRoom(e.target.value)} />
-                </div>
-                <Input label="Primary Lecturer / Teacher" placeholder="Prof. Arvind Kelkar" value={batchTeacher} onChange={(e) => setBatchTeacher(e.target.value)} />
-              </>
-            )}
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary">
-                {editingName ? 'Update Record' : 'Save Master Record'}
-              </Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
+      )}    </div>
   );
 };

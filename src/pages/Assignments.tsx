@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus } from 'lucide-react';
+import { Plus, ArrowLeft } from 'lucide-react';
 
 export interface AssignmentItem {
   title: string;
@@ -57,6 +56,55 @@ export const Assignments: React.FC = () => {
     setSuccessMessage('New homework assignment published and assigned to batch!');
     setTimeout(() => setSuccessMessage(''), 4000);
   };
+
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Create Homework Assignment</h2>
+            <p className="text-sm text-slate-500">Publish coursework or quiz tasks for active student batches.</p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <Input label="Assignment Title" required placeholder="e.g. Electrophilic Addition Quiz Problems" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <Select 
+                label="Allocate to Batch" 
+                value={batch} 
+                onChange={(e) => setBatch(e.target.value)} 
+                options={batches.map(b => ({ value: b.name, label: b.name }))}
+              />
+              <Select 
+                label="Subject Area" 
+                value={subject} 
+                onChange={(e) => setSubject(e.target.value)} 
+                options={[
+                  { value: 'Chemistry', label: 'Chemistry' },
+                  { value: 'Physics', label: 'Physics' },
+                  { value: 'Mathematics', label: 'Mathematics' },
+                  { value: 'Biology', label: 'Biology' }
+                ]}
+              />
+            </div>
+            <Input label="Submission Deadline" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">Publish Assignment</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -134,43 +182,6 @@ export const Assignments: React.FC = () => {
           </div>
         )}
       </Card>
-
-      {/* Creation Modal */}
-      {showAddModal && (
-        <Modal 
-          isOpen={showAddModal} 
-          onClose={() => setShowAddModal(false)} 
-          title="Create Homework Assignment"
-        >
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            <Input label="Assignment Title" required placeholder="e.g. Electrophilic Addition Quiz Problems" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <div className="grid grid-cols-2 gap-4">
-              <Select 
-                label="Allocate to Batch" 
-                value={batch} 
-                onChange={(e) => setBatch(e.target.value)} 
-                options={batches.map(b => ({ value: b.name, label: b.name }))}
-              />
-              <Select 
-                label="Subject Area" 
-                value={subject} 
-                onChange={(e) => setSubject(e.target.value)} 
-                options={[
-                  { value: 'Chemistry', label: 'Chemistry' },
-                  { value: 'Physics', label: 'Physics' },
-                  { value: 'Mathematics', label: 'Mathematics' },
-                  { value: 'Biology', label: 'Biology' }
-                ]}
-              />
-            </div>
-            <Input label="Submission Deadline" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary">Publish Assignment</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   );
 };

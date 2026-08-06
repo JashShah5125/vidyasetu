@@ -2,10 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Layers, Plus, Search, Clock, BookOpen, Download } from 'lucide-react';
+import { Layers, Plus, Search, Clock, BookOpen, Download, ArrowLeft } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 
 export const BatchSetup: React.FC = () => {
@@ -214,6 +213,102 @@ export const BatchSetup: React.FC = () => {
     a.click();
   };
 
+  if (isModalOpen) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsModalOpen(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingIdx !== null ? 'Edit Batch' : 'Create New Batch'}
+            </h2>
+            <p className="text-sm text-slate-500">Configure academic year, course alignment, programs levels, times, and lecture rooms.</p>
+          </div>
+        </div>
+
+        <div className="w-full space-y-4">
+          <Input
+            label="Batch Name"
+            placeholder="e.g. JEE-Morning-A"
+            value={form.name}
+            onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Course"
+              options={formCourseOptions}
+              value={form.course}
+              onChange={e => {
+                const newCourse = e.target.value;
+                const courseObj = courses.find(c => c.name === newCourse);
+                const newProg = courseObj?.programs?.[0] || '';
+                const newLvl = deriveLevels(newProg)[0]?.value || '';
+                setForm(p => ({ ...p, course: newCourse, program: newProg, level: newLvl }));
+              }}
+            />
+            <Select
+              label="Academic Year"
+              options={ACADEMIC_YEARS.map(y => ({ value: y, label: y }))}
+              value={form.academicYear}
+              onChange={e => setForm(p => ({ ...p, academicYear: e.target.value }))}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Program"
+              options={formProgramOptions}
+              value={form.program}
+              onChange={e => {
+                const newProg = e.target.value;
+                const newLvl = deriveLevels(newProg)[0]?.value || '';
+                setForm(p => ({ ...p, program: newProg, level: newLvl }));
+              }}
+              disabled={!form.course}
+            />
+            <Select
+              label="Level"
+              options={formLevelOptions}
+              value={form.level}
+              onChange={e => setForm(p => ({ ...p, level: e.target.value }))}
+              disabled={!form.program}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              type="time"
+              label="Start Time"
+              value={form.startTime}
+              onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
+            />
+            <Input
+              type="time"
+              label="End Time"
+              value={form.endTime}
+              onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
+            />
+          </div>
+          <Input
+            label="Room"
+            placeholder="e.g. Classroom 101"
+            value={form.room}
+            onChange={e => setForm(p => ({ ...p, room: e.target.value }))}
+          />
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!form.name || !form.course} className="disabled:opacity-50">
+              {editingIdx !== null ? 'Save Changes' : 'Create Batch'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in p-6">
       {/* Page Header */}
@@ -349,91 +444,6 @@ export const BatchSetup: React.FC = () => {
           </>
         )}
       </div>
-
-      {/* Create / Edit Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingIdx !== null ? 'Edit Batch' : 'Create New Batch'}
-        size="md"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.name || !form.course} className="disabled:opacity-50">
-              {editingIdx !== null ? 'Save Changes' : 'Create Batch'}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Input
-            label="Batch Name"
-            placeholder="e.g. JEE-Morning-A"
-            value={form.name}
-            onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Course"
-              options={formCourseOptions}
-              value={form.course}
-              onChange={e => {
-                const newCourse = e.target.value;
-                const courseObj = courses.find(c => c.name === newCourse);
-                const newProg = courseObj?.programs?.[0] || '';
-                const newLvl = deriveLevels(newProg)[0]?.value || '';
-                setForm(p => ({ ...p, course: newCourse, program: newProg, level: newLvl }));
-              }}
-            />
-            <Select
-              label="Academic Year"
-              options={ACADEMIC_YEARS.map(y => ({ value: y, label: y }))}
-              value={form.academicYear}
-              onChange={e => setForm(p => ({ ...p, academicYear: e.target.value }))}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Program"
-              options={formProgramOptions}
-              value={form.program}
-              onChange={e => {
-                const newProg = e.target.value;
-                const newLvl = deriveLevels(newProg)[0]?.value || '';
-                setForm(p => ({ ...p, program: newProg, level: newLvl }));
-              }}
-              disabled={!form.course}
-            />
-            <Select
-              label="Level"
-              options={formLevelOptions}
-              value={form.level}
-              onChange={e => setForm(p => ({ ...p, level: e.target.value }))}
-              disabled={!form.program}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="time"
-              label="Start Time"
-              value={form.startTime}
-              onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
-            />
-            <Input
-              type="time"
-              label="End Time"
-              value={form.endTime}
-              onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
-            />
-          </div>
-          <Input
-            label="Room"
-            placeholder="e.g. Classroom 101"
-            value={form.room}
-            onChange={e => setForm(p => ({ ...p, room: e.target.value }))}
-          />
-        </div>
-      </Modal>
     </div>
   );
 };

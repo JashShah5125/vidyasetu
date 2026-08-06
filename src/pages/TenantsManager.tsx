@@ -3,10 +3,9 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Upload, Trash } from 'lucide-react';
+import { Plus, Upload, Trash, ArrowLeft } from 'lucide-react';
 import { formatDate } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
@@ -269,6 +268,322 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     document.body.removeChild(link);
   };
 
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer animate-fade-in"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingTenantId ? `Edit Tenant Settings: ${name}` : "Register Institute Tenant"}
+            </h2>
+            <p className="text-sm text-slate-500">
+              Configure profile fields, admin account logins, alternative emails, and system limits.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Section 1: Institute Information */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center gap-1.5 select-none">
+                <span>01.</span> Institute Profile & Branding
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  label="Institute / Coaching Name" 
+                  required 
+                  placeholder="e.g. Apex IIT Academy" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                />
+                <Input 
+                  label="GSTIN Number" 
+                  placeholder="e.g. 27AAAAA0000A1Z5" 
+                  value={gstNo} 
+                  onChange={(e) => setGstNo(e.target.value)} 
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                <Input 
+                  label="Institute Physical Address" 
+                  placeholder="e.g. 401, Western Express Highway, Mumbai" 
+                  value={address} 
+                  onChange={(e) => setAddress(e.target.value)} 
+                />
+                
+                <div className="flex flex-col gap-1.5 w-full">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Brand Logo File</label>
+                  <input 
+                    type="file" 
+                    id="logo-file-input" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleLogoChange} 
+                  />
+                  <label 
+                    htmlFor="logo-file-input"
+                    className={`border-2 border-dashed rounded-xl p-3 flex items-center justify-center gap-3 cursor-pointer transition-colors bg-slate-50/50 ${
+                      logoUploaded ? 'border-emerald-300 bg-emerald-50/10' : 'border-slate-200 hover:border-blue-500'
+                    }`}
+                    style={{ height: '38px' }}
+                  >
+                    {logoUploaded ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px] shadow-sm animate-fade-in">
+                          {name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'VS'}
+                        </div>
+                        <span className="text-xs font-bold text-emerald-800 truncate">✓ Brand logo attached successfully</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Upload size={14} className="text-slate-400 animate-pulse" />
+                        <span className="text-xs font-semibold text-slate-700">Click to upload logo (JPG/PNG up to 2MB)</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Institute Admin Credentials */}
+            <div className="space-y-4 pt-1">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                <span>02.</span> Institute Admin Credentials
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  label="Admin Username / Name" 
+                  required 
+                  placeholder="Dr. Ramesh Kumar (or admin_apex)" 
+                  value={ownerName} 
+                  onChange={(e) => setOwnerName(e.target.value)} 
+                />
+                <div className="flex flex-col gap-1.5 w-full">
+                  <div className="flex justify-between items-center select-none">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      Admin Email Login
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setDefaultEmailIdx(-1)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                        defaultEmailIdx === -1 
+                          ? 'bg-blue-600 text-white shadow-sm' 
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                    >
+                      {defaultEmailIdx === -1 ? '★ Default Login' : 'Set as Default'}
+                    </button>
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    placeholder="ramesh@apex.com"
+                    className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Alternate Emails Lists */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center select-none">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    Alternate Email Addresses
+                  </span>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    size="sm"
+                    style={{ padding: '4px 10px', fontSize: '11px', gap: '4px' }}
+                    onClick={handleAddAltEmail}
+                  >
+                    <Plus size={12} /> Add Alternate
+                  </Button>
+                </div>
+                
+                {altEmails.length > 0 && (
+                  <div className="space-y-3 animate-fade-in pt-1">
+                    {altEmails.map((emailVal, idx) => (
+                      <div key={idx} className="flex gap-2 items-end">
+                        <div className="flex-1 flex flex-col gap-1.5 w-full">
+                          <div className="flex justify-between items-center select-none">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              Alternate Email #{idx + 1}
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setDefaultEmailIdx(idx)}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                defaultEmailIdx === idx 
+                                  ? 'bg-blue-600 text-white shadow-sm' 
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            >
+                              {defaultEmailIdx === idx ? '★ Default Login' : 'Set as Default'}
+                            </button>
+                          </div>
+                          <input
+                            type="email"
+                            required
+                            placeholder={`alternate-${idx + 1}@apex.com`}
+                            className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+                            value={emailVal}
+                            onChange={(e) => handleUpdateAltEmail(idx, e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAltEmail(idx)}
+                          className="p-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer transition-colors shadow-sm self-end"
+                          style={{ height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Trash size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <Input 
+                  label="Mobile Contact" 
+                  placeholder="9876543210" 
+                  value={mobile} 
+                  onChange={(e) => setMobile(e.target.value)} 
+                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Default Password (Auto Generated)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      readOnly
+                      className="flex-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg px-3 py-2 text-sm font-mono select-all outline-none"
+                      value={defaultPassword}
+                    />
+                    {!editingTenantId && (
+                      <Button 
+                        type="button" 
+                        variant="secondary" 
+                        onClick={() => {
+                          const newPass = 'VS-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+                          setDefaultPassword(newPass);
+                        }}
+                      >
+                        Regen
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Subscription Plan */}
+            <div className="space-y-4 pt-1">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                <span>03.</span> Subscription Plan
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select 
+                  label="Subscription Tier" 
+                  value={plan} 
+                  onChange={(e) => setPlan(e.target.value)} 
+                  options={[
+                    { value: 'Growth Plan', label: 'Growth Plan (Rs. 15,000/mo)' },
+                    { value: 'Pro Enterprise', label: 'Pro Enterprise (Rs. 30,000/mo)' },
+                    { value: 'Starter Trial', label: 'Starter Trial (Free)' }
+                  ]} 
+                />
+                <Input 
+                  label="Start Date" 
+                  type="date" 
+                  value={startDate} 
+                  onChange={(e) => setStartDate(e.target.value)} 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Expiration Date (Auto Calculated)</label>
+                  <input 
+                    type="date" 
+                    readOnly 
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-lg px-3 py-2 text-sm font-semibold select-none cursor-not-allowed outline-none"
+                    value={expiryDate} 
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Resource Limits */}
+            <div className="space-y-4 pt-1">
+              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                <span>04.</span> Resource Limits
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  label="Maximum Branches" 
+                  type="number" 
+                  required 
+                  value={maxBranches} 
+                  onChange={(e) => setMaxBranches(e.target.value)} 
+                />
+                <Input 
+                  label="Maximum Students Capacity" 
+                  type="number" 
+                  required 
+                  value={maxStudents} 
+                  onChange={(e) => setMaxStudents(e.target.value)} 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select 
+                  label="Allocated Cloud Storage" 
+                  value={maxStorage} 
+                  onChange={(e) => setMaxStorage(e.target.value)} 
+                  options={[
+                    { value: '5 GB', label: '5 GB (Starter)' },
+                    { value: '20 GB', label: '20 GB (Standard)' },
+                    { value: '100 GB', label: '100 GB (Enterprise)' },
+                    { value: '500 GB', label: '500 GB (Enterprise Plus)' }
+                  ]} 
+                />
+                <Select 
+                  label="Maximum File Upload Size" 
+                  value={maxFileSize} 
+                  onChange={(e) => setMaxFileSize(e.target.value)} 
+                  options={[
+                    { value: '5 MB', label: '5 MB (Basic docs)' },
+                    { value: '20 MB', label: '20 MB (Standard attachments)' },
+                    { value: '50 MB', label: '50 MB (High Quality PDFs)' },
+                    { value: '200 MB', label: '200 MB (Lecture recordings)' }
+                  ]} 
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button type="submit" variant="primary">{editingTenantId ? "Save Changes" : "Provision Tenant"}</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {showSaved && (
@@ -418,308 +733,6 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             </div>
           );
         })()}
-      </Card>
-
-      {/* Create / Edit Tenant Modal with Wide landscape 3xl Layout */}
-      <Modal 
-        isOpen={showAddModal} 
-        onClose={() => setShowAddModal(false)} 
-        title={editingTenantId ? `Edit Tenant Settings: ${name}` : "Register Institute Tenant"} 
-        size="3xl"
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          
-          {/* Section 1: Institute Information */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center gap-1.5 select-none">
-              <span>01.</span> Institute Profile & Branding
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input 
-                label="Institute / Coaching Name" 
-                required 
-                placeholder="e.g. Apex IIT Academy" 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
-              />
-              <Input 
-                label="GSTIN Number" 
-                placeholder="e.g. 27AAAAA0000A1Z5" 
-                value={gstNo} 
-                onChange={(e) => setGstNo(e.target.value)} 
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-              <Input 
-                label="Institute Physical Address" 
-                placeholder="e.g. 401, Western Express Highway, Mumbai" 
-                value={address} 
-                onChange={(e) => setAddress(e.target.value)} 
-              />
-              
-              {/* Logo upload field with actual file picker triggers */}
-              <div className="flex flex-col gap-1.5 w-full">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Brand Logo File</label>
-                <input 
-                  type="file" 
-                  id="logo-file-input" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={handleLogoChange} 
-                />
-                <label 
-                  htmlFor="logo-file-input"
-                  className={`border-2 border-dashed rounded-xl p-3 flex items-center justify-center gap-3 cursor-pointer transition-colors bg-slate-50/50 ${
-                    logoUploaded ? 'border-emerald-300 bg-emerald-50/10' : 'border-slate-200 hover:border-blue-500'
-                  }`}
-                  style={{ height: '38px' }}
-                >
-                  {logoUploaded ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px] shadow-sm animate-fade-in">
-                        {name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'VS'}
-                      </div>
-                      <span className="text-xs font-bold text-emerald-800 truncate">✓ Brand logo attached successfully</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <Upload size={14} className="text-slate-400 animate-pulse" />
-                      <span className="text-xs font-semibold text-slate-700">Click to upload logo (JPG/PNG up to 2MB)</span>
-                    </div>
-                  )}
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Institute Admin Credentials */}
-          <div className="space-y-4 pt-1">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
-              <span>02.</span> Institute Admin Credentials
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input 
-                label="Admin Username / Name" 
-                required 
-                placeholder="Dr. Ramesh Kumar (or admin_apex)" 
-                value={ownerName} 
-                onChange={(e) => setOwnerName(e.target.value)} 
-              />
-              <div className="flex flex-col gap-1.5 w-full">
-                <div className="flex justify-between items-center select-none">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                    Admin Email Login
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setDefaultEmailIdx(-1)}
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                      defaultEmailIdx === -1 
-                        ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                    }`}
-                  >
-                    {defaultEmailIdx === -1 ? '★ Default Login' : 'Set as Default'}
-                  </button>
-                </div>
-                <input
-                  type="email"
-                  required
-                  placeholder="ramesh@apex.com"
-                  className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Dynamic Alternate Emails Lists */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center select-none">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  Alternate Email Addresses
-                </span>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  size="sm"
-                  style={{ padding: '4px 10px', fontSize: '11px', gap: '4px' }}
-                  onClick={handleAddAltEmail}
-                >
-                  <Plus size={12} /> Add Alternate
-                </Button>
-              </div>
-              
-              {altEmails.length > 0 && (
-                <div className="space-y-3 animate-fade-in pt-1">
-                  {altEmails.map((emailVal, idx) => (
-                    <div key={idx} className="flex gap-2 items-end">
-                      <div className="flex-1 flex flex-col gap-1.5 w-full">
-                        <div className="flex justify-between items-center select-none">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            Alternate Email #{idx + 1}
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => setDefaultEmailIdx(idx)}
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                              defaultEmailIdx === idx 
-                                ? 'bg-blue-600 text-white shadow-sm' 
-                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                            }`}
-                          >
-                            {defaultEmailIdx === idx ? '★ Default Login' : 'Set as Default'}
-                          </button>
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          placeholder={`alternate-${idx + 1}@apex.com`}
-                          className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
-                          value={emailVal}
-                          onChange={(e) => handleUpdateAltEmail(idx, e.target.value)}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAltEmail(idx)}
-                        className="p-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer transition-colors shadow-sm self-end"
-                        style={{ height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Trash size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-              <Input 
-                label="Mobile Contact" 
-                placeholder="9876543210" 
-                value={mobile} 
-                onChange={(e) => setMobile(e.target.value)} 
-              />
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Default Password (Auto Generated)</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    readOnly
-                    className="flex-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg px-3 py-2 text-sm font-mono select-all outline-none"
-                    value={defaultPassword}
-                  />
-                  {!editingTenantId && (
-                    <Button 
-                      type="button" 
-                      variant="secondary" 
-                      onClick={() => {
-                        const newPass = 'VS-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                        setDefaultPassword(newPass);
-                      }}
-                    >
-                      Regen
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Subscription Plan */}
-          <div className="space-y-4 pt-1">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
-              <span>03.</span> Subscription Plan
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select 
-                label="Subscription Tier" 
-                value={plan} 
-                onChange={(e) => setPlan(e.target.value)} 
-                options={[
-                  { value: 'Growth Plan', label: 'Growth Plan (Rs. 15,000/mo)' },
-                  { value: 'Pro Enterprise', label: 'Pro Enterprise (Rs. 30,000/mo)' },
-                  { value: 'Starter Trial', label: 'Starter Trial (Free)' }
-                ]} 
-              />
-              <Input 
-                label="Start Date" 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => setStartDate(e.target.value)} 
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Expiration Date (Auto Calculated)</label>
-                <input 
-                  type="date" 
-                  readOnly 
-                  className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-lg px-3 py-2 text-sm font-semibold select-none cursor-not-allowed outline-none"
-                  value={expiryDate} 
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Resource Limits */}
-          <div className="space-y-4 pt-1">
-            <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
-              <span>04.</span> Resource Limits
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input 
-                label="Maximum Branches" 
-                type="number" 
-                required 
-                value={maxBranches} 
-                onChange={(e) => setMaxBranches(e.target.value)} 
-              />
-              <Input 
-                label="Maximum Students Capacity" 
-                type="number" 
-                required 
-                value={maxStudents} 
-                onChange={(e) => setMaxStudents(e.target.value)} 
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select 
-                label="Allocated Cloud Storage" 
-                value={maxStorage} 
-                onChange={(e) => setMaxStorage(e.target.value)} 
-                options={[
-                  { value: '5 GB', label: '5 GB (Starter)' },
-                  { value: '20 GB', label: '20 GB (Standard)' },
-                  { value: '100 GB', label: '100 GB (Enterprise)' },
-                  { value: '500 GB', label: '500 GB (Enterprise Plus)' }
-                ]} 
-              />
-              <Select 
-                label="Maximum File Upload Size" 
-                value={maxFileSize} 
-                onChange={(e) => setMaxFileSize(e.target.value)} 
-                options={[
-                  { value: '5 MB', label: '5 MB (Basic docs)' },
-                  { value: '20 MB', label: '20 MB (Standard attachments)' },
-                  { value: '50 MB', label: '50 MB (High Quality PDFs)' },
-                  { value: '200 MB', label: '200 MB (Lecture recordings)' }
-                ]} 
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button type="submit" variant="primary">{editingTenantId ? "Save Changes" : "Provision Tenant"}</Button>
-          </div>
-        </form>
-      </Modal>
-
-    </div>
+      </Card>    </div>
   );
 };

@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Edit, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft } from 'lucide-react';
 import type { SubscriptionPlan, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../data/mockData';
 import {
   DEFAULT_FEATURES, DEFAULT_SUPPORT, DEFAULT_BRANDING, DEFAULT_INTEGRATIONS
@@ -415,6 +415,65 @@ export const SubscriptionPlans: React.FC = () => {
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
+  if (showAddModal) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(false)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer animate-fade-in"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {editingPlanId ? `Edit Plan: ${name}` : 'Create New Plan'}
+            </h2>
+            <p className="text-sm text-slate-500">
+              Configure parameters, allowed features, support tier, branding, and billing terms.
+            </p>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-0">
+            {/* Step indicator */}
+            <div className="flex gap-1 flex-wrap mb-6">
+              {STEPS.map((s, i) => (
+                <button key={i} type="button" onClick={() => setCurrentStep(i)}
+                  className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full transition-all ${currentStep === i
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : i < currentStep ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                  {i + 1}. {s}
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-[340px]">
+              {renderStep()}
+            </div>
+
+            {/* Navigation */}
+            <div className="flex justify-between items-center pt-5 mt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => currentStep > 0 ? setCurrentStep(c => c - 1) : setShowAddModal(false)}>
+                {currentStep > 0 ? <><ChevronLeft size={14} /> Back</> : 'Cancel'}
+              </Button>
+              {currentStep < STEPS.length - 1 ? (
+                <Button type="button" variant="primary" onClick={() => setCurrentStep(c => c + 1)} style={{ gap: '4px' }}>
+                  Next <ChevronRight size={14} />
+                </Button>
+              ) : (
+                <Button type="submit" variant="primary">
+                  {editingPlanId ? 'Save Changes' : 'Create Plan'}
+                </Button>
+              )}
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {successMsg && (
@@ -582,44 +641,6 @@ export const SubscriptionPlans: React.FC = () => {
             );
           })}
       </div>
-
-      {/* ── Create / Edit Plan Modal ── */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)}
-        title={editingPlanId ? `Edit Plan: ${name}` : 'Create New Plan'} size="3xl">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-0">
-          {/* Step indicator */}
-          <div className="flex gap-1 flex-wrap mb-6">
-            {STEPS.map((s, i) => (
-              <button key={i} type="button" onClick={() => setCurrentStep(i)}
-                className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full transition-all ${currentStep === i
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : i < currentStep ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                {i + 1}. {s}
-              </button>
-            ))}
-          </div>
-
-          <div className="min-h-[340px]">
-            {renderStep()}
-          </div>
-
-          {/* Navigation */}
-          <div className="flex justify-between items-center pt-5 mt-4 border-t border-slate-100">
-            <Button type="button" variant="secondary" onClick={() => currentStep > 0 ? setCurrentStep(c => c - 1) : setShowAddModal(false)}>
-              {currentStep > 0 ? <><ChevronLeft size={14} /> Back</> : 'Cancel'}
-            </Button>
-            {currentStep < STEPS.length - 1 ? (
-              <Button type="button" variant="primary" onClick={() => setCurrentStep(c => c + 1)} style={{ gap: '4px' }}>
-                Next <ChevronRight size={14} />
-              </Button>
-            ) : (
-              <Button type="submit" variant="primary">
-                {editingPlanId ? 'Save Changes' : 'Create Plan'}
-              </Button>
-            )}
-          </div>
-        </form>
-      </Modal>
 
       {/* ── Update Existing Subscriptions Prompt ── */}
       <Modal isOpen={showUpdateExistingPrompt} onClose={() => setShowUpdateExistingPrompt(false)}

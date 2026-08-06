@@ -74,15 +74,39 @@ const AuditLogsPlaceholder = () => {
   const totalPages = Math.ceil(auditLogs.length / itemsPerPage);
   const paginatedLogs = auditLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  const handleExportCSV = () => {
+    if (auditLogs.length === 0) return;
+    const headers = ['Log ID', 'Timestamp', 'Actor', 'Role', 'Institute', 'IP Address', 'Action', 'Details'];
+    const rows = auditLogs.map(log => [
+      log.id,
+      log.timestamp,
+      log.actor,
+      log.role,
+      log.institute || 'System / Platform',
+      log.ipAddress || '192.168.1.1',
+      log.action,
+      log.details
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'audit_logs.csv';
+    a.click();
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-      <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-3">Platform Audit Registers</h3>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-3">
+        <h3 className="text-lg font-semibold text-slate-900">Platform Audit Registers</h3>
+        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Timestamp</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Actor</th>
+              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Institute</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">IP Address</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Action</th>
               <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Details</th>
@@ -99,6 +123,7 @@ const AuditLogsPlaceholder = () => {
                 <td className="px-6 py-4 font-semibold text-slate-800">
                   {log.actor} <span className="text-[10px] text-slate-400 uppercase font-normal">({log.role})</span>
                 </td>
+                <td className="px-6 py-4 text-slate-700 font-semibold">{log.institute || 'System / Platform'}</td>
                 <td className="px-6 py-4 font-mono text-xs text-slate-500">{log.ipAddress || '192.168.1.1'}</td>
                 <td className="px-6 py-4 font-mono text-xs text-blue-600">{log.action}</td>
                 <td className="px-6 py-4 truncate max-w-xs">{log.details}</td>
@@ -139,6 +164,10 @@ const AuditLogsPlaceholder = () => {
               <div>
                 <span className="font-bold text-slate-400 block uppercase">Origin IP Address</span>
                 <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.ipAddress || '192.168.1.1'}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Institute / Tenant</span>
+                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.institute || 'System / Platform'}</span>
               </div>
             </div>
             <div className="border-t border-slate-100 pt-3">
