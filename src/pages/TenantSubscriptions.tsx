@@ -374,6 +374,7 @@ export const TenantSubscriptions: React.FC = () => {
             placeholder="Search by ID, name, plan..." 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
+            wrapperClassName="sm:col-span-2"
           />
           <Select 
             label="Plan Template" 

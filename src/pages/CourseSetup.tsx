@@ -95,7 +95,7 @@ export const CourseSetup: React.FC = () => {
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
-        <div className="relative flex flex-col gap-1.5 w-full">
+        <div className="relative sm:col-span-2 flex flex-col gap-1.5 w-full">
           <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
           <div className="relative w-full">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />

@@ -609,6 +609,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             placeholder="Search by ID, name, owner..." 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
+            wrapperClassName="sm:col-span-2"
           />
           <Select 
             label="Plan Tier" 

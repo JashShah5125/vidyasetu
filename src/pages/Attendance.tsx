@@ -252,7 +252,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
           </div>
 
           {/* Selectors grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${attendanceType === 'students' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm`}>
             <Select 
               label="Branch" 
               value={branch} 

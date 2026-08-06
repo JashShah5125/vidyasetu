@@ -9,6 +9,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   options: SelectOption[];
   error?: string;
+  wrapperClassName?: string;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -16,11 +17,12 @@ export const Select: React.FC<SelectProps> = ({
   options,
   error,
   className = '',
+  wrapperClassName = '',
   id,
   ...props
 }) => {
   return (
-    <div className="flex flex-col gap-1.5 w-full">
+    <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
       {label && (
         <label 
           htmlFor={id} 

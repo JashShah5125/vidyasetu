@@ -177,6 +177,7 @@ export const Exams: React.FC = () => {
           placeholder="Search exams by name..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Batch"
