@@ -115,6 +115,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
           placeholder="Search students by name or ID..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Course"

@@ -304,6 +304,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
           placeholder={`Search ${subTab}...`} 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Sort By"

@@ -97,6 +97,7 @@ export const Students: React.FC = () => {
           placeholder="Search students by name or ID..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Course"

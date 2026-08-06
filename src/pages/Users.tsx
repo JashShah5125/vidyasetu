@@ -217,6 +217,7 @@ export const Users: React.FC = () => {
           placeholder="Search by name, email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Role"

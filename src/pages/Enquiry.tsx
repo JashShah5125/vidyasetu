@@ -312,6 +312,7 @@ export const Enquiry: React.FC<EnquiryProps> = ({ initialTab = 'pipeline' }) => 
           placeholder="Search leads by name or course preference..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Stage Status"

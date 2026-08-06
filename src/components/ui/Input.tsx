@@ -3,17 +3,19 @@ import React from 'react';
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  wrapperClassName?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
   label,
   error,
   className = '',
+  wrapperClassName = '',
   id,
   ...props
 }) => {
   return (
-    <div className="flex flex-col gap-1.5 w-full">
+    <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
       {label && (
         <label 
           htmlFor={id} 

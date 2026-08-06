@@ -87,6 +87,7 @@ export const Admissions: React.FC = () => {
           placeholder="Search by ID, name..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
+          wrapperClassName="sm:col-span-2"
         />
         <Select
           label="Course"
