@@ -359,6 +359,37 @@ export const SubjectSetup: React.FC = () => {
         </div>
 
         <div className="w-full space-y-4">
+          {!editingSubjectId && (
+            <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
+              <Select
+                label="Assign to Course"
+                options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
+                value={subjectForm.formCourse}
+                onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
+              />
+              <Select
+                label="Assign to Program"
+                options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
+                value={subjectForm.formProgram}
+                onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
+                disabled={!subjectForm.formCourse}
+              />
+              <Select
+                label="Assign to Level"
+                options={[
+                  { value: '', label: 'Select a level...' },
+                  ...(subjectForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
+                    subjectForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
+                    subjectForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
+                ]}
+                value={subjectForm.formLevel}
+                onChange={e => setSubjectForm(prev => ({ ...prev, formLevel: e.target.value }))}
+                disabled={!subjectForm.formProgram}
+              />
+            </div>
+          )}
+
           <Input 
             label="Subject Name" 
             placeholder="e.g. Advanced Mechanics" 
@@ -402,38 +433,6 @@ export const SubjectSetup: React.FC = () => {
               )}
             </div>
           </div>
-          
-          {!editingSubjectId && (
-            <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 mt-4">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
-              <Select
-                label="Assign to Course"
-                options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
-                value={subjectForm.formCourse}
-                onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
-              />
-              <Select
-                label="Assign to Program"
-                options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
-                value={subjectForm.formProgram}
-                onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
-                disabled={!subjectForm.formCourse}
-              />
-              <Select
-                label="Assign to Level"
-                options={[
-                  { value: '', label: 'Select a level...' },
-                  ...(subjectForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
-                    subjectForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
-                    subjectForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
-                ]}
-                value={subjectForm.formLevel}
-                onChange={e => setSubjectForm(prev => ({ ...prev, formLevel: e.target.value }))}
-                disabled={!subjectForm.formProgram}
-              />
-            </div>
-          )}
-
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <Button variant="ghost" onClick={() => setAddSubjectModalOpen(false)}>Cancel</Button>
             <Button 
