@@ -120,9 +120,15 @@ export const Users: React.FC = () => {
         : s
       ));
     } else {
+      const names = name.trim().split(/\s+/);
+      const firstName = names[0] || '';
+      const lastName = names.slice(1).join(' ') || '';
       addStaff({
+        firstName,
+        lastName,
         name,
         email,
+        mobile: '9876543210',
         role,
         branch,
         status: 'Active'

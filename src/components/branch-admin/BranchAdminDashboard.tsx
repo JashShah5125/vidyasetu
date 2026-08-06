@@ -14,7 +14,10 @@ export const BranchAdminDashboard: React.FC = () => {
   // Filter local branch data
   const localStudents = students.filter(s => s.branch === branchName);
   const localStaff = staff.filter(s => s.branch === branchName);
-  const localBatches = batches.filter(b => b.room.includes('101') || b.room.includes('102') || b.teacher.includes('Kelkar'));
+  const localBatches = batches.filter(b => {
+    const batchBranch = b.branch || 'Mumbai West';
+    return batchBranch === branchName;
+  });
 
   const paginatedStaff = localStaff.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(localStaff.length / itemsPerPage);

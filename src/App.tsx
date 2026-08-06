@@ -23,7 +23,7 @@ import { Students } from './pages/Students';
 import { Fees } from './pages/Fees';
 import { Attendance } from './pages/Attendance';
 import { Assignments } from './pages/Assignments';
-import { Exams } from './pages/Exams';
+import { ExamMarks } from './pages/ExamMarks';
 import { Reports } from './pages/Reports';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
@@ -282,7 +282,7 @@ const ContentRouter = () => {
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="counselling" />} />
       <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
       <Route path="/assignments" element={<Assignments />} />
-      <Route path="/exams" element={<Exams />} />
+      <Route path="/exams" element={<ExamMarks />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/reports" element={<Reports />} />
