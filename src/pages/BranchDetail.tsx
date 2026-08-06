@@ -14,15 +14,8 @@ interface BranchCourseMapping {
   id: string;
   courseCode: string;
   courseName: string;
-  programs: {
-    name: string;
-    academicYears: string[];
-    maxStudents: number;
-    status: 'Active' | 'Inactive';
-  }[];
+  programs: string[];
 }
-
-const ACADEMIC_YEARS = ['2023-24', '2024-25', '2025-26', '2026-27', '2027-28'];
 
 export const BranchDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -50,20 +43,9 @@ export const BranchDetail: React.FC = () => {
   // Modal state
   const [isCourseModalOpen, setCourseModalOpen] = useState(false);
   const [editingMappingId, setEditingMappingId] = useState<string | null>(null);
-  const [isProgramModalOpen, setProgramModalOpen] = useState(false);
-  const [activeCourseForProgram, setActiveCourseForProgram] = useState<string | null>(null);
-  const [editingProgramIdx, setEditingProgramIdx] = useState<number | null>(null);
 
   // Course modal form state
   const [modalCourseCode, setModalCourseCode] = useState('');
-
-  // Program modal form state
-  const [progForm, setProgForm] = useState<{
-    name: string;
-    academicYears: string[];
-    maxStudents: number;
-    status: 'Active' | 'Inactive';
-  }>({ name: '', academicYears: [], maxStudents: 60, status: 'Active' });
 
   useEffect(() => {
     if (existingBranch && !isNew) {
@@ -75,26 +57,19 @@ export const BranchDetail: React.FC = () => {
             id: 'cm-1',
             courseCode: 'JEE-PREP',
             courseName: 'JEE Prep Course',
-            programs: [
-              { name: '2 Year', academicYears: ['2025-26', '2026-27'], maxStudents: 80, status: 'Active' },
-              { name: '1 Year', academicYears: ['2026-27'], maxStudents: 40, status: 'Active' },
-            ]
+            programs: ['2 Year', '1 Year']
           },
           {
             id: 'cm-2',
             courseCode: 'NEET-PREM',
             courseName: 'NEET Batch Premium',
-            programs: [
-              { name: '1 Year', academicYears: ['2026-27'], maxStudents: 60, status: 'Active' },
-            ]
+            programs: ['1 Year']
           },
           {
             id: 'cm-3',
             courseCode: 'FOUND-10',
             courseName: 'Class 10 Foundation',
-            programs: [
-              { name: '2 Year', academicYears: ['2026-27'], maxStudents: 50, status: 'Inactive' },
-            ]
+            programs: ['2 Year']
           }
         ]);
       }
@@ -120,20 +95,6 @@ export const BranchDetail: React.FC = () => {
   const availableCourses = useMemo(() => {
     return courses.filter(c => !mappedCourseCodes.has(c.code));
   }, [courses, mappedCourseCodes]);
-
-  // Get selected course's programs for the program modal
-  const activeMappingPrograms = useMemo(() => {
-    if (!activeCourseForProgram) return [];
-    const mapping = courseMappings.find(cm => cm.id === activeCourseForProgram);
-    const course = courses.find(c => c.code === mapping?.courseCode);
-    const usedPrograms = new Set((mapping?.programs || []).map(p => p.name));
-    if (editingProgramIdx !== null) {
-      // When editing, include current program name as option
-      const currentName = mapping?.programs[editingProgramIdx]?.name || '';
-      usedPrograms.delete(currentName);
-    }
-    return (course?.programs || []).filter(p => !usedPrograms.has(p));
-  }, [activeCourseForProgram, courseMappings, courses, editingProgramIdx]);
 
   // Open modal to add a new course
   const handleOpenAddCourse = () => {
@@ -166,55 +127,15 @@ export const BranchDetail: React.FC = () => {
     addToast(`"${mapping?.courseName}" removed from branch.`);
   };
 
-  // Open modal to add a program to a course mapping
-  const handleOpenAddProgram = (mappingId: string) => {
-    setActiveCourseForProgram(mappingId);
-    setEditingProgramIdx(null);
-    setProgForm({ name: '', academicYears: [], maxStudents: 60, status: 'Active' });
-    setProgramModalOpen(true);
-  };
-
-  const handleOpenEditProgram = (mappingId: string, idx: number) => {
-    const mapping = courseMappings.find(cm => cm.id === mappingId);
-    if (!mapping) return;
-    const prog = mapping.programs[idx];
-    setActiveCourseForProgram(mappingId);
-    setEditingProgramIdx(idx);
-    setProgForm({ name: prog.name, academicYears: [...prog.academicYears], maxStudents: prog.maxStudents, status: prog.status });
-    setProgramModalOpen(true);
-  };
-
-  const handleSaveProgram = () => {
-    if (!progForm.name || !activeCourseForProgram) return;
-    setCourseMappings(prev => prev.map(cm => {
-      if (cm.id !== activeCourseForProgram) return cm;
-      const updatedPrograms = [...cm.programs];
-      const newProg = { ...progForm };
-      if (editingProgramIdx !== null) {
-        updatedPrograms[editingProgramIdx] = newProg;
-      } else {
-        updatedPrograms.push(newProg);
-      }
-      return { ...cm, programs: updatedPrograms };
-    }));
-    setProgramModalOpen(false);
-    addToast(`Program "${progForm.name}" saved successfully.`);
-  };
-
-  const handleRemoveProgram = (mappingId: string, idx: number) => {
+  const handleToggleProgram = (mappingId: string, programName: string) => {
     setCourseMappings(prev => prev.map(cm => {
       if (cm.id !== mappingId) return cm;
-      return { ...cm, programs: cm.programs.filter((_, i) => i !== idx) };
+      const hasProg = cm.programs.includes(programName);
+      return { 
+        ...cm, 
+        programs: hasProg ? cm.programs.filter(p => p !== programName) : [...cm.programs, programName] 
+      };
     }));
-  };
-
-  const handleToggleAcademicYear = (year: string) => {
-    setProgForm(prev => {
-      if (prev.academicYears.includes(year)) {
-        return { ...prev, academicYears: prev.academicYears.filter(y => y !== year) };
-      }
-      return { ...prev, academicYears: [...prev.academicYears, year] };
-    });
   };
 
   if (!isNew && !existingBranch) {
@@ -513,76 +434,20 @@ export const BranchDetail: React.FC = () => {
 
                     {/* Expanded: Programs List */}
                     {expandedCourse === mapping.id && (
-                      <div className="border-t border-slate-100 bg-slate-50/50">
-                        {/* Programs table */}
-                        {mapping.programs.length === 0 ? (
-                          <div className="py-8 text-center text-slate-400">
-                            <p className="text-sm">No programs added yet. Click "Add Program" to start.</p>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                              <thead>
-                                <tr className="border-b border-slate-200 bg-slate-100/60">
-                                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Program Name</th>
-                                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Academic Years</th>
-                                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Max Students</th>
-                                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Status</th>
-                                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {mapping.programs.map((prog, idx) => (
-                                  <tr key={idx} className="border-b border-slate-100 hover:bg-white transition-colors">
-                                    <td className="px-5 py-3 font-semibold text-slate-800 text-sm">{prog.name}</td>
-                                    <td className="px-5 py-3">
-                                      <div className="flex flex-wrap gap-1">
-                                        {prog.academicYears.map(y => (
-                                          <span key={y} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">{y}</span>
-                                        ))}
-                                        {prog.academicYears.length === 0 && <span className="text-xs text-slate-400 italic">None</span>}
-                                      </div>
-                                    </td>
-                                    <td className="px-5 py-3 text-sm text-slate-600">{prog.maxStudents}</td>
-                                    <td className="px-5 py-3">
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                                        prog.status === 'Active'
-                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                          : 'bg-slate-100 text-slate-500 border-slate-200'
-                                      }`}>
-                                        {prog.status}
-                                      </span>
-                                    </td>
-                                    <td className="px-5 py-3">
-                                      <div className="flex gap-3">
-                                        <button
-                                          onClick={() => handleOpenEditProgram(mapping.id, idx)}
-                                          className="text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors"
-                                        >
-                                          Edit
-                                        </button>
-                                        <button
-                                          onClick={() => handleRemoveProgram(mapping.id, idx)}
-                                          className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors"
-                                        >
-                                          Remove
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                        {/* Add Program button */}
-                        <div className="p-4 border-t border-slate-100">
-                          <button
-                            onClick={() => handleOpenAddProgram(mapping.id)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                          >
-                            <Plus size={13} /> Add Program to {mapping.courseName}
-                          </button>
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-5">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Select available programs for this course</p>
+                        <div className="flex flex-wrap gap-4">
+                          {courses.find(c => c.code === mapping.courseCode)?.programs?.map(prog => (
+                            <label key={prog} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:border-blue-300 transition-colors">
+                              <input 
+                                type="checkbox" 
+                                checked={mapping.programs.includes(prog)}
+                                onChange={() => handleToggleProgram(mapping.id, prog)}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                              />
+                              <span className="text-sm font-semibold text-slate-700">{prog}</span>
+                            </label>
+                          )) || <p className="text-xs text-slate-400">No programs available in this course.</p>}
                         </div>
                       </div>
                     )}
@@ -721,107 +586,6 @@ export const BranchDetail: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ADD / EDIT PROGRAM MODAL */}
-      <Modal
-        isOpen={isProgramModalOpen}
-        onClose={() => setProgramModalOpen(false)}
-        title={editingProgramIdx !== null ? 'Edit Program' : 'Add Program'}
-        size="md"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setProgramModalOpen(false)}>Cancel</Button>
-            <Button
-              variant="primary"
-              onClick={handleSaveProgram}
-              disabled={!progForm.name || progForm.academicYears.length === 0}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-              className="disabled:opacity-50"
-            >
-              {editingProgramIdx !== null ? 'Save Changes' : 'Add Program'}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-5">
-          <p className="text-sm text-slate-500">Configure the program details for this branch offering.</p>
-
-          {/* Program Selection */}
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-2">Program Name</label>
-            {activeMappingPrograms.length > 0 ? (
-              <select
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white outline-none focus:border-blue-400"
-                value={progForm.name}
-                onChange={e => setProgForm(prev => ({ ...prev, name: e.target.value }))}
-              >
-                <option value="">Select a program...</option>
-                {editingProgramIdx !== null && (
-                  <option value={courseMappings.find(cm => cm.id === activeCourseForProgram)?.programs[editingProgramIdx]?.name || ''}>
-                    {courseMappings.find(cm => cm.id === activeCourseForProgram)?.programs[editingProgramIdx]?.name || ''}
-                  </option>
-                )}
-                {activeMappingPrograms.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            ) : (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                All programs for this course have already been added.
-              </div>
-            )}
-          </div>
-
-          {/* Academic Years */}
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-2">Academic Years Active</label>
-            <div className="grid grid-cols-3 gap-2">
-              {ACADEMIC_YEARS.map(year => (
-                <label
-                  key={year}
-                  className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer text-sm transition-colors ${
-                    progForm.academicYears.includes(year)
-                      ? 'bg-blue-50 border-blue-400 text-blue-800 font-semibold'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="text-blue-600"
-                    checked={progForm.academicYears.includes(year)}
-                    onChange={() => handleToggleAcademicYear(year)}
-                  />
-                  {year}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Max Students */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">Max Students</label>
-              <input
-                type="number"
-                min={1}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
-                value={progForm.maxStudents}
-                onChange={e => setProgForm(prev => ({ ...prev, maxStudents: parseInt(e.target.value) || 0 }))}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-1.5">Status</label>
-              <select
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white outline-none focus:border-blue-400"
-                value={progForm.status}
-                onChange={e => setProgForm(prev => ({ ...prev, status: e.target.value as 'Active' | 'Inactive' }))}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

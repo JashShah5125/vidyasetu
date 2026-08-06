@@ -88,6 +88,7 @@ export interface Batch {
   academicYear?: string;
   timing: string;
   room: string;
+  branch?: string;
 }
 
 export interface Branch {

@@ -9,11 +9,13 @@ import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
 
 export const BranchSetup: React.FC = () => {
-  const { branches } = useApp();
+  const { branches, courses } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterProgram, setFilterProgram] = useState('All');
+  const [filterCourse, setFilterCourse] = useState('All');
   const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -41,7 +43,9 @@ export const BranchSetup: React.FC = () => {
         b.code.toLowerCase().includes(search.toLowerCase()) ||
         (b.admin || '').toLowerCase().includes(search.toLowerCase());
       const matchStatus = filterStatus === 'All' || b.status === filterStatus;
-      return matchSearch && matchStatus;
+      const matchProgram = filterProgram === 'All' || (b.programs || []).includes(filterProgram);
+      const matchCourse = filterCourse === 'All' || courses.find(c => c.name === filterCourse)?.branches?.includes(b.name);
+      return matchSearch && matchStatus && matchProgram && matchCourse;
     });
     return [...list].sort((a, b) => {
       if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
@@ -52,7 +56,11 @@ export const BranchSetup: React.FC = () => {
       if (sortBy === 'capacity-asc') return (a.capacity || 0) - (b.capacity || 0);
       return 0;
     });
-  }, [branches, search, filterStatus, sortBy]);
+  }, [branches, courses, search, filterStatus, filterProgram, filterCourse, sortBy]);
+
+  const uniquePrograms = useMemo(() => Array.from(new Set(courses.flatMap(c => c.programs || []))), [courses]);
+  const courseOptions = [{ value: 'All', label: 'All Courses' }, ...courses.map(c => ({ value: c.name, label: c.name }))];
+  const programOptions = [{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))];
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -108,7 +116,7 @@ export const BranchSetup: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
         <div className="sm:col-span-2 flex flex-col gap-1.5 w-full">
           <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
           <div className="relative w-full">
@@ -126,7 +134,19 @@ export const BranchSetup: React.FC = () => {
           label="Status"
           options={statusOptions}
           value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
+          onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+        />
+        <Select
+          label="Course"
+          options={courseOptions}
+          value={filterCourse}
+          onChange={e => { setFilterCourse(e.target.value); setCurrentPage(1); }}
+        />
+        <Select
+          label="Program"
+          options={programOptions}
+          value={filterProgram}
+          onChange={e => { setFilterProgram(e.target.value); setCurrentPage(1); }}
         />
         <Select
           label="Sort By"

@@ -8,18 +8,19 @@ import { Layers, Plus, Search, Clock, BookOpen, Download, ArrowLeft } from 'luci
 import { Pagination } from '../components/ui/Pagination';
 
 export const BatchSetup: React.FC = () => {
-  const { batches, courses } = useApp();
+  const { batches, courses, branches } = useApp();
 
   // Local batch state since batches aren't managed via context mutations yet
   const [batchList, setBatchList] = useState(batches);
   const [search, setSearch] = useState('');
+  const [filterBranch, setFilterBranch] = useState('All');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterYear, setFilterYear] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: '', course: '', program: '', level: '', academicYear: '', startTime: '', endTime: '', room: '' });
+  const [form, setForm] = useState({ name: '', branch: '', course: '', program: '', level: '', academicYear: '', startTime: '', endTime: '', room: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortBy, setSortBy] = useState('name-asc');
@@ -45,6 +46,14 @@ export const BatchSetup: React.FC = () => {
   const formCourseOptions = useMemo(() => {
     return courses.map(c => ({ value: c.name, label: c.name }));
   }, [courses]);
+
+  const formBranchOptions = useMemo(() => {
+    return branches.map(b => ({ value: b.name, label: b.name }));
+  }, [branches]);
+
+  const filterBranchOptions = useMemo(() => {
+    return [{ value: 'All', label: 'All Branches' }, ...branches.map(b => ({ value: b.name, label: b.name }))];
+  }, [branches]);
 
   const filterProgramOptions = useMemo(() => {
     if (filterCourse === 'All') return [{ value: 'All', label: 'All Programs' }];
@@ -96,11 +105,12 @@ export const BatchSetup: React.FC = () => {
       const matchSearch =
         b.name.toLowerCase().includes(search.toLowerCase()) ||
         (b.room || '').toLowerCase().includes(search.toLowerCase());
+      const matchBranch = filterBranch === 'All' || b.branch === filterBranch;
       const matchCourse = filterCourse === 'All' || b.course === filterCourse;
       const matchProgram = filterProgram === 'All' || b.program === filterProgram;
       const matchLevel = filterLevel === 'All' || b.level === filterLevel;
       const matchYear = filterYear === 'All' || b.academicYear === filterYear;
-      return matchSearch && matchCourse && matchProgram && matchLevel && matchYear;
+      return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
     });
     return [...list].sort((a, b) => {
       if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
@@ -111,7 +121,7 @@ export const BatchSetup: React.FC = () => {
       if (sortBy === 'room-asc') return (a.room || '').localeCompare(b.room || '');
       return 0;
     });
-  }, [batchList, search, filterCourse, filterProgram, filterLevel, filterYear, sortBy]);
+  }, [batchList, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -140,10 +150,11 @@ export const BatchSetup: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingIdx(null);
+    const initialBranch = branches[0]?.name || '';
     const initialCourse = courses[0]?.name || '';
     const initialProgram = courses[0]?.programs?.[0] || '';
     const initialLevel = deriveLevels(initialProgram)[0]?.value || '';
-    setForm({ name: '', course: initialCourse, program: initialProgram, level: initialLevel, academicYear: '2026-27', startTime: '', endTime: '', room: '' });
+    setForm({ name: '', branch: initialBranch, course: initialCourse, program: initialProgram, level: initialLevel, academicYear: '2026-27', startTime: '', endTime: '', room: '' });
     setIsModalOpen(true);
   };
 
@@ -159,7 +170,7 @@ export const BatchSetup: React.FC = () => {
       et = parts[1] ? parseTo24h(parts[1]) : '';
     }
     
-    setForm({ name: b.name, course: b.course, program: b.program || '', level: b.level || '', academicYear: b.academicYear || '2026-27', startTime: st, endTime: et, room: b.room });
+    setForm({ name: b.name, branch: b.branch || branches[0]?.name || '', course: b.course, program: b.program || '', level: b.level || '', academicYear: b.academicYear || '2026-27', startTime: st, endTime: et, room: b.room });
     setIsModalOpen(true);
   };
 
@@ -169,7 +180,7 @@ export const BatchSetup: React.FC = () => {
   };
 
   const handleSave = () => {
-    if (!form.name || !form.course) return;
+    if (!form.name || !form.course || !form.branch) return;
     
     let timingStr = '';
     if (form.startTime && form.endTime) {
@@ -178,6 +189,7 @@ export const BatchSetup: React.FC = () => {
     
     const finalBatch = {
       name: form.name,
+      branch: form.branch,
       course: form.course,
       program: form.program,
       level: form.level,
@@ -232,6 +244,12 @@ export const BatchSetup: React.FC = () => {
         </div>
 
         <div className="w-full space-y-4">
+          <Select
+            label="Branch"
+            options={formBranchOptions}
+            value={form.branch}
+            onChange={e => setForm(p => ({ ...p, branch: e.target.value }))}
+          />
           <Input
             label="Batch Name"
             placeholder="e.g. JEE-Morning-A"
@@ -347,6 +365,15 @@ export const BatchSetup: React.FC = () => {
           </div>
         </div>
         <Select
+          label="Branch"
+          options={filterBranchOptions}
+          value={filterBranch}
+          onChange={e => {
+            setFilterBranch(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        <Select
           label="Course"
           options={courseOptions}
           value={filterCourse}
@@ -379,20 +406,24 @@ export const BatchSetup: React.FC = () => {
           value={filterYear}
           onChange={e => setFilterYear(e.target.value)}
         />
-        <Select
-          label="Sort By"
-          options={sortOptions}
-          value={sortBy}
-          onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
-        />
       </div>
 
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-          <Layers size={18} className="text-blue-600" />
-          <h3 className="font-bold text-slate-800">All Batches</h3>
-          <span className="ml-auto text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+        <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Layers size={18} className="text-blue-600" />
+            <h3 className="font-bold text-slate-800">All Batches</h3>
+            <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-64">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide shrink-0">Sort By</span>
+            <Select
+              options={sortOptions}
+              value={sortBy}
+              onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
+            />
+          </div>
         </div>
 
         {filtered.length === 0 ? (
