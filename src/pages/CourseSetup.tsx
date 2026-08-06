@@ -4,25 +4,52 @@ import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
 import { BookOpen, Plus, Search, ArrowRight, Download } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 
 export const CourseSetup: React.FC = () => {
-  const { courses } = useApp();
+  const { courses, branches } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
+  const [filterBranch, setFilterBranch] = useState('All');
+  const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  const sortOptions = [
+    { value: 'name-asc', label: 'Name (A → Z)' },
+    { value: 'name-desc', label: 'Name (Z → A)' },
+    { value: 'code-asc', label: 'Code (A → Z)' },
+    { value: 'programs-desc', label: 'Programs (Most First)' },
+    { value: 'programs-asc', label: 'Programs (Fewest First)' },
+  ];
+
+  const branchOptions = useMemo(() => {
+    return [
+      { value: 'All', label: 'All Branches' },
+      ...branches.map(b => ({ value: b.name, label: b.name }))
+    ];
+  }, [branches]);
+
   const filtered = useMemo(() => {
-    return courses.filter(c => {
+    const list = courses.filter(c => {
       const matchSearch =
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.code.toLowerCase().includes(search.toLowerCase());
-      return matchSearch;
+      const matchBranch = filterBranch === 'All' || (c.branches || []).includes(filterBranch);
+      return matchSearch && matchBranch;
     });
-  }, [courses, search]);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'code-asc') return a.code.localeCompare(b.code);
+      if (sortBy === 'programs-desc') return (b.programs?.length || 0) - (a.programs?.length || 0);
+      if (sortBy === 'programs-asc') return (a.programs?.length || 0) - (b.programs?.length || 0);
+      return 0;
+    });
+  }, [courses, search, sortBy, filterBranch]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -33,7 +60,8 @@ export const CourseSetup: React.FC = () => {
       'Course Name': c.name,
       'Code': c.code,
       'Duration': c.duration,
-      'Programs': (c.programs || []).join('; ')
+      'Programs': (c.programs || []).join('; '),
+      'Branches': (c.branches || []).join('; ')
     }));
     const headers = Object.keys(rows[0]);
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String(r[h as keyof typeof r]).replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -48,7 +76,7 @@ export const CourseSetup: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Course Management</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Courses</h2>
           <p className="text-sm text-slate-500 mt-1">Configure academic catalog — courses, programs, and levels.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -66,7 +94,7 @@ export const CourseSetup: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
         <div className="relative flex flex-col gap-1.5 w-full">
           <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
           <div className="relative w-full">
@@ -80,6 +108,18 @@ export const CourseSetup: React.FC = () => {
             />
           </div>
         </div>
+        <Select
+          label="Branch"
+          options={branchOptions}
+          value={filterBranch}
+          onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
+        />
+        <Select
+          label="Sort By"
+          options={sortOptions}
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
+        />
       </div>
 
       {/* Table */}
@@ -97,7 +137,7 @@ export const CourseSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={['Course', 'Code', 'Programs', 'Actions']}>
+            <Table headers={['Course', 'Code', 'Programs', 'Branches', 'Actions']}>
               {paginated.map(course => (
                 <tr key={course.code} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
@@ -113,6 +153,18 @@ export const CourseSetup: React.FC = () => {
                       ))}
                       {(!course.programs || course.programs.length === 0) && (
                         <span className="text-xs text-slate-400 italic">No programs</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1">
+                      {(course.branches || []).map((b, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">
+                          {b}
+                        </span>
+                      ))}
+                      {(!course.branches || course.branches.length === 0) && (
+                        <span className="text-xs text-slate-400 italic">Global (All)</span>
                       )}
                     </div>
                   </td>

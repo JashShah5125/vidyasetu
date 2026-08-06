@@ -23,6 +23,16 @@ export const BatchSetup: React.FC = () => {
   const [form, setForm] = useState({ name: '', course: '', program: '', level: '', academicYear: '', startTime: '', endTime: '', room: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortBy, setSortBy] = useState('name-asc');
+
+  const sortOptions = [
+    { value: 'name-asc', label: 'Batch Name (A → Z)' },
+    { value: 'name-desc', label: 'Batch Name (Z → A)' },
+    { value: 'course-asc', label: 'Course (A → Z)' },
+    { value: 'year-desc', label: 'Academic Year (Newest)' },
+    { value: 'year-asc', label: 'Academic Year (Oldest)' },
+    { value: 'room-asc', label: 'Room (A → Z)' },
+  ];
 
   const ACADEMIC_YEARS = ['2023-24', '2024-25', '2025-26', '2026-27', '2027-28'];
 
@@ -83,7 +93,7 @@ export const BatchSetup: React.FC = () => {
 
 
   const filtered = useMemo(() => {
-    return batchList.filter(b => {
+    const list = batchList.filter(b => {
       const matchSearch =
         b.name.toLowerCase().includes(search.toLowerCase()) ||
         (b.room || '').toLowerCase().includes(search.toLowerCase());
@@ -93,7 +103,16 @@ export const BatchSetup: React.FC = () => {
       const matchYear = filterYear === 'All' || b.academicYear === filterYear;
       return matchSearch && matchCourse && matchProgram && matchLevel && matchYear;
     });
-  }, [batchList, search, filterCourse, filterProgram, filterLevel, filterYear]);
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'course-asc') return a.course.localeCompare(b.course);
+      if (sortBy === 'year-desc') return (b.academicYear || '').localeCompare(a.academicYear || '');
+      if (sortBy === 'year-asc') return (a.academicYear || '').localeCompare(b.academicYear || '');
+      if (sortBy === 'room-asc') return (a.room || '').localeCompare(b.room || '');
+      return 0;
+    });
+  }, [batchList, search, filterCourse, filterProgram, filterLevel, filterYear, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -218,7 +237,7 @@ export const BatchSetup: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
+      <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
         <div className="relative xl:col-span-2 flex flex-col gap-1.5 w-full">
           <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
           <div className="relative w-full">
@@ -264,6 +283,12 @@ export const BatchSetup: React.FC = () => {
           options={[{ value: 'All', label: 'All Years' }, ...ACADEMIC_YEARS.map(y => ({ value: y, label: y }))]}
           value={filterYear}
           onChange={e => setFilterYear(e.target.value)}
+        />
+        <Select
+          label="Sort By"
+          options={sortOptions}
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
         />
       </div>
 

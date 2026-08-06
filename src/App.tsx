@@ -16,6 +16,7 @@ import { CourseDetail } from './pages/CourseDetail';
 import { BatchSetup } from './pages/BatchSetup';
 import { SubjectSetup } from './pages/SubjectSetup';
 import { Users } from './pages/Users';
+import { StaffCreate } from './pages/StaffCreate';
 import { Enquiry } from './pages/Enquiry';
 import { Admissions } from './pages/Admissions';
 import { Students } from './pages/Students';
@@ -276,6 +277,7 @@ const ContentRouter = () => {
       <Route path="/batches" element={<BatchSetup />} />
       <Route path="/subjects" element={<SubjectSetup />} />
       <Route path="/staff" element={<Users />} />
+      <Route path="/staff/new" element={<StaffCreate />} />
       <Route path="/admissions" element={<Admissions />} />
       <Route path="/students" element={<Students />} />
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />

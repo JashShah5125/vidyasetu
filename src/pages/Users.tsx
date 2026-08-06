@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -10,6 +11,7 @@ import { Plus } from 'lucide-react';
 
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff } = useApp();
+  const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
 
@@ -24,14 +26,18 @@ export const Users: React.FC = () => {
   const filteredAndSortedStaff = staff
     .filter(s => {
       const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          s.email.toLowerCase().includes(searchTerm.toLowerCase());
+        s.email.toLowerCase().includes(searchTerm.toLowerCase());
       const matchRole = filterRole === 'All' || s.role === filterRole;
       const matchBranch = filterBranch === 'All' || s.branch === filterBranch;
       return matchSearch && matchRole && matchBranch;
     })
     .sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
       if (sortBy === 'email') return a.email.localeCompare(b.email);
+      if (sortBy === 'role') return a.role.localeCompare(b.role);
+      if (sortBy === 'branch') return a.branch.localeCompare(b.branch);
+      if (sortBy === 'status') return a.status.localeCompare(b.status);
       return 0;
     });
 
@@ -43,12 +49,12 @@ export const Users: React.FC = () => {
       'Branch': s.branch,
       'Status': s.status
     }));
-    
+
     if (dataToExport.length === 0) return;
     const csvRows = [];
     const headers = Object.keys(dataToExport[0]);
     csvRows.push(headers.join(','));
-    
+
     for (const row of dataToExport) {
       const values = headers.map(header => {
         const val = row[header as keyof typeof row] || '';
@@ -57,7 +63,7 @@ export const Users: React.FC = () => {
       });
       csvRows.push(values.join(','));
     }
-    
+
     const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -98,8 +104,8 @@ export const Users: React.FC = () => {
   };
 
   const handleDeactivateStaff = (emailVal: string) => {
-    setStaff(prev => prev.map(s => s.email === emailVal 
-      ? { ...s, status: s.status === 'Active' ? 'Inactive' : 'Active' } 
+    setStaff(prev => prev.map(s => s.email === emailVal
+      ? { ...s, status: s.status === 'Active' ? 'Inactive' : 'Active' }
       : s
     ));
   };
@@ -109,8 +115,8 @@ export const Users: React.FC = () => {
     if (!name || !email) return;
 
     if (editingEmail) {
-      setStaff(prev => prev.map(s => s.email === editingEmail 
-        ? { ...s, name, email, role, branch } 
+      setStaff(prev => prev.map(s => s.email === editingEmail
+        ? { ...s, name, email, role, branch }
         : s
       ));
     } else {
@@ -141,19 +147,19 @@ export const Users: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV}>
             Export CSV
           </Button>
-          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
-            <Plus size={16} /> Add Staff Account
+          <Button variant="primary" style={{ gap: '6px' }} onClick={() => navigate('/staff/new')}>
+            <Plus size={16} /> Add Staff
           </Button>
         </div>
       </div>
 
       {/* Search, Filter, Sort Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
-        <Input 
+        <Input
           label="Search"
-          placeholder="Search by name, email..." 
-          value={searchTerm} 
-          onChange={(e) => setSearchTerm(e.target.value)} 
+          placeholder="Search by name, email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
         <Select
           label="Role"
@@ -178,8 +184,12 @@ export const Users: React.FC = () => {
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
           options={[
-            { value: 'name', label: 'Staff Name' },
-            { value: 'email', label: 'Email Address' }
+            { value: 'name', label: 'Name (A → Z)' },
+            { value: 'name-desc', label: 'Name (Z → A)' },
+            { value: 'email', label: 'Email (A → Z)' },
+            { value: 'role', label: 'Role' },
+            { value: 'branch', label: 'Branch' },
+            { value: 'status', label: 'Status' },
           ]}
         />
       </div>
@@ -214,10 +224,10 @@ export const Users: React.FC = () => {
                   <Button variant="secondary" size="sm" className="py-1" onClick={() => handleEditStaff(s)}>
                     Edit
                   </Button>
-                  <Button 
-                    variant={s.status === 'Active' ? 'danger' : 'primary'} 
-                    size="sm" 
-                    className="py-1" 
+                  <Button
+                    variant={s.status === 'Active' ? 'danger' : 'primary'}
+                    size="sm"
+                    className="py-1"
                     onClick={() => handleDeactivateStaff(s.email)}
                   >
                     {s.status === 'Active' ? 'Deactivate' : 'Activate'}
@@ -246,11 +256,10 @@ export const Users: React.FC = () => {
                   key={i}
                   type="button"
                   onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                    currentPage === i + 1
+                  className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${currentPage === i + 1
                       ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   {i + 1}
                 </button>
@@ -270,19 +279,19 @@ export const Users: React.FC = () => {
 
       {/* Creation Modal */}
       {showAddModal && (
-        <Modal 
-          isOpen={showAddModal} 
-          onClose={() => setShowAddModal(false)} 
+        <Modal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
           title={editingEmail ? `Edit Staff Profile: ${name}` : 'Create Staff Profile'}
         >
           <form onSubmit={handleFormSubmit} className="space-y-4">
             <Input label="Full Name" required placeholder="e.g. Mrs. Seema Deshpande" value={name} onChange={(e) => setName(e.target.value)} />
             <Input label="Email Address Login" type="email" required placeholder="seema@apexiit.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             <div className="grid grid-cols-2 gap-4">
-              <Select 
-                label="Primary Security Role" 
-                value={role} 
-                onChange={(e) => setRole(e.target.value)} 
+              <Select
+                label="Primary Security Role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
                 options={[
                   { value: 'SuperAdmin', label: 'Super Admin' },
                   { value: 'Admin', label: 'Admin Executive' },
@@ -291,10 +300,10 @@ export const Users: React.FC = () => {
                   { value: 'Finance', label: 'Finance Staff' }
                 ]}
               />
-              <Select 
-                label="Allotted Branch Office" 
-                value={branch} 
-                onChange={(e) => setBranch(e.target.value)} 
+              <Select
+                label="Allotted Branch Office"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
                 options={[
                   { value: 'Mumbai West', label: 'Mumbai West' },
                   { value: 'Pune Camp', label: 'Pune Camp' }

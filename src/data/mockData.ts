@@ -76,6 +76,7 @@ export interface Course {
   duration: string;
   batches?: string;
   programs: string[];
+  branches?: string[];
 }
 
 export interface Batch {
@@ -107,14 +108,102 @@ export interface Branch {
     ifsc: string;
     bankName: string;
   };
-  programs?: string[]; // E.g., ['JEE', 'NEET', 'Foundation']
+  programs?: string[];
+  altEmails?: string[];
+  defaultEmail?: string; // 'admin' | alt email string
 }
 
 export interface Staff {
-  name: string;
+  // Basic Info
+  id?: string;
+  employeeId?: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  name: string; // derived: firstName + lastName
+  gender?: string;
+  dob?: string;
+  bloodGroup?: string;
+  maritalStatus?: string;
+  aadhaar?: string;
+  pan?: string;
+  profilePhoto?: string;
+
+  // Contact
+  mobile: string;
+  alternateMobile?: string;
   email: string;
-  role: string;
-  branch: string;
+  personalEmail?: string;
+  currentAddress?: string;
+  permanentAddress?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pinCode?: string;
+
+  // Employment
+  employeeType?: 'Teaching' | 'Non-Teaching';
+  designation?: string;
+  department?: string;
+  joiningDate?: string;
+  employmentType?: 'Full-Time' | 'Part-Time' | 'Contract' | 'Visiting';
+  reportingManager?: string;
+  employmentStatus?: 'Active' | 'On Leave' | 'Resigned' | 'Terminated';
+  experience?: string;
+  qualification?: string;
+
+  // Branch & Role
+  branch: string; // primary branch (legacy compat)
+  primaryBranch?: string;
+  additionalBranches?: string[];
+  roles?: string[]; // multi-role
+  role: string; // primary role (legacy compat)
+  workingDays?: string[];
+  defaultShift?: string;
+
+  // Teacher Info (conditional on 'Teacher' role)
+  subjects?: string[];
+  coursesAssigned?: string[];
+  programsAssigned?: string[];
+  academicLevels?: string[];
+  preferredBatches?: string[];
+  maxLecturesPerDay?: number;
+  maxLecturesPerWeek?: number;
+  preferredWorkingHours?: string;
+  unavailableDays?: string[];
+  preferredBreakTime?: string;
+  teachingMode?: ('Online' | 'Offline' | 'Hybrid')[];
+  biometricMandatory?: boolean;
+
+  // Salary
+  salaryType?: 'Monthly' | 'Hourly' | 'Contract';
+  monthlySalary?: number;
+  hourlyRate?: number;
+  contractAmount?: number;
+  bankName?: string;
+  accountHolder?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  upiId?: string;
+  pfNumber?: string;
+  esicNumber?: string;
+  professionalTax?: boolean;
+  tdsApplicable?: boolean;
+
+  // System Access
+  createLogin?: boolean;
+  username?: string;
+  mobileLogin?: boolean;
+  tempPassword?: string;
+  permissionProfile?: string;
+  forcePasswordReset?: boolean;
+  mobileApp?: boolean;
+
+  // Emergency
+  emergencyContact?: string;
+  emergencyRelationship?: string;
+  emergencyMobile?: string;
+
   status: 'Active' | 'Inactive';
 }
 
@@ -187,10 +276,10 @@ export const INITIAL_STUDENTS: Student[] = [
 ];
 
 export const INITIAL_COURSES: Course[] = [
-  { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', programs: ['2 Year', '1 Year', 'Crash Course'] },
-  { name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', programs: ['1 Year', 'Repeater'] },
-  { name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', programs: ['2 Year', '1 Year'] },
-  { name: '8th Standard', code: '8TH-STD', duration: '1 Year', programs: ['8th std ICSE', '8th std State Board', '8th std CBSE'] }
+  { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', programs: ['2 Year', '1 Year', 'Crash Course'], branches: ['Mumbai West', 'Pune Camp', 'Delhi South'] },
+  { name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', programs: ['1 Year', 'Repeater'], branches: ['Mumbai West', 'Pune Camp'] },
+  { name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', programs: ['2 Year', '1 Year'], branches: ['Mumbai West', 'Delhi South'] },
+  { name: '8th Standard', code: '8TH-STD', duration: '1 Year', programs: ['8th std ICSE', '8th std State Board', '8th std CBSE'], branches: ['Pune Camp'] }
 ];
 
 export const INITIAL_BATCHES: Batch[] = [
@@ -231,9 +320,9 @@ export const INITIAL_BRANCHES: Branch[] = [
 ];
 
 export const INITIAL_STAFF: Staff[] = [
-  { name: 'Priya Sen', email: 'priya.counsel@apexiit.com', role: 'Counsellor', branch: 'Mumbai West', status: 'Active' },
-  { name: 'Prof. Arvind Kelkar', email: 'arvind.chem@apexiit.com', role: 'Teacher', branch: 'Mumbai West', status: 'Active' },
-  { name: 'Nitin Joshi', email: 'nitin.bills@apexiit.com', role: 'Finance', branch: 'Mumbai West', status: 'Active' }
+  { id: 'EMP-001', employeeId: 'EMP-001', firstName: 'Priya', lastName: 'Sen', name: 'Priya Sen', email: 'priya.counsel@apexiit.com', mobile: '9876500001', role: 'Counsellor', roles: ['Counsellor'], branch: 'Mumbai West', primaryBranch: 'Mumbai West', designation: 'Senior Counsellor', department: 'Admissions', employeeType: 'Non-Teaching', employmentType: 'Full-Time', employmentStatus: 'Active', joiningDate: '2024-06-01', status: 'Active' },
+  { id: 'EMP-002', employeeId: 'EMP-002', firstName: 'Arvind', lastName: 'Kelkar', name: 'Prof. Arvind Kelkar', email: 'arvind.chem@apexiit.com', mobile: '9876500002', role: 'Teacher', roles: ['Teacher', 'Academic Coordinator'], branch: 'Mumbai West', primaryBranch: 'Mumbai West', designation: 'Senior Physics Teacher', department: 'Academics', employeeType: 'Teaching', employmentType: 'Full-Time', employmentStatus: 'Active', joiningDate: '2023-04-15', subjects: ['Physics (Mechanics)', 'Physics (Electromagnetism)'], coursesAssigned: ['JEE Prep Course'], status: 'Active' },
+  { id: 'EMP-003', employeeId: 'EMP-003', firstName: 'Nitin', lastName: 'Joshi', name: 'Nitin Joshi', email: 'nitin.bills@apexiit.com', mobile: '9876500003', role: 'Finance', roles: ['Finance'], branch: 'Mumbai West', primaryBranch: 'Mumbai West', designation: 'Accountant', department: 'Finance', employeeType: 'Non-Teaching', employmentType: 'Full-Time', employmentStatus: 'Active', joiningDate: '2024-01-10', status: 'Active' }
 ];
 
 export const INITIAL_DOUBTS: Doubt[] = [

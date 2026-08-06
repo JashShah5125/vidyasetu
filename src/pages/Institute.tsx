@@ -360,18 +360,40 @@ export const Institute: React.FC = () => {
                         <p className="font-bold text-sm text-slate-800">Custom Domain</p>
                         <p className="text-xs text-slate-500 mt-0.5">e.g. portal.yourinstitute.com</p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${myPlan?.branding.customDomain ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                        {myPlan?.branding.customDomain ? 'Enabled' : 'Disabled'}
-                      </span>
+                      {myPlan?.branding.customDomain ? (
+                        <span className="text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest bg-emerald-100 text-emerald-700">
+                          Enabled
+                        </span>
+                      ) : (
+                        <Button 
+                          type="button"
+                          variant="primary"
+                          style={{ backgroundColor: '#10b981', color: 'white', borderColor: '#10b981' }}
+                          onClick={() => navigate('/institute/upgrade')}
+                        >
+                          Upgrade to Unlock
+                        </Button>
+                      )}
                     </div>
                     <div className="flex items-center justify-between p-4 border border-slate-100 rounded-xl bg-slate-50/50">
                       <div>
                         <p className="font-bold text-sm text-slate-800">Custom Email Templates</p>
                         <p className="text-xs text-slate-500 mt-0.5">Send emails from your own domain</p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${myPlan?.branding.customEmailTemplates ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                        {myPlan?.branding.customEmailTemplates ? 'Enabled' : 'Disabled'}
-                      </span>
+                      {myPlan?.branding.customEmailTemplates ? (
+                        <span className="text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest bg-emerald-100 text-emerald-700">
+                          Enabled
+                        </span>
+                      ) : (
+                        <Button 
+                          type="button"
+                          variant="primary"
+                          style={{ backgroundColor: '#10b981', color: 'white', borderColor: '#10b981' }}
+                          onClick={() => navigate('/institute/upgrade')}
+                        >
+                          Upgrade to Unlock
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -639,9 +661,19 @@ export const Institute: React.FC = () => {
           {activeTab === 'features' && myPlan && (
             <div className="space-y-6 animate-fade-in">
               <Card>
-                <div className="p-6 border-b border-slate-100">
-                  <h3 className="font-bold text-slate-800">Enabled Modules</h3>
-                  <p className="text-xs text-slate-500 mt-1">Features accessible to your institute based on the {myPlan.name} plan.</p>
+                <div className="p-6 border-b border-slate-100 flex items-start justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800">Enabled Modules</h3>
+                    <p className="text-xs text-slate-500 mt-1">Features accessible to your institute based on the {myPlan.name} plan.</p>
+                  </div>
+                  <Button 
+                    type="button"
+                    variant="primary"
+                    style={{ backgroundColor: '#10b981', color: 'white', borderColor: '#10b981' }}
+                    onClick={() => navigate('/institute/upgrade')}
+                  >
+                    Upgrade to Unlock
+                  </Button>
                 </div>
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(
@@ -662,7 +694,7 @@ export const Institute: React.FC = () => {
                           ) : (
                             <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 flex-shrink-0" />
                           )}
-                          <span className={`text-sm ${item.enabled ? 'text-slate-800 font-semibold' : 'text-slate-400 line-through'}`}>{item.label}</span>
+                          <span className={`text-sm ${item.enabled ? 'text-slate-800 font-semibold' : 'text-slate-400'}`}>{item.label}</span>
                         </div>
                       ))}
                     </div>
