@@ -734,25 +734,36 @@ export const INITIAL_SUBJECTS_MAP: Record<string, any[]> = {
 
 export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {
   '8TH-STD-8th std ICSE-class8': [
-    { id: 'b1', name: 'Core Subjects Bundle', fee: 50000, subjectIds: ['s1', 's2', 's3'] },
-    { id: 'b2', name: 'Full Package (with IT)', fee: 55000, subjectIds: ['s1', 's2', 's3', 's4'] }
+    { id: 'b1', name: 'Core Subjects Bundle', fee: 50000, subjectIds: ['s1', 's2', 's3'], downPayment: 10000, months: 10, installment: 4000 },
+    { id: 'b2', name: 'Full Package (with IT)', fee: 55000, subjectIds: ['s1', 's2', 's3', 's4'], downPayment: 10000, months: 9, installment: 5000 }
   ],
   '8TH-STD-8th std CBSE-class8': [
-    { id: 'b3', name: 'CBSE Standard Pack', fee: 55000, subjectIds: ['s5', 's6', 's7', 's8'] }
+    { id: 'b3', name: 'CBSE Standard Pack', fee: 55000, subjectIds: ['s5', 's6', 's7', 's8'], downPayment: 10000, months: 9, installment: 5000 }
   ],
   'JEE-PREP-2 Year-year1': [
-    { id: 'b4', name: 'PCM Complete (11th)', fee: 110000, subjectIds: ['j1', 'j2', 'j3'] }
+    { id: 'b4', name: 'PCM Complete (11th)', fee: 110000, subjectIds: ['j1', 'j2', 'j3'], downPayment: 20000, months: 10, installment: 9000 },
+    { id: 'b4-adv', name: 'PCM Advanced Pro (11th)', fee: 125000, subjectIds: ['j1', 'j2', 'j3', 'j7'], downPayment: 25000, months: 10, installment: 10000 }
   ],
   'JEE-PREP-2 Year-year2': [
-    { id: 'b5', name: 'PCM Complete (12th)', fee: 125000, subjectIds: ['j4', 'j5', 'j6'] },
-    { id: 'b6', name: 'PCM + Mock Tests', fee: 135000, subjectIds: ['j4', 'j5', 'j6', 'j7'] }
+    { id: 'b5', name: 'PCM Complete (12th)', fee: 125000, subjectIds: ['j4', 'j5', 'j6'], downPayment: 25000, months: 10, installment: 10000 },
+    { id: 'b6', name: 'PCM + Mock Tests', fee: 135000, subjectIds: ['j4', 'j5', 'j6', 'j7'], downPayment: 25000, months: 11, installment: 10000 }
+  ],
+  'JEE-PREP-1 Year-year1': [
+    { id: 'b10', name: 'PCM Crash Prep (12th)', fee: 110000, subjectIds: ['j4', 'j5', 'j6'], downPayment: 20000, months: 9, installment: 10000 }
   ],
   'NEET-PREM-1 Year-year1': [
-    { id: 'b7', name: 'PCB Foundation', fee: 110000, subjectIds: ['n1', 'n2', 'n3', 'n4'] },
-    { id: 'b8', name: 'Biology Only (Bot+Zoo)', fee: 45000, subjectIds: ['n3', 'n4'] }
+    { id: 'b7', name: 'PCB Foundation', fee: 110000, subjectIds: ['n1', 'n2', 'n3', 'n4'], downPayment: 20000, months: 10, installment: 9000 },
+    { id: 'b8', name: 'Biology Only (Bot+Zoo)', fee: 45000, subjectIds: ['n3', 'n4'], downPayment: 15000, months: 6, installment: 5000 },
+    { id: 'b7-pro', name: 'PCB Ultimate (with Tests)', fee: 130000, subjectIds: ['n1', 'n2', 'n3', 'n4', 'j7'], downPayment: 30000, months: 10, installment: 10000 }
+  ],
+  'NEET-PREM-Repeater-year1': [
+    { id: 'b11', name: 'NEET Repeater Batch', fee: 95000, subjectIds: ['n1', 'n2', 'n3', 'n4'], downPayment: 25000, months: 7, installment: 10000 }
   ],
   'FOUND-10-2 Year-year1': [
-    { id: 'b9', name: 'NTSE Prep Combo', fee: 75000, subjectIds: ['f1', 'f2', 'f3'] }
+    { id: 'b9', name: 'NTSE Prep Combo', fee: 75000, subjectIds: ['f1', 'f2', 'f3'], downPayment: 15000, months: 10, installment: 6000 }
+  ],
+  'FOUND-10-1 Year-year1': [
+    { id: 'b12', name: '10th Boards Express', fee: 45000, subjectIds: ['f1', 'f2'], downPayment: 10000, months: 7, installment: 5000 }
   ]
 };
 
@@ -769,4 +780,27 @@ export interface ExamItem {
 export const INITIAL_EXAMS: ExamItem[] = [
   { name: 'Periodic Chemistry Evaluation Test #3', batch: 'JEE-Morning-A1', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 35 } },
   { name: 'Physics Mechanics Weekly Quiz #2', batch: 'JEE-Evening-B1', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2604': 38, 'STU-MUM-2605': 18 } }
+];
+
+export interface FeePlan {
+  id: string;
+  course: string;
+  program: string;
+  totalFees: number;
+  downPayment: number;
+  months: number;
+  installment: number;
+}
+
+export const INITIAL_FEE_PLANS: FeePlan[] = [
+  { id: 'FP-01', course: 'JEE Prep Course', program: '2 Year', totalFees: 200000, downPayment: 40000, months: 12, installment: 13333 },
+  { id: 'FP-02', course: 'JEE Prep Course', program: '1 Year', totalFees: 120000, downPayment: 30000, months: 10, installment: 9000 },
+  { id: 'FP-03', course: 'JEE Prep Course', program: 'Crash Course', totalFees: 40000, downPayment: 40000, months: 1, installment: 0 },
+  { id: 'FP-04', course: 'NEET Batch Premium', program: '1 Year', totalFees: 150000, downPayment: 50000, months: 10, installment: 10000 },
+  { id: 'FP-05', course: 'NEET Batch Premium', program: 'Repeater', totalFees: 100000, downPayment: 40000, months: 6, installment: 10000 },
+  { id: 'FP-06', course: 'Class 10 Foundation', program: '2 Year', totalFees: 80000, downPayment: 20000, months: 10, installment: 6000 },
+  { id: 'FP-07', course: 'Class 10 Foundation', program: '1 Year', totalFees: 45000, downPayment: 15000, months: 6, installment: 5000 },
+  { id: 'FP-08', course: '8th Standard', program: '8th std ICSE', totalFees: 60000, downPayment: 10000, months: 10, installment: 5000 },
+  { id: 'FP-09', course: '8th Standard', program: '8th std CBSE', totalFees: 55000, downPayment: 10000, months: 9, installment: 5000 },
+  { id: 'FP-10', course: '8th Standard', program: '8th std State Board', totalFees: 40000, downPayment: 8000, months: 8, installment: 4000 },
 ];

@@ -111,6 +111,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [enrollType,  setEnrollType]  = useState('Standard');
   const [feeInstall,  setFeeInstall]  = useState('Full Payment');
   const [feeSelectedStandard, setFeeSelectedStandard] = useState('');
+  const [feeMonths, setFeeMonths] = useState(12);
+  const [feeInstallment, setFeeInstallment] = useState(0);
   const [feeSelectedBundle, setFeeSelectedBundle] = useState('');
   const [feeSelectedSubjects, setFeeSelectedSubjects] = useState<string[]>([]);
 
@@ -135,8 +137,13 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       if (selected) {
         setFeeTotal(selected.totalFees);
         setFeePaid(selected.downPayment);
+        setFeeMonths(selected.months);
+        setFeeInstallment(selected.installment);
       } else {
         setFeeTotal(courseObj.fees || 0);
+        setFeePaid(0);
+        setFeeMonths(12);
+        setFeeInstallment(0);
       }
     } else if (enrollType === 'Custom Combo') {
       const bundles = customBundles.filter(b => b.category === mapKey);
@@ -148,6 +155,19 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       setFeeTotal(total);
     }
   }, [enrollType, fCourse, fProgram, fLevel, feeSelectedBundle, feeSelectedSubjects, feeSelectedStandard, plans, customBundles, subjectsData]);
+
+  // Recalculate installment when manually editing fees or months
+  useEffect(() => {
+    if (['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType)) {
+      const netFee = feeTotal - feeDiscount;
+      const outstanding = netFee - feePaid;
+      if (feeMonths > 0 && outstanding > 0) {
+        setFeeInstallment(Math.round(outstanding / feeMonths));
+      } else {
+        setFeeInstallment(0);
+      }
+    }
+  }, [feeTotal, feeDiscount, feePaid, feeMonths, enrollType]);
 
   // ── pagination ──
   const [page, setPage] = useState(1);
@@ -511,18 +531,110 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     ))}
                   </div>
                   
+                  {enrollType === 'Standard' && (() => {
+                    const availablePrograms = [...new Set(plans.filter(p => p.course === fCourse).map(p => p.program))];
+                    const selectedPlan = plans.find(p => p.id === feeSelectedStandard);
+                    
+                    return (
+                      <div className="mt-4 space-y-4 animate-fade-in">
+                        <Select label="Select Program" value={fProgram} onChange={e => {
+                          setFProgram(e.target.value);
+                          setFeeSelectedStandard(''); 
+                        }} options={[
+                          { value: '', label: 'Choose Program...' },
+                          ...availablePrograms.map((prog: any) => ({ value: prog, label: prog }))
+                        ]} />
+
+                        {fProgram && (() => {
+                           const progPlans = plans.filter(p => p.course === fCourse && p.program === fProgram);
+                           if (progPlans.length === 0) return <div className="text-sm text-amber-600 mt-2">No standard plans configured for this course/program in Fees Master.</div>;
+                           return (
+                             <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} options={[
+                               { value: '', label: 'Choose a plan...' },
+                               ...progPlans.map((p: any) => ({ value: p.id, label: `${p.program} Base Plan` }))
+                             ]} />
+                           );
+                        })()}
+
+                        {selectedPlan && (
+                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
+                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
+                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.totalFees.toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.downPayment.toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
+                                <div className="text-lg font-bold text-slate-800">{selectedPlan.months} Months</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.installment.toLocaleString()} / mo</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {enrollType === 'Custom Combo' && (() => {
                     const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
                     if (!courseObj) return null;
                     const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
-                    const bundles = INITIAL_BUNDLES_MAP[mapKey] || [];
-                    if (bundles.length === 0) return <div className="text-sm text-red-500">No bundles configured for this course/program.</div>;
+                    const bundles = customBundles.filter((b: any) => b.category === mapKey);
+                    const selectedBundle = bundles.find((b: any) => b.id === feeSelectedBundle);
+                    const availablePrograms = courseObj.programs || [];
+                    const availableLevels = [...new Set(customBundles.filter(b => b.courseName === fCourse && b.programDetails === fProgram).map(b => b.levelDetails))];
+                    
                     return (
-                      <div className="mt-4">
-                        <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
-                          { value: '', label: 'Choose a bundle...' },
-                          ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
-                        ]} />
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
+                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
+                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
+                        </div>
+                        {bundles.length === 0 ? (
+                          <div className="text-sm text-amber-600 mt-2">No bundles configured for this course/program.</div>
+                        ) : (
+                          <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
+                            { value: '', label: 'Choose a bundle...' },
+                            ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
+                          ]} />
+                        )}
+
+                        {selectedBundle && (
+                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
+                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
+                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.fee || 0).toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.downPayment || 0).toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
+                                <div className="text-lg font-bold text-slate-800">{selectedBundle.months || 0} Months</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.installment || 0).toLocaleString()} / mo</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -532,51 +644,120 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     if (!courseObj) return null;
                     const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
                     const subjects = INITIAL_SUBJECTS_MAP[mapKey] || [];
-                    if (subjects.length === 0) return <div className="text-sm text-red-500">No subjects configured for this course/program.</div>;
+                    const availablePrograms = courseObj.programs || [];
+                    // For subjects, levels are derived from INITIAL_SUBJECTS_MAP keys
+                    const availableLevels = [...new Set(Object.keys(INITIAL_SUBJECTS_MAP).filter(k => k.startsWith(`${courseObj.code}-${fProgram}-`)).map(k => k.split('-').slice(-1)[0]))];
+                    
+                    const subjectSum = subjects.filter((s: any) => feeSelectedSubjects.includes(s.id)).reduce((acc: number, s: any) => acc + (s.fee || 0), 0);
+
                     return (
-                      <div className="mt-4 space-y-2">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {subjects.map((s: any) => (
-                            <label key={s.id} className="flex items-center gap-2">
-                              <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
-                                if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
-                                else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
-                              }} />
-                              <span className="text-sm text-slate-700">{s.name} (₹{(s.fee || 0).toLocaleString()})</span>
-                            </label>
-                          ))}
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
+                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
+                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
                         </div>
+
+                        {subjects.length === 0 ? (
+                          <div className="text-sm text-red-500">No subjects configured for this course/program.</div>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {subjects.map((s: any) => (
+                                <label key={s.id} className="flex items-center gap-2">
+                                  <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
+                                    if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
+                                    else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
+                                  }} className="w-4 h-4 text-blue-600 rounded border-slate-300" />
+                                  <span className="text-sm text-slate-700">{s.name} <span className="font-semibold text-emerald-600">(₹{(s.fee || 0).toLocaleString()})</span></span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {feeSelectedSubjects.length > 0 && (
+                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
+                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Subject Fees</div>
+                                <div className="text-lg font-bold text-slate-800">₹{subjectSum.toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Selected Subjects</div>
+                                <div className="text-lg font-bold text-slate-800">{feeSelectedSubjects.length}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Downpayment</div>
+                                <div className="text-lg font-bold text-slate-500">N/A</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Months</div>
+                                <div className="text-lg font-bold text-slate-500">N/A</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
                 </div>
 
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Fee Structure</h4>
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Customize Fee Structure</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input label="Base Course Fee (₹)" type="number" value={feeTotal} onChange={e => setFeeTotal(Number(e.target.value))} />
-                    <Input label="Discount / Scholarship (₹)" type="number" value={feeDiscount} onChange={e => setFeeDiscount(Number(e.target.value))} />
-                    <Input label="Initial Deposit (₹)" type="number" value={feePaid} onChange={e => setFeePaid(Number(e.target.value))} />
+                    <Input label="Overall Fees (₹)" type="number" value={feeTotal.toString()} onChange={e => setFeeTotal(Number(e.target.value))} />
+                    <Input label="Discount (₹)" type="number" value={feeDiscount.toString()} onChange={e => setFeeDiscount(Number(e.target.value))} />
+                    <Input label="Downpayment Amount (₹)" type="number" value={feePaid.toString()} onChange={e => setFeePaid(Number(e.target.value))} />
+                    {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
+                      <>
+                        <Input label="No. of Months" type="number" value={feeMonths.toString()} onChange={e => setFeeMonths(Number(e.target.value))} />
+                        <Input label="Monthly Installment (₹)" type="number" value={feeInstallment.toString()} onChange={e => setFeeInstallment(Number(e.target.value))} />
+                      </>
+                    )}
                   </div>
-                  <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
-                    { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
-                    { value: '2 Installments', label: '2 Equal Installments' },
-                    { value: '3 Installments', label: '3 Quarterly Installments' },
-                    { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
-                  ]} />
-                  <div className="grid grid-cols-3 gap-3 mt-4">
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Discounted Fee</div>
-                      <div className="text-lg font-bold text-slate-800">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
-                    </div>
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Initial Deposit</div>
-                      <div className="text-lg font-bold text-emerald-600">₹{feePaid.toLocaleString()}</div>
-                    </div>
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Outstanding</div>
-                      <div className={`text-lg font-bold ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
+                  {!['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
+                    <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
+                      { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
+                      { value: '2 Installments', label: '2 Equal Installments' },
+                      { value: '3 Installments', label: '3 Quarterly Installments' },
+                      { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
+                    ]} />
+                  )}
+                  <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl shadow-md mt-6">
+                    <h5 className="text-sm font-bold text-emerald-800 uppercase tracking-wide mb-4 flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-emerald-600" /> Final Summary
+                    </h5>
+                    <div className={`grid ${['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-6`}>
+                      <div>
+                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Discounted Fee</div>
+                        <div className="text-xl font-black text-slate-900">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">{['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'Downpayment' : 'Initial Deposit'}</div>
+                        <div className="text-xl font-black text-emerald-700">₹{feePaid.toLocaleString()}</div>
+                      </div>
+                      {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? (
+                        <>
+                          <div>
+                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">No. of Months</div>
+                            <div className="text-xl font-black text-slate-900">{feeMonths} Months</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Monthly Amount</div>
+                            <div className="text-xl font-black text-slate-900">₹{feeInstallment.toLocaleString()} <span className="text-sm font-semibold text-slate-500">/ mo</span></div>
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Outstanding</div>
+                          <div className={`text-xl font-black ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -802,87 +983,227 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </div>
                   
                   {enrollType === 'Standard' && (() => {
-                    if (!fProgram) return <div className="text-sm text-amber-600 mt-2">Please select a Program above to view available standard plans.</div>;
-                    const availablePlans = plans.filter(p => p.course === fCourse && p.program === fProgram);
-                    if (availablePlans.length === 0) return <div className="text-sm text-amber-600 mt-2">No standard plans configured for this course/program in Fees Master.</div>;
+                    const selectedPlan = plans.find(p => p.id === feeSelectedStandard);
+                    const progPlans = plans.filter(p => p.course === fCourse && p.program === fProgram);
+
                     return (
-                      <div className="mt-4">
-                        <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} options={[
-                          { value: '', label: 'Choose a plan...' },
-                          ...availablePlans.map((p: any) => ({ value: p.id, label: `Base Plan - ₹${(p.totalFees||0).toLocaleString()}` }))
-                        ]} />
+                      <div className="mt-4 space-y-4 animate-fade-in">
+                        {fProgram ? (
+                          <>
+                            {progPlans.length === 0 ? (
+                              <div className="text-sm text-amber-600 mt-2">No standard plans configured for this course/program in Fees Master.</div>
+                            ) : (
+                              <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} options={[
+                                { value: '', label: 'Choose a plan...' },
+                                ...progPlans.map((p: any) => ({ value: p.id, label: `${p.program} Base Plan` }))
+                              ]} />
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-sm text-amber-600 mt-2">Please select a Program in Academic Context above to view Standard plans.</div>
+                        )}
+
+                        {selectedPlan && (
+                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
+                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
+                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.totalFees.toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.downPayment.toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
+                                <div className="text-lg font-bold text-slate-800">{selectedPlan.months} Months</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.installment.toLocaleString()} / mo</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
 
                   {enrollType === 'Custom Combo' && (() => {
-                    if (!fProgram || !fLevel) return <div className="text-sm text-amber-600 mt-2">Please select both a Program and Level above.</div>;
                     const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
                     if (!courseObj) return null;
                     const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
                     const bundles = customBundles.filter((b: any) => b.category === mapKey);
-                    if (bundles.length === 0) return <div className="text-sm text-amber-600 mt-2">No bundles configured for this course/program in Fees Master.</div>;
+                    const selectedBundle = bundles.find((b: any) => b.id === feeSelectedBundle);
+                    const availablePrograms = courseObj.programs || [];
+                    const availableLevels = [...new Set(customBundles.filter(b => b.courseName === fCourse && b.programDetails === fProgram).map(b => b.levelDetails))];
+
                     return (
-                      <div className="mt-4">
-                        <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
-                          { value: '', label: 'Choose a bundle...' },
-                          ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
-                        ]} />
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
+                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
+                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
+                        </div>
+                        {bundles.length === 0 ? (
+                          <div className="text-sm text-amber-600 mt-2">No bundles configured for this course/program in Fees Master.</div>
+                        ) : (
+                          <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
+                            { value: '', label: 'Choose a bundle...' },
+                            ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
+                          ]} />
+                        )}
+
+                        {selectedBundle && (
+                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
+                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
+                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.fee || 0).toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.downPayment || 0).toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
+                                <div className="text-lg font-bold text-slate-800">{selectedBundle.months || 0} Months</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
+                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.installment || 0).toLocaleString()} / mo</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
 
                   {enrollType === 'Subject-wise' && (() => {
-                    if (!fProgram || !fLevel) return <div className="text-sm text-amber-600 mt-2">Please select both a Program and Level above.</div>;
                     const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
                     if (!courseObj) return null;
                     const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
                     const subjects = subjectsData.filter((s: any) => s.category === mapKey);
-                    if (subjects.length === 0) return <div className="text-sm text-amber-600 mt-2">No subjects configured for this course/program in Fees Master.</div>;
+                    const availablePrograms = courseObj.programs || [];
+                    const availableLevels = [...new Set(subjectsData.filter((s: any) => s.category.startsWith(`${courseObj.code}-${fProgram}-`)).map((s: any) => s.category.split('-').slice(-1)[0]))];
+                    
+                    const subjectSum = subjects.filter((s: any) => feeSelectedSubjects.includes(s.id)).reduce((acc: number, s: any) => acc + (s.fee || 0), 0);
+
                     return (
-                      <div className="mt-4 space-y-2">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {subjects.map((s: any) => (
-                            <label key={s.id} className="flex items-center gap-2">
-                              <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
-                                if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
-                                else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
-                              }} className="w-4 h-4 text-blue-600 rounded border-slate-300" />
-                              <span className="text-sm text-slate-700">{s.name} <span className="font-semibold text-emerald-600">(₹{(s.fee || 0).toLocaleString()})</span></span>
-                            </label>
-                          ))}
+                      <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
+                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
+                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
                         </div>
+
+                        {subjects.length === 0 ? (
+                          <div className="text-sm text-amber-600 mt-2">No subjects configured for this course/program in Fees Master.</div>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {subjects.map((s: any) => (
+                                <label key={s.id} className="flex items-center gap-2">
+                                  <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
+                                    if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
+                                    else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
+                                  }} className="w-4 h-4 text-blue-600 rounded border-slate-300" />
+                                  <span className="text-sm text-slate-700">{s.name} <span className="font-semibold text-emerald-600">(₹{(s.fee || 0).toLocaleString()})</span></span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {feeSelectedSubjects.length > 0 && (
+                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
+                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Subject Fees</div>
+                                <div className="text-lg font-bold text-slate-800">₹{subjectSum.toLocaleString()}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Selected Subjects</div>
+                                <div className="text-lg font-bold text-slate-800">{feeSelectedSubjects.length}</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Downpayment</div>
+                                <div className="text-lg font-bold text-slate-500">N/A</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Months</div>
+                                <div className="text-lg font-bold text-slate-500">N/A</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
                 </div>
 
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Fee Structure</h4>
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Customize Fee Structure</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input label="Base Course Fee (₹)" type="number" value={feeTotal} onChange={e => setFeeTotal(Number(e.target.value))} />
-                    <Input label="Discount / Scholarship (₹)" type="number" value={feeDiscount} onChange={e => setFeeDiscount(Number(e.target.value))} />
-                    <Input label="Initial Deposit (₹)" type="number" value={feePaid} onChange={e => setFeePaid(Number(e.target.value))} />
+                    <Input label="Overall Fees (₹)" type="number" value={feeTotal.toString()} onChange={e => setFeeTotal(Number(e.target.value))} />
+                    <Input label="Discount (₹)" type="number" value={feeDiscount.toString()} onChange={e => setFeeDiscount(Number(e.target.value))} />
+                    <Input label="Downpayment Amount (₹)" type="number" value={feePaid.toString()} onChange={e => setFeePaid(Number(e.target.value))} />
+                    {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
+                      <>
+                        <Input label="No. of Months" type="number" value={feeMonths.toString()} onChange={e => setFeeMonths(Number(e.target.value))} />
+                        <Input label="Monthly Installment (₹)" type="number" value={feeInstallment.toString()} onChange={e => setFeeInstallment(Number(e.target.value))} />
+                      </>
+                    )}
                   </div>
-                  <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
-                    { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
-                    { value: '2 Installments', label: '2 Equal Installments' },
-                    { value: '3 Installments', label: '3 Quarterly Installments' },
-                    { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
-                  ]} />
-                  <div className="grid grid-cols-3 gap-3 mt-4">
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Discounted Fee</div>
-                      <div className="text-lg font-bold text-slate-800">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
-                    </div>
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Initial Deposit</div>
-                      <div className="text-lg font-bold text-emerald-600">₹{feePaid.toLocaleString()}</div>
-                    </div>
-                    <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                      <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Outstanding</div>
-                      <div className={`text-lg font-bold ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
+                  {!['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
+                    <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
+                      { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
+                      { value: '2 Installments', label: '2 Equal Installments' },
+                      { value: '3 Installments', label: '3 Quarterly Installments' },
+                      { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
+                    ]} />
+                  )}
+                  <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl shadow-md mt-6">
+                    <h5 className="text-sm font-bold text-emerald-800 uppercase tracking-wide mb-4 flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-emerald-600" /> Final Summary
+                    </h5>
+                    <div className={`grid ${['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-6`}>
+                      <div>
+                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Discounted Fee</div>
+                        <div className="text-xl font-black text-slate-900">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">{['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'Downpayment' : 'Initial Deposit'}</div>
+                        <div className="text-xl font-black text-emerald-700">₹{feePaid.toLocaleString()}</div>
+                      </div>
+                      {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? (
+                        <>
+                          <div>
+                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">No. of Months</div>
+                            <div className="text-xl font-black text-slate-900">{feeMonths} Months</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Monthly Amount</div>
+                            <div className="text-xl font-black text-slate-900">₹{feeInstallment.toLocaleString()} <span className="text-sm font-semibold text-slate-500">/ mo</span></div>
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Outstanding</div>
+                          <div className={`text-xl font-black ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

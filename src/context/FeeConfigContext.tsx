@@ -1,15 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../data/mockData';
-
-export interface FeePlan {
-  id: string;
-  course: string;
-  program: string;
-  totalFees: number;
-  downPayment: number;
-  months: number;
-  installment: number;
-}
+import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP, INITIAL_FEE_PLANS } from '../data/mockData';
+import type { FeePlan } from '../data/mockData';
+export type { FeePlan };
 
 export interface CustomBundle {
   id: string;
@@ -19,6 +11,9 @@ export interface CustomBundle {
   levelDetails: string;
   category: string;
   fee: number;
+  downPayment?: number;
+  months?: number;
+  installment?: number;
 }
 
 export interface SubjectFee {
@@ -43,10 +38,7 @@ const FeeConfigContext = createContext<FeeConfigContextType | undefined>(undefin
 
 export const FeeConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // 1. Standard Plans
-  const [plans, setPlans] = useState<FeePlan[]>([
-    { id: '1', course: 'JEE Prep Course', program: '2 Year', totalFees: 150000, downPayment: 30000, months: 12, installment: 10000 },
-    { id: '2', course: 'NEET Batch Premium', program: '1 Year', totalFees: 120000, downPayment: 40000, months: 8, installment: 10000 }
-  ]);
+  const [plans, setPlans] = useState<FeePlan[]>(INITIAL_FEE_PLANS);
 
   // 2. Custom Bundles
   const [customBundles, setCustomBundles] = useState<CustomBundle[]>(() => {
@@ -71,8 +63,19 @@ export const FeeConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
         }
       }
 
-      bundles.forEach(b => {
-        list.push({ ...b, category, courseName, programDetails, levelDetails });
+      bundles.forEach((b: any) => {
+        list.push({
+          id: b.id,
+          name: b.name,
+          courseName,
+          programDetails,
+          levelDetails,
+          category,
+          fee: b.fee || 0,
+          downPayment: b.downPayment || 0,
+          months: b.months || 0,
+          installment: b.installment || 0
+        });
       });
     });
     return list;
