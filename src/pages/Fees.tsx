@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -13,7 +13,12 @@ interface FeesProps {
 }
 
 export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
-  const { students, recordPayment } = useApp();
+  const { students: allStudents, recordPayment, currentUser } = useApp();
+  const students = useMemo(() => {
+    return currentUser?.role === 'branch-admin'
+      ? allStudents.filter(s => s.branch === currentUser.branch)
+      : allStudents;
+  }, [allStudents, currentUser]);
   const [subTab, setSubTab] = useState<'record' | 'defaulters'>(initialTab);
   const [studentId, setStudentId] = useState(students[0]?.id || '');
   const [amount, setAmount] = useState(10000);

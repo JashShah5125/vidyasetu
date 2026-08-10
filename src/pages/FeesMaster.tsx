@@ -6,11 +6,12 @@ import { Select } from '../components/ui/Select';
 import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useFeeConfig, type FeePlan } from '../context/FeeConfigContext';
 import { Modal } from '../components/ui/Modal';
-import { Save, Calculator, Plus, ArrowLeft, Edit2 } from 'lucide-react';
-
-
+import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 export const FeesMaster: React.FC = () => {
+  const { currentUser } = useApp();
+  const isReadOnly = currentUser?.role === 'branch-admin';
   const [activeMainTab, setActiveMainTab] = useState<'full-course' | 'custom-bundles' | 'subject-wise'>('full-course');
   const [view, setView] = useState<'list' | 'form'>('list');
   const { plans, setPlans, customBundles, setCustomBundles, subjectsData, setSubjectsData } = useFeeConfig();
@@ -70,6 +71,7 @@ export const FeesMaster: React.FC = () => {
         id: Math.random().toString(36).substring(7),
         ...bundleForm,
         levelDetails: '-',
+        category: bundleForm.courseName || 'Custom',
         fee: Number(bundleForm.fee)
       };
       setCustomBundles(prev => [...prev, newBundle]);
@@ -185,18 +187,25 @@ export const FeesMaster: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
+      {isReadOnly && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify fee structures in Fees Master.
+        </div>
+      )}
+      <fieldset disabled={isReadOnly} className="contents">
+        <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Fees Master</h2>
           <p className="text-sm text-slate-500 mt-1">Configure full package payments and standard installment plans.</p>
         </div>
-        {activeMainTab === 'full-course' && view === 'list' && (
+        {activeMainTab === 'full-course' && view === 'list' && !isReadOnly && (
           <Button variant="primary" onClick={() => setView('form')} className="flex items-center gap-2">
             <Plus size={16} /> Configure New Plan
           </Button>
         )}
-        {activeMainTab === 'custom-bundles' && (
+        {activeMainTab === 'custom-bundles' && !isReadOnly && (
           <Button variant="primary" onClick={() => handleOpenBundleModal()} className="flex items-center gap-2">
             <Plus size={16} /> Create Bundle Plan
           </Button>
@@ -594,6 +603,8 @@ export const FeesMaster: React.FC = () => {
             </div>
           </div>
         </Modal>
+      </div>
+      </fieldset>
     </div>
   );
 };

@@ -8,12 +8,12 @@ import { Layers, Plus, Search, Clock, BookOpen, Download, ArrowLeft } from 'luci
 import { Pagination } from '../components/ui/Pagination';
 
 export const BatchSetup: React.FC = () => {
-  const { batches, courses, branches } = useApp();
+  const { batches, courses, branches, currentUser } = useApp();
 
   // Local batch state since batches aren't managed via context mutations yet
   const [batchList, setBatchList] = useState(batches);
   const [search, setSearch] = useState('');
-  const [filterBranch, setFilterBranch] = useState('All');
+  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
@@ -38,12 +38,18 @@ export const BatchSetup: React.FC = () => {
   }, [courses]);
 
   const formBranchOptions = useMemo(() => {
+    if (currentUser?.role === 'branch-admin') {
+      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
+    }
     return branches.map(b => ({ value: b.name, label: b.name }));
-  }, [branches]);
+  }, [branches, currentUser]);
 
   const filterBranchOptions = useMemo(() => {
+    if (currentUser?.role === 'branch-admin') {
+      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
+    }
     return [{ value: 'All', label: 'All Branches' }, ...branches.map(b => ({ value: b.name, label: b.name }))];
-  }, [branches]);
+  }, [branches, currentUser]);
 
   const filterProgramOptions = useMemo(() => {
     if (filterCourse === 'All') return [{ value: 'All', label: 'All Programs' }];
@@ -95,7 +101,9 @@ export const BatchSetup: React.FC = () => {
       const matchSearch =
         b.name.toLowerCase().includes(search.toLowerCase()) ||
         (b.room || '').toLowerCase().includes(search.toLowerCase());
-      const matchBranch = filterBranch === 'All' || b.branch === filterBranch;
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? b.branch === currentUser.branch
+        : (filterBranch === 'All' || b.branch === filterBranch);
       const matchCourse = filterCourse === 'All' || b.course === filterCourse;
       const matchProgram = filterProgram === 'All' || b.program === filterProgram;
       const matchLevel = filterLevel === 'All' || b.level === filterLevel;
@@ -103,7 +111,7 @@ export const BatchSetup: React.FC = () => {
       return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
     });
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [batchList, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear]);
+  }, [batchList, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, currentUser]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -132,7 +140,7 @@ export const BatchSetup: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingIdx(null);
-    const initialBranch = branches[0]?.name || '';
+    const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch || '' : (branches[0]?.name || '');
     const initialCourse = courses[0]?.name || '';
     const initialProgram = courses[0]?.programs?.[0] || '';
     const initialLevel = deriveLevels(initialProgram)[0]?.value || '';
@@ -231,6 +239,7 @@ export const BatchSetup: React.FC = () => {
             options={formBranchOptions}
             value={form.branch}
             onChange={e => setForm(p => ({ ...p, branch: e.target.value }))}
+            disabled={currentUser?.role === 'branch-admin'}
           />
           <Input
             label="Batch Name"
@@ -354,6 +363,7 @@ export const BatchSetup: React.FC = () => {
             setFilterBranch(e.target.value);
             setCurrentPage(1);
           }}
+          disabled={currentUser?.role === 'branch-admin'}
         />
         <Select
           label="Course"

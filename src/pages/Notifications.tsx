@@ -6,9 +6,9 @@ import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 
 export const Notifications: React.FC = () => {
-  const { logAction, branches } = useApp();
+  const { logAction, branches, currentUser } = useApp();
   
-  const [audience, setAudience] = useState('all');
+  const [audience, setAudience] = useState(currentUser?.role === 'branch-admin' ? `branch-${currentUser.branch}` : 'all');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [schedule, setSchedule] = useState('');
@@ -26,18 +26,22 @@ export const Notifications: React.FC = () => {
     setSchedule('');
   };
 
-  const audienceOptions = [
-    { value: 'all', label: 'All' },
-    { value: 'students', label: 'Student Only' },
-    { value: 'parents', label: 'Parents Only' },
-    { value: 'teachers', label: 'Teachers / Faculty Only' },
-    { value: 'staff', label: 'All Staff / Employees' },
-    { value: 'admins', label: 'Admins Only' },
-    ...branches.map(b => ({
-      value: `branch-${b.name}`,
-      label: `${b.name} Branch Only`
-    }))
-  ];
+  const audienceOptions = currentUser?.role === 'branch-admin'
+    ? [
+        { value: `branch-${currentUser.branch}`, label: `${currentUser.branch} Branch Only` }
+      ]
+    : [
+        { value: 'all', label: 'All' },
+        { value: 'students', label: 'Student Only' },
+        { value: 'parents', label: 'Parents Only' },
+        { value: 'teachers', label: 'Teachers / Faculty Only' },
+        { value: 'staff', label: 'All Staff / Employees' },
+        { value: 'admins', label: 'Admins Only' },
+        ...branches.map(b => ({
+          value: `branch-${b.name}`,
+          label: `${b.name} Branch Only`
+        }))
+      ];
 
   return (
     <div className="space-y-4">
@@ -63,6 +67,7 @@ export const Notifications: React.FC = () => {
                 value={audience} 
                 onChange={(e) => setAudience(e.target.value)}
                 options={audienceOptions}
+                disabled={currentUser?.role === 'branch-admin'}
               />
               <Input 
                 label="Schedule Time (Leave blank for instant)" 

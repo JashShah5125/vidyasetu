@@ -82,18 +82,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
       case 'branch-admin':
         return [
           { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Students Roster', path: '/students', icon: GraduationCap },
-          { name: 'Leads & Admissions', path: '/leads', icon: Users },
+          { name: 'Institute Setup', path: '/institute', icon: Settings },
+          { name: 'Branches Manager', path: '/branches', icon: Building2 },
           { name: 'Courses', path: '/courses', icon: BookOpen },
           { name: 'Subject Management', path: '/subjects', icon: BookOpen },
           { name: 'Batch Management', path: '/batches', icon: Layers },
           { name: 'Fees Master', path: '/fees-master', icon: DollarSign },
           { name: 'Staff & Roles', path: '/staff', icon: ShieldCheck },
-          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
+          { name: 'Leads & Admissions', path: '/leads', icon: Users },
+          { name: 'Students Roster', path: '/students', icon: GraduationCap },
           { name: 'Record Fee', path: '/fees', icon: DollarSign },
           { name: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle },
+          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
           { name: 'Academic Timetable', path: '/timetable', icon: Calendar },
-          { name: 'Reports', path: '/reports', icon: ClipboardList }
+          { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
+          { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
+          { name: 'Reports', path: '/reports', icon: ClipboardList },
+          { name: 'Broadcast Notification', path: '/notifications', icon: Bell },
+          { name: 'Settings', path: '/settings', icon: Settings },
+          { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
         ];
       case 'counsellor':
         return [

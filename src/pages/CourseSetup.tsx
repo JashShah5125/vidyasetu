@@ -9,31 +9,37 @@ import { BookOpen, Plus, Search, ArrowRight, Download } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 
 export const CourseSetup: React.FC = () => {
-  const { courses, branches } = useApp();
+  const { courses, branches, currentUser } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
-  const [filterBranch, setFilterBranch] = useState('All');
+  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const branchOptions = useMemo(() => {
+    if (currentUser?.role === 'branch-admin') {
+      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
+    }
     return [
       { value: 'All', label: 'All Branches' },
       ...branches.map(b => ({ value: b.name, label: b.name }))
     ];
-  }, [branches]);
+  }, [branches, currentUser]);
 
   const filtered = useMemo(() => {
     const list = courses.filter(c => {
+      const isMyBranch = currentUser?.role === 'branch-admin'
+        ? (c.branches || []).includes(currentUser.branch || '')
+        : true;
       const matchSearch =
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.code.toLowerCase().includes(search.toLowerCase());
       const matchBranch = filterBranch === 'All' || (c.branches || []).includes(filterBranch);
-      return matchSearch && matchBranch;
+      return isMyBranch && matchSearch && matchBranch;
     });
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [courses, search, filterBranch]);
+  }, [courses, search, filterBranch, currentUser]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -67,13 +73,15 @@ export const CourseSetup: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => navigate('/courses/new')}
-            style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-          >
-            <Plus size={16} className="mr-2" /> Add New Course
-          </Button>
+          {currentUser?.role !== 'branch-admin' && (
+            <Button
+              variant="primary"
+              onClick={() => navigate('/courses/new')}
+              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+            >
+              <Plus size={16} className="mr-2" /> Add New Course
+            </Button>
+          )}
         </div>
       </div>
 
@@ -97,6 +105,7 @@ export const CourseSetup: React.FC = () => {
           options={branchOptions}
           value={filterBranch}
           onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
+          disabled={currentUser?.role === 'branch-admin'}
         />
       </div>
 

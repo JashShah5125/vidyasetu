@@ -6,7 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import {
-  ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle
+  ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle, ShieldAlert
 } from 'lucide-react';
 
 // ─── Data Shape ───────────────────────────────────────────────────────────────
@@ -214,9 +214,18 @@ const ProgramCard: React.FC<{
 export const CourseDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { courses, addToast } = useApp();
+  const { courses, addToast, currentUser } = useApp();
 
   const isNew = code === 'new';
+  const isReadOnly = currentUser?.role === 'branch-admin';
+
+  React.useEffect(() => {
+    if (currentUser?.role === 'branch-admin' && isNew) {
+      addToast('Access denied: Branch Admins cannot create courses.');
+      navigate('/courses');
+    }
+  }, [currentUser, isNew, navigate, addToast]);
+
   const seedKey = code && SEED_DATA[code] ? code : null;
 
   const [activeTab, setActiveTab] = useState<'general' | 'programs'>('general');
@@ -234,6 +243,11 @@ export const CourseDetail: React.FC = () => {
 
   return (
     <div className="w-full animate-fade-in">
+      {isReadOnly && (
+        <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify course setup.
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col gap-2 p-6 pb-0">
         <button
@@ -247,14 +261,18 @@ export const CourseDetail: React.FC = () => {
             {isNew ? 'Create New Course' : formData.name}
           </h2>
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => navigate('/courses')}>Cancel</Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              Save Course
+            <Button variant="secondary" onClick={() => navigate('/courses')}>
+              {isReadOnly ? 'Back' : 'Cancel'}
             </Button>
+            {!isReadOnly && (
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+              >
+                Save Course
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -280,8 +298,9 @@ export const CourseDetail: React.FC = () => {
         ))}
       </div>
 
-      {/* Tab Content */}
-      <div className="p-6 pt-6 space-y-6">
+      <fieldset disabled={isReadOnly} className="contents">
+        {/* Tab Content */}
+        <div className="p-6 pt-6 space-y-6">
 
         {/* ── General Info ── */}
         {activeTab === 'general' && (
@@ -360,22 +379,25 @@ export const CourseDetail: React.FC = () => {
             onClick={() => setActiveTab('programs')}
             style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
           >
-            Save & Next: Programs <ChevronLeft size={16} className="ml-2 rotate-180" />
+            {isReadOnly ? 'Next: Programs' : 'Save & Next: Programs'} <ChevronLeft size={16} className="ml-2 rotate-180" />
           </Button>
         )}
         {activeTab === 'programs' && (
           <>
             <Button variant="secondary" onClick={() => setActiveTab('general')}>Back</Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              Save Course
-            </Button>
+            {!isReadOnly && (
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+              >
+                Save Course
+              </Button>
+            )}
           </>
         )}
       </div>
+      </fieldset>
     </div>
   );
 };

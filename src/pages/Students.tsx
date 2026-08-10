@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -10,7 +10,12 @@ import { Select } from '../components/ui/Select';
 import type { Student } from '../data/mockData';
 
 export const Students: React.FC = () => {
-  const { students, addToast } = useApp();
+  const { students: allStudents, addToast, currentUser } = useApp();
+  const students = useMemo(() => {
+    return currentUser?.role === 'branch-admin'
+      ? allStudents.filter(s => s.branch === currentUser.branch)
+      : allStudents;
+  }, [allStudents, currentUser]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterBatch, setFilterBatch] = useState('All');

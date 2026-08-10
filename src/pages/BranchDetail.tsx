@@ -20,9 +20,18 @@ interface BranchCourseMapping {
 export const BranchDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { branches, setBranches, courses, addToast } = useApp();
+  const { branches, setBranches, courses, addToast, currentUser } = useApp();
   
   const isNew = id === 'new';
+  const isReadOnly = currentUser?.role === 'branch-admin';
+
+  useEffect(() => {
+    if (currentUser?.role === 'branch-admin' && isNew) {
+      addToast('Access denied: Branch Admins cannot create branches.');
+      navigate('/branches');
+    }
+  }, [currentUser, isNew, navigate, addToast]);
+
   const existingBranch = branches.find(b => b.id === id || b.code === id);
 
   const [activeTab, setActiveTab] = useState<'general' | 'admin' | 'courses' | 'operations'>('general');
@@ -149,6 +158,11 @@ export const BranchDetail: React.FC = () => {
 
   return (
     <div className="w-full animate-fade-in">
+      {isReadOnly && (
+        <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify branch parameters.
+        </div>
+      )}
       <div className="flex flex-col gap-2 p-6 pb-0">
         <button onClick={() => navigate('/branches')} className="text-sm font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 w-fit transition-colors">
           <ChevronLeft size={16} /> Back to Branches
@@ -158,10 +172,14 @@ export const BranchDetail: React.FC = () => {
             {isNew ? 'Create New Branch' : `Manage Branch: ${formData.name}`}
           </h2>
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => navigate('/branches')}>Cancel</Button>
-            <Button variant="primary" onClick={handleSave} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-              Save Branch Details
+            <Button variant="secondary" onClick={() => navigate('/branches')}>
+              {isReadOnly ? 'Back' : 'Cancel'}
             </Button>
+            {!isReadOnly && (
+              <Button variant="primary" onClick={handleSave} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+                Save Branch Details
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -180,7 +198,8 @@ export const BranchDetail: React.FC = () => {
         <button onClick={() => setActiveTab('operations')} className={tabClass('operations')}>Operations & Finance</button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 p-6 pt-6">
+      <fieldset disabled={isReadOnly} className="contents">
+        <div className="grid grid-cols-1 gap-6 p-6 pt-6">
 
         {/* GENERAL TAB */}
         {activeTab === 'general' && (
@@ -489,19 +508,20 @@ export const BranchDetail: React.FC = () => {
           </div>
         )}
       </div>
+      </fieldset>
 
       {/* Bottom navigation */}
       <div className="flex justify-end gap-3 p-6 pt-0 border-t border-slate-200 mt-6 pb-6">
         {activeTab === 'general' && (
           <Button variant="primary" onClick={() => setActiveTab('admin')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-            Save & Next <ChevronLeft size={16} className="ml-2 rotate-180" />
+            {isReadOnly ? 'Next' : 'Save & Next'} <ChevronLeft size={16} className="ml-2 rotate-180" />
           </Button>
         )}
         {activeTab === 'admin' && (
           <>
             <Button variant="secondary" onClick={() => setActiveTab('general')}>Back</Button>
             <Button variant="primary" onClick={() => setActiveTab('courses')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-              Save & Next <ChevronLeft size={16} className="ml-2 rotate-180" />
+              {isReadOnly ? 'Next' : 'Save & Next'} <ChevronLeft size={16} className="ml-2 rotate-180" />
             </Button>
           </>
         )}
@@ -509,16 +529,18 @@ export const BranchDetail: React.FC = () => {
           <>
             <Button variant="secondary" onClick={() => setActiveTab('admin')}>Back</Button>
             <Button variant="primary" onClick={() => setActiveTab('operations')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-              Save & Next <ChevronLeft size={16} className="ml-2 rotate-180" />
+              {isReadOnly ? 'Next' : 'Save & Next'} <ChevronLeft size={16} className="ml-2 rotate-180" />
             </Button>
           </>
         )}
         {activeTab === 'operations' && (
           <>
             <Button variant="secondary" onClick={() => setActiveTab('courses')}>Back</Button>
-            <Button variant="primary" onClick={handleSave} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-              Save Branch Details
-            </Button>
+            {!isReadOnly && (
+              <Button variant="primary" onClick={handleSave} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+                Save Branch Details
+              </Button>
+            )}
           </>
         )}
       </div>

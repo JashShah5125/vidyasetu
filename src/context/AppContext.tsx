@@ -536,7 +536,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addTenantSubscription,
       updateTenantSubscription,
       deleteTenantSubscription,
-      addLead: (name, mobile, course, source, remarks, assignedBranch?, preferredBranch?, status?) => addLead(name, mobile, course, source, remarks, assignedBranch, preferredBranch, status),
+      addLead,
       updateLead,
       addFollowup,
       convertLeadToStudent,

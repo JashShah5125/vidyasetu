@@ -496,11 +496,11 @@ export const SubscriptionPlans: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Plan Master</h2>
           <p className="text-sm text-slate-500 mt-1">Define plan templates — features, limits, billing. Tenants are assigned plans via <strong>Tenant Subscriptions</strong>.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Institute Filter:</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Institute Filter:</span>
             <select
-              className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition cursor-pointer"
+              className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-2.5 py-1 outline-none focus:border-blue-500 transition cursor-pointer"
               value={instituteFilter}
               onChange={(e) => setInstituteFilter(e.target.value)}
             >
@@ -510,8 +510,8 @@ export const SubscriptionPlans: React.FC = () => {
               ))}
             </select>
           </div>
-          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
-            <Plus size={16} /> Create Plan
+          <Button size="sm" variant="primary" style={{ gap: '4px' }} onClick={handleOpenAddModal}>
+            <Plus size={14} /> Create Plan
           </Button>
         </div>
       </div>
