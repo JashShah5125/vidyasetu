@@ -49,14 +49,9 @@ export const Login: React.FC = () => {
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-xl space-y-6">
         
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl mx-auto shadow-lg shadow-blue-500/20">
-            VS
-          </div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">
-            Vidya Setu
-          </h2>
-          <p className="text-sm text-slate-500">
+        <div className="text-center space-y-3">
+          <img src="/logo.png" alt="Vidya Setu Logo" className="h-28 mx-auto object-contain" />
+          <p className="text-sm text-slate-500 font-semibold">
             Multi-Tenant Coaching Management Platform
           </p>
         </div>

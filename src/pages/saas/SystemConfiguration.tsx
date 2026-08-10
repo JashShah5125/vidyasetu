@@ -43,9 +43,9 @@ export const SystemConfiguration: React.FC = () => {
   const [passwordMinLength, setPasswordMinLength] = useState('8');
 
   // RBAC State
-  const [selectedRole, setSelectedRole] = useState<'regional_admin' | 'branch_admin' | 'teacher' | 'counsellor' | 'finance'>('regional_admin');
+  const [selectedRole, setSelectedRole] = useState<'institute_admin' | 'branch_admin' | 'teacher' | 'counsellor' | 'finance'>('institute_admin');
   const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
-    regional_admin: {
+    institute_admin: {
       'View Dashboard': true, 'Export Dashboard Data': true,
       'View Programs': true, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
       'View Sessions': true, 'Create Sessions': true, 'Edit Sessions': true, 'Delete Sessions': true, 'Approve Sessions': true, 'Edit Session Links': false,
@@ -116,7 +116,7 @@ export const SystemConfiguration: React.FC = () => {
   ] as const;
 
   const rolesList = [
-    { id: 'regional_admin', label: 'Regional Admin', desc: 'Region-level administration and setups' },
+    { id: 'institute_admin', label: 'Institute Admin', desc: 'Institute-level administration and setups' },
     { id: 'branch_admin', label: 'Branch Admin', desc: 'Branch operations and registrations' },
     { id: 'teacher', label: 'Teacher', desc: 'Schedules and doubt clearance' },
     { id: 'counsellor', label: 'Counsellor', desc: 'Lead pipeline and enquiry logs' },
