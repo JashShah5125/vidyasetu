@@ -41,7 +41,7 @@ export const Settings: React.FC = () => {
               <CardTitle>Personal User Profile Details</CardTitle>
             </CardHeader>
             <div className="space-y-4">
-              <Input label="Display Name" defaultValue={currentUser.name} />
+              <Input label="Name" defaultValue={currentUser.name} />
               <Input label="Email Address" defaultValue={currentUser.email} readOnly />
               <div className="flex justify-end">
                 <Button variant="primary" onClick={handleProfileSave}>

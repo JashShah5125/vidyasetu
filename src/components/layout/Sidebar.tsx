@@ -47,142 +47,231 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
   if (!currentUser) return null;
 
-  const getSidebarLinks = (role: string) => {
+  interface SidebarSection {
+    title?: string;
+    links: {
+      name: string;
+      label: string;
+      path: string;
+      icon: any;
+      badge?: number;
+    }[];
+  }
+
+  const getSidebarSections = (role: string): SidebarSection[] => {
     switch (role) {
       case 'saas-admin':
         return [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Tenants Manager', path: '/tenants', icon: Building2 },
-          { name: 'Plan Master', path: '/plans', icon: CreditCard },
-          { name: 'Tenant Subscriptions', path: '/tenant-subscriptions', icon: FileText },
-          { name: 'Global Providers', path: '/providers', icon: Settings },
-          { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Tenant Management',
+            links: [{ name: 'Tenants Manager', label: 'Tenants', path: '/tenants', icon: Building2 }]
+          },
+          {
+            title: 'Subscription Management',
+            links: [
+              { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard },
+              { name: 'Tenant Subscriptions', label: 'Tenant Subscriptions', path: '/tenant-subscriptions', icon: FileText }
+            ]
+          },
+          {
+            title: 'Platform',
+            links: [
+              { name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare },
+              { name: 'Module Management', label: 'Module Management', path: '/modules', icon: BookOpen }
+            ]
+          },
+          {
+            title: 'Operations',
+            links: [
+              { name: 'Approval Center', label: 'Approval Center', path: '/approvals', icon: CheckSquare },
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 },
+              { name: 'Communication', label: 'Communication', path: '/communication', icon: MessageSquare }
+            ]
+          },
+          {
+            title: 'Business',
+            links: [
+              { name: 'Billing & Revenue', label: 'Billing & Revenue', path: '/billing', icon: DollarSign },
+              { name: 'SaaS Reports', label: 'Reports', path: '/saas-reports', icon: ClipboardList },
+              { name: 'Product Analytics', label: 'Product Analytics', path: '/analytics', icon: BarChart3 }
+            ]
+          },
+          {
+            title: 'System',
+            links: [
+              { name: 'Global Providers', label: 'Integrations', path: '/providers', icon: Settings },
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
+              { name: 'System Configuration', label: 'System Configuration', path: '/system-config', icon: Settings }
+            ]
+          },
+          {
+            title: 'Support Desk',
+            links: [{ name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }]
+          }
         ];
+
       case 'inst-admin':
         return [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Institute Setup', path: '/institute', icon: Settings },
-          { name: 'Branches Manager', path: '/branches', icon: Building2 },
-          { name: 'Courses', path: '/courses', icon: BookOpen },
-          { name: 'Subject Management', path: '/subjects', icon: BookOpen },
-          { name: 'Batch Management', path: '/batches', icon: Layers },
-          { name: 'Fees Master', path: '/fees-master', icon: DollarSign },
-          { name: 'Staff & Roles', path: '/staff', icon: ShieldCheck },
-          { name: 'Leads & Admissions', path: '/leads', icon: Users },
-          { name: 'Students Roster', path: '/students', icon: GraduationCap },
-          { name: 'Record Fee', path: '/fees', icon: DollarSign },
-          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
-          { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
-          { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
-          { name: 'Reports', path: '/reports', icon: ClipboardList },
-          { name: 'Broadcast Notification', path: '/notifications', icon: Bell },
-          { name: 'Settings', path: '/settings', icon: Settings },
-          { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Core Academics',
+            links: [
+              { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subject Setup', path: '/subjects', icon: BookOpen },
+              { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers }
+            ]
+          },
+          {
+            title: 'ERP & Admissions',
+            links: [
+              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/leads', icon: Users },
+              { name: 'Students Roster', label: 'Students Roster', path: '/students', icon: GraduationCap },
+              { name: 'Staff & Roles', label: 'Staff Directory', path: '/staff', icon: ShieldCheck }
+            ]
+          },
+          {
+            title: 'Finance Hub',
+            links: [
+              { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
+              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign }
+            ]
+          },
+          {
+            title: 'Classroom Operations',
+            links: [
+              { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
+              { name: 'Exam Grading', label: 'Evaluations & Grading', path: '/exams', icon: ClipboardList }
+            ]
+          },
+          {
+            title: 'Reports & Auditing',
+            links: [
+              { name: 'Reports', label: 'Performance Reports', path: '/reports', icon: BarChart3 },
+              { name: 'Broadcast Notification', label: 'Broadcast Campaign', path: '/notifications', icon: Bell },
+              { name: 'Audit Logs', label: 'Audit Trail Logs', path: '/audit-logs', icon: ClipboardList }
+            ]
+          },
+          {
+            title: 'Organization Setup',
+            links: [
+              { name: 'Institute Setup', label: 'Institute Profile', path: '/institute', icon: Settings },
+              { name: 'Branches Manager', label: 'Branches Setup', path: '/branches', icon: Building2 },
+              { name: 'Settings', label: 'Global Settings', path: '/settings', icon: Settings }
+            ]
+          }
         ];
+
       case 'branch-admin':
         return [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Institute Setup', path: '/institute', icon: Settings },
-          { name: 'Branches Manager', path: '/branches', icon: Building2 },
-          { name: 'Courses', path: '/courses', icon: BookOpen },
-          { name: 'Subject Management', path: '/subjects', icon: BookOpen },
-          { name: 'Batch Management', path: '/batches', icon: Layers },
-          { name: 'Fees Master', path: '/fees-master', icon: DollarSign },
-          { name: 'Staff & Roles', path: '/staff', icon: ShieldCheck },
-          { name: 'Leads & Admissions', path: '/leads', icon: Users },
-          { name: 'Students Roster', path: '/students', icon: GraduationCap },
-          { name: 'Record Fee', path: '/fees', icon: DollarSign },
-          { name: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle },
-          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
-          { name: 'Academic Timetable', path: '/timetable', icon: Calendar },
-          { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
-          { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
-          { name: 'Reports', path: '/reports', icon: ClipboardList },
-          { name: 'Broadcast Notification', path: '/notifications', icon: Bell },
-          { name: 'Settings', path: '/settings', icon: Settings },
-          { name: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Core Academics',
+            links: [
+              { name: 'Courses', label: 'Courses Offered', path: '/courses', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subject Syllabus', path: '/subjects', icon: BookOpen },
+              { name: 'Batch Management', label: 'Batches list', path: '/batches', icon: Layers }
+            ]
+          },
+          {
+            title: 'ERP & Admissions',
+            links: [
+              { name: 'Leads & Admissions', label: 'Leads Pipeline', path: '/leads', icon: Users },
+              { name: 'Students Roster', label: 'Student Records', path: '/students', icon: GraduationCap },
+              { name: 'Staff & Roles', label: 'Staff Scopes', path: '/staff', icon: ShieldCheck }
+            ]
+          },
+          {
+            title: 'Finance Hub',
+            links: [
+              { name: 'Fees Master', label: 'Fees Config (View)', path: '/fees-master', icon: DollarSign },
+              { name: 'Record Fee', label: 'Fee Transactions', path: '/fees', icon: DollarSign },
+              { name: 'Defaulters Ledger', label: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle }
+            ]
+          },
+          {
+            title: 'Classroom Operations',
+            links: [
+              { name: 'Mark Attendance', label: 'Class Attendance', path: '/attendance', icon: CheckSquare },
+              { name: 'Academic Timetable', label: 'Timetable Schedule', path: '/timetable', icon: Calendar },
+              { name: 'Assignment and Exams', label: 'Home Assignments', path: '/assignments', icon: BookOpen },
+              { name: 'Exam Grading', label: 'Grades & Grading', path: '/exams', icon: ClipboardList }
+            ]
+          },
+          {
+            title: 'Reports & Auditing',
+            links: [
+              { name: 'Reports', label: 'Branch Reports', path: '/reports', icon: BarChart3 },
+              { name: 'Broadcast Notification', label: 'Circular Broadcasts', path: '/notifications', icon: Bell },
+              { name: 'Audit Logs', label: 'Branch Audit Logs', path: '/audit-logs', icon: ClipboardList }
+            ]
+          },
+          {
+            title: 'Organization Setup',
+            links: [
+              { name: 'Institute Setup', label: 'Institute Details', path: '/institute', icon: Settings },
+              { name: 'Branches Manager', label: 'Branch Details', path: '/branches', icon: Building2 },
+              { name: 'Settings', label: 'Personal Settings', path: '/settings', icon: Settings }
+            ]
+          }
         ];
+
       case 'counsellor':
         return [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Leads & Admissions', path: '/leads', icon: Users }
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'ERP & Admissions',
+            links: [
+              { name: 'Leads & Admissions', label: 'Leads & Admissions', path: '/leads', icon: Users }
+            ]
+          }
         ];
+
       case 'teacher':
         return [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'My Schedule', path: '/my-schedule', icon: Calendar },
-          { name: 'Mark Attendance', path: '/attendance', icon: CheckSquare },
-          { name: 'Assignment and Exams', path: '/assignments', icon: BookOpen },
-          { name: 'Exam Grading', path: '/exams', icon: ClipboardList },
-          { name: 'Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Classroom Operations',
+            links: [
+              { name: 'My Schedule', label: 'Academic Schedule', path: '/my-schedule', icon: Calendar },
+              { name: 'Mark Attendance', label: 'Roll Call Attendance', path: '/attendance', icon: CheckSquare },
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
+              { name: 'Exam Grading', label: 'Grades Entry', path: '/exams', icon: ClipboardList }
+            ]
+          },
+          {
+            title: 'Communication',
+            links: [
+              { name: 'Doubt Chats', label: 'Student Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
+            ]
+          }
         ];
+
       case 'finance':
         return [
-          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-          { name: 'Record Fee', path: '/fees', icon: DollarSign },
-          { name: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle },
-          { name: 'Reports', path: '/reports', icon: ClipboardList }
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Finance Hub',
+            links: [
+              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
+              { name: 'Defaulters Ledger', label: 'Dues & Defaulters', path: '/defaulters', icon: AlertTriangle }
+            ]
+          },
+          {
+            title: 'Analytics',
+            links: [
+              { name: 'Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
+            ]
+          }
         ];
+
       default:
         return [];
     }
   };
 
-  const saasAdminSections: {
-    title?: string;
-    links: { name: string; label: string; path: string; icon: any; badge?: number }[];
-  }[] = [
-    { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
-    {
-      title: 'Tenant Management',
-      links: [{ name: 'Tenants Manager', label: 'Tenants', path: '/tenants', icon: Building2 }]
-    },
-    {
-      title: 'Subscription Management',
-      links: [
-        { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard },
-        { name: 'Tenant Subscriptions', label: 'Tenant Subscriptions', path: '/tenant-subscriptions', icon: FileText }
-      ]
-    },
-    {
-      title: 'Platform',
-      links: [
-        { name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare },
-        { name: 'Module Management', label: 'Module Management', path: '/modules', icon: BookOpen }
-      ]
-    },
-    {
-      title: 'Operations',
-      links: [
-        { name: 'Approval Center', label: 'Approval Center', path: '/approvals', icon: CheckSquare },
-        { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 },
-        { name: 'Communication', label: 'Communication', path: '/communication', icon: MessageSquare }
-      ]
-    },
-    {
-      title: 'Business',
-      links: [
-        { name: 'Billing & Revenue', label: 'Billing & Revenue', path: '/billing', icon: DollarSign },
-        { name: 'SaaS Reports', label: 'Reports', path: '/saas-reports', icon: ClipboardList },
-        { name: 'Product Analytics', label: 'Product Analytics', path: '/analytics', icon: BarChart3 }
-      ]
-    },
-    {
-      title: 'System',
-      links: [
-        { name: 'Global Providers', label: 'Integrations', path: '/providers', icon: Settings },
-        { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
-        { name: 'System Configuration', label: 'System Configuration', path: '/system-config', icon: Settings }
-      ]
-    },
-    {
-      title: 'Support Desk',
-      links: [{ name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }]
-    }
-  ];
-
-  const links = getSidebarLinks(currentUser.role);
-  const isSaasAdmin = currentUser.role === 'saas-admin';
+  const sections = getSidebarSections(currentUser.role);
 
   // Render a single nav item — works in both expanded and collapsed mode
   const NavItem = ({
@@ -291,8 +380,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           title={isCollapsed ? 'Expand sidebar' : undefined}
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-blue-500/20 flex-shrink-0">
-              VS
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0 overflow-hidden p-0.5 shadow-sm">
+              <img src="/logo.png" alt="Logo" className="object-contain w-full h-full" />
             </div>
             <span
               className={`font-display font-bold text-xl text-white tracking-tight whitespace-nowrap transition-opacity duration-300 ${
@@ -318,41 +407,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
         {/* Nav links */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5">
-          {isSaasAdmin ? (
-            saasAdminSections.map((section, sIdx) => (
-              <div key={sIdx}>
-                {/* Section heading */}
-                {section.title && (
-                  <div className={`transition-all duration-200 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 pt-3 pb-1 border-t border-slate-800/50">
-                      {section.title}
-                    </div>
+          {sections.map((section, sIdx) => (
+            <div key={sIdx}>
+              {/* Section heading */}
+              {section.title && (
+                <div className={`transition-all duration-200 overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 pt-3 pb-1 border-t border-slate-800/50">
+                    {section.title}
                   </div>
-                )}
-                {section.title && isCollapsed && sIdx > 0 && (
-                  <div className="my-2 border-t border-slate-800/50 mx-2" />
-                )}
-                <div className="space-y-0.5">
-                  {section.links.map((link, idx) => (
-                    <NavItem key={idx} path={link.path} icon={link.icon} label={link.label} badge={link.badge} />
-                  ))}
-                </div>
-              </div>
-            ))
-          ) : (
-            <>
-              {!isCollapsed && (
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2">
-                  Management Desk
                 </div>
               )}
+              {section.title && isCollapsed && sIdx > 0 && (
+                <div className="my-2 border-t border-slate-800/50 mx-2" />
+              )}
               <div className="space-y-0.5">
-                {links.map((link: any, idx) => (
-                  <NavItem key={idx} path={link.path} icon={link.icon} label={link.name} badge={link.badge} />
+                {section.links.map((link, idx) => (
+                  <NavItem key={idx} path={link.path} icon={link.icon} label={link.label} badge={link.badge} />
                 ))}
               </div>
-            </>
-          )}
+            </div>
+          ))}
         </div>
 
         {/* Footer */}
