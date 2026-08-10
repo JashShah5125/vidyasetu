@@ -31,7 +31,6 @@ export const TenantSubscriptions: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [sortBy, setSortBy] = useState('tenantName');
 
   // Form state – Tenant
   const [tenantId, setTenantId] = useState('');
@@ -185,12 +184,7 @@ export const TenantSubscriptions: React.FC = () => {
       const matchStatus = filterStatus === 'All' || sub.status === filterStatus;
       return matchSearch && matchPlan && matchStatus;
     })
-    .sort((a, b) => {
-      if (sortBy === 'tenantName') return a.tenantName.localeCompare(b.tenantName);
-      if (sortBy === 'planName') return a.planName.localeCompare(b.planName);
-      if (sortBy === 'startDate') return a.startDate.localeCompare(b.startDate);
-      return 0;
-    });
+    .sort((a, b) => a.tenantName.localeCompare(b.tenantName));
 
   const handleExportCSV = () => {
     if (filteredAndSortedSubs.length === 0) return;
@@ -402,18 +396,6 @@ export const TenantSubscriptions: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Active Subscriptions</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
-            >
-              <option value="tenantName">Tenant Name</option>
-              <option value="planName">Plan Name</option>
-              <option value="startDate">Start Date</option>
-            </select>
-          </div>
         </CardHeader>
         <Table headers={['Tenant', 'Plan', 'Billing Cycle', 'Start Date', 'Expiry Date', 'Price', 'Status', 'Payment Status', 'Overrides', 'Actions']}>
           {(() => {

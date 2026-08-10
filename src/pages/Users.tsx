@@ -18,7 +18,6 @@ export const Users: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
   const [filterBranch, setFilterBranch] = useState('All');
-  const [sortBy, setSortBy] = useState('name');
 
   const uniqueRoles = Array.from(new Set(staff.map(s => s.role)));
   const uniqueBranches = Array.from(new Set(staff.map(s => s.branch)));
@@ -31,15 +30,7 @@ export const Users: React.FC = () => {
       const matchBranch = filterBranch === 'All' || s.branch === filterBranch;
       return matchSearch && matchRole && matchBranch;
     })
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'email') return a.email.localeCompare(b.email);
-      if (sortBy === 'role') return a.role.localeCompare(b.role);
-      if (sortBy === 'branch') return a.branch.localeCompare(b.branch);
-      if (sortBy === 'status') return a.status.localeCompare(b.status);
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExportCSV = () => {
     const dataToExport = filteredAndSortedStaff.map(s => ({
@@ -248,21 +239,6 @@ export const Users: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Institute Faculty & Counsel Staff</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
-            >
-              <option value="name">Name (A → Z)</option>
-              <option value="name-desc">Name (Z → A)</option>
-              <option value="email">Email (A → Z)</option>
-              <option value="role">Role</option>
-              <option value="branch">Branch</option>
-              <option value="status">Status</option>
-            </select>
-          </div>
         </CardHeader>
         <Table headers={['Staff Name', 'Email Address', 'Security Role', 'Primary Branch', 'Status', 'Actions']}>
           {paginatedStaff.map((s, idx) => (

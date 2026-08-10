@@ -322,6 +322,204 @@ const ScrollToTop = () => {
     window.scrollTo(0, 0);
   }, [pathname]);
 
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl as HTMLInputElement).type === 'number') {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      document.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
+  useEffect(() => {
+    const ensureHeadersHaveIcons = () => {
+      const tables = document.querySelectorAll('table');
+      tables.forEach(table => {
+        const ths = table.querySelectorAll('th');
+        ths.forEach(sibling => {
+          const thText = sibling.textContent?.trim().toLowerCase() || '';
+          if (thText === 'actions' || thText === 'action' || thText === 'options') return;
+
+          let icon = sibling.querySelector('.sort-icon');
+          if (!icon) {
+            const span = document.createElement('span');
+            span.className = 'sort-icon ml-1.5 inline-block text-slate-300 text-[10px] font-bold shrink-0';
+            span.innerHTML = ' ⇅';
+            sibling.appendChild(span);
+          }
+        });
+      });
+    };
+
+    // Run immediately and setup fast interval scan
+    ensureHeadersHaveIcons();
+    const interval = setInterval(ensureHeadersHaveIcons, 100);
+
+    const handleTableClick = (e: MouseEvent) => {
+      const th = (e.target as HTMLElement).closest('th');
+      if (!th) return;
+
+      const table = th.closest('table');
+      if (!table) return;
+
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+
+      const ths = Array.from(th.parentElement?.children || []) as HTMLElement[];
+      const colIndex = ths.indexOf(th);
+      if (colIndex === -1) return;
+
+      // Prevent sorting on actions/button columns
+      const thText = th.textContent?.trim().toLowerCase() || '';
+      if (thText === 'actions' || thText === 'action' || thText === 'options') return;
+
+      // Determine sort direction
+      const currentSort = th.getAttribute('data-sort-dir');
+      const nextSort = currentSort === 'asc' ? 'desc' : 'asc';
+
+      // Set sort attribute on clicked header
+      th.setAttribute('data-sort-dir', nextSort);
+
+      // Update indicators for all headers
+      ths.forEach(sibling => {
+        const sibText = sibling.textContent?.trim().toLowerCase() || '';
+        if (sibText === 'actions' || sibText === 'action' || sibText === 'options') return;
+
+        let icon = sibling.querySelector('.sort-icon');
+        if (!icon) {
+          const span = document.createElement('span');
+          span.className = 'sort-icon ml-1.5 inline-block text-slate-300 text-[10px] font-bold shrink-0';
+          sibling.appendChild(span);
+          icon = span;
+        }
+
+        if (sibling === th) {
+          icon.className = 'sort-icon ml-1.5 inline-block text-blue-600 font-bold shrink-0';
+          icon.innerHTML = nextSort === 'asc' ? ' ↑' : ' ↓';
+        } else {
+          sibling.removeAttribute('data-sort-dir');
+          icon.className = 'sort-icon ml-1.5 inline-block text-slate-300 font-bold shrink-0';
+          icon.innerHTML = ' ⇅';
+        }
+      });
+
+      // Get rows
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      if (rows.length === 0) return;
+
+      // ── Intelligent column-type detection & sorting ──
+
+      const getCleanVal = (tr: HTMLTableRowElement, idx: number): string => {
+        const cell = tr.children[idx];
+        if (!cell) return '';
+        const input = cell.querySelector('input, select') as HTMLInputElement | HTMLSelectElement;
+        if (input && input.value !== undefined) return input.value;
+        return cell.textContent?.trim() || '';
+      };
+
+      // ── Type detection helpers ──
+
+      // Date patterns: "2024-01-15", "15 Jan 2024", "Jan 15, 2024", "01/15/2024", "15/01/2024", "15-01-2024"
+      const datePatterns = [
+        /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/,                            // 2024-01-15
+        /^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}$/,                          // 15/01/2024 or 01-15-24
+        /^\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*[,]?\s+\d{2,4}$/i, // 15 Jan 2024
+        /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}[,]?\s+\d{2,4}$/i, // Jan 15, 2024
+      ];
+      const isDateLike = (val: string): boolean => {
+        if (!val) return false;
+        const clean = val.trim();
+        return datePatterns.some(p => p.test(clean));
+      };
+      const parseDate = (val: string): number => {
+        if (!val) return 0;
+        const d = new Date(val.replace(/(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})/, (_m, a, b, c) => {
+          // Try to handle DD/MM/YYYY vs MM/DD/YYYY intelligently
+          const year = c.length === 2 ? '20' + c : c;
+          // If first part > 12, it's DD/MM/YYYY
+          if (Number(a) > 12) return `${year}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`;
+          // If second part > 12, it's MM/DD/YYYY
+          if (Number(b) > 12) return `${year}-${a.padStart(2, '0')}-${b.padStart(2, '0')}`;
+          // Default: MM/DD/YYYY (US format fallback)
+          return `${year}-${a.padStart(2, '0')}-${b.padStart(2, '0')}`;
+        }));
+        const ts = d.getTime();
+        return isNaN(ts) ? 0 : ts;
+      };
+
+      // Number patterns: "₹1,23,456", "Rs. 1,500", "$100", "95%", "1,234.56", plain digits
+      const isNumericLike = (val: string): boolean => {
+        if (!val) return false;
+        const stripped = val.replace(/[₹$€£,\s%]|rs\.?/gi, '').trim();
+        if (stripped === '' || stripped === '-' || stripped === '.') return false;
+        return !isNaN(Number(stripped));
+      };
+      const parseNumeric = (val: string): number => {
+        if (!val) return 0;
+        const stripped = val.replace(/[₹$€£,\s%]|rs\.?/gi, '').trim();
+        const n = Number(stripped);
+        return isNaN(n) ? 0 : n;
+      };
+
+      // ── Determine column type by sampling all non-empty values ──
+      const sampleVals = rows.map(r => getCleanVal(r, colIndex)).filter(v => v !== '' && v !== '-' && v !== '—');
+
+      let colType: 'date' | 'number' | 'text' = 'text';
+      if (sampleVals.length > 0) {
+        const dateCount = sampleVals.filter(isDateLike).length;
+        const numCount = sampleVals.filter(isNumericLike).length;
+        const threshold = sampleVals.length * 0.5; // >50% of values must match
+
+        if (dateCount >= threshold && dateCount >= numCount) {
+          colType = 'date';
+        } else if (numCount >= threshold) {
+          colType = 'number';
+        }
+      }
+
+      // ── Sort using the detected type ──
+      rows.sort((a, b) => {
+        const aRaw = getCleanVal(a, colIndex);
+        const bRaw = getCleanVal(b, colIndex);
+
+        // Push empty values to the bottom regardless of direction
+        if (!aRaw && bRaw) return 1;
+        if (aRaw && !bRaw) return -1;
+        if (!aRaw && !bRaw) return 0;
+
+        let cmp = 0;
+
+        if (colType === 'date') {
+          const aTs = parseDate(aRaw);
+          const bTs = parseDate(bRaw);
+          cmp = aTs - bTs;
+        } else if (colType === 'number') {
+          const aNum = parseNumeric(aRaw);
+          const bNum = parseNumeric(bRaw);
+          cmp = aNum - bNum;
+        } else {
+          // Text: locale-aware alphabetical comparison
+          cmp = aRaw.localeCompare(bRaw, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        return nextSort === 'asc' ? cmp : -cmp;
+      });
+
+      // Re-append sorted rows
+      rows.forEach(row => tbody.appendChild(row));
+    };
+
+    document.addEventListener('click', handleTableClick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('click', handleTableClick);
+    };
+  }, []);
+
   return null;
 };
 

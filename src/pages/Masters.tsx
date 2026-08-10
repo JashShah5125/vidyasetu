@@ -34,7 +34,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
   const itemsPerPage = 3;
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name');
 
   const [subjects] = useState([
     { name: 'Organic Chemistry', department: 'Chemistry Department', batches: 'JEE-Morning-A, NEET-Regular-B' },
@@ -154,35 +153,19 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
 
   const filteredAndSortedBranches = branches
     .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()) || b.code.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'code') return a.code.localeCompare(b.code);
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedCourses = courses
     .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'code') return a.code.localeCompare(b.code);
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedBatches = batches
     .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()) || b.course.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'course') return a.course.localeCompare(b.course);
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedSubjects = subjects
     .filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.department.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'department') return a.department.localeCompare(b.department);
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExportCSV = () => {
     let dataToExport: any[] = [];
@@ -302,23 +285,12 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
       </div>
 
       {/* Search, Filter, Sort Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+      <div className="flex bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm">
         <Input 
           placeholder={`Search ${subTab}...`} 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
-          wrapperClassName="sm:col-span-2"
-        />
-        <Select
-          label="Sort By"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          options={[
-            { value: 'name', label: `Name (${subTab})` },
-            ...(subTab === 'branches' || subTab === 'courses' ? [{ value: 'code', label: 'Code' }] : []),
-            ...(subTab === 'batches' ? [{ value: 'course', label: 'Course' }] : []),
-            ...(subTab === 'subjects' ? [{ value: 'department', label: 'Department' }] : [])
-          ]}
+          wrapperClassName="w-full"
         />
       </div>
 

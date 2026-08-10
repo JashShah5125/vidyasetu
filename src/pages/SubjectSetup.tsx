@@ -19,15 +19,6 @@ export const SubjectSetup: React.FC = () => {
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
-  const [sortBy, setSortBy] = useState('name-asc');
-
-  const sortOptions = [
-    { value: 'name-asc', label: 'Name (A → Z)' },
-    { value: 'name-desc', label: 'Name (Z → A)' },
-    { value: 'code-asc', label: 'Code (A → Z)' },
-    { value: 'type', label: 'Type' },
-    { value: 'course-asc', label: 'Course (A → Z)' },
-  ];
 
   // Pagination State
   const [subjPage, setSubjPage] = useState(1);
@@ -136,15 +127,8 @@ export const SubjectSetup: React.FC = () => {
       const matchLevel = filterLevel === 'All' || s.levelValue === filterLevel;
       return matchSearch && matchCourse && matchProgram && matchLevel;
     });
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'code-asc') return a.code.localeCompare(b.code);
-      if (sortBy === 'type') return (a.type || '').localeCompare(b.type || '');
-      if (sortBy === 'course-asc') return a.courseName.localeCompare(b.courseName);
-      return 0;
-    });
-  }, [flatSubjects, search, filterCourse, filterProgram, filterLevel, sortBy]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [flatSubjects, search, filterCourse, filterProgram, filterLevel]);
 
   const filteredBundles = useMemo(() => {
     const list = flatBundles.filter(b => {
@@ -154,13 +138,8 @@ export const SubjectSetup: React.FC = () => {
       const matchLevel = filterLevel === 'All' || b.levelValue === filterLevel;
       return matchSearch && matchCourse && matchProgram && matchLevel;
     });
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'course-asc') return a.courseName.localeCompare(b.courseName);
-      return 0;
-    });
-  }, [flatBundles, search, filterCourse, filterProgram, filterLevel, sortBy]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [flatBundles, search, filterCourse, filterProgram, filterLevel]);
 
   // Pagination Data
   const subjTotalPages = Math.max(1, Math.ceil(filteredSubjects.length / subjPageSize));
@@ -610,12 +589,6 @@ export const SubjectSetup: React.FC = () => {
           value={filterLevel}
           onChange={(e) => setFilterLevel(e.target.value)}
           disabled={filterProgram === 'All'}
-        />
-        <Select
-          label="Sort By"
-          options={sortOptions}
-          value={sortBy}
-          onChange={e => { setSortBy(e.target.value); setSubjPage(1); setBunPage(1); }}
         />
       </div>
 

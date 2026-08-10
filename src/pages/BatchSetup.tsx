@@ -23,16 +23,6 @@ export const BatchSetup: React.FC = () => {
   const [form, setForm] = useState({ name: '', branch: '', course: '', program: '', level: '', academicYear: '', startTime: '', endTime: '', room: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortBy, setSortBy] = useState('name-asc');
-
-  const sortOptions = [
-    { value: 'name-asc', label: 'Batch Name (A → Z)' },
-    { value: 'name-desc', label: 'Batch Name (Z → A)' },
-    { value: 'course-asc', label: 'Course (A → Z)' },
-    { value: 'year-desc', label: 'Academic Year (Newest)' },
-    { value: 'year-asc', label: 'Academic Year (Oldest)' },
-    { value: 'room-asc', label: 'Room (A → Z)' },
-  ];
 
   const ACADEMIC_YEARS = ['2023-24', '2024-25', '2025-26', '2026-27', '2027-28'];
 
@@ -112,16 +102,8 @@ export const BatchSetup: React.FC = () => {
       const matchYear = filterYear === 'All' || b.academicYear === filterYear;
       return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
     });
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'course-asc') return a.course.localeCompare(b.course);
-      if (sortBy === 'year-desc') return (b.academicYear || '').localeCompare(a.academicYear || '');
-      if (sortBy === 'year-asc') return (a.academicYear || '').localeCompare(b.academicYear || '');
-      if (sortBy === 'room-asc') return (a.room || '').localeCompare(b.room || '');
-      return 0;
-    });
-  }, [batchList, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, sortBy]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [batchList, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -415,14 +397,6 @@ export const BatchSetup: React.FC = () => {
             <Layers size={18} className="text-blue-600" />
             <h3 className="font-bold text-slate-800">All Batches</h3>
             <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex items-center gap-3 w-full sm:w-64">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide shrink-0">Sort By</span>
-            <Select
-              options={sortOptions}
-              value={sortBy}
-              onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
-            />
           </div>
         </div>
 

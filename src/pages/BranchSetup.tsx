@@ -16,18 +16,8 @@ export const BranchSetup: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterCourse, setFilterCourse] = useState('All');
-  const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
-  const sortOptions = [
-    { value: 'name-asc', label: 'Name (A → Z)' },
-    { value: 'name-desc', label: 'Name (Z → A)' },
-    { value: 'code-asc', label: 'Code (A → Z)' },
-    { value: 'status', label: 'Status' },
-    { value: 'capacity-desc', label: 'Capacity (High → Low)' },
-    { value: 'capacity-asc', label: 'Capacity (Low → High)' },
-  ];
 
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
@@ -47,16 +37,8 @@ export const BranchSetup: React.FC = () => {
       const matchCourse = filterCourse === 'All' || courses.find(c => c.name === filterCourse)?.branches?.includes(b.name);
       return matchSearch && matchStatus && matchProgram && matchCourse;
     });
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'code-asc') return a.code.localeCompare(b.code);
-      if (sortBy === 'status') return a.status.localeCompare(b.status);
-      if (sortBy === 'capacity-desc') return (b.capacity || 0) - (a.capacity || 0);
-      if (sortBy === 'capacity-asc') return (a.capacity || 0) - (b.capacity || 0);
-      return 0;
-    });
-  }, [branches, courses, search, filterStatus, filterProgram, filterCourse, sortBy]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [branches, courses, search, filterStatus, filterProgram, filterCourse]);
 
   const uniquePrograms = useMemo(() => Array.from(new Set(courses.flatMap(c => c.programs || []))), [courses]);
   const courseOptions = [{ value: 'All', label: 'All Courses' }, ...courses.map(c => ({ value: c.name, label: c.name }))];
@@ -157,18 +139,6 @@ export const BranchSetup: React.FC = () => {
             <Building2 size={18} className="text-blue-600" />
             <h3 className="font-bold text-slate-800">All Branches</h3>
             <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
-            >
-              {sortOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
           </div>
         </div>
 

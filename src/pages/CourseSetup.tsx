@@ -14,17 +14,8 @@ export const CourseSetup: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [filterBranch, setFilterBranch] = useState('All');
-  const [sortBy, setSortBy] = useState('name-asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
-  const sortOptions = [
-    { value: 'name-asc', label: 'Name (A → Z)' },
-    { value: 'name-desc', label: 'Name (Z → A)' },
-    { value: 'code-asc', label: 'Code (A → Z)' },
-    { value: 'programs-desc', label: 'Programs (Most First)' },
-    { value: 'programs-asc', label: 'Programs (Fewest First)' },
-  ];
 
   const branchOptions = useMemo(() => {
     return [
@@ -41,15 +32,8 @@ export const CourseSetup: React.FC = () => {
       const matchBranch = filterBranch === 'All' || (c.branches || []).includes(filterBranch);
       return matchSearch && matchBranch;
     });
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortBy === 'code-asc') return a.code.localeCompare(b.code);
-      if (sortBy === 'programs-desc') return (b.programs?.length || 0) - (a.programs?.length || 0);
-      if (sortBy === 'programs-asc') return (a.programs?.length || 0) - (b.programs?.length || 0);
-      return 0;
-    });
-  }, [courses, search, sortBy, filterBranch]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [courses, search, filterBranch]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -123,18 +107,6 @@ export const CourseSetup: React.FC = () => {
             <BookOpen size={18} className="text-blue-600" />
             <h3 className="font-bold text-slate-800">All Courses</h3>
             <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
-            >
-              {sortOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
           </div>
         </div>
 

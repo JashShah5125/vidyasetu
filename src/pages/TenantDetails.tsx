@@ -186,7 +186,6 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
   const [studentsPage, setStudentsPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
-  const [sortBy, setSortBy] = useState('name');
 
   // Edit view state
   const [showEditView, setShowEditView] = useState(false);
@@ -577,11 +576,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                         const matchCourse = filterCourse === 'All' || s.course === filterCourse;
                         return matchSearch && matchCourse;
                       })
-                      .sort((a, b) => {
-                        if (sortBy === 'name') return a.name.localeCompare(b.name);
-                        if (sortBy === 'studentId') return a.studentId.localeCompare(b.studentId);
-                        return 0;
-                      });
+                      .sort((a, b) => a.name.localeCompare(b.name));
 
                     const handleExportCSV = () => {
                       const dataToExport = filteredAndSortedList.map(s => ({
@@ -650,15 +645,6 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                             options={[
                               { value: 'All', label: 'All Courses' },
                               ...uniqueCourses.map(c => ({ value: c, label: c }))
-                            ]}
-                          />
-                          <Select
-                            label="Sort By"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            options={[
-                              { value: 'name', label: 'Student Name' },
-                              { value: 'studentId', label: 'Student ID' }
                             ]}
                           />
                         </div>

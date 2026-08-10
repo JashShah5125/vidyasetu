@@ -42,7 +42,6 @@ export const Assignments: React.FC = () => {
     { title: 'Rotational Dynamics Exercise sheet', batch: 'JEE-Evening-B1', subject: 'Physics', dueDate: '2026-07-28', status: 'Active' }
   ]);
   const [assignSearch, setAssignSearch] = useState('');
-  const [assignSortBy, setAssignSortBy] = useState('title');
   const [showAddAssignModal, setShowAddAssignModal] = useState(false);
   const [assignCurrentPage, setAssignCurrentPage] = useState(1);
   
@@ -85,7 +84,6 @@ export const Assignments: React.FC = () => {
   // CLASSROOM EVALUATION EXAMS STATES & LOGIC
   // ----------------------------------------------------
   const [examSearch, setExamSearch] = useState('');
-  const [examSortBy, setExamSortBy] = useState('name');
   const [showAddExamModal, setShowAddExamModal] = useState(false);
   const [examCurrentPage, setExamCurrentPage] = useState(1);
 
@@ -178,11 +176,7 @@ export const Assignments: React.FC = () => {
       
       return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch;
     })
-    .sort((a, b) => {
-      if (assignSortBy === 'title') return a.title.localeCompare(b.title);
-      if (assignSortBy === 'dueDate') return a.dueDate.localeCompare(b.dueDate);
-      return 0;
-    });
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   const assignTotalPages = Math.ceil(filteredAndSortedAssignments.length / itemsPerPage);
   const paginatedAssignments = filteredAndSortedAssignments.slice((assignCurrentPage - 1) * itemsPerPage, assignCurrentPage * itemsPerPage);
@@ -204,11 +198,7 @@ export const Assignments: React.FC = () => {
       
       return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch;
     })
-    .sort((a, b) => {
-      if (examSortBy === 'name') return a.name.localeCompare(b.name);
-      if (examSortBy === 'totalMarks') return b.totalMarks - a.totalMarks;
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const examTotalPages = Math.ceil(filteredAndSortedExams.length / itemsPerPage);
   const paginatedExams = filteredAndSortedExams.slice((examCurrentPage - 1) * itemsPerPage, examCurrentPage * itemsPerPage);
@@ -380,10 +370,6 @@ export const Assignments: React.FC = () => {
                 <div className="flex justify-between items-center py-2 border-b border-slate-50">
                   <span className="text-slate-400 font-medium">Academic Year</span>
                   <span className="font-semibold text-slate-700 font-mono">{yearVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Subject Area</span>
-                  <span className="font-semibold text-slate-700">{selectedAssignment.subject}</span>
                 </div>
                 <div className="flex justify-between items-center py-2 pt-3">
                   <span className="text-slate-500 font-bold">Target Batch</span>
@@ -787,17 +773,8 @@ export const Assignments: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Class Assignments Ledger</CardTitle>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-400 uppercase select-none font-display">Sort By</span>
-                <select
-                  value={assignSortBy}
-                  onChange={(e) => setAssignSortBy(e.target.value)}
-                  className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold font-display"
-                >
-                  <option value="title">Assignment Title</option>
-                  <option value="dueDate">Due Deadline</option>
-                </select>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                <CardTitle>Active Homeworks &amp; Worksheets</CardTitle>
               </div>
             </CardHeader>
             <Table headers={['Assignment Title', 'Allotted Batch', 'Subject Name', 'Due Deadline', 'Status']}>
@@ -886,17 +863,8 @@ export const Assignments: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Upcoming &amp; Completed Evaluations</CardTitle>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-400 uppercase select-none font-display">Sort By</span>
-                <select
-                  value={examSortBy}
-                  onChange={(e) => setExamSortBy(e.target.value)}
-                  className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold font-display"
-                >
-                  <option value="name">Exam Name</option>
-                  <option value="totalMarks">Total Marks (Highest first)</option>
-                </select>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
+                <CardTitle>Scheduled Examinations &amp; Quizzes</CardTitle>
               </div>
             </CardHeader>
             <Table headers={['Test Name', 'Batch', 'Total Marks', 'Passing Threshold', 'Class average', 'Status']}>

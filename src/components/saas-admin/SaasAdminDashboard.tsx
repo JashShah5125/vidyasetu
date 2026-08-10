@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 import { Building2, GraduationCap, DollarSign, ShieldAlert, CheckCircle, Clock, Users, Ticket } from 'lucide-react';
 
 export const SaasAdminDashboard: React.FC = () => {
   const { tenants, auditLogs } = useApp();
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -179,7 +182,11 @@ export const SaasAdminDashboard: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
               {auditLogs.slice(0, 4).map((log, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
+                <tr 
+                  key={idx} 
+                  onClick={() => setSelectedLog(log)}
+                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                >
                   <td className="px-6 py-4 font-mono text-[10px]">{log.timestamp}</td>
                   <td className="px-6 py-4 font-semibold text-slate-800">
                     {log.actor} <span className="text-[9px] text-slate-400 uppercase font-normal">({log.role})</span>
@@ -193,6 +200,54 @@ export const SaasAdminDashboard: React.FC = () => {
           </table>
         </div>
       </div>
+      {selectedLog && (
+        <Modal 
+          isOpen={true} 
+          onClose={() => setSelectedLog(null)} 
+          title="Audit Log Entry Details"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Log Entry ID</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.id}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Timestamp</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.timestamp}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Actor / Operator</span>
+                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.actor}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Operator Role</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.role}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Action Identifier</span>
+                <span className="font-mono text-blue-600 font-bold mt-0.5 block">{selectedLog.action}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Origin IP Address</span>
+                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.ipAddress || '192.168.1.1'}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 block uppercase">Institute / Tenant</span>
+                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.institute || 'System / Platform'}</span>
+              </div>
+            </div>
+            <div className="border-t border-slate-100 pt-3">
+              <span className="text-xs font-bold text-slate-400 block uppercase">Operation Details</span>
+              <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 mt-1 leading-relaxed whitespace-pre-wrap">{selectedLog.details}</p>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={() => setSelectedLog(null)}>Close View</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
     </div>
   );
 };

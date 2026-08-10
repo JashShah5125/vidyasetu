@@ -18,7 +18,6 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [sortBy, setSortBy] = useState('name');
 
   React.useEffect(() => {
     if (initialOpenCreate) {
@@ -215,12 +214,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       const matchStatus = filterStatus === 'All' || t.status === filterStatus;
       return matchSearch && matchPlan && matchStatus;
     })
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'id') return a.id.localeCompare(b.id);
-      if (sortBy === 'startDate') return (a.startDate || '').localeCompare(b.startDate || '');
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExportCSV = () => {
     if (filteredAndSortedTenants.length === 0) return;
@@ -639,18 +633,6 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       <Card>
         <CardHeader>
           <CardTitle>Platform Tenant Registry</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
-            >
-              <option value="name">Institute Name</option>
-              <option value="id">Tenant ID</option>
-              <option value="startDate">Start Date</option>
-            </select>
-          </div>
         </CardHeader>
         <Table headers={['Tenant ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status']}>
           {(() => {
