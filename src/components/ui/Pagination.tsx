@@ -20,6 +20,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   onPageSizeChange,
   pageSizeOptions = [10, 25, 50],
 }) => {
+  const [gotoInput, setGotoInput] = React.useState('');
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
@@ -113,6 +114,41 @@ export const Pagination: React.FC<PaginationProps> = ({
         >
           <ChevronsRight size={15} />
         </button>
+
+        <div className="flex items-center gap-1.5 ml-2 border-l border-slate-100 pl-3">
+          <span className="text-xs text-slate-400">Go to:</span>
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            value={gotoInput}
+            onChange={e => setGotoInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const page = Number(gotoInput);
+                if (page >= 1 && page <= totalPages) {
+                  onPageChange(page);
+                  setGotoInput('');
+                }
+              }
+            }}
+            placeholder="Page"
+            className="w-12 border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 text-center"
+          />
+          <button
+            onClick={() => {
+              const page = Number(gotoInput);
+              if (page >= 1 && page <= totalPages) {
+                onPageChange(page);
+                setGotoInput('');
+              }
+            }}
+            disabled={!gotoInput}
+            className="px-2 py-0.5 border border-slate-200 rounded-md text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            Go
+          </button>
+        </div>
       </div>
     </div>
   );

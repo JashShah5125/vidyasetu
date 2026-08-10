@@ -14,7 +14,6 @@ export const Students: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterBatch, setFilterBatch] = useState('All');
-  const [sortBy, setSortBy] = useState('name');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [profileTab, setProfileTab] = useState<'overview' | 'parents' | 'fees' | 'results'>('overview');
 
@@ -30,12 +29,7 @@ export const Students: React.FC = () => {
       const matchBatch = filterBatch === 'All' || s.batch === filterBatch;
       return matchSearch && matchCourse && matchBatch;
     })
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'studentId') return a.studentId.localeCompare(b.studentId);
-      if (sortBy === 'pendingFees') return b.feePlan.pending - a.feePlan.pending;
-      return 0;
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleExportCSV = () => {
     const dataToExport = filteredAndSortedStudents.map(s => ({
@@ -122,18 +116,6 @@ export const Students: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Enrolled Student Profiles</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase select-none">Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 cursor-pointer shadow-sm font-semibold"
-            >
-              <option value="name">Student Name</option>
-              <option value="studentId">Student ID</option>
-              <option value="pendingFees">Highest Pending Fees</option>
-            </select>
-          </div>
         </CardHeader>
         <Table headers={['Student ID', 'Name', 'Course', 'Batch Name', 'Mobile', 'Pending Fees', 'Actions']}>
           {paginatedStudents.map((s, idx) => (

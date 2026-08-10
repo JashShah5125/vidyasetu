@@ -53,3 +53,13 @@
 .animate-slide-in {
   animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Interactive Sortable Table Headers */
+table th {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+table th:hover {
+  background-color: rgba(241, 245, 249, 0.7) !important;
+}

@@ -398,10 +398,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const approveStudentRegistration = (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    logAction('APPROVE_ADMISSION', `Approved and verified admission files for: ${student.name} (${student.studentId})`);
+    addToast(`Successfully approved and verified admission for ${student.name}!`);
+
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
-        logAction('APPROVE_ADMISSION', `Approved and verified admission files for: ${s.name} (${s.studentId})`);
-        addToast(`Successfully approved and verified admission for ${s.name}!`);
         return { ...s, status: 'Active Student' };
       }
       return s;
@@ -447,7 +451,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return s;
     }));
 
-    logAction('RECORD_PAYMENT', `Collected fee Rs. ${amount} from student ${student.name}`);
+    logAction('RECORD_PAYMENT', `Collected fee Rs. ${amount} via ${mode} from student ${student.name}`);
 
     return {
       receiptNo: `REC-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -472,9 +476,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const sendDoubtReply = (doubtId: string, text: string) => {
+    const doubt = doubts.find(d => d.id === doubtId);
+    if (!doubt) return;
+
+    logAction('RESOLVE_DOUBT', `Answered student doubt question: "${doubt.messages[0]?.text}"`);
+
     setDoubts(prev => prev.map(d => {
       if (d.id === doubtId) {
-        logAction('RESOLVE_DOUBT', `Answered student doubt question: "${d.messages[0]?.text}"`);
         return {
           ...d,
           status: 'Resolved',

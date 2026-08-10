@@ -67,6 +67,7 @@ export const SubscriptionPlans: React.FC = () => {
   const [managingVisibilityPlan, setManagingVisibilityPlan] = useState<SubscriptionPlan | null>(null);
   const [visAll, setVisAll] = useState(true);
   const [visTenants, setVisTenants] = useState<string[]>([]);
+  const [instituteFilter, setInstituteFilter] = useState('all');
 
   // Section 1
   const [name, setName] = useState('');
@@ -218,6 +219,16 @@ export const SubscriptionPlans: React.FC = () => {
       setSuccessMsg(`Plan "${planName}" deleted.`);
       setTimeout(() => setSuccessMsg(''), 4000);
     }
+  };
+
+  const handleDuplicatePlan = (p: SubscriptionPlan) => {
+    const { id, ...rest } = p;
+    addPlan({
+      ...rest,
+      name: `${p.name} Copy`
+    });
+    setSuccessMsg(`Plan "${p.name}" duplicated as "${p.name} Copy".`);
+    setTimeout(() => setSuccessMsg(''), 4000);
   };
 
   // ─── Step renderer ────────────────────────────────────────────────────────
@@ -485,9 +496,24 @@ export const SubscriptionPlans: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Plan Master</h2>
           <p className="text-sm text-slate-500 mt-1">Define plan templates — features, limits, billing. Tenants are assigned plans via <strong>Tenant Subscriptions</strong>.</p>
         </div>
-        <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
-          <Plus size={16} /> Create Plan
-        </Button>
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Institute Filter:</span>
+            <select
+              className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-3 py-2 outline-none focus:border-blue-500 transition cursor-pointer"
+              value={instituteFilter}
+              onChange={(e) => setInstituteFilter(e.target.value)}
+            >
+              <option value="all">All Institutes</option>
+              {tenants.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
+            <Plus size={16} /> Create Plan
+          </Button>
+        </div>
       </div>
 
       {/* ── Plan Cards Grid ── */}
@@ -495,6 +521,12 @@ export const SubscriptionPlans: React.FC = () => {
         {plans
           .slice()
           .sort((a, b) => a.displayOrder - b.displayOrder)
+          .filter(p => {
+            if (instituteFilter === 'all') return true;
+            const isAllVisible = !p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0;
+            if (isAllVisible) return true;
+            return p.visibleTo ? p.visibleTo.includes(instituteFilter) : false;
+          })
           .map((p) => {
             const isActive = p.status === 'Active';
             const isFree = p.price === 0;
@@ -622,16 +654,22 @@ export const SubscriptionPlans: React.FC = () => {
                   >
                     Edit Plan
                   </button>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <button
                       onClick={() => { setViewingPlan(p); setShowViewModal(true); }}
-                      className="flex-1 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                      className="flex-1 py-2 rounded-xl text-[10px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
                     >
-                      View Details
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleDuplicatePlan(p)}
+                      className="flex-1 py-2 rounded-xl text-[10px] font-bold border border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      Duplicate
                     </button>
                     <button
                       onClick={() => handleDeletePlan(p.id, p.name)}
-                      className="flex-1 py-2 rounded-xl text-xs font-bold border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
+                      className="flex-1 py-2 rounded-xl text-[10px] font-bold border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
                     >
                       Delete
                     </button>
