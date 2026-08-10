@@ -20,6 +20,7 @@ import { SubjectSetup } from './pages/SubjectSetup';
 import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
+import { StudentRegistration } from './pages/StudentRegistration';
 import { Students } from './pages/Students';
 import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
@@ -281,7 +282,9 @@ const ContentRouter = () => {
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={<Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
-      <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="counselling" />} />
+      <Route path="/leads/:id/convert" element={<StudentRegistration />} />
+      <Route path="/admission/:id" element={<StudentRegistration />} />
+      <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
       <Route path="/assignments" element={<Assignments />} />
       <Route path="/exams" element={<ExamMarks />} />

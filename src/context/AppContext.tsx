@@ -5,6 +5,10 @@ import type {
   Tenant,
   Lead,
   Student,
+  Parent,
+  Enrollment,
+  FeeRecord,
+  Document,
   AuditLog,
   Course,
   Batch,
@@ -19,6 +23,10 @@ import {
   INITIAL_TENANTS,
   INITIAL_LEADS,
   INITIAL_STUDENTS,
+  INITIAL_PARENTS,
+  INITIAL_ENROLLMENTS,
+  INITIAL_FEE_RECORDS,
+  INITIAL_DOCUMENTS,
   INITIAL_COURSES,
   INITIAL_BATCHES,
   INITIAL_BRANCHES,
@@ -42,6 +50,10 @@ interface AppContextType {
   tenants: Tenant[];
   leads: Lead[];
   students: Student[];
+  parents: Parent[];
+  enrollments: Enrollment[];
+  feeRecords: FeeRecord[];
+  documents: Document[];
   courses: Course[];
   batches: Batch[];
   branches: Branch[];
@@ -82,7 +94,7 @@ interface AppContextType {
   addLead: (name: string, mobile: string, parentMobile: string, course: string, program: string, level: string, source: string, remarks: string, assignedBranch?: string, preferredBranch?: string, status?: string, followups?: any[], demoScheduledOn?: string) => void;
   updateLead: (id: string, updates: Partial<Lead>) => void;
   addFollowup: (leadId: string, type: string, outcome: string, nextDate: string) => void;
-  convertLeadToStudent: (leadId: string, course: string, batch: string, totalFee: number, discount: number, paidFee: number) => void;
+  convertLeadToStudent: (leadId: string, fullFormData: any) => void;
   recordPayment: (studentId: string, amount: number, mode: string) => any;
   updateAttendance: (studentId: string, status: 'Present' | 'Absent' | 'Late') => void;
   updateExamMarks: (studentId: string, testScore: string) => void;
@@ -120,6 +132,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tenants, setTenants] = useState<Tenant[]>(INITIAL_TENANTS);
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [parents, setParents] = useState<Parent[]>(INITIAL_PARENTS);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(INITIAL_ENROLLMENTS);
+  const [feeRecords, setFeeRecords] = useState<FeeRecord[]>(INITIAL_FEE_RECORDS);
+  const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
@@ -367,34 +383,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  const convertLeadToStudent = (leadId: string, course: string, batch: string, totalFee: number, discount: number, paidFee: number) => {
-    const leadItem = leads.find(l => l.id === leadId);
-    if (!leadItem) return;
+  const createParent = (parentData: any) => {
+    const newParent: Parent = {
+      id: `P-${Math.floor(100 + Math.random() * 900)}`,
+      name: parentData.name,
+      mobile: parentData.mobile,
+      email: parentData.email,
+      relation: parentData.relation,
+      occupation: parentData.occupation,
+      childrenIds: []
+    };
+    setParents(prev => [...prev, newParent]);
+    return newParent;
+  };
 
-    const newStudentId = `STU-${leadItem.branch.substring(0, 3).toUpperCase()}-${Math.floor(2600 + Math.random() * 99)}`;
-    const finalFee = totalFee - discount;
-
+  const createStudent = (studentData: any, parentId: string) => {
+    const newStudentId = `STU-NEW-${Math.floor(2600 + Math.random() * 99)}`;
     const newStudent: Student = {
       id: `S-${Math.floor(200 + Math.random() * 900)}`,
       studentId: newStudentId,
-      name: leadItem.name,
-      mobile: leadItem.mobile,
-      parentMobile: leadItem.mobile,
-      course,
-      batch,
-      branch: leadItem.branch,
-      status: 'Registration Pending',
-      admissionDate: new Date().toISOString().split('T')[0],
-      feePlan: {
-        total: finalFee,
-        paid: paidFee,
-        pending: finalFee - paidFee
-      }
+      parentId,
+      enrollmentIds: [],
+      name: studentData.name,
+      mobile: studentData.mobile,
+      dob: studentData.dob,
+      gender: studentData.gender,
+      email: studentData.email,
+      address: studentData.address,
+      category: studentData.category,
+      schoolName: studentData.schoolName,
+      currentClass: studentData.currentClass,
+      board: studentData.board,
+      targetExam: studentData.targetExam,
+      yearOfAttempt: studentData.yearOfAttempt,
+      status: 'Registration Pending'
     };
-
     setStudents(prev => [...prev, newStudent]);
+    return newStudent;
+  };
+
+  const createEnrollment = (courseData: any, studentId: string) => {
+    const newEnrollment: Enrollment = {
+      id: `E-${Math.floor(300 + Math.random() * 900)}`,
+      studentId,
+      course: courseData.course,
+      program: courseData.program,
+      level: courseData.level,
+      batchId: courseData.batchId,
+      status: 'Active'
+    };
+    setEnrollments(prev => [...prev, newEnrollment]);
+    return newEnrollment;
+  };
+
+  const createFeeRecord = (feeData: any, enrollmentId: string) => {
+    const newFeeRecord: FeeRecord = {
+      id: `F-${Math.floor(400 + Math.random() * 900)}`,
+      enrollmentId,
+      totalFee: feeData.totalFee,
+      discount: feeData.discount,
+      netFee: feeData.netFee,
+      downpayment: feeData.downpayment,
+      installments: feeData.installments,
+      installmentAmount: feeData.installmentAmount
+    };
+    setFeeRecords(prev => [...prev, newFeeRecord]);
+    return newFeeRecord;
+  };
+
+  const saveDocuments = (docsData: any[], studentId: string) => {
+    const newDocs = docsData.map((d, i) => ({
+      id: `D-${Math.floor(500 + Math.random() * 900)}-${i}`,
+      studentId,
+      type: d.type,
+      fileName: d.fileName,
+      fileSize: d.fileSize,
+      uploadedAt: new Date().toISOString(),
+      status: 'Pending' as const
+    }));
+    setDocuments(prev => [...prev, ...newDocs]);
+    return newDocs;
+  };
+
+  const convertLeadToStudent = (leadId: string, fullFormData: any) => {
+    const leadItem = leads.find(l => l.id === leadId);
+    if (!leadItem) return;
+
+    // Orchestration
+    const parent = createParent(fullFormData.parent);
+    const student = createStudent(fullFormData.student, parent.id);
+    const enrollment = createEnrollment(fullFormData.course, student.id);
+    createFeeRecord(fullFormData.fee, enrollment.id);
+    saveDocuments(fullFormData.documents, student.id);
+
+    // Link Entities
+    setParents(prev => prev.map(p => p.id === parent.id ? { ...p, childrenIds: [student.id] } : p));
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, enrollmentIds: [enrollment.id] } : s));
+
+    // Update Lead Status
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Interested' } : l));
-    logAction('CONVERT_LEAD', `Converted lead ${leadItem.name} to Student Profile ${newStudentId}`);
+    
+    logAction('CONVERT_LEAD', `Converted lead ${leadItem.name} via Registration Stepper`);
   };
 
   const approveStudentRegistration = (studentId: string) => {
@@ -507,6 +596,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tenants,
       leads,
       students,
+      parents,
+      enrollments,
+      feeRecords,
+      documents,
       courses,
       batches,
       branches,
@@ -528,7 +621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addTenantSubscription,
       updateTenantSubscription,
       deleteTenantSubscription,
-      addLead: (name, mobile, course, source, remarks, assignedBranch?, preferredBranch?, status?) => addLead(name, mobile, course, source, remarks, assignedBranch, preferredBranch, status),
+      addLead,
       updateLead,
       addFollowup,
       convertLeadToStudent,

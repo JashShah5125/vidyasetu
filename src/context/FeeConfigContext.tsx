@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP, INITIAL_FEE_PLANS } from '../data/mockData';
 import type { FeePlan } from '../data/mockData';
 export type { FeePlan };

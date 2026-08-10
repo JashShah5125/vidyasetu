@@ -123,7 +123,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
           onChange={(e) => setFilterCourse(e.target.value)}
           options={[
             { value: 'All', label: 'All Courses' },
-            ...uniqueCourses.map(c => ({ value: c, label: c }))
+            ...uniqueCourses.map(c => ({ value: c || '', label: c || '' }))
           ]}
         />
       </div>

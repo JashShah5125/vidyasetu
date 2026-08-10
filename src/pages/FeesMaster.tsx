@@ -70,6 +70,7 @@ export const FeesMaster: React.FC = () => {
         id: Math.random().toString(36).substring(7),
         ...bundleForm,
         levelDetails: '-',
+        category: 'custom',
         fee: Number(bundleForm.fee)
       };
       setCustomBundles(prev => [...prev, newBundle]);
