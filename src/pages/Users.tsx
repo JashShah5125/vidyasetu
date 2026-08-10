@@ -10,14 +10,14 @@ import { Pagination } from '../components/ui/Pagination';
 import { Plus, ArrowLeft } from 'lucide-react';
 
 export const Users: React.FC = () => {
-  const { staff, addStaff, setStaff } = useApp();
+  const { staff, addStaff, setStaff, currentUser } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
-  const [filterBranch, setFilterBranch] = useState('All');
+  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
 
   const uniqueRoles = Array.from(new Set(staff.map(s => s.role)));
   const uniqueBranches = Array.from(new Set(staff.map(s => s.branch)));
@@ -27,7 +27,9 @@ export const Users: React.FC = () => {
       const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.email.toLowerCase().includes(searchTerm.toLowerCase());
       const matchRole = filterRole === 'All' || s.role === filterRole;
-      const matchBranch = filterBranch === 'All' || s.branch === filterBranch;
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? s.branch === currentUser.branch
+        : (filterBranch === 'All' || s.branch === filterBranch);
       return matchSearch && matchRole && matchBranch;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -81,7 +83,7 @@ export const Users: React.FC = () => {
     setName('');
     setEmail('');
     setRole('Teacher');
-    setBranch('Mumbai West');
+    setBranch(currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West');
     setShowAddModal(true);
   };
 
@@ -176,6 +178,7 @@ export const Users: React.FC = () => {
                   { value: 'Mumbai West', label: 'Mumbai West' },
                   { value: 'Pune Camp', label: 'Pune Camp' }
                 ]}
+                disabled={currentUser?.role === 'branch-admin'}
               />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -229,10 +232,13 @@ export const Users: React.FC = () => {
           label="Branch"
           value={filterBranch}
           onChange={(e) => setFilterBranch(e.target.value)}
-          options={[
+          options={currentUser?.role === 'branch-admin' ? [
+            { value: currentUser.branch || '', label: currentUser.branch || '' }
+          ] : [
             { value: 'All', label: 'All Branches' },
             ...uniqueBranches.map(b => ({ value: b, label: b }))
           ]}
+          disabled={currentUser?.role === 'branch-admin'}
         />
       </div>
 

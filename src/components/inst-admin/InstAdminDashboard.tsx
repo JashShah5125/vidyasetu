@@ -44,7 +44,16 @@ export const InstAdminDashboard: React.FC = () => {
   const [filters, setFilters] = useState(() => {
     try {
       const saved = localStorage.getItem('inst_admin_filters');
-      return saved ? JSON.parse(saved) : {
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (currentUser?.role === 'branch-admin') {
+        return {
+          branch: currentUser.branch || 'all',
+          course: parsed?.course || 'all',
+          program: parsed?.program || 'all',
+          level: parsed?.level || 'all'
+        };
+      }
+      return parsed || {
         branch: 'all',
         course: 'all',
         program: 'all',
@@ -52,13 +61,19 @@ export const InstAdminDashboard: React.FC = () => {
       };
     } catch {
       return {
-        branch: 'all',
+        branch: currentUser?.role === 'branch-admin' ? currentUser.branch || 'all' : 'all',
         course: 'all',
         program: 'all',
         level: 'all'
       };
     }
   });
+
+  useEffect(() => {
+    if (currentUser?.role === 'branch-admin' && filters.branch !== currentUser.branch) {
+      setFilters((prev: any) => ({ ...prev, branch: currentUser.branch }));
+    }
+  }, [currentUser, filters.branch]);
 
   // Selected Audit Log for Detail Modal
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
@@ -420,11 +435,18 @@ export const InstAdminDashboard: React.FC = () => {
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[140px] cursor-pointer"
           value={filters.branch}
           onChange={(e) => setFilters({ ...filters, branch: e.target.value })}
+          disabled={currentUser?.role === 'branch-admin'}
         >
-          <option value="all">All Branches</option>
-          {branches.map(b => (
-            <option key={b.id || b.name} value={b.name}>{b.name}</option>
-          ))}
+          {currentUser?.role === 'branch-admin' ? (
+            <option value={currentUser.branch || ''}>{currentUser.branch || ''}</option>
+          ) : (
+            <>
+              <option value="all">All Branches</option>
+              {branches.map(b => (
+                <option key={b.id || b.name} value={b.name}>{b.name}</option>
+              ))}
+            </>
+          )}
         </select>
 
         <select 
@@ -474,7 +496,7 @@ export const InstAdminDashboard: React.FC = () => {
         <KpiCard
           title="Total Staff"
           value={filteredStaff.length}
-          subValue="Across all branches"
+          subValue={currentUser?.role === 'branch-admin' ? "Assigned to branch" : "Across all branches"}
           icon={<Users size={20} />}
           iconBg="bg-violet-50 border-violet-100"
           iconColor="text-violet-600"
@@ -498,7 +520,7 @@ export const InstAdminDashboard: React.FC = () => {
         <KpiCard
           title="Active Branches"
           value={filteredBranches.length}
-          subValue="Currently operational"
+          subValue={currentUser?.role === 'branch-admin' ? "Active assigned branch" : "Currently operational"}
           icon={<Network size={20} />}
           iconBg="bg-amber-50 border-amber-100"
           iconColor="text-amber-600"

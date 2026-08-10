@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { FeeConfigProvider } from './context/FeeConfigContext';
@@ -69,10 +69,26 @@ const GlobalProvidersPlaceholder = () => (
 );
 
 const AuditLogsPlaceholder = () => {
-  const { auditLogs } = useApp();
+  const { auditLogs: allLogs, currentUser, staff } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
   const itemsPerPage = 5;
+
+  const auditLogs = useMemo(() => {
+    if (currentUser?.role === 'branch-admin') {
+      const branchStaffNames = staff
+        .filter(s => s.branch === currentUser.branch)
+        .map(s => s.name.toLowerCase());
+      if (currentUser.name) {
+        branchStaffNames.push(currentUser.name.toLowerCase());
+      }
+      return allLogs.filter(log =>
+        branchStaffNames.includes(log.actor.toLowerCase())
+      );
+    }
+    return allLogs;
+  }, [allLogs, currentUser, staff]);
+
   const totalPages = Math.ceil(auditLogs.length / itemsPerPage);
   const paginatedLogs = auditLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -281,7 +297,7 @@ const ContentRouter = () => {
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={<Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
-      <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="counselling" />} />
+      <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
       <Route path="/assignments" element={<Assignments />} />
       <Route path="/exams" element={<ExamMarks />} />

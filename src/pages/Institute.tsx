@@ -6,7 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { 
   Download, UploadCloud, CheckCircle, Save,
-  Plus, Trash2, Star
+  Plus, Trash2, Star, ShieldAlert
 } from 'lucide-react';
 import { formatDate } from '../data/mockData';
 
@@ -124,8 +124,15 @@ export const Institute: React.FC = () => {
     apiAccess: { label: 'API Access', group: 'Administration' }
   };
 
+  const isReadOnly = currentUser?.role === 'branch-admin';
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {isReadOnly && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify institute-wide configuration parameters.
+        </div>
+      )}
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">Institute Configuration</h2>
         <p className="text-sm text-slate-500 mt-1">Manage your identity, view subscription limits, and configure integrations.</p>
@@ -180,8 +187,8 @@ export const Institute: React.FC = () => {
           ))}
         </div>
 
-        {/* Tab Contents */}
-        <div className="min-h-[300px] pt-4">
+        <fieldset disabled={isReadOnly} className="contents">
+          <div className="min-h-[300px] pt-4">
           
           {/* TAB: General Profile */}
           {activeTab === 'profile' && (
@@ -797,6 +804,7 @@ export const Institute: React.FC = () => {
           )}
 
         </div>
+      </fieldset>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
 
 export const BranchSetup: React.FC = () => {
-  const { branches, courses } = useApp();
+  const { branches, courses, currentUser } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
@@ -28,6 +28,7 @@ export const BranchSetup: React.FC = () => {
 
   const filtered = useMemo(() => {
     const list = branches.filter(b => {
+      const isMyBranch = currentUser?.role === 'branch-admin' ? b.name === currentUser.branch : true;
       const matchSearch =
         b.name.toLowerCase().includes(search.toLowerCase()) ||
         b.code.toLowerCase().includes(search.toLowerCase()) ||
@@ -35,10 +36,10 @@ export const BranchSetup: React.FC = () => {
       const matchStatus = filterStatus === 'All' || b.status === filterStatus;
       const matchProgram = filterProgram === 'All' || (b.programs || []).includes(filterProgram);
       const matchCourse = filterCourse === 'All' || courses.find(c => c.name === filterCourse)?.branches?.includes(b.name);
-      return matchSearch && matchStatus && matchProgram && matchCourse;
+      return isMyBranch && matchSearch && matchStatus && matchProgram && matchCourse;
     });
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [branches, courses, search, filterStatus, filterProgram, filterCourse]);
+  }, [branches, courses, search, filterStatus, filterProgram, filterCourse, currentUser]);
 
   const uniquePrograms = useMemo(() => Array.from(new Set(courses.flatMap(c => c.programs || []))), [courses]);
   const courseOptions = [{ value: 'All', label: 'All Courses' }, ...courses.map(c => ({ value: c.name, label: c.name }))];
@@ -87,13 +88,15 @@ export const BranchSetup: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
-          <Button
-          variant="primary"
-          onClick={() => navigate('/branches/new')}
-          style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-        >
-          <Plus size={16} className="mr-2" /> Create New Branch
-        </Button>
+          {currentUser?.role !== 'branch-admin' && (
+            <Button
+              variant="primary"
+              onClick={() => navigate('/branches/new')}
+              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+            >
+              <Plus size={16} className="mr-2" /> Create New Branch
+            </Button>
+          )}
         </div>
       </div>
 

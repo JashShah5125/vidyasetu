@@ -277,9 +277,9 @@ interface ReportsProps {
 }
 
 export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
-  const { branches, students, courses, batches } = useApp();
+  const { branches, students, courses, batches, currentUser } = useApp();
   const [selectedTenant, setSelectedTenant] = useState('All');
-  const [selectedBranch, setSelectedBranch] = useState('All');
+  const [selectedBranch, setSelectedBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [activeStatsTab, setActiveStatsTab] = useState<'courses' | 'programs' | 'subjects'>('courses');
 
@@ -289,10 +289,12 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
 
   const currentMetrics = activeMetricsSet[timePeriod];
 
-  const availableBranchOptions = [
-    { value: 'All', label: 'All Branches (Consolidated)' },
-    ...branches.map(b => ({ value: b.name, label: b.name }))
-  ];
+  const availableBranchOptions = currentUser?.role === 'branch-admin'
+    ? [{ value: currentUser.branch || '', label: currentUser.branch || '' }]
+    : [
+        { value: 'All', label: 'All Branches (Consolidated)' },
+        ...branches.map(b => ({ value: b.name, label: b.name }))
+      ];
 
   // ----------------------------------------------------
   // DYNAMIC ACADEMIC STATISTICS CALCULATIONS
@@ -413,6 +415,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 onChange={(e) => setSelectedBranch(e.target.value)} 
                 options={availableBranchOptions} 
                 style={{ padding: '4px 8px', fontSize: '12px', minWidth: '180px' }}
+                disabled={currentUser?.role === 'branch-admin'}
               />
             </div>
           )}
@@ -623,46 +626,48 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           </div>
         </Card>
       ) : (
-        <Card className="animate-fade-in">
-          <CardHeader>
-            <CardTitle>Branch Performance Comparison Matrix</CardTitle>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                  <th className="px-6 py-4">Branch Code</th>
-                  <th className="px-6 py-4">Branch Name</th>
-                  <th className="px-6 py-4 text-center">New Admissions</th>
-                  <th className="px-6 py-4 text-center">Gross Revenue</th>
-                  <th className="px-6 py-4 text-center">Avg Test Marks</th>
-                  <th className="px-6 py-4 text-center">Branch Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                {[
-                  { code: 'MUM-WEST', name: 'Mumbai West', admissions: '8 Students', revenue: '₹95,000', marks: '85.2%', status: 'Active' },
-                  { code: 'PUN-CAMP', name: 'Pune Camp', admissions: '4 Students', revenue: '₹35,000', marks: '81.0%', status: 'Active' }
-                ].map((row) => (
-                  <tr key={row.code} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
-                    <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
-                    <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
-                    <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                        row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-                      }`}>
-                        {row.status}
-                      </span>
-                    </td>
+        currentUser?.role !== 'branch-admin' ? (
+          <Card className="animate-fade-in">
+            <CardHeader>
+              <CardTitle>Branch Performance Comparison Matrix</CardTitle>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                    <th className="px-6 py-4">Branch Code</th>
+                    <th className="px-6 py-4">Branch Name</th>
+                    <th className="px-6 py-4 text-center">New Admissions</th>
+                    <th className="px-6 py-4 text-center">Gross Revenue</th>
+                    <th className="px-6 py-4 text-center">Avg Test Marks</th>
+                    <th className="px-6 py-4 text-center">Branch Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                  {[
+                    { code: 'MUM-WEST', name: 'Mumbai West', admissions: '8 Students', revenue: '₹95,000', marks: '85.2%', status: 'Active' },
+                    { code: 'PUN-CAMP', name: 'Pune Camp', admissions: '4 Students', revenue: '₹35,000', marks: '81.0%', status: 'Active' }
+                  ].map((row) => (
+                    <tr key={row.code} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
+                      <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
+                      <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
+                      <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                          row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : null
       )}
     </div>
   );

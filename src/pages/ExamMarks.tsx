@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -10,7 +10,7 @@ import { Check, ClipboardList, PenTool, Plus, ArrowLeft } from 'lucide-react';
 import type { ExamItem } from '../data/mockData';
 
 export const ExamMarks: React.FC = () => {
-  const { branches, courses, batches, students, exams, setExams } = useApp();
+  const { branches, courses, batches, students, exams, setExams, currentUser } = useApp();
 
   // Active sub-tab: 'registry' (Test Registry) or 'grade' (Grade Students score card entry)
   const [activeTab, setActiveTab] = useState<'registry' | 'grade'>('registry');
@@ -23,7 +23,7 @@ export const ExamMarks: React.FC = () => {
   const itemsPerPage = 5;
 
   // Grade Screen selection state
-  const [selectedBranch, setSelectedBranch] = useState('All');
+  const [selectedBranch, setSelectedBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [selectedCourse, setSelectedCourse] = useState('All');
   const [selectedProgram, setSelectedProgram] = useState('All');
   const [selectedLevel, setSelectedLevel] = useState('All');
@@ -44,12 +44,21 @@ export const ExamMarks: React.FC = () => {
   const [examPassingMarks, setExamPassingMarks] = useState(40);
 
   // Extract filter options
-  const uniqueBranches = branches.map(b => b.name);
+  const uniqueBranches = currentUser?.role === 'branch-admin'
+    ? [currentUser.branch || '']
+    : branches.map(b => b.name);
   const uniqueCourses = courses.map(c => c.name);
   const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
   const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
-  const uniqueExamBatches = Array.from(new Set(exams.map(e => e.batch)));
+  const uniqueExamBatches = useMemo(() => {
+    const list = exams.map(e => e.batch);
+    const filtered = list.filter(batchName => {
+      const batchObj = batches.find(b => b.name === batchName);
+      return currentUser?.role === 'branch-admin' ? batchObj?.branch === currentUser.branch : true;
+    });
+    return Array.from(new Set(filtered));
+  }, [exams, batches, currentUser]);
 
   // Filter batches by selected hierarchy
   const availableBatches = batches.filter(b => {
@@ -241,7 +250,7 @@ export const ExamMarks: React.FC = () => {
 
   // Schedule Test form handler
   const handleOpenAddExamModal = () => {
-    setSelectedBranch('All');
+    setSelectedBranch(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
     setSelectedCourse('All');
     setSelectedProgram('All');
     setSelectedLevel('All');
@@ -276,7 +285,13 @@ export const ExamMarks: React.FC = () => {
     .filter(e => {
       const matchSearch = e.name.toLowerCase().includes(registrySearch.toLowerCase());
       const matchBatch = registryFilterBatch === 'All' || e.batch === registryFilterBatch;
-      return matchSearch && matchBatch;
+      
+      const batchObj = batches.find(b => b.name === e.batch);
+      const isMyBranch = currentUser?.role === 'branch-admin'
+        ? batchObj?.branch === currentUser.branch
+        : true;
+      
+      return matchSearch && matchBatch && isMyBranch;
     })
     .sort((a, b) => {
       if (registrySortBy === 'name') return a.name.localeCompare(b.name);
@@ -312,6 +327,7 @@ export const ExamMarks: React.FC = () => {
               value={selectedBranch} 
               onChange={(e) => setSelectedBranch(e.target.value)} 
               options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
+              disabled={currentUser?.role === 'branch-admin'}
             />
             <Select 
               label="Course" 
@@ -384,6 +400,7 @@ export const ExamMarks: React.FC = () => {
             value={selectedBranch} 
             onChange={(e) => setSelectedBranch(e.target.value)} 
             options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
+            disabled={currentUser?.role === 'branch-admin'}
           />
           <Select 
             label="Course" 

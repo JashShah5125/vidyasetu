@@ -19,7 +19,7 @@ export interface AssignmentItem {
 }
 
 export const Assignments: React.FC = () => {
-  const { batches, branches, courses, exams, setExams } = useApp();
+  const { batches, branches, courses, exams, setExams, currentUser } = useApp();
   
   // Navigation Tabs state
   const [activeTab, setActiveTab] = useState<'assignments' | 'exams'>('assignments');
@@ -28,7 +28,9 @@ export const Assignments: React.FC = () => {
   // ----------------------------------------------------
   // OPTIONS FOR SELECTORS
   // ----------------------------------------------------
-  const uniqueBranches = branches.map(b => b.name);
+  const uniqueBranches = currentUser?.role === 'branch-admin'
+    ? [currentUser.branch || '']
+    : branches.map(b => b.name);
   const uniqueCourses = courses.map(c => c.name);
   const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
@@ -54,7 +56,7 @@ export const Assignments: React.FC = () => {
   const [selectedAssignment, setSelectedAssignment] = useState<AssignmentItem | null>(null);
 
   // List Filters
-  const [assignFilterBranch, setAssignFilterBranch] = useState('All');
+  const [assignFilterBranch, setAssignFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [assignFilterCourse, setAssignFilterCourse] = useState('All');
   const [assignFilterProgram, setAssignFilterProgram] = useState('All');
   const [assignFilterLevel, setAssignFilterLevel] = useState('All');
@@ -95,7 +97,7 @@ export const Assignments: React.FC = () => {
   const [selectedExam, setSelectedExam] = useState<ExamItem | null>(null);
 
   // List Filters
-  const [examFilterBranch, setExamFilterBranch] = useState('All');
+  const [examFilterBranch, setExamFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [examFilterCourse, setExamFilterCourse] = useState('All');
   const [examFilterProgram, setExamFilterProgram] = useState('All');
   const [examFilterLevel, setExamFilterLevel] = useState('All');
@@ -124,7 +126,7 @@ export const Assignments: React.FC = () => {
   // ----------------------------------------------------
   // HIERARCHICAL FILTERS FOR CREATION MODALS
   // ----------------------------------------------------
-  const [selectedBranch, setSelectedBranch] = useState('All');
+  const [selectedBranch, setSelectedBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [selectedCourse, setSelectedCourse] = useState('All');
   const [selectedProgram, setSelectedProgram] = useState('All');
   const [selectedLevel, setSelectedLevel] = useState('All');
@@ -167,7 +169,9 @@ export const Assignments: React.FC = () => {
       const matchedBatch = batches.find(b => b.name === a.batch);
       const batchBranch = matchedBatch?.branch || 'Mumbai West';
       
-      const matchBranch = assignFilterBranch === 'All' || batchBranch === assignFilterBranch;
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? batchBranch === currentUser.branch
+        : (assignFilterBranch === 'All' || batchBranch === assignFilterBranch);
       const matchCourse = assignFilterCourse === 'All' || matchedBatch?.course === assignFilterCourse;
       const matchProgram = assignFilterProgram === 'All' || matchedBatch?.program === assignFilterProgram;
       const matchLevel = assignFilterLevel === 'All' || matchedBatch?.level === assignFilterLevel;
@@ -189,7 +193,9 @@ export const Assignments: React.FC = () => {
       const matchedBatch = batches.find(b => b.name === e.batch);
       const batchBranch = matchedBatch?.branch || 'Mumbai West';
       
-      const matchBranch = examFilterBranch === 'All' || batchBranch === examFilterBranch;
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? batchBranch === currentUser.branch
+        : (examFilterBranch === 'All' || batchBranch === examFilterBranch);
       const matchCourse = examFilterCourse === 'All' || matchedBatch?.course === examFilterCourse;
       const matchProgram = examFilterProgram === 'All' || matchedBatch?.program === examFilterProgram;
       const matchLevel = examFilterLevel === 'All' || matchedBatch?.level === examFilterLevel;
@@ -510,6 +516,7 @@ export const Assignments: React.FC = () => {
                 value={selectedBranch} 
                 onChange={(e) => setSelectedBranch(e.target.value)} 
                 options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
+                disabled={currentUser?.role === 'branch-admin'}
               />
               <Select 
                 label="Course" 
@@ -621,6 +628,7 @@ export const Assignments: React.FC = () => {
                 value={selectedBranch} 
                 onChange={(e) => setSelectedBranch(e.target.value)} 
                 options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
+                disabled={currentUser?.role === 'branch-admin'}
               />
               <Select 
                 label="Course" 
@@ -737,6 +745,7 @@ export const Assignments: React.FC = () => {
                 value={assignFilterBranch} 
                 onChange={(e) => setAssignFilterBranch(e.target.value)} 
                 options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
+                disabled={currentUser?.role === 'branch-admin'}
               />
               <Select 
                 label="Course" 
@@ -827,6 +836,7 @@ export const Assignments: React.FC = () => {
                 value={examFilterBranch} 
                 onChange={(e) => setExamFilterBranch(e.target.value)} 
                 options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
+                disabled={currentUser?.role === 'branch-admin'}
               />
               <Select 
                 label="Course" 

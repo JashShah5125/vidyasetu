@@ -12,7 +12,7 @@ interface AttendanceProps {
 }
 
 export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) => {
-  const { students, staff, updateAttendance } = useApp();
+  const { students, staff, updateAttendance, currentUser } = useApp();
   const [subTab, setSubTab] = useState<'sheet' | 'timetable'>(initialTab);
   const [savedType, setSavedType] = useState<'student' | 'staff' | null>(null);
   
@@ -20,7 +20,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   const [attendanceType, setAttendanceType] = useState<'students' | 'staff'>('students');
 
   // Filters
-  const [branch, setBranch] = useState('Mumbai West');
+  const [branch, setBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West');
   const [course, setCourse] = useState('JEE Prep');
   const [batch, setBatch] = useState('JEE-Morning-A');
   const [staffFilterRole, setStaffFilterRole] = useState('All');
@@ -257,10 +257,13 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
               label="Branch" 
               value={branch} 
               onChange={(e) => setBranch(e.target.value)} 
-              options={[
+              options={currentUser?.role === 'branch-admin' ? [
+                { value: currentUser.branch || '', label: currentUser.branch || '' }
+              ] : [
                 { value: 'Mumbai West', label: 'Mumbai West' },
                 { value: 'Pune Camp', label: 'Pune Camp' }
-              ]} 
+              ]}
+              disabled={currentUser?.role === 'branch-admin'}
             />
 
             {attendanceType === 'students' ? (

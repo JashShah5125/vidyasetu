@@ -52,7 +52,7 @@ const phases = [
 type TabId = typeof phases[number]['id'];
 
 export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = 'pipeline' }) => {
-  const { leads, students, courses, batches, branches, addLead, updateLead, addFollowup, convertLeadToStudent, approveStudentRegistration } = useApp();
+  const { leads, students, courses, batches, branches, addLead, updateLead, addFollowup, convertLeadToStudent, approveStudentRegistration, currentUser } = useApp();
   const { plans, customBundles, subjectsData } = useFeeConfig();
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -62,7 +62,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [search, setSearch]             = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterSource, setFilterSource] = useState('All');
-  const [filterBranch, setFilterBranch] = useState('All');
+  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
 
@@ -180,13 +180,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   };
 
   const resetLeadForm = () => {
+    const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch || '' : '';
     setFName('');
     setFMobile('');
     setFCourse('JEE Prep');
     setFProgram('');
     setFLevel('');
-    setFBranch('');
-    setFAssignedBranch('');
+    setFBranch(initialBranch);
+    setFAssignedBranch(initialBranch);
     setFSource('Walk-in');
     setFStatus('New Enquiry');
     setFRemarks('');
@@ -222,10 +223,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
 
   // ── filter options ──
-  const branchFilterOptions = useMemo(() => [
-    { value: 'All', label: 'All Branches' },
-    ...branches.map(b => ({ value: b.name, label: b.name }))
-  ], [branches]);
+  const branchFilterOptions = useMemo(() => {
+    if (currentUser?.role === 'branch-admin') {
+      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
+    }
+    return [
+      { value: 'All', label: 'All Branches' },
+      ...branches.map(b => ({ value: b.name, label: b.name }))
+    ];
+  }, [branches, currentUser]);
 
   const courseFilterOptions = useMemo(() => [
     { value: 'All', label: 'All Courses' },
@@ -254,7 +260,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         const matchQ = l.name.toLowerCase().includes(q) || l.course.toLowerCase().includes(q) || l.mobile.includes(q);
         const matchSt = filterStatus === 'All' || l.status === filterStatus;
         const matchSrc = filterSource === 'All' || l.source === filterSource;
-        const matchBranch = filterBranch === 'All' || l.branch === filterBranch;
+        const matchBranch = currentUser?.role === 'branch-admin'
+          ? l.branch === currentUser.branch
+          : (filterBranch === 'All' || l.branch === filterBranch);
         const matchCourse = filterCourse === 'All' || l.course === filterCourse;
         const courseObj = courses.find(c => c.name === l.course);
         const matchProgram = filterProgram === 'All' || (courseObj?.programs?.includes(filterProgram) ?? false);
@@ -273,7 +281,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       const q = search.toLowerCase();
       const matchQ = s.name.toLowerCase().includes(q) || s.studentId.toLowerCase().includes(q);
       const matchSt = filterStatus === 'All' || s.status === filterStatus;
-      const matchBranch = filterBranch === 'All' || s.branch === filterBranch;
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? s.branch === currentUser.branch
+        : (filterBranch === 'All' || s.branch === filterBranch);
       const matchCourse = filterCourse === 'All' || s.course === filterCourse;
       let matchProgram = filterProgram === 'All';
       if (filterProgram !== 'All') {
@@ -383,7 +393,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
                   { value: '', label: 'No Preference' },
                   ...branchFilterOptions.filter(o => o.value !== 'All')
-                ]} />
+                ]} disabled={currentUser?.role === 'branch-admin'} />
                 <Select label="Assigned Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
                   { value: '', label: 'Assign Later' },
                   ...branchFilterOptions.filter(o => o.value !== 'All')
@@ -837,11 +847,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
                   { value: '', label: 'No Preference' },
                   ...branchFilterOptions.filter(o => o.value !== 'All')
-                ]} />
+                ]} disabled={currentUser?.role === 'branch-admin'} />
                 <Select label="Assigned Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
                   { value: '', label: 'Assign Later' },
                   ...branchFilterOptions.filter(o => o.value !== 'All')
-                ]} />
+                ]} disabled={currentUser?.role === 'branch-admin'} />
               </div>
             </div>
             </div>
@@ -1633,7 +1643,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          <Select label="Branch" value={filterBranch} onChange={e => setFilterBranch(e.target.value)} options={branchFilterOptions} />
+          <Select label="Branch" value={filterBranch} onChange={e => setFilterBranch(e.target.value)} options={branchFilterOptions} disabled={currentUser?.role === 'branch-admin'} />
           <Select label="Course" value={filterCourse} onChange={e => { setFilterCourse(e.target.value); setFilterProgram('All'); }} options={courseFilterOptions} />
           <Select label="Program" value={filterProgram} onChange={e => setFilterProgram(e.target.value)} options={programFilterOptions} />
         </div>

@@ -3,14 +3,14 @@ import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
-import { BookOpen, Layers, Plus, Search, Download, ArrowLeft } from 'lucide-react';
+import { BookOpen, Layers, Plus, Search, Download, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
 
 import { INITIAL_SUBJECTS_MAP, INITIAL_BUNDLES_MAP } from '../data/mockData';
 
 export const SubjectSetup: React.FC = () => {
-  const { courses, staff } = useApp();
+  const { courses, staff, currentUser } = useApp();
   
   const teachers = useMemo(() => staff.filter(s => s.role === 'Teacher'), [staff]);
 
@@ -98,12 +98,18 @@ export const SubjectSetup: React.FC = () => {
       const parsed = parseKey(key);
       if (!parsed) continue;
       
+      const course = courses.find(c => c.code === parsed.courseCode);
+      const isMyBranch = currentUser?.role === 'branch-admin'
+        ? (course?.branches || []).includes(currentUser.branch || '')
+        : true;
+      if (!isMyBranch) continue;
+
       assignedSubjectsMap[key].forEach(sub => {
         list.push({ ...sub, activeKey: key, ...parsed });
       });
     }
     return list;
-  }, [assignedSubjectsMap, courses]);
+  }, [assignedSubjectsMap, courses, currentUser]);
 
   const flatBundles = useMemo(() => {
     const list: any[] = [];
@@ -111,12 +117,18 @@ export const SubjectSetup: React.FC = () => {
       const parsed = parseKey(key);
       if (!parsed) continue;
       
+      const course = courses.find(c => c.code === parsed.courseCode);
+      const isMyBranch = currentUser?.role === 'branch-admin'
+        ? (course?.branches || []).includes(currentUser.branch || '')
+        : true;
+      if (!isMyBranch) continue;
+
       bundlesMap[key].forEach(bun => {
         list.push({ ...bun, activeKey: key, ...parsed });
       });
     }
     return list;
-  }, [bundlesMap, courses]);
+  }, [bundlesMap, courses, currentUser]);
 
   // Applying Filters
   const filteredSubjects = useMemo(() => {
@@ -532,9 +544,15 @@ export const SubjectSetup: React.FC = () => {
     );
   }
 
+  const isReadOnly = currentUser?.role === 'branch-admin';
+
   return (
     <div className="space-y-6 animate-fade-in p-6">
-      
+      {isReadOnly && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify subject and bundle configuration.
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -545,15 +563,19 @@ export const SubjectSetup: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={16} /> Export CSV
           </Button>
-          <Button 
-            variant="primary"
-            onClick={handleOpenAddSubject} 
-            style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-          >
-            <Plus size={16} className="mr-2" /> Add Subject
-          </Button>
+          {!isReadOnly && (
+            <Button 
+              variant="primary"
+              onClick={handleOpenAddSubject} 
+              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+            >
+              <Plus size={16} className="mr-2" /> Add Subject
+            </Button>
+          )}
         </div>
       </div>
+
+      <fieldset disabled={isReadOnly} className="contents">
 
       {/* Top Filter Bar */}
       <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
@@ -672,15 +694,17 @@ export const SubjectSetup: React.FC = () => {
               <h3 className="font-bold text-slate-800">Subject Bundles</h3>
               <span className="ml-2 text-xs text-slate-400 font-medium">{filteredBundles.length} result{filteredBundles.length !== 1 ? 's' : ''}</span>
             </div>
-            <Button 
-              size="sm" 
-              variant="secondary" 
-              onClick={handleOpenAddBundle} 
-              className="flex items-center gap-1.5"
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              <Plus size={16} /> Create Bundle
-            </Button>
+             {!isReadOnly && (
+               <Button 
+                 size="sm" 
+                 variant="secondary" 
+                 onClick={handleOpenAddBundle} 
+                 className="flex items-center gap-1.5"
+                 style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+               >
+                 <Plus size={16} /> Create Bundle
+               </Button>
+             )}
           </div>
           
           <div className="p-5 bg-slate-50/30">
@@ -732,6 +756,7 @@ export const SubjectSetup: React.FC = () => {
           )}
         </div>
       </div>
+      </fieldset>
     </div>
   );
 };
