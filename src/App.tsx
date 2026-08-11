@@ -20,6 +20,7 @@ import { SubjectSetup } from './pages/SubjectSetup';
 import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
+import { StudentRegistration } from './pages/StudentRegistration';
 import { Students } from './pages/Students';
 import { StudentRegistration } from './pages/StudentRegistration';
 import { Fees } from './pages/Fees';

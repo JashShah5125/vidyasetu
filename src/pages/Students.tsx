@@ -103,7 +103,7 @@ export const Students: React.FC = () => {
           onChange={(e) => setFilterCourse(e.target.value)}
           options={[
             { value: 'All', label: 'All Courses' },
-            ...uniqueCourses.map(c => ({ value: c, label: c }))
+            ...uniqueCourses.map(c => ({ value: c || '', label: c || '' }))
           ]}
         />
         <Select
@@ -112,7 +112,7 @@ export const Students: React.FC = () => {
           onChange={(e) => setFilterBatch(e.target.value)}
           options={[
             { value: 'All', label: 'All Batches' },
-            ...uniqueBatches.map(b => ({ value: b, label: b }))
+            ...uniqueBatches.map(b => ({ value: b || '', label: b || '' }))
           ]}
         />
       </div>

@@ -50,18 +50,73 @@ export interface Lead {
   followups: { date: string; type: string; outcome: string; nextDate: string }[];
 }
 
+export interface Parent {
+  id: string;
+  name: string;
+  mobile: string;
+  email?: string;
+  relation: string;
+  occupation?: string;
+  childrenIds: string[];
+}
+
 export interface Student {
   id: string;
   studentId: string;
+  parentId: string;
+  enrollmentIds: string[];
   name: string;
   mobile: string;
-  parentMobile: string;
+  dob: string;
+  gender: string;
+  email?: string;
+  address: { street: string; city: string; state: string; pincode: string };
+  category: string;
+  schoolName?: string;
+  currentClass: string;
+  board: string;
+  targetExam: string;
+  yearOfAttempt: string;
+  status: 'Draft' | 'Registration Pending' | 'Documents Submitted' | 'Verification Pending' | 'Active Student';
+  
+  // Legacy fields (for backward compatibility with unmigrated pages)
+  course?: string;
+  batch?: string;
+  branch?: string;
+  admissionDate?: string;
+  parentMobile?: string;
+  feePlan?: any;
+}
+
+export interface Enrollment {
+  id: string;
+  studentId: string;
   course: string;
-  batch: string;
-  branch: string;
-  status: 'Registration Pending' | 'Documents Submitted' | 'Verification Pending' | 'Active Student';
-  admissionDate: string;
-  feePlan: { total: number; paid: number; pending: number };
+  program: string;
+  level: string;
+  batchId?: string;
+  status: 'Active' | 'Completed' | 'Dropped';
+}
+
+export interface FeeRecord {
+  id: string;
+  enrollmentId: string;
+  totalFee: number;
+  discount: number;
+  netFee: number;
+  downpayment: number;
+  installments: number;
+  installmentAmount: number;
+}
+
+export interface Document {
+  id: string;
+  studentId: string;
+  type: string;
+  fileName: string;
+  fileSize: string;
+  uploadedAt: string;
+  status: 'Pending' | 'Verified' | 'Rejected';
 }
 
 export interface AuditLog {
@@ -315,15 +370,47 @@ export const INITIAL_LEADS: Lead[] = [
   }
 ];
 
-export const INITIAL_STUDENTS: Student[] = [
-  { id: 'S-201', studentId: 'STU-MUM-2601', name: 'Rohan Deshmukh', mobile: '9877112233', parentMobile: '9877112200', course: 'JEE Prep Course', batch: 'JEE-Morning-A1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-15', feePlan: { total: 120000, paid: 80000, pending: 40000 } },
-  { id: 'S-202', studentId: 'STU-MUM-2602', name: 'Sameer Mehta', mobile: '9877112244', parentMobile: '9877112201', course: 'JEE Prep Course', batch: 'JEE-Morning-A1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-16', feePlan: { total: 120000, paid: 90000, pending: 30000 } },
-  { id: 'S-203', studentId: 'STU-MUM-2603', name: 'Aditya Sharma', mobile: '9877112255', parentMobile: '9877112202', course: 'JEE Prep Course', batch: 'JEE-Morning-A1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2026-06-17', feePlan: { total: 120000, paid: 60000, pending: 60000 } },
-  { id: 'S-204', studentId: 'STU-MUM-2604', name: 'Sneha Patil', mobile: '9877112266', parentMobile: '9877112203', course: 'JEE Prep Course', batch: 'JEE-Evening-B1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2025-06-15', feePlan: { total: 120000, paid: 120000, pending: 0 } },
-  { id: 'S-205', studentId: 'STU-MUM-2605', name: 'Kunal Sen', mobile: '9877112277', parentMobile: '9877112204', course: 'JEE Prep Course', batch: 'JEE-Evening-B1', branch: 'Mumbai West', status: 'Active Student', admissionDate: '2025-06-16', feePlan: { total: 120000, paid: 70000, pending: 50000 } },
-  { id: 'S-206', studentId: 'STU-PUN-2602', name: 'Ishita Roy', mobile: '9554321098', parentMobile: '9554321000', course: 'NEET Batch Premium', batch: 'NEET-Regular-M1', branch: 'Pune Camp', status: 'Verification Pending', admissionDate: '2026-07-02', feePlan: { total: 150000, paid: 50000, pending: 100000 } },
-  { id: 'S-207', studentId: 'STU-PUN-2603', name: 'Priya Nair', mobile: '9554321099', parentMobile: '9554321001', course: 'NEET Batch Premium', batch: 'NEET-Regular-M1', branch: 'Pune Camp', status: 'Active Student', admissionDate: '2026-07-03', feePlan: { total: 150000, paid: 150000, pending: 0 } }
+export const INITIAL_PARENTS: Parent[] = [
+  { id: 'P-101', name: 'Mr. Deshmukh', mobile: '9877112200', relation: 'Father', childrenIds: ['S-201'] },
+  { id: 'P-102', name: 'Mr. Mehta', mobile: '9877112201', relation: 'Father', childrenIds: ['S-202'] },
+  { id: 'P-103', name: 'Mr. Sharma', mobile: '9877112202', relation: 'Father', childrenIds: ['S-203'] },
+  { id: 'P-104', name: 'Mr. Patil', mobile: '9877112203', relation: 'Father', childrenIds: ['S-204'] },
+  { id: 'P-105', name: 'Mr. Sen', mobile: '9877112204', relation: 'Father', childrenIds: ['S-205'] },
+  { id: 'P-106', name: 'Mr. Roy', mobile: '9554321000', relation: 'Father', childrenIds: ['S-206'] },
+  { id: 'P-107', name: 'Mr. Nair', mobile: '9554321001', relation: 'Father', childrenIds: ['S-207'] }
 ];
+
+export const INITIAL_STUDENTS: Student[] = [
+  { id: 'S-201', studentId: 'STU-MUM-2601', parentId: 'P-101', enrollmentIds: ['E-301'], name: 'Rohan Deshmukh', mobile: '9877112233', dob: '2010-05-14', gender: 'Male', address: { street: 'SV Road', city: 'Mumbai', state: 'MH', pincode: '400050' }, category: 'General', currentClass: 'Class 11', board: 'CBSE', targetExam: 'JEE', yearOfAttempt: '2028', status: 'Active Student' },
+  { id: 'S-202', studentId: 'STU-MUM-2602', parentId: 'P-102', enrollmentIds: ['E-302'], name: 'Sameer Mehta', mobile: '9877112244', dob: '2010-08-22', gender: 'Male', address: { street: 'Linking Road', city: 'Mumbai', state: 'MH', pincode: '400052' }, category: 'General', currentClass: 'Class 11', board: 'ICSE', targetExam: 'JEE', yearOfAttempt: '2028', status: 'Active Student' },
+  { id: 'S-203', studentId: 'STU-MUM-2603', parentId: 'P-103', enrollmentIds: ['E-303'], name: 'Aditya Sharma', mobile: '9877112255', dob: '2010-01-10', gender: 'Male', address: { street: 'Juhu Tara', city: 'Mumbai', state: 'MH', pincode: '400049' }, category: 'General', currentClass: 'Class 11', board: 'State Board', targetExam: 'JEE', yearOfAttempt: '2028', status: 'Active Student' },
+  { id: 'S-204', studentId: 'STU-MUM-2604', parentId: 'P-104', enrollmentIds: ['E-304'], name: 'Sneha Patil', mobile: '9877112266', dob: '2009-11-05', gender: 'Female', address: { street: 'Andheri East', city: 'Mumbai', state: 'MH', pincode: '400069' }, category: 'OBC', currentClass: 'Class 12', board: 'CBSE', targetExam: 'JEE', yearOfAttempt: '2027', status: 'Active Student' },
+  { id: 'S-205', studentId: 'STU-MUM-2605', parentId: 'P-105', enrollmentIds: ['E-305'], name: 'Kunal Sen', mobile: '9877112277', dob: '2009-12-12', gender: 'Male', address: { street: 'Bandra West', city: 'Mumbai', state: 'MH', pincode: '400050' }, category: 'General', currentClass: 'Class 12', board: 'CBSE', targetExam: 'JEE', yearOfAttempt: '2027', status: 'Active Student' },
+  { id: 'S-206', studentId: 'STU-PUN-2602', parentId: 'P-106', enrollmentIds: ['E-306'], name: 'Ishita Roy', mobile: '9554321098', dob: '2010-04-18', gender: 'Female', address: { street: 'Koregaon Park', city: 'Pune', state: 'MH', pincode: '411001' }, category: 'General', currentClass: 'Class 11', board: 'CBSE', targetExam: 'NEET', yearOfAttempt: '2028', status: 'Verification Pending' },
+  { id: 'S-207', studentId: 'STU-PUN-2603', parentId: 'P-107', enrollmentIds: ['E-307'], name: 'Priya Nair', mobile: '9554321099', dob: '2010-09-30', gender: 'Female', address: { street: 'Viman Nagar', city: 'Pune', state: 'MH', pincode: '411014' }, category: 'General', currentClass: 'Class 11', board: 'ICSE', targetExam: 'NEET', yearOfAttempt: '2028', status: 'Active Student' }
+];
+
+export const INITIAL_ENROLLMENTS: Enrollment[] = [
+  { id: 'E-301', studentId: 'S-201', course: 'JEE Prep Course', program: '2 Year', level: 'Beginner', batchId: 'JEE-Morning-A1', status: 'Active' },
+  { id: 'E-302', studentId: 'S-202', course: 'JEE Prep Course', program: '2 Year', level: 'Beginner', batchId: 'JEE-Morning-A1', status: 'Active' },
+  { id: 'E-303', studentId: 'S-203', course: 'JEE Prep Course', program: '2 Year', level: 'Beginner', batchId: 'JEE-Morning-A1', status: 'Active' },
+  { id: 'E-304', studentId: 'S-204', course: 'JEE Prep Course', program: '1 Year', level: 'Intermediate', batchId: 'JEE-Evening-B1', status: 'Active' },
+  { id: 'E-305', studentId: 'S-205', course: 'JEE Prep Course', program: '1 Year', level: 'Intermediate', batchId: 'JEE-Evening-B1', status: 'Active' },
+  { id: 'E-306', studentId: 'S-206', course: 'NEET Batch Premium', program: '2 Year', level: 'Beginner', batchId: 'NEET-Regular-M1', status: 'Active' },
+  { id: 'E-307', studentId: 'S-207', course: 'NEET Batch Premium', program: '2 Year', level: 'Beginner', batchId: 'NEET-Regular-M1', status: 'Active' }
+];
+
+export const INITIAL_FEE_RECORDS: FeeRecord[] = [
+  { id: 'F-401', enrollmentId: 'E-301', totalFee: 120000, discount: 0, netFee: 120000, downpayment: 40000, installments: 8, installmentAmount: 10000 },
+  { id: 'F-402', enrollmentId: 'E-302', totalFee: 120000, discount: 0, netFee: 120000, downpayment: 30000, installments: 9, installmentAmount: 10000 },
+  { id: 'F-403', enrollmentId: 'E-303', totalFee: 120000, discount: 0, netFee: 120000, downpayment: 60000, installments: 6, installmentAmount: 10000 },
+  { id: 'F-404', enrollmentId: 'E-304', totalFee: 120000, discount: 0, netFee: 120000, downpayment: 120000, installments: 0, installmentAmount: 0 },
+  { id: 'F-405', enrollmentId: 'E-305', totalFee: 120000, discount: 0, netFee: 120000, downpayment: 50000, installments: 7, installmentAmount: 10000 },
+  { id: 'F-406', enrollmentId: 'E-306', totalFee: 150000, discount: 0, netFee: 150000, downpayment: 50000, installments: 10, installmentAmount: 10000 },
+  { id: 'F-407', enrollmentId: 'E-307', totalFee: 150000, discount: 0, netFee: 150000, downpayment: 150000, installments: 0, installmentAmount: 0 }
+];
+
+export const INITIAL_DOCUMENTS: Document[] = [];
 
 export const INITIAL_COURSES: Course[] = [
   { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', fees: 150000, programs: ['2 Year', '1 Year', 'Crash Course'], branches: ['Mumbai West', 'Pune Camp', 'Delhi South'] },

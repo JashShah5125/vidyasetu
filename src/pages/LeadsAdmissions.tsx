@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
+import { FeeConfigurator } from '../components/FeeConfigurator';
 import {
   Plus, ArrowLeft, Users, PhoneCall, MessageSquare, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, XCircle, ChevronRight,
@@ -17,7 +18,7 @@ import { useFeeConfig } from '../context/FeeConfigContext';
 import type { Lead, Student } from '../data/mockData';
 
 interface LeadsAdmissionsProps {
-  initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
+  initialTab?: 'pipeline' | 'admission' | 'batch' | 'payment';
 }
 
 // ─── Status badge helper ────────────────────────────────────────────────────
@@ -44,7 +45,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 // ─── Phase progress bar ────────────────────────────────────────────────────
 const phases = [
   { id: 'pipeline',    label: 'Lead Pipeline',          icon: Users },
-  { id: 'fee',         label: 'Fee Discussion',          icon: DollarSign },
   { id: 'admission',   label: 'Admission & Docs',        icon: ClipboardList },
   { id: 'batch',       label: 'Batch Allocation',        icon: Layers },
   { id: 'payment',     label: 'Payment & Activation',   icon: Zap },
@@ -83,6 +83,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // ── selected lead ──
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [modalTab, setModalTab]         = useState<'profile' | 'course' | 'history' | 'fee'>('profile');
+  const [leadFeeData, setLeadFeeData]   = useState<any>(null);
 
   // ── modal states ──
   const [showAddLead,    setShowAddLead]    = useState(false);
@@ -116,9 +118,6 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   const [newInteractions, setNewInteractions] = useState<{type: string, status: string, remarks: string, date: string, nextDate: string}[]>([]);
 
-  // ── modal tabs ──
-  const [modalTab, setModalTab] = useState<'profile' | 'course' | 'history' | 'fee'>('profile');
-
   // ── fee / convert form ──
   const [feeBatch,    setFeeBatch]    = useState('');
   const [feeTotal,    setFeeTotal]    = useState(120000);
@@ -140,6 +139,22 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [batchSelected, setBatchSelected] = useState('');
   const [batchEnrollType, setBatchEnrollType] = useState('Standard');
   const [batchSubjects,  setBatchSubjects]  = useState<string[]>([]);
+
+  const availableBatchLevels = useMemo(() => {
+    if (!batchProgram) return [];
+    if (batchProgram.includes('2 Year')) return [{value: 'year1', label: 'Year 1'}, {value: 'year2', label: 'Year 2'}];
+    if (batchProgram.includes('1 Year')) return [{value: 'year1', label: 'Year 1'}];
+    if (batchProgram.includes('8th')) return [{value: 'class8', label: 'Class 8'}];
+    if (batchProgram.includes('9th')) return [{value: 'class9', label: 'Class 9'}];
+    if (batchProgram.includes('10th')) return [{value: 'class10', label: 'Class 10'}];
+    return [{value: 'year1', label: 'Year 1'}];
+  }, [batchProgram]);
+
+  useEffect(() => {
+    if (availableBatchLevels.length > 0 && !availableBatchLevels.find(l => l.value === batchLevel)) {
+      setBatchLevel(availableBatchLevels[0].value);
+    }
+  }, [availableBatchLevels, batchLevel]);
 
   useEffect(() => {
     const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
@@ -553,270 +568,42 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             )}
 
             {modalTab === 'fee' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Enrollment Type</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {['Standard', 'Custom Combo', 'Subject-wise'].map(et => (
-                      <label key={et} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                        <input type="radio" name="enrollType" value={et} checked={enrollType === et} onChange={() => setEnrollType(et)} className="text-blue-600" />
-                        <span className="text-sm font-semibold text-slate-700">{et}</span>
-                      </label>
-                    ))}
-                  </div>
-                  
-                  {enrollType === 'Standard' && (() => {
-                    const availablePrograms = [...new Set(plans.filter(p => p.course === fCourse).map(p => p.program))];
-                    const selectedPlan = plans.find(p => p.id === feeSelectedStandard);
-                    
-                    return (
-                      <div className="mt-4 space-y-4 animate-fade-in">
-                        <Select label="Select Program" value={fProgram} onChange={e => {
-                          setFProgram(e.target.value);
-                          setFeeSelectedStandard(''); 
-                        }} options={[
-                          { value: '', label: 'Choose Program...' },
-                          ...availablePrograms.map((prog: any) => ({ value: prog, label: prog }))
-                        ]} />
-
-                        {fProgram && (() => {
-                           const progPlans = plans.filter(p => p.course === fCourse && p.program === fProgram);
-                           if (progPlans.length === 0) return <div className="text-sm text-amber-600 mt-2">No standard plans configured for this course/program in Fees Master.</div>;
-                           return (
-                             <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} options={[
-                               { value: '', label: 'Choose a plan...' },
-                               ...progPlans.map((p: any) => ({ value: p.id, label: `${p.program} Base Plan` }))
-                             ]} />
-                           );
-                        })()}
-
-                        {selectedPlan && (
-                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
-                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
-                            </h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
-                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.totalFees.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.downPayment.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
-                                <div className="text-lg font-bold text-slate-800">{selectedPlan.months} Months</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.installment.toLocaleString()} / mo</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {enrollType === 'Custom Combo' && (() => {
-                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
-                    if (!courseObj) return null;
-                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
-                    const bundles = customBundles.filter((b: any) => b.category === mapKey);
-                    const selectedBundle = bundles.find((b: any) => b.id === feeSelectedBundle);
-                    const availablePrograms = courseObj.programs || [];
-                    const availableLevels = [...new Set(customBundles.filter(b => b.courseName === fCourse && b.programDetails === fProgram).map(b => b.levelDetails))];
-                    
-                    return (
-                      <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
-                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
-                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
-                        </div>
-                        {bundles.length === 0 ? (
-                          <div className="text-sm text-amber-600 mt-2">No bundles configured for this course/program.</div>
-                        ) : (
-                          <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
-                            { value: '', label: 'Choose a bundle...' },
-                            ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
-                          ]} />
-                        )}
-
-                        {selectedBundle && (
-                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
-                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
-                            </h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
-                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.fee || 0).toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.downPayment || 0).toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
-                                <div className="text-lg font-bold text-slate-800">{selectedBundle.months || 0} Months</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.installment || 0).toLocaleString()} / mo</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {enrollType === 'Subject-wise' && (() => {
-                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
-                    if (!courseObj) return null;
-                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
-                    const subjects = INITIAL_SUBJECTS_MAP[mapKey] || [];
-                    const availablePrograms = courseObj.programs || [];
-                    // For subjects, levels are derived from INITIAL_SUBJECTS_MAP keys
-                    const availableLevels = [...new Set(Object.keys(INITIAL_SUBJECTS_MAP).filter(k => k.startsWith(`${courseObj.code}-${fProgram}-`)).map(k => k.split('-').slice(-1)[0]))];
-                    
-                    const subjectSum = subjects.filter((s: any) => feeSelectedSubjects.includes(s.id)).reduce((acc: number, s: any) => acc + (s.fee || 0), 0);
-
-                    return (
-                      <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
-                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
-                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
-                        </div>
-
-                        {subjects.length === 0 ? (
-                          <div className="text-sm text-red-500">No subjects configured for this course/program.</div>
-                        ) : (
-                          <div className="space-y-2">
-                            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {subjects.map((s: any) => (
-                                <label key={s.id} className="flex items-center gap-2">
-                                  <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
-                                    if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
-                                    else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
-                                  }} className="w-4 h-4 text-blue-600 rounded border-slate-300" />
-                                  <span className="text-sm text-slate-700">{s.name} <span className="font-semibold text-emerald-600">(₹{(s.fee || 0).toLocaleString()})</span></span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {feeSelectedSubjects.length > 0 && (
-                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
-                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
-                            </h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Subject Fees</div>
-                                <div className="text-lg font-bold text-slate-800">₹{subjectSum.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Selected Subjects</div>
-                                <div className="text-lg font-bold text-slate-800">{feeSelectedSubjects.length}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Downpayment</div>
-                                <div className="text-lg font-bold text-slate-500">N/A</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Months</div>
-                                <div className="text-lg font-bold text-slate-500">N/A</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+              <div className="space-y-6 animate-fade-in pb-8">
+                <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm mb-6">
+                  <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
+                    <UserCheck className="w-5 h-5 text-blue-600" /> Pre-Registration Fee Discussion
+                  </h4>
+                  <p className="text-xs text-slate-500">Configure the fee structure with the parent. When finalized, convert this lead to a registered student. The configuration will carry over.</p>
                 </div>
+                
+                <FeeConfigurator 
+                  initialCourse={selectedLead.course}
+                  initialProgram={selectedLead.program}
+                  initialLevel={selectedLead.level}
+                  onChange={(data) => setLeadFeeData(data)}
+                />
 
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Customize Fee Structure</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input label="Overall Fees (₹)" type="number" value={feeTotal.toString()} onChange={e => setFeeTotal(Number(e.target.value))} />
-                    <Input label="Discount (₹)" type="number" value={feeDiscount.toString()} onChange={e => setFeeDiscount(Number(e.target.value))} />
-                    <Input label="Downpayment Amount (₹)" type="number" value={feePaid.toString()} onChange={e => setFeePaid(Number(e.target.value))} />
-                    {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
-                      <>
-                        <Input label="No. of Months" type="number" value={feeMonths.toString()} onChange={e => setFeeMonths(Number(e.target.value))} />
-                        <Input label="Monthly Installment (₹)" type="number" value={feeInstallment.toString()} onChange={e => setFeeInstallment(Number(e.target.value))} />
-                      </>
-                    )}
-                  </div>
-                  {!['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
-                    <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
-                      { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
-                      { value: '2 Installments', label: '2 Equal Installments' },
-                      { value: '3 Installments', label: '3 Quarterly Installments' },
-                      { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
-                    ]} />
-                  )}
-                  <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl shadow-md mt-6">
-                    <h5 className="text-sm font-bold text-emerald-800 uppercase tracking-wide mb-4 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-emerald-600" /> Final Summary
-                    </h5>
-                    <div className={`grid ${['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-6`}>
-                      <div>
-                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Discounted Fee</div>
-                        <div className="text-xl font-black text-slate-900">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">{['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'Downpayment' : 'Initial Deposit'}</div>
-                        <div className="text-xl font-black text-emerald-700">₹{feePaid.toLocaleString()}</div>
-                      </div>
-                      {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? (
-                        <>
-                          <div>
-                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">No. of Months</div>
-                            <div className="text-xl font-black text-slate-900">{feeMonths} Months</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Monthly Amount</div>
-                            <div className="text-xl font-black text-slate-900">₹{feeInstallment.toLocaleString()} <span className="text-sm font-semibold text-slate-500">/ mo</span></div>
-                          </div>
-                        </>
-                      ) : (
-                        <div>
-                          <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Outstanding</div>
-                          <div className={`text-xl font-black ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 mt-6">
+                  <Button type="button" variant="secondary" onClick={() => {
+                    alert('Fee configuration saved successfully.');
+                    setShowLeadDetail(false);
+                    setSelectedLead(null);
+                  }} style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}>
+                    Save Configuration
+                  </Button>
+                  <Button type="button" variant="primary" onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: leadFeeData } })} style={{ backgroundColor: '#10b981', color: 'white', padding: '0.75rem 1.5rem', fontSize: '1rem' }}>
+                    Convert to Student <ChevronRight size={20} className="ml-2" />
+                  </Button>
                 </div>
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
-              <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button">Cancel</Button>
-              <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit">Save Changes</Button>
-              {selectedLead && (
-                <Button type="button" variant="primary" onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { 
-                  state: { 
-                    prefilledFeeData: {
-                      total: feeTotal,
-                      discount: feeDiscount,
-                      paid: feePaid,
-                      months: feeMonths,
-                      installment: feeInstallment
-                    } 
-                  } 
-                })} style={{ backgroundColor: '#10b981', color: 'white' }}>
-                  Convert to Student <ChevronRight size={18} className="ml-1" />
-                </Button>
-              )}
-            </div>
+            {modalTab !== 'fee' && (
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
+                <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button">Cancel</Button>
+                <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit">Save Changes</Button>
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -1009,267 +796,21 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             )}
 
             {modalTab === 'fee' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Academic Context</h4>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <Select label="Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); }} options={courses.map(c => ({ value: c.name, label: c.name }))} />
-                    <Select label="Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); }} options={[{ value: '', label: 'Select Program...' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
-                    <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[
-                      { value: '', label: 'Select Level...' },
-                      { value: 'year1', label: 'Year 1' },
-                      { value: 'year2', label: 'Year 2' },
-                      { value: 'class8', label: 'Class 8' },
-                      { value: 'Repeater', label: 'Repeater' }
-                    ]} />
-                  </div>
+              <div className="space-y-6 animate-fade-in p-6 bg-slate-50 border border-slate-200 rounded-lg text-center flex flex-col items-center justify-center min-h-[250px]">
+                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-2">
+                  <UserCheck size={24} />
                 </div>
-
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Enrollment Type</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {['Standard', 'Custom Combo', 'Subject-wise'].map(et => (
-                      <label key={et} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                        <input type="radio" name="enrollType" value={et} checked={enrollType === et} onChange={() => setEnrollType(et)} className="text-blue-600" />
-                        <span className="text-sm font-semibold text-slate-700">{et}</span>
-                      </label>
-                    ))}
-                  </div>
-                  
-                  {enrollType === 'Standard' && (() => {
-                    const selectedPlan = plans.find(p => p.id === feeSelectedStandard);
-                    const progPlans = plans.filter(p => p.course === fCourse && p.program === fProgram);
-
-                    return (
-                      <div className="mt-4 space-y-4 animate-fade-in">
-                        {fProgram ? (
-                          <>
-                            {progPlans.length === 0 ? (
-                              <div className="text-sm text-amber-600 mt-2">No standard plans configured for this course/program in Fees Master.</div>
-                            ) : (
-                              <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} options={[
-                                { value: '', label: 'Choose a plan...' },
-                                ...progPlans.map((p: any) => ({ value: p.id, label: `${p.program} Base Plan` }))
-                              ]} />
-                            )}
-                          </>
-                        ) : (
-                          <div className="text-sm text-amber-600 mt-2">Please select a Program in Academic Context above to view Standard plans.</div>
-                        )}
-
-                        {selectedPlan && (
-                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
-                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
-                            </h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
-                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.totalFees.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.downPayment.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
-                                <div className="text-lg font-bold text-slate-800">{selectedPlan.months} Months</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{selectedPlan.installment.toLocaleString()} / mo</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {enrollType === 'Custom Combo' && (() => {
-                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
-                    if (!courseObj) return null;
-                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
-                    const bundles = customBundles.filter((b: any) => b.category === mapKey);
-                    const selectedBundle = bundles.find((b: any) => b.id === feeSelectedBundle);
-                    const availablePrograms = courseObj.programs || [];
-                    const availableLevels = [...new Set(customBundles.filter(b => b.courseName === fCourse && b.programDetails === fProgram).map(b => b.levelDetails))];
-
-                    return (
-                      <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
-                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
-                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedBundle(''); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
-                        </div>
-                        {bundles.length === 0 ? (
-                          <div className="text-sm text-amber-600 mt-2">No bundles configured for this course/program in Fees Master.</div>
-                        ) : (
-                          <Select label="Select Bundle" value={feeSelectedBundle} onChange={e => setFeeSelectedBundle(e.target.value)} options={[
-                            { value: '', label: 'Choose a bundle...' },
-                            ...bundles.map((b: any) => ({ value: b.id, label: `${b.name} - ₹${(b.fee||0).toLocaleString()}` }))
-                          ]} />
-                        )}
-
-                        {selectedBundle && (
-                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
-                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
-                            </h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Fixed Price</div>
-                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.fee || 0).toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Downpayment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.downPayment || 0).toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">No of Months</div>
-                                <div className="text-lg font-bold text-slate-800">{selectedBundle.months || 0} Months</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Fixed Installment</div>
-                                <div className="text-lg font-bold text-slate-800">₹{(selectedBundle.installment || 0).toLocaleString()} / mo</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {enrollType === 'Subject-wise' && (() => {
-                    const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
-                    if (!courseObj) return null;
-                    const mapKey = `${courseObj.code}-${fProgram}-${fLevel}`;
-                    const subjects = subjectsData.filter((s: any) => s.category === mapKey);
-                    const availablePrograms = courseObj.programs || [];
-                    const availableLevels = [...new Set(subjectsData.filter((s: any) => s.category.startsWith(`${courseObj.code}-${fProgram}-`)).map((s: any) => s.category.split('-').slice(-1)[0]))];
-                    
-                    const subjectSum = subjects.filter((s: any) => feeSelectedSubjects.includes(s.id)).reduce((acc: number, s: any) => acc + (s.fee || 0), 0);
-
-                    return (
-                      <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <Select label="Select Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Course'}, ...INITIAL_COURSES.map(c => ({value:c.name, label:c.name}))]} />
-                          <Select label="Select Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Program'}, ...availablePrograms.map((p:any) => ({value:p, label:p}))]} />
-                          <Select label="Select Level" value={fLevel} onChange={e => { setFLevel(e.target.value); setFeeSelectedSubjects([]); }} options={[{value:'', label:'Select Level'}, ...availableLevels.map(l => ({value:l, label:l}))]} />
-                        </div>
-
-                        {subjects.length === 0 ? (
-                          <div className="text-sm text-amber-600 mt-2">No subjects configured for this course/program in Fees Master.</div>
-                        ) : (
-                          <div className="space-y-2">
-                            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Select Subjects</label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {subjects.map((s: any) => (
-                                <label key={s.id} className="flex items-center gap-2">
-                                  <input type="checkbox" checked={feeSelectedSubjects.includes(s.id)} onChange={e => {
-                                    if (e.target.checked) setFeeSelectedSubjects([...feeSelectedSubjects, s.id]);
-                                    else setFeeSelectedSubjects(feeSelectedSubjects.filter(id => id !== s.id));
-                                  }} className="w-4 h-4 text-blue-600 rounded border-slate-300" />
-                                  <span className="text-sm text-slate-700">{s.name} <span className="font-semibold text-emerald-600">(₹{(s.fee || 0).toLocaleString()})</span></span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {feeSelectedSubjects.length > 0 && (
-                          <div className="p-4 bg-white border border-blue-200 rounded-lg shadow-sm mt-4">
-                            <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4" /> Ideal Setup (Reference)
-                            </h5>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Total Subject Fees</div>
-                                <div className="text-lg font-bold text-slate-800">₹{subjectSum.toLocaleString()}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Selected Subjects</div>
-                                <div className="text-lg font-bold text-slate-800">{feeSelectedSubjects.length}</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Downpayment</div>
-                                <div className="text-lg font-bold text-slate-500">N/A</div>
-                              </div>
-                              <div>
-                                <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Custom Months</div>
-                                <div className="text-lg font-bold text-slate-500">N/A</div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Customize Fee Structure</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input label="Overall Fees (₹)" type="number" value={feeTotal.toString()} onChange={e => setFeeTotal(Number(e.target.value))} />
-                    <Input label="Discount (₹)" type="number" value={feeDiscount.toString()} onChange={e => setFeeDiscount(Number(e.target.value))} />
-                    <Input label="Downpayment Amount (₹)" type="number" value={feePaid.toString()} onChange={e => setFeePaid(Number(e.target.value))} />
-                    {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
-                      <>
-                        <Input label="No. of Months" type="number" value={feeMonths.toString()} onChange={e => setFeeMonths(Number(e.target.value))} />
-                        <Input label="Monthly Installment (₹)" type="number" value={feeInstallment.toString()} onChange={e => setFeeInstallment(Number(e.target.value))} />
-                      </>
-                    )}
-                  </div>
-                  {!['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) && (
-                    <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
-                      { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
-                      { value: '2 Installments', label: '2 Equal Installments' },
-                      { value: '3 Installments', label: '3 Quarterly Installments' },
-                      { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
-                    ]} />
-                  )}
-                  <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl shadow-md mt-6">
-                    <h5 className="text-sm font-bold text-emerald-800 uppercase tracking-wide mb-4 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-emerald-600" /> Final Summary
-                    </h5>
-                    <div className={`grid ${['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-6`}>
-                      <div>
-                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Discounted Fee</div>
-                        <div className="text-xl font-black text-slate-900">₹{(feeTotal - feeDiscount).toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">{['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? 'Downpayment' : 'Initial Deposit'}</div>
-                        <div className="text-xl font-black text-emerald-700">₹{feePaid.toLocaleString()}</div>
-                      </div>
-                      {['Standard', 'Custom Combo', 'Subject-wise'].includes(enrollType) ? (
-                        <>
-                          <div>
-                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">No. of Months</div>
-                            <div className="text-xl font-black text-slate-900">{feeMonths} Months</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Monthly Amount</div>
-                            <div className="text-xl font-black text-slate-900">₹{feeInstallment.toLocaleString()} <span className="text-sm font-semibold text-slate-500">/ mo</span></div>
-                          </div>
-                        </>
-                      ) : (
-                        <div>
-                          <div className="text-[10px] text-emerald-600/80 font-bold uppercase mb-1">Outstanding</div>
-                          <div className={`text-xl font-black ${(feeTotal - feeDiscount - feePaid) > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>₹{(feeTotal - feeDiscount - feePaid).toLocaleString()}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <h4 className="text-md font-bold text-slate-800">Save Enquiry First</h4>
+                <p className="text-sm text-slate-500 max-w-sm">Please save this enquiry to the CRM pipeline before you can convert it into a registered student.</p>
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
-              <Button type="button" variant="ghost" onClick={() => setShowAddLead(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }}>Save Enquiry</Button>
-            </div>
+            {modalTab !== 'fee' && (
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
+                <Button type="button" variant="ghost" onClick={() => setShowAddLead(false)}>Cancel</Button>
+                <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }}>Save Enquiry</Button>
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -1358,92 +899,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  //  MODAL: Fee Discussion & Convert
-  // ─────────────────────────────────────────────────────────────────────────
-  if ((showFeeModal || showConvert) && selectedLead) {
-    const netFee = feeTotal - feeDiscount;
-    const outstanding = netFee - feePaid;
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button onClick={() => { setShowFeeModal(false); setShowConvert(false); setSelectedLead(null); }} className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Fee Discussion & Finalize Admission</h2>
-            <p className="text-sm text-slate-500">Student: <strong>{selectedLead.name}</strong> — Course: {selectedLead.course}</p>
-          </div>
-        </div>
-        <div className="w-full">
-          <form onSubmit={e => {
-            e.preventDefault();
-            convertLeadToStudent(selectedLead.id, selectedLead.course, feeBatch || 'TBD', feeTotal, feeDiscount, feePaid);
-            setShowFeeModal(false); setShowConvert(false); setSelectedLead(null);
-            showSuccess(`Admission confirmed for ${selectedLead.name}! Student profile and receipt ledger created.`);
-          }} className="space-y-4">
-            {/* Enrollment Type */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Enrollment Type</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {['Standard', 'Custom Combo', 'Subject-wise'].map(et => (
-                  <label key={et} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <input type="radio" name="enrollType" value={et} checked={enrollType === et} onChange={() => setEnrollType(et)} className="text-blue-600" />
-                    <span className="text-sm font-semibold text-slate-700">{et}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            {/* Batch allocation */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Batch & Course Confirmation</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Confirmed Course" value={selectedLead.course} readOnly />
-                <Select label="Allocate Batch" value={feeBatch} onChange={e => setFeeBatch(e.target.value)} options={[
-                  { value: '', label: 'Select a batch...' },
-                  ...batches.filter(b => b.course.toLowerCase().includes(selectedLead.course.toLowerCase().split(' ')[0].toLowerCase()) || true).map(b => ({ value: b.name, label: `${b.name} (${b.timing})` }))
-                ]} />
-              </div>
-            </div>
-            {/* Fee structure */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Fee Structure</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Base Course Fee (₹)" type="number" value={feeTotal} onChange={e => setFeeTotal(Number(e.target.value))} />
-                <Input label="Discount / Scholarship (₹)" type="number" value={feeDiscount} onChange={e => setFeeDiscount(Number(e.target.value))} />
-                <Input label="Initial Deposit (₹)" type="number" value={feePaid} onChange={e => setFeePaid(Number(e.target.value))} />
-              </div>
-              <Select label="Payment / Installment Plan" value={feeInstall} onChange={e => setFeeInstall(e.target.value)} options={[
-                { value: 'Full Payment', label: 'Full Payment (Single Installment)' },
-                { value: '2 Installments', label: '2 Equal Installments' },
-                { value: '3 Installments', label: '3 Quarterly Installments' },
-                { value: 'Monthly EMI', label: 'Monthly EMI Plan' },
-              ]} />
-              {/* Fee summary */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Discounted Fee</div>
-                  <div className="text-lg font-bold text-slate-800">₹{netFee.toLocaleString()}</div>
-                </div>
-                <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Initial Deposit</div>
-                  <div className="text-lg font-bold text-emerald-600">₹{feePaid.toLocaleString()}</div>
-                </div>
-                <div className="p-3 bg-white border border-slate-200 rounded-lg text-center">
-                  <div className="text-[10px] text-slate-400 font-semibold uppercase mb-1">Outstanding</div>
-                  <div className={`text-lg font-bold ${outstanding > 0 ? 'text-red-600' : 'text-emerald-600'}`}>₹{outstanding.toLocaleString()}</div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="ghost" onClick={() => { setShowFeeModal(false); setShowConvert(false); setSelectedLead(null); }}>Cancel</Button>
-              <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }}>Confirm Admission & Create Student Profile</Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
+
 
   // ─────────────────────────────────────────────────────────────────────────
   //  MODAL: Batch Allocation for existing student
@@ -1484,9 +940,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 label="Step 3 — Select Academic Level"
                 options={[
                   { value: '', label: 'Select a level...' },
-                  ...(batchProgram.includes('2 Year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] :
-                     batchProgram.includes('8th') ? [{ value: 'class8', label: 'Class 8' }] :
-                     batchProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
+                  ...availableBatchLevels
                 ]}
                 value={batchLevel}
                 onChange={e => { setBatchLevel(e.target.value); setBatchSelected(''); }}
@@ -1648,24 +1102,31 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder={activeTab === 'pipeline' || activeTab === 'fee' ? 'Search leads by name, mobile or course...' : 'Search students by name or ID...'}
+                placeholder={activeTab === 'pipeline' ? 'Search leads by name, mobile or course...' : 'Search students by name or ID...'}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
               />
             </div>
           </div>
-          {activeTab === 'pipeline' || activeTab === 'fee' ? (
+          {activeTab === 'pipeline' || activeTab === 'admission' ? (
             <>
-              <Select label="Stage Status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} options={[
-                { value: 'All', label: 'All Stages' },
-                { value: 'New Enquiry', label: 'New Enquiry' },
-                { value: 'Contacted', label: 'Contacted' },
-                { value: 'Follow-up', label: 'Follow-up' },
-                { value: 'Demo Scheduled', label: 'Demo Scheduled' },
-                { value: 'Interested', label: 'Interested' },
-                { value: 'Not Interested', label: 'Not Interested' },
-              ]} />
+              <Select label="Stage Status" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} options={
+                activeTab === 'pipeline' ? [
+                  { value: 'All', label: 'All Stages' },
+                  { value: 'New Enquiry', label: 'New Enquiry' },
+                  { value: 'Contacted', label: 'Contacted' },
+                  { value: 'Follow-up', label: 'Follow-up' },
+                  { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                  { value: 'Interested', label: 'Interested' },
+                  { value: 'Not Interested', label: 'Not Interested' },
+                ] : [
+                  { value: 'All', label: 'All Stages' },
+                  { value: 'Registration Pending', label: 'Registration Pending' },
+                  { value: 'Documents Submitted', label: 'Documents Submitted' },
+                  { value: 'Verification Pending', label: 'Verification Pending' }
+                ]
+              } />
               <Select label="Discovery Source" value={filterSource} onChange={e => setFilterSource(e.target.value)} options={[
                 { value: 'All', label: 'All Sources' },
                 { value: 'Walk-in', label: 'Walk-in' },
@@ -1747,44 +1208,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
 
 
-      {/* ═══════════════════════════════════════════════════════════════════
-           PHASE 3 — FEE DISCUSSION
-      ════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'fee' && (
-        <div className="space-y-4">
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-            <strong>Phase 2 — Fee Discussion:</strong> Show leads that are in <em>Follow-up</em> or <em>Interested</em> stage and need fee finalisation before conversion.
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Fee Discussion Queue</CardTitle>
-              <span className="text-xs text-slate-400">Leads ready for fee negotiation</span>
-            </CardHeader>
-            <Table headers={['Student Name', 'Mobile', 'Course', 'Preferred Branch', 'Assigned Branch', 'Stage', 'Counsellor', 'Remarks', 'Actions']}>
-              {pipelineLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).map(l => (
-                <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l)}>{l.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
-                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
-                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
-                  <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500 max-w-[200px] truncate">{l.remarks}</td>
-                  <td className="px-6 py-4">
-                    <Button variant="primary" size="sm" style={{ backgroundColor: '#2563eb', color: 'white' }} onClick={() => { setSelectedLead(l); setFeeTotal(120000); setFeeDiscount(0); setFeePaid(40000); setFeeBatch(''); setShowFeeModal(true); }}>
-                      <DollarSign size={13} className="mr-1" /> Discuss Fee
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {pipelineLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">No leads in fee discussion stage. Move leads forward from the Lead Pipeline tab.</td></tr>
-              )}
-            </Table>
-          </Card>
-        </div>
-      )}
+
 
       {/* ═══════════════════════════════════════════════════════════════════
            PHASE 4 — ADMISSION & DOCUMENT VERIFICATION
@@ -1808,23 +1232,19 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <Card>
             <CardHeader>
               <CardTitle>Admission & Document Verification Pipeline</CardTitle>
-              <span className="text-xs text-slate-400">{filteredStudents.length} students</span>
+              <span className="text-xs text-slate-400 font-medium">{filteredStudents.length} result{filteredStudents.length !== 1 ? 's' : ''}</span>
             </CardHeader>
-            <Table headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Branch', 'Admission Date', 'Fee Paid', 'Documents', 'Status', 'Actions']}>
+            <Table headers={['Student ID', 'Student Name', 'Mobile', 'Course', 'Branch', 'Documents', 'Status', 'Actions']}>
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono font-bold text-[10px] text-slate-400">{s.studentId}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600">{s.course}</td>
-                  <td className="px-6 py-4 text-xs font-mono text-slate-500">{s.batch}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{s.branch}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.admissionDate}</td>
-                  <td className="px-6 py-4">
-                    <div className="text-xs">
-                      <span className="text-emerald-600 font-bold">₹{s.feePlan.paid.toLocaleString()}</span>
-                      <span className="text-slate-400"> / ₹{s.feePlan.total.toLocaleString()}</span>
-                    </div>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/admission/${s.id || s.studentId}`)}>{s.name}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.mobile || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    <div>{s.course}</div>
+                    {(s as any).program && <div className="text-xs text-slate-400 mt-0.5">{(s as any).program} {(s as any).level ? `(${(s as any).level})` : ''}</div>}
                   </td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{s.address?.city || s.branch || '-'}</td>
                   <td className="px-6 py-4 text-xs font-semibold">
                     {s.status === 'Active Student'
                       ? <span className="text-emerald-600 flex items-center gap-1"><CheckCircle size={12} /> Verified (4 files)</span>
@@ -1834,8 +1254,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   <td className="px-6 py-4"><StatusBadge status={s.status} /></td>
                   <td className="px-6 py-4">
                     {s.status !== 'Active Student' ? (
-                      <Button variant="primary" size="sm" style={{ backgroundColor: '#2563eb', color: 'white' }} onClick={() => { approveStudentRegistration(s.id); showSuccess(`Admission verified & approved for ${s.name}`); }}>
-                        <UserCheck size={13} className="mr-1" /> Verify & Approve
+                      <Button variant="primary" size="sm" style={{ backgroundColor: '#2563eb', color: 'white' }} onClick={() => navigate(`/admission/${s.id || s.studentId}`)}>
+                        Review Docs <ChevronRight size={13} className="ml-1" />
                       </Button>
                     ) : (
                       <span className="text-xs text-slate-400 font-semibold flex items-center gap-1"><CheckCircle size={12} className="text-emerald-500" /> Approved</span>

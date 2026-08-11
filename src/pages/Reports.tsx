@@ -399,7 +399,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const programStats = uniquePrograms.map(p => {
     const programBatches = batches.filter(b => b.program === p);
     const batchNames = programBatches.map(b => b.name);
-    const enrolledCount = students.filter(s => batchNames.includes(s.batch)).length;
+    const enrolledCount = students.filter(s => batchNames.includes(s.batch || '')).length;
     return {
       name: p,
       batchesCount: programBatches.length,
@@ -427,7 +427,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
       b.level === levelPart
     );
     const batchNames = matchingBatches.map(b => b.name);
-    const enrolledCount = students.filter(s => batchNames.includes(s.batch)).length;
+    const enrolledCount = students.filter(s => batchNames.includes(s.batch || '')).length;
 
     const subjectsList = INITIAL_SUBJECTS_MAP[key] || [];
     return subjectsList.map(item => ({

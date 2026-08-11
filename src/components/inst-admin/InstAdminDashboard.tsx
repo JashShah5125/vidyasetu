@@ -146,9 +146,9 @@ export const InstAdminDashboard: React.FC = () => {
   }, [branches, filters.branch]);
 
   // KPI Calculations
-  const totalFeesTarget = filteredStudents.reduce((acc, s) => acc + s.feePlan.total, 0);
-  const totalFeesPaid = filteredStudents.reduce((acc, s) => acc + s.feePlan.paid, 0);
-  const totalFeesPending = filteredStudents.reduce((acc, s) => acc + s.feePlan.pending, 0);
+  const totalFeesTarget = filteredStudents.reduce((acc, s) => acc + (s.feePlan?.total || 0), 0);
+  const totalFeesPaid = filteredStudents.reduce((acc, s) => acc + (s.feePlan?.paid || 0), 0);
+  const totalFeesPending = filteredStudents.reduce((acc, s) => acc + (s.feePlan?.pending || 0), 0);
   
   const feePercentage = totalFeesTarget > 0 ? Math.round((totalFeesPaid / totalFeesTarget) * 100) : 0;
 
