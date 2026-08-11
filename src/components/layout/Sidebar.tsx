@@ -19,7 +19,8 @@ import {
   FileText,
   Ticket,
   BarChart3,
-  ChevronLeft
+  ChevronLeft,
+  Zap
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -221,9 +222,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         return [
           { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
           {
-            title: 'ERP & Admissions',
+            title: 'CRM Pipeline',
             links: [
-              { name: 'Leads & Admissions', label: 'Leads & Admissions', path: '/leads', icon: Users }
+              { name: 'Lead Pipeline', label: 'Lead Pipeline', path: '/leads', icon: Users },
+              { name: 'Fee Discussion', label: 'Fee Discussion', path: '/leads/fee', icon: DollarSign },
+              { name: 'Admission & Docs', label: 'Admission & Docs', path: '/leads/admission', icon: ClipboardList },
+              { name: 'Batch Allocation', label: 'Batch Allocation', path: '/leads/batch', icon: Layers },
+              { name: 'Payment & Activation', label: 'Payment & Activation', path: '/leads/payment', icon: Zap }
             ]
           }
         ];
@@ -250,7 +255,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
       case 'finance':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Expense Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Expense Management',
+            links: [
+              { name: 'Expense Voucher', label: 'Expense Voucher', path: '/expense-voucher', icon: FileText },
+              { name: 'Expense Ledger', label: 'Expense Ledger', path: '/expense-ledger', icon: ClipboardList }
+            ]
+          },
           {
             title: 'Finance Hub',
             links: [
@@ -285,7 +297,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     label: string;
     badge?: number;
   }) => {
-    const isActive = location.pathname.startsWith(path);
+    const isActive = path === '/leads' 
+      ? location.pathname === '/leads' || location.pathname === '/leads/pipeline'
+      : location.pathname.startsWith(path);
     return (
       <div
         onClick={() => { navigate(path); onClose(); }}

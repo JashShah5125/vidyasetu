@@ -30,6 +30,8 @@ import { Reports } from './pages/Reports';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
 import { TenantsManager } from './pages/TenantsManager';
+import { ExpenseVoucher } from './pages/ExpenseVoucher';
+import { ExpenseLedger } from './pages/ExpenseLedger';
 import { SubscriptionPlans } from './pages/SubscriptionPlans';
 import { TenantSubscriptions } from './pages/TenantSubscriptions';
 import { TenantDetails } from './pages/TenantDetails';
@@ -297,6 +299,10 @@ const ContentRouter = () => {
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={<Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/leads/fee" element={<LeadsAdmissions initialTab="fee" />} />
+      <Route path="/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
+      <Route path="/leads/batch" element={<LeadsAdmissions initialTab="batch" />} />
+      <Route path="/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
       <Route path="/assignments" element={<Assignments />} />
@@ -304,6 +310,8 @@ const ContentRouter = () => {
       <Route path="/fees" element={<Fees initialTab="record" />} />
       <Route path="/fees-master" element={<FeesMaster />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
+      <Route path="/expense-voucher" element={<ExpenseVoucher />} />
+      <Route path="/expense-ledger" element={<ExpenseLedger />} />
       <Route path="/reports" element={<Reports mode="institute" />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/settings" element={<Settings />} />

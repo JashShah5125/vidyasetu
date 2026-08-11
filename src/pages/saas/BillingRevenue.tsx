@@ -134,8 +134,8 @@ export const BillingRevenue: React.FC = () => {
                   <tr key={inv.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 font-mono text-xs font-bold text-slate-600">{inv.id}</td>
                     <td className="px-6 py-4 font-semibold text-slate-900">{inv.tenantName}</td>
-                    <td className="px-6 py-4 text-xs text-slate-500">{inv.date}</td>
-                    <td className="px-6 py-4 text-xs text-slate-500">{inv.dueDate}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{inv.date}</td>
+                    <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{inv.dueDate}</td>
                     <td className="px-6 py-4 font-semibold text-slate-800">₹{inv.amount.toLocaleString()}</td>
                     <td className="px-6 py-4 text-slate-500">₹{inv.tax.toLocaleString()}</td>
                     <td className="px-6 py-4 font-bold text-slate-900">₹{(inv.amount + inv.tax).toLocaleString()}</td>

@@ -642,7 +642,7 @@ export const Institute: React.FC = () => {
                       <tbody className="divide-y divide-slate-100">
                         {pastRequests.map((pr, idx) => (
                           <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 text-xs text-slate-500 font-mono">{pr.date}</td>
+                            <td className="px-4 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">{pr.date}</td>
                             <td className="px-4 py-3 font-semibold text-slate-700 text-xs">{pr.resource}</td>
                             <td className="px-4 py-3 font-bold text-slate-800 text-xs">{pr.value}</td>
                             <td className="px-4 py-3 text-right">

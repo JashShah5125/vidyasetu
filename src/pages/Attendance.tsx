@@ -186,7 +186,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                   <tbody className="divide-y divide-slate-150 text-sm text-slate-600">
                     {historyLogs.map((log, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50">
-                        <td className="px-6 py-3 font-mono text-xs">{log.date}</td>
+                        <td className="px-6 py-3 font-mono text-xs whitespace-nowrap">{log.date}</td>
                         <td className="px-6 py-3">
                           <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                             log.status === 'Present' ? 'bg-emerald-50 text-emerald-700' :

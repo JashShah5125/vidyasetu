@@ -546,7 +546,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                       <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-4 font-mono font-bold text-slate-800">{inv.id}</td>
                         <td className="px-5 py-4 font-semibold">{inv.plan}</td>
-                        <td className="px-5 py-4 font-mono text-slate-500">{inv.date}</td>
+                        <td className="px-5 py-4 font-mono text-slate-500 whitespace-nowrap">{inv.date}</td>
                         <td className="px-5 py-4 font-bold text-emerald-700">{inv.amt}</td>
                         <td className="px-5 py-4 font-mono text-slate-400">{inv.ref}</td>
                         <td className="px-5 py-4">
@@ -815,7 +815,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                                 {student.receipts.map((rcpt) => (
                                   <tr key={rcpt.id}>
                                     <td className="px-4 py-2.5 font-mono font-bold text-slate-600">{rcpt.id}</td>
-                                    <td className="px-4 py-2.5 font-mono">{rcpt.date}</td>
+                                    <td className="px-4 py-2.5 font-mono whitespace-nowrap">{rcpt.date}</td>
                                     <td className="px-4 py-2.5 font-bold text-slate-800">₹{rcpt.amount.toLocaleString()}</td>
                                     <td className="px-4 py-2.5 text-slate-500">{rcpt.mode}</td>
                                     <td className="px-4 py-2.5">
