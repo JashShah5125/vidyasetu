@@ -42,7 +42,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
-  const { currentUser } = useApp();
+  const { currentUser, notifications } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -60,6 +60,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }
 
   const getSidebarSections = (role: string): SidebarSection[] => {
+    const unreadNotificationsCount = notifications.filter(n => n.direction === 'Incoming' && n.status === 'Unread').length;
+
     switch (role) {
       case 'saas-admin':
         return [
@@ -242,12 +244,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'My Schedule', label: 'Academic Schedule', path: '/my-schedule', icon: Calendar },
               { name: 'Mark Attendance', label: 'Roll Call Attendance', path: '/attendance', icon: CheckSquare },
               { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
-              { name: 'Exam Grading', label: 'Grades Entry', path: '/exams', icon: ClipboardList }
+              { name: 'Students Roster', label: 'My Students', path: '/students', icon: GraduationCap }
             ]
           },
           {
             title: 'Communication',
             links: [
+              { name: 'Notifications', label: 'Notifications', path: '/teacher-notifications', icon: Bell, badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined },
               { name: 'Doubt Chats', label: 'Student Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
             ]
           }

@@ -21,6 +21,7 @@ import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
 import { Students } from './pages/Students';
+import { StudentRegistration } from './pages/StudentRegistration';
 import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
@@ -35,6 +36,15 @@ import { ExpenseLedger } from './pages/ExpenseLedger';
 import { SubscriptionPlans } from './pages/SubscriptionPlans';
 import { TenantSubscriptions } from './pages/TenantSubscriptions';
 import { TenantDetails } from './pages/TenantDetails';
+
+// Teacher components
+import { TeacherDashboard } from './components/teacher/TeacherDashboard';
+import { TeacherAttendance } from './components/teacher/TeacherAttendance';
+import { TeacherAssignments } from './components/teacher/TeacherAssignments';
+import { TeacherDoubts } from './components/teacher/TeacherDoubts';
+import { TeacherStudents } from './components/teacher/TeacherStudents';
+import { TeacherSchedule } from './components/teacher/TeacherSchedule';
+import { TeacherNotifications } from './components/teacher/TeacherNotifications';
 
 // SaaS Admin pages
 import { FeatureFlags } from './pages/saas/FeatureFlags';
@@ -263,10 +273,13 @@ const TenantDetailsWrapper = () => {
 };
 
 const ContentRouter = () => {
+  const { currentUser } = useApp();
+  const isTeacher = currentUser?.role === 'teacher';
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : <Dashboard />} />
       <Route path="/tenants" element={<TenantsManager initialOpenCreate={false} />} />
       <Route path="/tenants/create" element={<TenantsManager initialOpenCreate={true} />} />
       <Route path="/tenants/:id" element={<TenantDetailsWrapper />} />
@@ -295,18 +308,21 @@ const ContentRouter = () => {
       <Route path="/staff" element={<Users />} />
       <Route path="/staff/new" element={<StaffCreate />} />
       <Route path="/admissions" element={<LeadsAdmissions initialTab="admission" />} />
-      <Route path="/students" element={<Students />} />
+      <Route path="/students" element={isTeacher ? <TeacherStudents /> : <Students />} />
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
-      <Route path="/my-schedule" element={<Attendance initialTab="timetable" />} />
+      <Route path="/my-schedule" element={isTeacher ? <TeacherSchedule /> : <Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/leads/:id/convert" element={<StudentRegistration />} />
+      <Route path="/admission/:id" element={<StudentRegistration />} />
       <Route path="/leads/fee" element={<LeadsAdmissions initialTab="fee" />} />
       <Route path="/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/leads/batch" element={<LeadsAdmissions initialTab="batch" />} />
       <Route path="/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
-      <Route path="/attendance" element={<Attendance initialTab="sheet" />} />
-      <Route path="/assignments" element={<Assignments />} />
-      <Route path="/exams" element={<ExamMarks />} />
+      <Route path="/attendance" element={isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
+      <Route path="/assignments" element={isTeacher ? <TeacherAssignments /> : <Assignments />} />
+      <Route path="/exams" element={isTeacher ? <Navigate to="/assignments" replace /> : <ExamMarks />} />
+      <Route path="/teacher-notifications" element={<TeacherNotifications />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
       <Route path="/fees-master" element={<FeesMaster />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
@@ -315,7 +331,7 @@ const ContentRouter = () => {
       <Route path="/reports" element={<Reports mode="institute" />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/settings" element={<Settings />} />
-      <Route path="/doubts" element={<DoubtChatsPlaceholder />} />
+      <Route path="/doubts" element={isTeacher ? <TeacherDoubts /> : <DoubtChatsPlaceholder />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

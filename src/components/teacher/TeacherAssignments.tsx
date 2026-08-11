@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
-import { Card, CardHeader, CardTitle } from '../components/ui/Card';
-import { Table } from '../components/ui/Table';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
-import { Pagination } from '../components/ui/Pagination';
+import { useApp } from '../../context/AppContext';
+import { Card, CardHeader, CardTitle } from '../ui/Card';
+import { Table } from '../ui/Table';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Pagination } from '../ui/Pagination';
 import { Plus, ArrowLeft, BookOpen, ClipboardList, CheckCircle2, Edit3, FileSpreadsheet } from 'lucide-react';
-import type { ExamItem } from '../data/mockData';
+import type { ExamItem } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
 
 export interface AssignmentItem {
   title: string;
@@ -18,7 +19,7 @@ export interface AssignmentItem {
   attachmentName?: string;
 }
 
-export const Assignments: React.FC = () => {
+export const TeacherAssignments: React.FC = () => {
   const { batches, branches, courses, exams, setExams, currentUser, students } = useApp();
   
   // Navigation Tabs state
@@ -66,6 +67,7 @@ export const Assignments: React.FC = () => {
 
   // Filter available batches for the Assignments list filters dropdown
   const assignDropdownBatches = batches.filter(b => {
+    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
     const batchBranch = b.branch || 'Mumbai West';
     const matchBranch = assignFilterBranch === 'All' || batchBranch === assignFilterBranch;
     const matchCourse = assignFilterCourse === 'All' || b.course === assignFilterCourse;
@@ -111,6 +113,7 @@ export const Assignments: React.FC = () => {
 
   // Filter available batches for the Exams list filters dropdown
   const examDropdownBatches = batches.filter(b => {
+    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
     const batchBranch = b.branch || 'Mumbai West';
     const matchBranch = examFilterBranch === 'All' || batchBranch === examFilterBranch;
     const matchCourse = examFilterCourse === 'All' || b.course === examFilterCourse;
@@ -138,6 +141,7 @@ export const Assignments: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState('All');
 
   const creationAvailableBatches = batches.filter(b => {
+    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
     const batchBranch = b.branch || 'Mumbai West';
     const matchBranch = selectedBranch === 'All' || batchBranch === selectedBranch;
     const matchCourse = selectedCourse === 'All' || b.course === selectedCourse;
@@ -169,6 +173,7 @@ export const Assignments: React.FC = () => {
   // Filter and sort assignments list
   const filteredAndSortedAssignments = assignments
     .filter(a => {
+      if (!TEACHER_ASSIGNED_BATCHES.includes(a.batch)) return false;
       const matchSearch = a.title.toLowerCase().includes(assignSearch.toLowerCase());
       
       const matchedBatch = batches.find(b => b.name === a.batch);
@@ -193,6 +198,7 @@ export const Assignments: React.FC = () => {
   // Filter and sort exams list
   const filteredAndSortedExams = exams
     .filter(e => {
+      if (!TEACHER_ASSIGNED_BATCHES.includes(e.batch)) return false;
       const matchSearch = e.name.toLowerCase().includes(examSearch.toLowerCase());
       
       const matchedBatch = batches.find(b => b.name === e.batch);

@@ -633,8 +633,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
 
                         {/* Search, Filter, Sort controls */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 border border-slate-200/80 p-4 rounded-xl shadow-inner mt-4 items-end">
-                          <Input 
-                            placeholder="Search students by name or ID..." 
+                          <Input label="Search" placeholder="Search students by name or ID..." 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
                           />

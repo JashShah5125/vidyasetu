@@ -216,12 +216,45 @@ export interface Staff {
   status: 'Active' | 'Inactive';
 }
 
+export interface DoubtMessage {
+  id: string;
+  sender: 'student' | 'teacher';
+  text: string;
+  time: string;
+  attachments?: string[];
+}
+
 export interface Doubt {
   id: string;
+  studentId: string;
   studentName: string;
   subject: string;
-  status: 'Pending' | 'Resolved';
-  messages: { sender: 'student' | 'teacher'; text: string; time: string }[];
+  batch: string; // the batch ID context
+  messages: DoubtMessage[];
+  status: 'Pending' | 'In Progress' | 'Resolved' | 'Reopened';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationRecipient {
+  type: 'Batch' | 'Level' | 'Program' | 'Course' | 'Specific Student';
+  id: string;
+  name: string;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  category: 'Academic' | 'Administrative' | 'Announcement' | 'Schedule' | 'Examination' | 'General';
+  sender: string;
+  senderRole: string;
+  createdAt: string;
+  direction: 'Incoming' | 'Outgoing'; // relative to the teacher viewing it
+  status: 'Read' | 'Unread'; 
+  recipients: NotificationRecipient[];
+  recipientCount?: number;
+  attachments?: string[];
 }
 
 export const INITIAL_TENANTS: Tenant[] = [
@@ -344,14 +377,130 @@ export const INITIAL_STAFF: Staff[] = [
 
 export const INITIAL_DOUBTS: Doubt[] = [
   {
-    id: 'D-301',
+    id: 'D-101',
+    studentId: 'STU-MUM-2601',
     studentName: 'Rohan Deshmukh',
     subject: 'Chemistry',
-    status: 'Pending',
+    batch: 'JEE-Morning-A1',
+    status: 'In Progress',
+    createdAt: '2026-08-11T09:00:00Z',
+    updatedAt: '2026-08-11T09:15:00Z',
     messages: [
-      { sender: 'student', text: 'Professor, I had a doubt in organic chemistry mechanisms. Is electrophilic addition for alkenes always Markovnikov?', time: '11:00 AM' },
-      { sender: 'teacher', text: 'Usually yes, as it proceeds via the more stable carbocation intermediate. However, in the presence of peroxides (anti-Markovnikov HBr addition), it follows a free-radical path.', time: '11:15 AM' }
+      { id: 'm1', sender: 'student', text: 'Professor, I had a doubt in organic chemistry mechanisms. Is electrophilic addition for alkenes always Markovnikov?', time: '09:00 AM' },
+      { id: 'm2', sender: 'teacher', text: 'Usually yes, as it proceeds via the more stable carbocation intermediate. However, in the presence of peroxides (anti-Markovnikov HBr addition), it follows a free-radical path.', time: '09:15 AM' }
     ]
+  },
+  {
+    id: 'D-102',
+    studentId: 'STU-MUM-2603',
+    studentName: 'Ananya Shah',
+    subject: 'Physics',
+    batch: 'JEE-Morning-A1',
+    status: 'Reopened',
+    createdAt: '2026-08-10T14:00:00Z',
+    updatedAt: '2026-08-11T08:30:00Z',
+    messages: [
+      { id: 'm1', sender: 'student', text: 'How do we calculate the horizontal component of velocity when the projectile is launched from a height?', time: '02:00 PM (Yesterday)' },
+      { id: 'm2', sender: 'teacher', text: 'The horizontal component remains constant as u*cos(theta), assuming no air resistance, regardless of initial height.', time: '04:00 PM (Yesterday)' },
+      { id: 'm3', sender: 'student', text: 'But what if it is launched horizontally? Then theta is 0?', time: '08:30 AM' }
+    ]
+  },
+  {
+    id: 'D-103',
+    studentId: 'STU-MUM-2605',
+    studentName: 'Kunal Sen',
+    subject: 'Mathematics',
+    batch: 'JEE-Evening-B1',
+    status: 'Resolved',
+    createdAt: '2026-08-10T15:00:00Z',
+    updatedAt: '2026-08-10T16:00:00Z',
+    messages: [
+      { id: 'm1', sender: 'student', text: 'I am not understanding how to apply LHopitals rule when the limit evaluates to infinity minus infinity.', time: '03:00 PM' },
+      { id: 'm2', sender: 'teacher', text: 'You need to algebraically manipulate the expression into a fraction so it takes the form 0/0 or inf/inf first.', time: '03:30 PM' },
+      { id: 'm3', sender: 'student', text: 'Got it! Thank you.', time: '04:00 PM' }
+    ]
+  },
+  {
+    id: 'D-104',
+    studentId: 'STU-MUM-2602',
+    studentName: 'Sameer Mehta',
+    subject: 'Chemistry',
+    batch: 'JEE-Morning-A1',
+    status: 'Pending',
+    createdAt: '2026-08-11T10:15:00Z',
+    updatedAt: '2026-08-11T10:15:00Z',
+    messages: [
+      { id: 'm1', sender: 'student', text: 'Sir, could you explain the difference between Enantiomers and Diastereomers with a simple example?', time: '10:15 AM' }
+    ]
+  }
+];
+
+export const INITIAL_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: 'N-1',
+    title: 'Faculty Meeting — 5 PM',
+    message: 'All faculty members are requested to attend the mandatory staff meeting at 5:00 PM in the Main Conference Room. We will be discussing the upcoming examination schedule and syllabus completion targets.',
+    category: 'Administrative',
+    sender: 'Institute Admin',
+    senderRole: 'Admin',
+    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), // 2 hours ago
+    direction: 'Incoming',
+    status: 'Unread',
+    recipients: [{ type: 'Batch', id: 'all_teachers', name: 'All Faculty' }]
+  },
+  {
+    id: 'N-2',
+    title: 'Tomorrow\'s Timetable Updated',
+    message: 'The Chemistry lecture scheduled for tomorrow has been moved from Room 101 to Room 204. Please adjust your plans accordingly.',
+    category: 'Schedule',
+    sender: 'Academic Coordinator',
+    senderRole: 'Coordinator',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+    direction: 'Incoming',
+    status: 'Read',
+    recipients: [{ type: 'Specific Student', id: 'Prof. Arvind Kelkar', name: 'Prof. Arvind Kelkar' }],
+    attachments: ['revised_timetable.pdf']
+  },
+  {
+    id: 'N-3',
+    title: 'Holiday on 15 August',
+    message: 'The institute will remain closed on 15 August in observance of Independence Day. Regular classes will resume from 16 August.',
+    category: 'Announcement',
+    sender: 'Branch Admin',
+    senderRole: 'Admin',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
+    direction: 'Incoming',
+    status: 'Read',
+    recipients: [{ type: 'Course', id: 'all', name: 'All Staff & Students' }]
+  },
+  {
+    id: 'N-4',
+    title: 'Chemistry Test Tomorrow',
+    message: 'Tomorrow\'s Chemistry test will cover Chemical Bonding and Periodic Table. Please come prepared.',
+    category: 'Examination',
+    sender: 'Prof. Arvind Kelkar',
+    senderRole: 'Teacher',
+    createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
+    direction: 'Outgoing',
+    status: 'Read', // N/A for outgoing
+    recipients: [{ type: 'Batch', id: 'JEE-Morning-A1', name: 'JEE-Morning-A1' }],
+    recipientCount: 32
+  },
+  {
+    id: 'N-5',
+    title: 'Bring Practical Notebook',
+    message: 'We will be conducting the Salt Analysis practical tomorrow. Bring your lab coats and practical notebooks.',
+    category: 'Academic',
+    sender: 'Prof. Arvind Kelkar',
+    senderRole: 'Teacher',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(), // 3 days ago
+    direction: 'Outgoing',
+    status: 'Read',
+    recipients: [
+      { type: 'Batch', id: 'JEE-Morning-A1', name: 'JEE-Morning-A1' },
+      { type: 'Batch', id: 'JEE-Evening-B1', name: 'JEE-Evening-B1' }
+    ],
+    recipientCount: 64
   }
 ];
 
@@ -803,4 +952,141 @@ export const INITIAL_FEE_PLANS: FeePlan[] = [
   { id: 'FP-08', course: '8th Standard', program: '8th std ICSE', totalFees: 60000, downPayment: 10000, months: 10, installment: 5000 },
   { id: 'FP-09', course: '8th Standard', program: '8th std CBSE', totalFees: 55000, downPayment: 10000, months: 9, installment: 5000 },
   { id: 'FP-10', course: '8th Standard', program: '8th std State Board', totalFees: 40000, downPayment: 8000, months: 8, installment: 4000 },
+];
+
+export interface Lecture {
+  id: string;
+  batchId: string;
+  subject: string;
+  teacherId: string;
+  room: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  topic: string;
+  status: 'Scheduled' | 'Occurred' | 'Cancelled';
+}
+
+export const INITIAL_LECTURES: Lecture[] = [
+  { id: 'L1', batchId: 'JEE-Morning-A1', subject: 'Chemistry (Physical)', teacherId: 'T1', room: 'Room 101', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:30', topic: 'Thermodynamics', status: 'Scheduled' },
+  { id: 'L2', batchId: 'NEET-Regular-B1', subject: 'Chemistry (Organic)', teacherId: 'T1', room: 'Room 104', date: new Date().toISOString().split('T')[0], startTime: '11:00', endTime: '12:30', topic: 'Nomenclature', status: 'Scheduled' },
+  { id: 'L3', batchId: 'JEE-Evening-B1', subject: 'Chemistry (Inorganic)', teacherId: 'T1', room: 'Room 102', date: new Date().toISOString().split('T')[0], startTime: '15:00', endTime: '16:30', topic: 'Periodic Table', status: 'Scheduled' }
+];
+
+export interface ScheduleChange {
+  id: string;
+  type: 'ROOM_CHANGE' | 'RESCHEDULED' | 'CANCELLED';
+  batchId: string;
+  subject: string;
+  previousValue: string;
+  newValue?: string;
+  dateTime: string;
+  status: 'Upcoming' | 'Occurred';
+}
+
+export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[] = [
+  { id: 'SC1', type: 'ROOM_CHANGE', batchId: 'JEE-Morning-A1', subject: 'Chemistry (Physical)', previousValue: 'Room 101', newValue: 'Room 104', dateTime: new Date().toISOString().split('T')[0] + ' 09:00', status: 'Upcoming' },
+  { id: 'SC2', type: 'RESCHEDULED', batchId: 'NEET-Regular-B1', subject: 'Chemistry (Organic)', previousValue: 'Today 11:00 AM', newValue: 'Tomorrow 10:00 AM', dateTime: new Date().toISOString().split('T')[0] + ' 11:00', status: 'Upcoming' },
+];
+
+export interface Assignment {
+  id: string;
+  title: string;
+  batchId: string;
+  subject: string;
+  dueDate: string;
+  status: 'Published' | 'Draft' | 'Closed';
+  submittedCount: number;
+  totalCount: number;
+}
+
+export const INITIAL_ASSIGNMENTS: Assignment[] = [
+  { id: 'A1', title: 'Thermodynamics Problem Set 4', batchId: 'JEE-Morning-A1', subject: 'Chemistry (Physical)', dueDate: '2026-08-15', status: 'Published', submittedCount: 15, totalCount: 25 },
+  { id: 'A2', title: 'Organic Nomenclature Worksheet', batchId: 'NEET-Regular-B1', subject: 'Chemistry (Organic)', dueDate: '2026-08-16', status: 'Published', submittedCount: 0, totalCount: 30 },
+];
+
+export const TEACHER_ASSIGNED_BATCHES = ['JEE-Morning-A1', 'NEET-Regular-B1', 'JEE-Evening-B1'];
+
+export interface StudentAttendanceRecord {
+  studentId: string;
+  status: 'Present' | 'Absent' | 'Late';
+  remark?: string;
+}
+
+export interface AttendanceSubmission {
+  id: string;
+  lectureId: string;
+  batchId: string;
+  subject: string;
+  date: string;
+  time: string;
+  totalStudents: number;
+  present: number;
+  late: number;
+  absent: number;
+  submittedAt: string;
+  records: StudentAttendanceRecord[];
+}
+
+const pastDateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+export const INITIAL_ATTENDANCE_HISTORY: AttendanceSubmission[] = [
+  {
+    id: 'ATT-1',
+    lectureId: 'L-PAST-1',
+    batchId: 'JEE-Morning-A1',
+    subject: 'Chemistry (Physical)',
+    date: pastDateStr,
+    time: '09:00 - 10:30',
+    totalStudents: 32,
+    present: 28,
+    late: 2,
+    absent: 2,
+    submittedAt: `${pastDateStr} 10:45 AM`,
+    records: [
+      { studentId: 'S1', status: 'Present' },
+      { studentId: 'S2', status: 'Absent', remark: 'Medical' },
+      { studentId: 'S3', status: 'Late', remark: 'Traffic' },
+      { studentId: 'S4', status: 'Present' },
+      { studentId: 'STU-MUM-2603', status: 'Present' },
+      { studentId: 'STU-MUM-2601', status: 'Absent' },
+    ]
+  },
+  {
+    id: 'ATT-2',
+    lectureId: 'L-PAST-2',
+    batchId: 'NEET-Regular-B1',
+    subject: 'Chemistry (Organic)',
+    date: pastDateStr,
+    time: '11:00 - 12:30',
+    totalStudents: 28,
+    present: 26,
+    late: 0,
+    absent: 2,
+    submittedAt: `${pastDateStr} 12:40 PM`,
+    records: [
+      { studentId: 'S5', status: 'Present' },
+      { studentId: 'S6', status: 'Absent' },
+      { studentId: 'STU-MUM-2603', status: 'Present' },
+    ]
+  }
+];
+
+export interface ExamResult {
+  id: string;
+  studentId: string;
+  examName: string;
+  subject: string;
+  date: string;
+  marks: number;
+  maxMarks: number;
+  grade: string;
+  status: 'Published' | 'Under Review';
+}
+
+export const EXAM_RESULTS: ExamResult[] = [
+  { id: 'E1', studentId: 'STU-MUM-2603', examName: 'Periodic Test #3', subject: 'Chemistry', date: '2026-08-08', marks: 85, maxMarks: 100, grade: 'A', status: 'Published' },
+  { id: 'E2', studentId: 'STU-MUM-2603', examName: 'Unit Test #2', subject: 'Mathematics', date: '2026-08-01', marks: 78, maxMarks: 100, grade: 'B+', status: 'Published' },
+  { id: 'E3', studentId: 'STU-MUM-2603', examName: 'Weekly Quiz #5', subject: 'Physics', date: '2026-07-28', marks: 92, maxMarks: 100, grade: 'A+', status: 'Published' },
+  { id: 'E4', studentId: 'STU-MUM-2601', examName: 'Periodic Test #3', subject: 'Chemistry', date: '2026-08-08', marks: 76, maxMarks: 100, grade: 'B+', status: 'Published' },
 ];

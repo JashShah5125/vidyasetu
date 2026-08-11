@@ -176,8 +176,7 @@ export const SupportTickets: React.FC = () => {
       {/* Search & Filter Controls */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full items-end">
-          <Input 
-            placeholder="Search by subject, tenant, ID..." 
+          <Input label="Search" placeholder="Search by subject, tenant, ID..." 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
           />

@@ -364,8 +364,7 @@ export const TenantSubscriptions: React.FC = () => {
       {/* Search, Filter, Sort Controls & Export CSV */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
-          <Input 
-            placeholder="Search by ID, name, plan..." 
+          <Input label="Search" placeholder="Search by ID, name, plan..." 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
             wrapperClassName="sm:col-span-2"

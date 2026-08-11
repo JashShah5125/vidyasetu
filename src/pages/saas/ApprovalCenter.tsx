@@ -84,8 +84,7 @@ export const ApprovalCenter: React.FC = () => {
 
       {/* Search & Filter Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end">
-        <Input 
-          placeholder="Search by requester, details, ID..." 
+        <Input label="Search" placeholder="Search by requester, details, ID..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
         />

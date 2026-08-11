@@ -76,8 +76,7 @@ export const BillingRevenue: React.FC = () => {
 
       {/* Search & Filter Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end">
-        <Input 
-          placeholder="Search by invoice ID or tenant name..." 
+        <Input label="Search" placeholder="Search by invoice ID or tenant name..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
         />

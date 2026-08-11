@@ -13,7 +13,8 @@ import type {
   Doubt,
   SubscriptionPlan,
   TenantSubscription,
-  ExamItem
+  ExamItem,
+  AppNotification
 } from '../data/mockData';
 import {
   INITIAL_TENANTS,
@@ -27,7 +28,8 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_PLANS,
   INITIAL_TENANT_SUBSCRIPTIONS,
-  INITIAL_EXAMS
+  INITIAL_EXAMS,
+  INITIAL_NOTIFICATIONS
 } from '../data/mockData';
 
 export interface ToastMessage {
@@ -52,6 +54,9 @@ interface AppContextType {
   tenantSubscriptions: TenantSubscription[];
   exams: ExamItem[];
   setExams: React.Dispatch<React.SetStateAction<ExamItem[]>>;
+  notifications: AppNotification[];
+  markNotificationRead: (id: string) => void;
+  sendNotification: (notification: AppNotification) => void;
   login: (email: string) => boolean;
   logout: () => void;
   addTenant: (
@@ -91,7 +96,8 @@ interface AppContextType {
   addBatch: (batch: Batch) => void;
   addBranch: (branch: Branch) => void;
   addStaff: (staff: Staff) => void;
-  sendDoubtReply: (doubtId: string, text: string) => void;
+  addDoubtMessage: (doubtId: string, sender: 'student' | 'teacher', text: string, attachments?: string[]) => void;
+  updateDoubtStatus: (doubtId: string, status: 'Pending' | 'In Progress' | 'Resolved' | 'Reopened') => void;
   logAction: (action: string, details: string) => void;
   setCourses: React.Dispatch<React.SetStateAction<Course[]>>;
   setBatches: React.Dispatch<React.SetStateAction<Batch[]>>;
@@ -129,6 +135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [plans, setPlans] = useState<SubscriptionPlan[]>(INITIAL_PLANS);
   const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>(INITIAL_TENANT_SUBSCRIPTIONS);
   const [exams, setExams] = useState<ExamItem[]>(INITIAL_EXAMS);
+  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const logAction = (action: string, details: string) => {
@@ -475,25 +482,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('RECORD_MARKS', `Recorded score of ${testScore}/100 for student ${student?.name || studentId}`);
   };
 
-  const sendDoubtReply = (doubtId: string, text: string) => {
+  const addDoubtMessage = (doubtId: string, sender: 'student' | 'teacher', text: string, attachments?: string[]) => {
     const doubt = doubts.find(d => d.id === doubtId);
     if (!doubt) return;
 
-    logAction('RESOLVE_DOUBT', `Answered student doubt question: "${doubt.messages[0]?.text}"`);
+    if (sender === 'teacher') {
+      logAction('ANSWER_DOUBT', `Replied to doubt: "${doubt.messages[0]?.text?.substring(0, 30)}..."`);
+    }
+
+    setDoubts(prev => prev.map(d => {
+      if (d.id === doubtId) {
+        const newStatus = (sender === 'teacher' && (d.status === 'Pending' || d.status === 'Reopened')) 
+          ? 'In Progress' 
+          : (sender === 'student' && d.status === 'Resolved') 
+            ? 'Reopened' 
+            : d.status;
+
+        return {
+          ...d,
+          status: newStatus,
+          updatedAt: new Date().toISOString(),
+          messages: [
+            ...d.messages,
+            {
+              id: `M-${Math.floor(Math.random() * 10000)}`,
+              sender,
+              text,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              attachments
+            }
+          ]
+        };
+      }
+      return d;
+    }));
+  };
+
+  const updateDoubtStatus = (doubtId: string, status: 'Pending' | 'In Progress' | 'Resolved' | 'Reopened') => {
+    const doubt = doubts.find(d => d.id === doubtId);
+    if (!doubt) return;
+
+    if (status === 'Resolved') {
+      logAction('RESOLVE_DOUBT', `Resolved doubt for student: ${doubt.studentName}`);
+    } else if (status === 'Reopened') {
+      logAction('REOPEN_DOUBT', `Reopened doubt for student: ${doubt.studentName}`);
+    }
 
     setDoubts(prev => prev.map(d => {
       if (d.id === doubtId) {
         return {
           ...d,
-          status: 'Resolved',
-          messages: [
-            ...d.messages,
-            {
-              sender: 'teacher',
-              text,
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }
-          ]
+          status,
+          updatedAt: new Date().toISOString()
         };
       }
       return d;
@@ -506,6 +546,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 3500);
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications(prev => prev.map(n => 
+      n.id === id ? { ...n, status: 'Read' } : n
+    ));
+  };
+
+  const sendNotification = (notification: AppNotification) => {
+    setNotifications(prev => [notification, ...prev]);
+    addToast('Notification sent successfully!');
   };
 
   return (
@@ -548,14 +599,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addBatch,
       addBranch,
       addStaff,
-      sendDoubtReply,
+      addDoubtMessage,
+      updateDoubtStatus,
       logAction,
       setCourses,
       setBatches,
       setBranches,
       setStaff,
       toasts,
-      addToast
+      addToast,
+      notifications,
+      markNotificationRead,
+      sendNotification
     }}>
       {children}
     </AppContext.Provider>

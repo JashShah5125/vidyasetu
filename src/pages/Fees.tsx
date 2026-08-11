@@ -112,8 +112,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
 
       {/* Search, Filter, Sort Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
-        <Input 
-          placeholder="Search students by name or ID..." 
+        <Input label="Search" placeholder="Search students by name or ID..." 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
           wrapperClassName="sm:col-span-2"

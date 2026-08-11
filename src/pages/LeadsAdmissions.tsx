@@ -801,6 +801,21 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
               <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button">Cancel</Button>
               <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit">Save Changes</Button>
+              {selectedLead && (
+                <Button type="button" variant="primary" onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { 
+                  state: { 
+                    prefilledFeeData: {
+                      total: feeTotal,
+                      discount: feeDiscount,
+                      paid: feePaid,
+                      months: feeMonths,
+                      installment: feeInstallment
+                    } 
+                  } 
+                })} style={{ backgroundColor: '#10b981', color: 'white' }}>
+                  Convert to Student <ChevronRight size={18} className="ml-1" />
+                </Button>
+              )}
             </div>
           </form>
         </div>
