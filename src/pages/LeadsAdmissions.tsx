@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -55,8 +56,22 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const { leads, students, courses, batches, branches, addLead, updateLead, addFollowup, convertLeadToStudent, approveStudentRegistration, currentUser } = useApp();
   const { plans, customBundles, subjectsData } = useFeeConfig();
 
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Tab-to-route mapping for URL sync
+  const tabRouteMap: Record<TabId, string> = {
+    pipeline: '/leads',
+    fee: '/leads/fee',
+    admission: '/leads/admission',
+    batch: '/leads/batch',
+    payment: '/leads/payment'
+  };
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // ── shared search / filter ──
   const [search, setSearch]             = useState('');
@@ -89,6 +104,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [fBranch,  setFBranch]  = useState('');
   const [fAssignedBranch, setFAssignedBranch] = useState('');
   const [fStatus,  setFStatus]  = useState('New Enquiry');
+  const [fCounsellor, setFCounsellor] = useState('');
   const [fDemoScheduledOn, setFDemoScheduledOn] = useState('');
 
   // ── follow-up form ──
@@ -210,6 +226,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setFAssignedBranch(l.branch || '');
     setFSource(l.source);
     setFStatus(l.status);
+    setFCounsellor(l.counsellor || '');
     setFRemarks(l.remarks || '');
     setNewInteractions([{ type: 'Call', status: l.status, remarks: '', date: new Date().toISOString().split('T')[0], nextDate: '' }]);
     setModalTab('profile');
@@ -358,7 +375,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               : selectedLead.nextFollowUp;
 
             updateLead(selectedLead.id, {
-              name: fName, mobile: fMobile, course: fCourse, program: fProgram, level: fLevel, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, status: finalStatus as Lead['status'], demoScheduledOn: fDemoScheduledOn, remarks: fRemarks, nextFollowUp: finalNextFollowUp,
+              name: fName, mobile: fMobile, course: fCourse, program: fProgram, level: fLevel, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, counsellor: fCounsellor, status: finalStatus as Lead['status'], demoScheduledOn: fDemoScheduledOn, remarks: fRemarks, nextFollowUp: finalNextFollowUp,
               followups: [...(selectedLead.followups || []), ...additionalFollowups]
             });
             setShowLeadDetail(false);
@@ -430,6 +447,13 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   { value: 'Demo Scheduled', label: 'Demo Scheduled' },
                   { value: 'Interested', label: 'Interested' },
                   { value: 'Not Interested', label: 'Not Interested' },
+                ]} />
+                <Select label="Assigned Counsellor" value={fCounsellor} onChange={e => setFCounsellor(e.target.value)} options={[
+                  { value: '', label: 'Select Counsellor' },
+                  { value: 'Priya Sen', label: 'Priya Sen' },
+                  { value: 'Amit Verma', label: 'Amit Verma' },
+                  { value: 'Sneha Kulkarni', label: 'Sneha Kulkarni' },
+                  { value: 'Rahul Mehta', label: 'Rahul Mehta' },
                 ]} />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -812,9 +836,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             }));
             const finalStatus = validInteractions.length > 0 ? validInteractions[validInteractions.length - 1].status : fStatus;
 
-            addLead(fName, fMobile, fParent, fCourse, fProgram, fLevel, fSource, fRemarks, fAssignedBranch, fBranch, finalStatus, additionalFollowups, fDemoScheduledOn);
+            addLead(fName, fMobile, fParent, fCourse, fProgram, fLevel, fSource, fRemarks, fAssignedBranch, fBranch, finalStatus, additionalFollowups, fDemoScheduledOn, fCounsellor);
             
-            setFName(''); setFMobile(''); setFRemarks(''); setFParent(''); setFBranch(''); setFAssignedBranch(''); setFStatus('New Enquiry'); setFProgram(''); setFLevel(''); setFDemoScheduledOn(''); setNewInteractions([]);
+            setFName(''); setFMobile(''); setFRemarks(''); setFParent(''); setFBranch(''); setFAssignedBranch(''); setFStatus('New Enquiry'); setFCounsellor(''); setFProgram(''); setFLevel(''); setFDemoScheduledOn(''); setNewInteractions([]);
             setShowAddLead(false);
             showSuccess('Enquiry logged successfully and assigned to counsellor.');
           }} className="space-y-4">
@@ -884,6 +908,13 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   { value: 'Demo Scheduled', label: 'Demo Scheduled' },
                   { value: 'Interested', label: 'Interested' },
                   { value: 'Not Interested', label: 'Not Interested' },
+                ]} />
+                <Select label="Assigned Counsellor" value={fCounsellor} onChange={e => setFCounsellor(e.target.value)} options={[
+                  { value: '', label: 'Select Counsellor' },
+                  { value: 'Priya Sen', label: 'Priya Sen' },
+                  { value: 'Amit Verma', label: 'Amit Verma' },
+                  { value: 'Sneha Kulkarni', label: 'Sneha Kulkarni' },
+                  { value: 'Rahul Mehta', label: 'Rahul Mehta' },
                 ]} />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -1568,7 +1599,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             return (
               <button
                 key={p.id}
-                onClick={() => setActiveTab(p.id)}
+                onClick={() => navigate(tabRouteMap[p.id])}
                 className={`flex-1 min-w-[120px] flex flex-col items-center gap-1.5 px-4 py-3.5 text-center transition-all border-b-2 cursor-pointer relative
                   ${isActive
                     ? 'border-blue-600 bg-blue-50/70 text-blue-700'

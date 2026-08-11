@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
@@ -8,9 +8,15 @@ import {
   DollarSign, 
   Award,
   Filter,
-  Calendar
+  Calendar,
+  ArrowDownLeft,
+  ArrowUpRight,
+  TrendingDown
 } from 'lucide-react';
 import { INITIAL_SUBJECTS_MAP } from '../data/mockData';
+import { useLocation } from 'react-router-dom';
+import { getVouchers } from '../utils/expenseService';
+import type { Voucher } from '../utils/expenseService';
 
 interface PeriodData {
   admissions: string;
@@ -278,10 +284,87 @@ interface ReportsProps {
 
 export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const { branches, students, courses, batches, currentUser } = useApp();
+  const location = useLocation();
   const [selectedTenant, setSelectedTenant] = useState('All');
-  const [selectedBranch, setSelectedBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
+  const [selectedBranch, setSelectedBranch] = useState(
+    (currentUser?.role === 'branch-admin' || currentUser?.role === 'finance')
+      ? currentUser.branch || 'Mumbai West'
+      : 'All'
+  );
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [activeStatsTab, setActiveStatsTab] = useState<'courses' | 'programs' | 'subjects'>('courses');
+  const [vouchers, setVouchers] = useState<Voucher[]>(() => getVouchers());
+  const [reportTab, setReportTab] = useState<'p&l' | 'academic'>(currentUser?.role === 'finance' ? 'p&l' : 'academic');
+
+  useEffect(() => {
+    setVouchers(getVouchers());
+  }, [location.pathname]);
+
+  // ----------------------------------------------------
+  // DYNAMIC P&L STATISTICS CALCULATIONS
+  // ----------------------------------------------------
+  const filteredVouchersForPnL = useMemo(() => {
+    return vouchers.filter(v => {
+      const today = '2026-08-11';
+      if (timePeriod === 'day') {
+        return v.date === today;
+      } else if (timePeriod === 'week') {
+        return v.date >= '2026-08-05' && v.date <= today;
+      } else if (timePeriod === 'month') {
+        return v.date.startsWith('2026-08');
+      } else if (timePeriod === 'year') {
+        return v.date.startsWith('2026');
+      }
+      return true;
+    });
+  }, [vouchers, timePeriod]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => selectedBranch === 'All' || s.branch === selectedBranch);
+  }, [students, selectedBranch]);
+
+  const studentFeeIncome = useMemo(() => {
+    const totalPaid = filteredStudents.reduce((acc, s) => acc + s.feePlan.paid, 0);
+    if (timePeriod === 'day') return Math.round(totalPaid * 0.01);
+    if (timePeriod === 'week') return Math.round(totalPaid * 0.15);
+    if (timePeriod === 'month') return Math.round(totalPaid * 0.40);
+    return totalPaid;
+  }, [filteredStudents, timePeriod]);
+
+  const manualReceiptIncome = useMemo(() => {
+    return filteredVouchersForPnL
+      .filter(v => v.direction === 'Credit')
+      .reduce((acc, v) => acc + v.amount, 0);
+  }, [filteredVouchersForPnL]);
+
+  const totalIncome = studentFeeIncome + manualReceiptIncome;
+
+  const expensesByCategory = useMemo(() => {
+    const breakdown: Record<string, number> = {
+      'Salaries': 0,
+      'Electricity': 0,
+      'Maintenance': 0,
+      'Stationery': 0,
+      'Transport': 0,
+      'Other': 0
+    };
+    
+    filteredVouchersForPnL.forEach(v => {
+      if (v.direction === 'Debit') {
+        const cat = v.category in breakdown ? v.category : 'Other';
+        breakdown[cat] += v.amount;
+      }
+    });
+    
+    return breakdown;
+  }, [filteredVouchersForPnL]);
+
+  const totalExpensePnL = useMemo(() => {
+    return Object.values(expensesByCategory).reduce((acc, val) => acc + val, 0);
+  }, [expensesByCategory]);
+
+  const netSurplus = totalIncome - totalExpensePnL;
+  const netMarginPct = totalIncome > 0 ? ((netSurplus / totalIncome) * 100).toFixed(1) : '0.0';
 
   const activeMetricsSet = mode === 'saas'
     ? (tenantMetrics[selectedTenant] || tenantMetrics.All)
@@ -292,7 +375,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const availableBranchOptions = currentUser?.role === 'branch-admin'
     ? [{ value: currentUser.branch || '', label: currentUser.branch || '' }]
     : [
-        { value: 'All', label: 'All Branches (Consolidated)' },
+        { value: 'All', label: 'All Branches' },
         ...branches.map(b => ({ value: b.name, label: b.name }))
       ];
 
@@ -399,7 +482,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 value={selectedTenant} 
                 onChange={(e) => setSelectedTenant(e.target.value)} 
                 options={[
-                  { value: 'All', label: 'All Tenants (Consolidated)' },
+                  { value: 'All', label: 'All Tenants' },
                   { value: 'VS-001', label: 'Apex IIT Academy' },
                   { value: 'VS-002', label: 'Vanguard Classes' },
                   { value: 'VS-003', label: 'Bright Future Tuition' }
@@ -408,245 +491,83 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
               />
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500 flex items-center gap-1"><Filter size={14} /> Branch:</span>
-              <Select 
-                value={selectedBranch} 
-                onChange={(e) => setSelectedBranch(e.target.value)} 
-                options={availableBranchOptions} 
-                style={{ padding: '4px 8px', fontSize: '12px', minWidth: '180px' }}
-                disabled={currentUser?.role === 'branch-admin'}
-              />
-            </div>
+            currentUser?.role !== 'finance' && (
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 flex items-center gap-1"><Filter size={14} /> Branch:</span>
+                <Select 
+                  value={selectedBranch} 
+                  onChange={(e) => setSelectedBranch(e.target.value)} 
+                  options={availableBranchOptions} 
+                  style={{ padding: '4px 8px', fontSize: '12px', minWidth: '180px' }}
+                  disabled={currentUser?.role === 'branch-admin'}
+                />
+              </div>
+            )
           )}
         </div>
       </div>
 
-      {/* Cards stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-        <Card>
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">New Admissions</span>
-              <div className="text-2xl font-display font-bold text-slate-900 mt-1">{currentMetrics.admissions}</div>
-            </div>
-            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center border border-blue-100">
-              <Users size={18} />
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gross Revenue</span>
-              <div className="text-2xl font-display font-bold text-slate-900 mt-1">{currentMetrics.revenue}</div>
-            </div>
-            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-100">
-              <DollarSign size={18} />
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex justify-between items-center">
-            <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Average Marks</span>
-              <div className="text-2xl font-display font-bold text-slate-900 mt-1">{currentMetrics.avgMarks}</div>
-            </div>
-            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100">
-              <Award size={18} />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-
-      {/* Course, Program & Subject Analytics */}
-      {mode === 'institute' && (
-        <Card className="animate-fade-in">
-          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <CardTitle>Academic Enrolment &amp; Allocation Desk</CardTitle>
-              <p className="text-xs text-slate-400 mt-1 font-semibold uppercase">
-                Browse detailed distributions of students across active Courses, Programs, and Subjects
-              </p>
-            </div>
-            {/* Tab Swappers */}
-            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-              <button
-                onClick={() => setActiveStatsTab('courses')}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  activeStatsTab === 'courses' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Courses
-              </button>
-              <button
-                onClick={() => setActiveStatsTab('programs')}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  activeStatsTab === 'programs' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Programs
-              </button>
-              <button
-                onClick={() => setActiveStatsTab('subjects')}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  activeStatsTab === 'subjects' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                Subjects
-              </button>
-            </div>
-          </CardHeader>
-
-          <div className="overflow-x-auto mt-2">
-            {activeStatsTab === 'courses' && (
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                    <th className="px-6 py-4">Course Code</th>
-                    <th className="px-6 py-4">Course Name</th>
-                    <th className="px-6 py-4 text-center">Duration</th>
-                    <th className="px-6 py-4 text-center">Active Batches</th>
-                    <th className="px-6 py-4 text-center">Enrolled Students</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                  {courseStats.map((c, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{c.code}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{c.name}</td>
-                      <td className="px-6 py-4 text-center">{c.duration}</td>
-                      <td className="px-6 py-4 text-center font-semibold text-slate-600">{c.batchesCount} Batches</td>
-                      <td className="px-6 py-4 text-center font-bold text-blue-600 bg-blue-50/30">{c.studentsCount} Students</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {activeStatsTab === 'programs' && (
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                    <th className="px-6 py-4">Program Name</th>
-                    <th className="px-6 py-4 text-center">Active Batches</th>
-                    <th className="px-6 py-4 text-center">Enrolled Students</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                  {programStats.map((p, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-slate-900">{p.name}</td>
-                      <td className="px-6 py-4 text-center font-semibold text-slate-600">{p.batchesCount} Batches</td>
-                      <td className="px-6 py-4 text-center font-bold text-blue-600 bg-blue-50/30">{p.studentsCount} Students</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {activeStatsTab === 'subjects' && (
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                    <th className="px-6 py-4">Subject Code</th>
-                    <th className="px-6 py-4">Subject Name</th>
-                    <th className="px-6 py-4 text-center">Type</th>
-                    <th className="px-6 py-4">Course / Program</th>
-                    <th className="px-6 py-4 text-center">Enrolled Students</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                  {subjectStats.map((s, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{s.code}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-900">{s.name}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${
-                          s.type === 'Core' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-slate-50 text-slate-500 border border-slate-100'
-                        }`}>
-                          {s.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-medium text-slate-600">
-                        {s.course} <span className="text-slate-400 font-normal">({s.program})</span>
-                      </td>
-                      <td className="px-6 py-4 text-center font-bold text-blue-600 bg-blue-50/30">{s.studentsCount} Students</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* Comparison Matrix */}
+      {/* Report Type Tabs */}
       {mode === 'saas' ? (
-        <Card className="animate-fade-in">
-          <CardHeader>
-            <CardTitle>Tenant Performance Comparison Matrix</CardTitle>
-          </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                  <th className="px-6 py-4">Tenant Code</th>
-                  <th className="px-6 py-4">Institute Name</th>
-                  <th className="px-6 py-4 text-center">New Admissions</th>
-                  <th className="px-6 py-4 text-center">Gross Revenue</th>
-                  <th className="px-6 py-4 text-center">Avg Test Marks</th>
-                  <th className="px-6 py-4 text-center">Access Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                {[
-                  { code: 'VS-001', name: 'Apex IIT Academy', admissions: '7 Students', revenue: '₹95,000', marks: '85.2%', status: 'Active' },
-                  { code: 'VS-002', name: 'Vanguard Classes', admissions: '3 Students', revenue: '₹25,000', marks: '81.5%', status: 'Active' },
-                  { code: 'VS-003', name: 'Bright Future Tuition', admissions: '2 Students', revenue: '₹10,000', marks: '84.0%', status: 'Suspended' }
-                ].map((row) => (
-                  <tr key={row.code} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
-                    <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
-                    <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
-                    <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                        row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-                      }`}>
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="space-y-6">
+          {/* SaaS Cards stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+            <Card>
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">New Admissions</span>
+                  <div className="text-2xl font-display font-bold text-slate-900 mt-1">{currentMetrics.admissions}</div>
+                </div>
+                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center border border-blue-100">
+                  <Users size={18} />
+                </div>
+              </div>
+            </Card>
+            <Card>
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gross Revenue</span>
+                  <div className="text-2xl font-display font-bold text-slate-900 mt-1">{currentMetrics.revenue}</div>
+                </div>
+                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-100">
+                  <DollarSign size={18} />
+                </div>
+              </div>
+            </Card>
+            <Card>
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Average Marks</span>
+                  <div className="text-2xl font-display font-bold text-slate-900 mt-1">{currentMetrics.avgMarks}</div>
+                </div>
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center border border-indigo-100">
+                  <Award size={18} />
+                </div>
+              </div>
+            </Card>
           </div>
-        </Card>
-      ) : (
-        currentUser?.role !== 'branch-admin' ? (
+
           <Card className="animate-fade-in">
             <CardHeader>
-              <CardTitle>Branch Performance Comparison Matrix</CardTitle>
+              <CardTitle>Tenant Performance Comparison Matrix</CardTitle>
             </CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                    <th className="px-6 py-4">Branch Code</th>
-                    <th className="px-6 py-4">Branch Name</th>
+                    <th className="px-6 py-4">Tenant Code</th>
+                    <th className="px-6 py-4">Institute Name</th>
                     <th className="px-6 py-4 text-center">New Admissions</th>
                     <th className="px-6 py-4 text-center">Gross Revenue</th>
                     <th className="px-6 py-4 text-center">Avg Test Marks</th>
-                    <th className="px-6 py-4 text-center">Branch Status</th>
+                    <th className="px-6 py-4 text-center">Access Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                   {[
-                    { code: 'MUM-WEST', name: 'Mumbai West', admissions: '8 Students', revenue: '₹95,000', marks: '85.2%', status: 'Active' },
-                    { code: 'PUN-CAMP', name: 'Pune Camp', admissions: '4 Students', revenue: '₹35,000', marks: '81.0%', status: 'Active' }
+                    { code: 'TEN-VS1', name: 'Apex IIT Academy', admissions: '12 Students', revenue: '₹1,30,000', marks: '83.8%', status: 'Active' },
+                    { code: 'TEN-VS2', name: 'Vanguard Classes', admissions: '6 Students', revenue: '₹55,000', marks: '78.5%', status: 'Active' },
+                    { code: 'TEN-VS3', name: 'Bright Future Tuition', admissions: '2 Students', revenue: '₹10,000', marks: '84.0%', status: 'Active' }
                   ].map((row) => (
                     <tr key={row.code} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
@@ -655,9 +576,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                       <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
                       <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                          row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-                        }`}>
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           {row.status}
                         </span>
                       </td>
@@ -667,7 +586,152 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
               </table>
             </div>
           </Card>
-        ) : null
+        </div>
+      ) : (
+        <div className="space-y-6 animate-fade-in">
+          {/* P&L Cards summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Revenue</span>
+                <div className="text-3xl font-display font-extrabold text-emerald-600 mt-1">₹{totalIncome.toLocaleString()}</div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Fee Receipts + Ledger Credits</span>
+              </div>
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
+                <ArrowUpRight size={24} />
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Operating Expenses</span>
+                <div className="text-3xl font-display font-extrabold text-rose-600 mt-1">₹{totalExpensePnL.toLocaleString()}</div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Voucher Debit Outflows</span>
+              </div>
+              <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center border border-rose-100">
+                <ArrowDownLeft size={24} />
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Net Surplus (Profit)</span>
+                <div className={`text-3xl font-display font-extrabold mt-1 ${netSurplus >= 0 ? 'text-blue-600' : 'text-rose-700'}`}>
+                  ₹{netSurplus.toLocaleString()}
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Margin Percentage: {netMarginPct}%</span>
+              </div>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
+                netSurplus >= 0 ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'
+              }`}>
+                <TrendingUp size={24} />
+              </div>
+            </Card>
+          </div>
+
+          {/* Detailed Statement Table */}
+          <Card className="border border-slate-200 shadow-xl rounded-2xl overflow-hidden">
+            <div className="bg-slate-800 text-white px-6 py-4 flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-base tracking-wide uppercase font-mono">Profit &amp; Loss Statement</h3>
+                <p className="text-[10px] text-slate-300 mt-0.5">Apex IIT Academy &bull; Period: {timePeriod.toUpperCase()}</p>
+              </div>
+              <span className="text-xs font-mono font-bold bg-slate-700/60 px-3 py-1 rounded border border-slate-600 text-slate-300">
+                FY 2026-2027
+              </span>
+            </div>
+
+            <div className="p-6">
+              <table className="w-full text-left border-collapse">
+                <tbody>
+                  {/* Revenue Header */}
+                  <tr className="bg-slate-100/80 font-bold border-b border-slate-200 text-slate-800 text-sm uppercase">
+                    <td className="px-6 py-3">1. Revenue / Operating Inflows</td>
+                    <td className="px-6 py-3 text-right">Amount (₹)</td>
+                  </tr>
+                  <tr className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <td className="px-8 py-3 text-sm text-slate-600 font-medium">Student Tuition Fees Collections</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">₹{studentFeeIncome.toLocaleString()}</td>
+                  </tr>
+                  <tr className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <td className="px-8 py-3 text-sm text-slate-600 font-medium">Manual Receipts &amp; Donations</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">₹{manualReceiptIncome.toLocaleString()}</td>
+                  </tr>
+                  <tr className="bg-emerald-50/40 border-b border-slate-200 font-bold">
+                    <td className="px-6 py-3 text-sm text-emerald-800">Total Revenue (A)</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-emerald-700">₹{totalIncome.toLocaleString()}</td>
+                  </tr>
+
+                  {/* Expenses Header */}
+                  <tr className="bg-slate-100/80 font-bold border-b border-slate-200 text-slate-800 text-sm uppercase pt-6">
+                    <td className="px-6 py-3">2. Operating Expenses / Outflows</td>
+                    <td className="px-6 py-3 text-right">Amount (₹)</td>
+                  </tr>
+                  {Object.entries(expensesByCategory).map(([cat, amt]) => (
+                    <tr key={cat} className="border-b border-slate-100 hover:bg-slate-50/50">
+                      <td className="px-8 py-3 text-sm text-slate-600 font-medium">{cat} Expenditures</td>
+                      <td className="px-6 py-3 text-right font-mono font-semibold text-slate-700">₹{amt.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-rose-50/40 border-b border-slate-200 font-bold">
+                    <td className="px-6 py-3 text-sm text-rose-800">Total Expenses (B)</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-rose-700">₹{totalExpensePnL.toLocaleString()}</td>
+                  </tr>
+
+                  {/* Summary row */}
+                  <tr className="bg-slate-800 text-white font-bold text-base">
+                    <td className="px-6 py-4 rounded-bl-xl">Net Surplus</td>
+                    <td className="px-6 py-4 text-right font-mono rounded-br-xl">₹{netSurplus.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Consolidated branch performance metric */}
+          {selectedBranch === 'All' && currentUser?.role !== 'branch-admin' && (
+            <Card className="animate-fade-in">
+              <CardHeader>
+                <CardTitle>Branch Consolidated Performance Matrix</CardTitle>
+              </CardHeader>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
+                      <th className="px-6 py-4">Branch Code</th>
+                      <th className="px-6 py-4">Branch Name</th>
+                      <th className="px-6 py-4 text-center">New Admissions</th>
+                      <th className="px-6 py-4 text-center">Gross Revenue</th>
+                      <th className="px-6 py-4 text-center">Avg Test Marks</th>
+                      <th className="px-6 py-4 text-center">Branch Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                    {[
+                      { code: 'MUM-WEST', name: 'Mumbai West', admissions: '8 Students', revenue: '₹95,000', marks: '85.2%', status: 'Active' },
+                      { code: 'PUN-CAMP', name: 'Pune Camp', admissions: '4 Students', revenue: '₹35,000', marks: '81.0%', status: 'Active' }
+                    ].map((row) => (
+                      <tr key={row.code} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
+                        <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
+                        <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
+                        <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                            row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                          }`}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

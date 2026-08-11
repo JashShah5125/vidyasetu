@@ -15,7 +15,8 @@ interface FeesProps {
 export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
   const { students: allStudents, recordPayment, currentUser } = useApp();
   const students = useMemo(() => {
-    return currentUser?.role === 'branch-admin'
+    const isBranchScoped = currentUser?.role === 'branch-admin' || currentUser?.role === 'finance';
+    return isBranchScoped
       ? allStudents.filter(s => s.branch === currentUser.branch)
       : allStudents;
   }, [allStudents, currentUser]);
