@@ -114,6 +114,7 @@ interface AppContextType {
   addStaff: (staff: Staff) => void;
   addDoubtMessage: (doubtId: string, sender: 'student' | 'teacher', text: string, attachments?: string[]) => void;
   updateDoubtStatus: (doubtId: string, status: 'Pending' | 'In Progress' | 'Resolved' | 'Reopened') => void;
+  sendDoubtReply: (doubtId: string, text: string) => void;
   logAction: (action: string, details: string) => void;
   setCourses: React.Dispatch<React.SetStateAction<Course[]>>;
   setBatches: React.Dispatch<React.SetStateAction<Batch[]>>;
@@ -634,6 +635,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  const sendDoubtReply = (doubtId: string, text: string) => {
+    addDoubtMessage(doubtId, 'teacher', text);
+    updateDoubtStatus(doubtId, 'Resolved');
+  };
+
   const addToast = (message: string, type: 'success' | 'info' | 'error' | 'warning' = 'success') => {
     const id = Math.random().toString(36).substr(2, 9);
     setToasts(prev => [...prev, { id, message, type }]);
@@ -725,6 +731,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addStaff,
       addDoubtMessage,
       updateDoubtStatus,
+      sendDoubtReply,
       logAction,
       setCourses,
       setBatches,
