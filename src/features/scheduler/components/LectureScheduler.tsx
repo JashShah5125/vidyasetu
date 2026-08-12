@@ -155,26 +155,37 @@ export const LectureScheduler = () => {
         /* Main View */
         <>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-              <div className="flex-1 w-full space-y-4">
+            <div className="flex flex-col gap-6">
+              {/* Header Row: Title & Button */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col">
                   <h2 className="text-2xl font-bold text-slate-900">Timetable</h2>
                   <p className="text-sm text-slate-500">Academic timetable management</p>
                 </div>
-                
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="w-40"><Select label="Branch" options={[{value: '', label: 'Select...'}, ...branches.map(b => ({ value: b.code, label: b.name }))]} value={branch} onChange={(e) => { setBranch(e.target.value); setCourse(''); setProgram(''); setLevel(''); setBatch(''); }} disabled={!!initialBranch} /></div>
-                  <div className="w-40"><Select label="Course" options={[{value: '', label: 'Select...'}, ...uniqueCourses.map(c => ({ value: c as string, label: c as string }))]} value={course} onChange={(e) => { setCourse(e.target.value); setProgram(''); setLevel(''); setBatch(''); }} disabled={!branch} /></div>
-                  <div className="w-40"><Select label="Program" options={[{value: '', label: 'Select...'}, ...availablePrograms.map(p => ({ value: p as string, label: p as string }))]} value={program} onChange={(e) => { setProgram(e.target.value); setLevel(''); setBatch(''); }} disabled={!course} /></div>
-                  <div className="w-40"><Select label="Level" options={[{value: '', label: 'Select...'}, ...availableLevels.map(l => ({ value: l as string, label: l as string }))]} value={level} onChange={(e) => { setLevel(e.target.value); setBatch(''); }} disabled={!program} /></div>
-                  <div className="w-48"><Select label="Batch" options={[{value: '', label: 'Select Batch...'}, ...availableBatchNames.map(b => ({ value: b, label: b }))]} value={batch} onChange={(e) => setBatch(e.target.value)} disabled={!level} /></div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Button variant="primary" onClick={() => setIsWizardOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" /> Add New Timetable
+                  </Button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
-                <Button variant="primary" onClick={() => setIsWizardOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" /> Add New Timetable
-                </Button>
+              {/* Filters Row */}
+              <div className="flex flex-wrap md:flex-nowrap items-end gap-4 w-full">
+                <div className="flex-1 min-w-[140px]">
+                  <Select label="Branch" options={[{value: '', label: 'Select...'}, ...branches.map(b => ({ value: b.code, label: b.name }))]} value={branch} onChange={(e) => { setBranch(e.target.value); setCourse(''); setProgram(''); setLevel(''); setBatch(''); }} disabled={!!initialBranch} />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Select label="Course" options={[{value: '', label: 'Select...'}, ...uniqueCourses.map(c => ({ value: c as string, label: c as string }))]} value={course} onChange={(e) => { setCourse(e.target.value); setProgram(''); setLevel(''); setBatch(''); }} disabled={!branch} />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Select label="Program" options={[{value: '', label: 'Select...'}, ...availablePrograms.map(p => ({ value: p as string, label: p as string }))]} value={program} onChange={(e) => { setProgram(e.target.value); setLevel(''); setBatch(''); }} disabled={!course} />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <Select label="Level" options={[{value: '', label: 'Select...'}, ...availableLevels.map(l => ({ value: l as string, label: l as string }))]} value={level} onChange={(e) => { setLevel(e.target.value); setBatch(''); }} disabled={!program} />
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <Select label="Batch" options={[{value: '', label: 'Select Batch...'}, ...availableBatchNames.map(b => ({ value: b, label: b }))]} value={batch} onChange={(e) => setBatch(e.target.value)} disabled={!level} />
+                </div>
               </div>
             </div>
           </div>
