@@ -152,7 +152,7 @@ export const FinanceDashboard: React.FC = () => {
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">This Month's</div>
             <div className="text-xl font-display font-extrabold text-slate-900 mt-1">₹{thisMonthExpenses.toLocaleString()}</div>
-            <span className="text-[10px] text-slate-400 font-semibold block mt-1">August Bill Cycle</span>
+            <span className="text-[10px] text-slate-400 font-semibold block mt-1">Bill Cycle</span>
           </div>
           <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-100">
             <TrendingDown size={20} />
@@ -163,7 +163,7 @@ export const FinanceDashboard: React.FC = () => {
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Payments</div>
             <div className="text-xl font-display font-extrabold text-slate-900 mt-1">₹{pendingPayments.toLocaleString()}</div>
-            <span className="text-[10px] text-slate-400 font-semibold block mt-1">Accrued / Unpaid</span>
+            <span className="text-[10px] text-slate-400 font-semibold block mt-1">Unpaid</span>
           </div>
           <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center border border-red-100">
             <Clock size={20} />

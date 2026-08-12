@@ -2,6 +2,7 @@ import React, { useState, createContext, useContext } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useApp } from '../../context/AppContext';
+import { useLocation } from 'react-router-dom';
 
 // Sidebar collapse context — lets any child toggle or read sidebar state
 interface LayoutContextType {
@@ -20,6 +21,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { currentUser, toasts } = useApp();
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -28,6 +30,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!currentUser) {
     return <div className="w-full h-full">{children}</div>;
   }
+
+  const isVoucherPage = location.pathname === '/expense-voucher';
 
   return (
     <LayoutContext.Provider value={{ isSidebarCollapsed, toggleSidebar }}>
@@ -43,13 +47,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Main Content Workspace */}
         <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-          <Header
-            onMenuClick={() => setIsSidebarOpen(true)}
-          />
+          {!isVoucherPage && (
+            <Header
+              onMenuClick={() => setIsSidebarOpen(true)}
+            />
+          )}
 
           {/* Dynamic content scroll workspace */}
-          <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 md:py-8 animate-fade-in">
-            <div className="max-w-[1600px] mx-auto space-y-6 md:space-y-8 pb-12">
+          <div className={`flex-1 overflow-y-auto ${isVoucherPage ? 'p-0' : 'px-4 md:px-8 py-6 md:py-8'} animate-fade-in`}>
+            <div className={isVoucherPage ? 'w-full h-full' : 'max-w-[1600px] mx-auto space-y-6 md:space-y-8 pb-12'}>
               {children}
             </div>
           </div>

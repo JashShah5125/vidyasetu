@@ -18,7 +18,7 @@ import { useFeeConfig } from '../context/FeeConfigContext';
 import type { Lead, Student } from '../data/mockData';
 
 interface LeadsAdmissionsProps {
-  initialTab?: 'pipeline' | 'admission' | 'batch' | 'payment';
+  initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
 }
 
 // ─── Status badge helper ────────────────────────────────────────────────────
@@ -45,6 +45,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 // ─── Phase progress bar ────────────────────────────────────────────────────
 const phases = [
   { id: 'pipeline',    label: 'Lead Pipeline',          icon: Users },
+  { id: 'fee',         label: 'Fee Discussion',          icon: DollarSign },
   { id: 'admission',   label: 'Admission & Docs',        icon: ClipboardList },
   { id: 'batch',       label: 'Batch Allocation',        icon: Layers },
   { id: 'payment',     label: 'Payment & Activation',   icon: Zap },
@@ -1202,6 +1203,45 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               ))}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredLeads.length} pageSize={PER_PAGE} onPageChange={setPage} />
+          </Card>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+           PHASE 2 — FEE DISCUSSION
+      ════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'fee' && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+            <strong>Phase 2 — Fee Discussion:</strong> Show leads that are in <em>Follow-up</em> or <em>Interested</em> stage and need fee finalisation before conversion.
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Fee Discussion Queue</CardTitle>
+              <span className="text-xs text-slate-400">Leads ready for fee negotiation</span>
+            </CardHeader>
+            <Table headers={['Student Name', 'Mobile', 'Course', 'Preferred Branch', 'Assigned Branch', 'Stage', 'Counsellor', 'Remarks', 'Actions']}>
+              {pipelineLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).map(l => (
+                <tr key={l.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l)}>{l.name}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{l.course}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.preferredBranch || '-'}</td>
+                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{l.branch || '-'}</td>
+                  <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500 max-w-[200px] truncate">{l.remarks}</td>
+                  <td className="px-6 py-4">
+                    <Button variant="primary" size="sm" style={{ backgroundColor: '#2563eb', color: 'white' }} onClick={() => { setSelectedLead(l); setFeeTotal(120000); setFeeDiscount(0); setFeePaid(40000); setFeeBatch(''); setShowFeeModal(true); }}>
+                      <DollarSign size={13} className="mr-1" /> Discuss Fee
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {pipelineLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).length === 0 && (
+                <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">No leads in fee discussion stage. Move leads forward from the Lead Pipeline tab.</td></tr>
+              )}
+            </Table>
           </Card>
         </div>
       )}

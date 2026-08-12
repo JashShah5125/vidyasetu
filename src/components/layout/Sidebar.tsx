@@ -153,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Reports & Auditing',
             links: [
               { name: 'Reports', label: 'Performance Reports', path: '/reports', icon: BarChart3 },
-              { name: 'Broadcast Notification', label: 'Broadcast Campaign', path: '/notifications', icon: Bell },
+              { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
               { name: 'Audit Logs', label: 'Audit Trail Logs', path: '/audit-logs', icon: ClipboardList }
             ]
           },
@@ -189,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Finance Hub',
             links: [
-              { name: 'Fees Master', label: 'Fees Config (View)', path: '/fees-master', icon: DollarSign },
+              { name: 'Fees Master', label: 'Fees Config', path: '/fees-master', icon: DollarSign },
               { name: 'Record Fee', label: 'Fee Transactions', path: '/fees', icon: DollarSign },
               { name: 'Defaulters Ledger', label: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle }
             ]
@@ -207,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Reports & Auditing',
             links: [
               { name: 'Reports', label: 'Branch Reports', path: '/reports', icon: BarChart3 },
-              { name: 'Broadcast Notification', label: 'Circular Broadcasts', path: '/notifications', icon: Bell },
+              { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
               { name: 'Audit Logs', label: 'Branch Audit Logs', path: '/audit-logs', icon: ClipboardList }
             ]
           },
@@ -303,7 +303,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
   }) => {
     const isActive = path === '/leads' 
       ? location.pathname === '/leads' || location.pathname === '/leads/pipeline'
-      : location.pathname.startsWith(path);
+      : path === '/fees'
+        ? location.pathname === '/fees' || location.pathname.startsWith('/fees/')
+        : location.pathname.startsWith(path);
     return (
       <div
         onClick={() => { navigate(path); onClose(); }}

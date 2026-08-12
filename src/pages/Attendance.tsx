@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -21,8 +21,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   // Filters
   const [branch, setBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West');
-  const [course, setCourse] = useState('JEE Prep');
-  const [batch, setBatch] = useState('JEE-Morning-A');
+  const [course, setCourse] = useState('JEE Prep Course');
+  const [batch, setBatch] = useState('JEE-Morning-A1');
   const [staffFilterRole, setStaffFilterRole] = useState('All');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -32,12 +32,25 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   // Attendance Records States
   const [records, setRecords] = useState<{ [key: string]: 'Present' | 'Absent' | 'Late' }>({
     'S-201': 'Present',
-    'S-202': 'Present'
+    'S-202': 'Present',
+    'S-203': 'Present',
+    'S-204': 'Absent',
+    'S-205': 'Present',
+    'S-206': 'Late',
+    'S-207': 'Present'
   });
-  const [staffRecords, setStaffRecords] = useState<{ [key: string]: 'Present' | 'Absent' | 'Late' }>({});
+  const [staffRecords, setStaffRecords] = useState<{ [key: string]: 'Present' | 'Absent' | 'Late' }>({
+    'priya.counsel@apexiit.com': 'Present',
+    'arvind.chem@apexiit.com': 'Present',
+    'nitin.bills@apexiit.com': 'Present'
+  });
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // Derived unique course and batch names
+  const uniqueCourses = useMemo(() => Array.from(new Set(students.map(s => s.course).filter(Boolean) as string[])), [students]);
+  const uniqueBatches = useMemo(() => Array.from(new Set(students.map(s => s.batch).filter(Boolean) as string[])), [students]);
 
   // Filtered Lists
   const filteredStudents = students.filter(s => {
@@ -273,8 +286,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                   value={course} 
                   onChange={(e) => setCourse(e.target.value)} 
                   options={[
-                    { value: 'JEE Prep', label: 'JEE Prep' },
-                    { value: 'NEET Batch', label: 'NEET Batch' }
+                    { value: '', label: 'Select Course' },
+                    ...uniqueCourses.map((c: string) => ({ value: c, label: c }))
                   ]} 
                 />
                 <Select 
@@ -282,8 +295,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                   value={batch} 
                   onChange={(e) => setBatch(e.target.value)} 
                   options={[
-                    { value: 'JEE-Morning-A', label: 'JEE-Morning-A' },
-                    { value: 'NEET-Regular-B', label: 'NEET-Regular-B' }
+                    { value: '', label: 'Select Batch' },
+                    ...uniqueBatches.map((b: string) => ({ value: b, label: b }))
                   ]} 
                 />
               </>
