@@ -22,7 +22,6 @@ import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
 import { StudentRegistration } from './pages/StudentRegistration';
 import { Students } from './pages/Students';
-import { StudentRegistration } from './pages/StudentRegistration';
 import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';

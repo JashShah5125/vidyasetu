@@ -1003,19 +1003,48 @@ export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {
   ]
 };
 
-export interface ExamItem {
-  name: string;
+export interface AssignmentItem {
+  id: string;
+  title: string;
+  type: string;
+  subject: string;
   batch: string;
+  assignedDate: string;
+  dueDate: string;
+  status: 'Draft' | 'Published' | 'Closed';
+  description?: string;
+  attachmentName?: string;
+}
+
+export const TEACHER_INITIAL_ASSIGNMENTS: AssignmentItem[] = [
+  { id: 'A-101', title: 'Electrophilic Addition Quiz Problems', type: 'Homework', subject: 'Chemistry', batch: 'JEE-Morning-A1', assignedDate: '2026-08-10', dueDate: '2026-08-15', status: 'Published', attachmentName: 'addition_probs.pdf' },
+  { id: 'A-102', title: 'Rotational Dynamics Exercise sheet', type: 'Worksheet', subject: 'Physics', batch: 'JEE-Evening-B1', assignedDate: '2026-08-11', dueDate: '2026-08-18', status: 'Published', attachmentName: 'dynamics_sheet.pdf' },
+  { id: 'A-103', title: 'Calculus Integration Draft', type: 'Practice set', subject: 'Mathematics', batch: 'JEE-Morning-A1', assignedDate: '', dueDate: 'Not Set', status: 'Draft', description: 'Need to add more integration by parts questions.' },
+  { id: 'A-104', title: 'Kinematics Revision', type: 'Revision work', subject: 'Physics', batch: 'JEE-Morning-A1', assignedDate: '2026-07-01', dueDate: '2026-07-10', status: 'Closed' }
+];
+
+export interface ExamItem {
+  id: string;
+  name: string;
+  type: string;
+  subject: string;
+  batch: string;
+  examDate: string;
+  startTime?: string;
+  duration?: string;
   totalMarks: number;
   passingMarks: number;
   average: string;
-  status: string;
+  status: 'Draft' | 'Scheduled' | 'In Progress' | 'Completed' | 'Marks Pending' | 'Marks Published' | 'Cancelled';
   studentMarks?: { [studentId: string]: number };
 }
 
 export const INITIAL_EXAMS: ExamItem[] = [
-  { name: 'Periodic Chemistry Evaluation Test #3', batch: 'JEE-Morning-A1', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 35 } },
-  { name: 'Physics Mechanics Weekly Quiz #2', batch: 'JEE-Evening-B1', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2604': 38, 'STU-MUM-2605': 18 } }
+  { id: 'EX-201', name: 'Periodic Chemistry Evaluation Test #3', type: 'Unit Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: '2026-08-05', startTime: '10:00 AM', duration: '90 mins', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 35 } },
+  { id: 'EX-202', name: 'Physics Mechanics Weekly Quiz #2', type: 'Weekly Test', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-08', startTime: '04:00 PM', duration: '60 mins', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2604': 38, 'STU-MUM-2605': 18 } },
+  { id: 'EX-203', name: 'Mathematics Mock Test 1', type: 'Mock Test', subject: 'Mathematics', batch: 'JEE-Morning-A1', examDate: '2026-08-25', startTime: '09:00 AM', duration: '180 mins', totalMarks: 300, passingMarks: 100, average: '', status: 'Scheduled' },
+  { id: 'EX-204', name: 'Draft: Organic Chem Review', type: 'Chapter Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: 'Not Set', totalMarks: 50, passingMarks: 20, average: '', status: 'Draft' },
+  { id: 'EX-205', name: 'Thermodynamics Assessment', type: 'Internal Assessment', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-10', startTime: '05:00 PM', duration: '45 mins', totalMarks: 40, passingMarks: 15, average: '', status: 'Cancelled' }
 ];
 
 export interface FeePlan {

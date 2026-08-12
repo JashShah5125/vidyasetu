@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
+import { Toggle } from '../components/ui/Toggle';
 import {
   ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle, ShieldAlert
 } from 'lucide-react';
@@ -20,7 +21,7 @@ interface AcademicLevel {
 interface Program {
   id: string;
   name: string; // e.g. "2 Year", "1 Year Crash Course"
-  fees: number;
+  code: string;
   enabled: boolean;
   levels: AcademicLevel[];
 }
@@ -29,6 +30,7 @@ interface CourseData {
   name: string;
   code: string;
   duration: string;
+  enabled: boolean;
   programs: Program[];
 }
 
@@ -36,53 +38,66 @@ interface CourseData {
 
 const SEED_DATA: Record<string, CourseData> = {
   'JEE-PREP': {
-    name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years',
+    name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', enabled: true,
     programs: [
       {
-        id: 'p1', name: '2 Year', fees: 120000, enabled: true,
+        id: 'p1', name: '2 Year', code: 'PRG-001', enabled: true,
         levels: [
           { id: 'l1', name: 'Class XI' },
           { id: 'l2', name: 'Class XII' },
         ]
       },
       {
-        id: 'p2', name: '1 Year', fees: 80000, enabled: true,
+        id: 'p2', name: '1 Year', code: 'PRG-002', enabled: true,
         levels: [
           { id: 'l3', name: 'Class XII (Dropper)' }
         ]
       },
-      { id: 'p3', name: 'Crash Course', fees: 40000, enabled: false, levels: [] },
+      { id: 'p3', name: 'Crash Course', code: 'PRG-003', enabled: false, levels: [] },
     ]
   },
   'NEET-PREM': {
-    name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year',
+    name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', enabled: true,
     programs: [
       {
-        id: 'p4', name: '1 Year', fees: 150000, enabled: true,
+        id: 'p4', name: '1 Year', code: 'PRG-004', enabled: true,
         levels: [
           { id: 'l4', name: 'Class XII' }
         ]
       },
-      { id: 'p5', name: 'Repeater', fees: 100000, enabled: true, levels: [{ id: 'l5', name: 'Repeater Batch' }] },
+      { id: 'p5', name: 'Repeater', code: 'PRG-005', enabled: true, levels: [{ id: 'l5', name: 'Repeater Batch' }] },
     ]
   },
   'FOUND-10': {
-    name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year',
+    name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', enabled: true,
     programs: [
       {
-        id: 'p6', name: '2 Year', fees: 60000, enabled: true,
+        id: 'p6', name: '2 Year', code: 'PRG-006', enabled: true,
         levels: [
           { id: 'l6', name: 'Class VIII' },
           { id: 'l7', name: 'Class IX' },
         ]
       },
-      { id: 'p7', name: '1 Year', fees: 35000, enabled: false, levels: [] },
+      { id: 'p7', name: '1 Year', code: 'PRG-007', enabled: false, levels: [] },
+    ]
+  },
+  '8TH-STD': {
+    name: '8th Standard', code: '8TH-STD', duration: '1 Year', enabled: true,
+    programs: [
+      {
+        id: 'p8', name: '8th std ICSE', code: 'PRG-008', enabled: true,
+        levels: [{ id: 'l8', name: 'Class VIII' }]
+      },
+      {
+        id: 'p9', name: '8th std CBSE', code: 'PRG-009', enabled: true,
+        levels: [{ id: 'l9', name: 'Class VIII' }]
+      }
     ]
   }
 };
 
 const newLevel = (): AcademicLevel => ({ id: `l-${Date.now()}`, name: '' });
-const newProgram = (): Program => ({ id: `p-${Date.now()}`, name: '', fees: 0, enabled: true, levels: [] });
+const newProgram = (): Program => ({ id: `p-${Date.now()}`, name: '', code: '', enabled: true, levels: [] });
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -146,17 +161,11 @@ const ProgramCard: React.FC<{
         </div>
         <div className="flex items-center gap-3">
           {/* Toggle enabled */}
-          <button
-            onClick={() => onChange({ ...program, enabled: !program.enabled })}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-colors cursor-pointer ${
-              program.enabled
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-slate-100 text-slate-500 border-slate-200'
-            }`}
-          >
-            {program.enabled ? <CheckCircle2 size={13} /> : <Circle size={13} />}
-            {program.enabled ? 'Active' : 'Inactive'}
-          </button>
+          <Toggle 
+            checked={program.enabled} 
+            onChange={(checked) => onChange({ ...program, enabled: checked })} 
+            label={program.enabled ? 'Active' : 'Inactive'} 
+          />
           <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer">
             <Trash2 size={15} />
           </button>
@@ -173,10 +182,11 @@ const ProgramCard: React.FC<{
               onChange={e => onChange({ ...program, name: e.target.value })}
             />
             <Input
-              label="Program Fees (₹)"
-              type="number"
-              value={program.fees}
-              onChange={e => onChange({ ...program, fees: +e.target.value })}
+              label="Program Code"
+              type="text"
+              value={program.code}
+              placeholder="e.g. PRG-001"
+              onChange={e => onChange({ ...program, code: e.target.value })}
             />
           </div>
 
@@ -232,9 +242,17 @@ export const CourseDetail: React.FC = () => {
 
   const [formData, setFormData] = useState<CourseData>(
     seedKey
-      ? SEED_DATA[seedKey]
-      : { name: '', code: '', duration: '', programs: [] }
+      ? JSON.parse(JSON.stringify(SEED_DATA[seedKey]))
+      : { name: '', code: '', duration: '', enabled: true, programs: [] }
   );
+
+  React.useEffect(() => {
+    if (seedKey && SEED_DATA[seedKey]) {
+      setFormData(JSON.parse(JSON.stringify(SEED_DATA[seedKey])));
+    } else {
+      setFormData({ name: '', code: code === 'new' ? '' : (code || ''), duration: '', enabled: true, programs: [] });
+    }
+  }, [code, seedKey]);
 
   const handleSave = () => {
     addToast(`Course "${formData.name}" saved successfully.`);
@@ -305,9 +323,16 @@ export const CourseDetail: React.FC = () => {
         {/* ── General Info ── */}
         {activeTab === 'general' && (
           <Card>
-            <div className="p-5 border-b border-slate-100 flex items-center gap-2">
-              <BookOpen size={18} className="text-blue-600" />
-              <h3 className="font-bold text-slate-800">Course Details</h3>
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BookOpen size={18} className="text-blue-600" />
+                <h3 className="font-bold text-slate-800">Course Details</h3>
+              </div>
+              <Toggle 
+                checked={formData.enabled} 
+                onChange={(checked) => setFormData({ ...formData, enabled: checked })} 
+                label={formData.enabled ? 'Course Active' : 'Course Inactive'} 
+              />
             </div>
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
               <Input

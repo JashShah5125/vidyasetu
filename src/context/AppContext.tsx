@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type {
   Role,
   UserProfile,
@@ -18,7 +18,8 @@ import type {
   SubscriptionPlan,
   TenantSubscription,
   ExamItem,
-  AppNotification
+  AppNotification,
+  AssignmentItem
 } from '../data/mockData';
 import {
   INITIAL_TENANTS,
@@ -37,7 +38,8 @@ import {
   INITIAL_PLANS,
   INITIAL_TENANT_SUBSCRIPTIONS,
   INITIAL_EXAMS,
-  INITIAL_NOTIFICATIONS
+  INITIAL_NOTIFICATIONS,
+  TEACHER_INITIAL_ASSIGNMENTS
 } from '../data/mockData';
 
 export interface ToastMessage {
@@ -65,7 +67,9 @@ interface AppContextType {
   plans: SubscriptionPlan[];
   tenantSubscriptions: TenantSubscription[];
   exams: ExamItem[];
+  assignments: AssignmentItem[];
   setExams: React.Dispatch<React.SetStateAction<ExamItem[]>>;
+  setAssignments: React.Dispatch<React.SetStateAction<AssignmentItem[]>>;
   notifications: AppNotification[];
   markNotificationRead: (id: string) => void;
   sendNotification: (notification: AppNotification) => void;
@@ -151,6 +155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [plans, setPlans] = useState<SubscriptionPlan[]>(INITIAL_PLANS);
   const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>(INITIAL_TENANT_SUBSCRIPTIONS);
   const [exams, setExams] = useState<ExamItem[]>(INITIAL_EXAMS);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>(TEACHER_INITIAL_ASSIGNMENTS);
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -648,13 +653,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Notification sent successfully!');
   };
 
+  const enrichedStudents = useMemo(() => {
+    return students.map(s => {
+      if (!s.enrollmentIds || s.enrollmentIds.length === 0) return s;
+      const studentEnrollments = enrollments.filter(e => s.enrollmentIds.includes(e.id));
+      const mainEnrollment = studentEnrollments.find(e => e.status === 'Active') || studentEnrollments[0];
+      if (!mainEnrollment) return s;
+      
+      const feeRec = feeRecords.find(f => f.enrollmentId === mainEnrollment.id);
+      
+      return {
+        ...s,
+        course: mainEnrollment.course || s.course,
+        program: mainEnrollment.program,
+        level: mainEnrollment.level,
+        batch: mainEnrollment.batchId || s.batch,
+        feePlan: feeRec ? {
+          total: feeRec.netFee,
+          paid: feeRec.downpayment,
+          pending: feeRec.netFee - feeRec.downpayment
+        } : s.feePlan
+      };
+    });
+  }, [students, enrollments, feeRecords]);
+
   return (
     <AppContext.Provider value={{
       currentUser,
       setCurrentUser,
       tenants,
       leads,
-      students,
+      students: enrichedStudents,
       parents,
       enrollments,
       feeRecords,
@@ -668,7 +697,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       plans,
       tenantSubscriptions,
       exams,
+      assignments,
       setExams,
+      setAssignments,
       login,
       logout,
       addTenant,

@@ -1,1095 +1,923 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
-import { Table } from '../ui/Table';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
 import { Pagination } from '../ui/Pagination';
-import { Plus, ArrowLeft, BookOpen, ClipboardList, CheckCircle2, Edit3, FileSpreadsheet } from 'lucide-react';
-import type { ExamItem } from '../../data/mockData';
+import { Plus, ArrowLeft, BookOpen, ClipboardList, CheckCircle2, Edit3, Eye, FileText, Trash2, XCircle } from 'lucide-react';
+import type { AssignmentItem, ExamItem } from '../../data/mockData';
 import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
 
-export interface AssignmentItem {
-  title: string;
-  batch: string;
-  subject: string;
-  dueDate: string;
-  status: string;
-  attachmentName?: string;
-}
-
 export const TeacherAssignments: React.FC = () => {
-  const { batches, branches, courses, exams, setExams, currentUser, students } = useApp();
+  const { 
+    batches, 
+    branches, 
+    courses, 
+    exams, 
+    setExams,
+    assignments,
+    setAssignments,
+    currentUser, 
+    sendNotification 
+  } = useApp();
   
   // Navigation Tabs state
-  const [activeTab, setActiveTab] = useState<'assignments' | 'exams'>('assignments');
+  const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'exams'>('homework');
+  const [activeSubTab, setActiveSubTab] = useState<'active' | 'drafts'>('active');
   const [successMessage, setSuccessMessage] = useState('');
-  const [isEditingExam, setIsEditingExam] = useState(false);
 
   // ----------------------------------------------------
-  // OPTIONS FOR SELECTORS
+  // COMMON OPTIONS
   // ----------------------------------------------------
-  const uniqueBranches = currentUser?.role === 'branch-admin'
-    ? [currentUser.branch || '']
-    : branches.map(b => b.name);
+  const uniqueBranches = currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name);
   const uniqueCourses = courses.map(c => c.name);
   const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
-  const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
-
-  // ----------------------------------------------------
-  // HOMEWORK ASSIGNMENTS STATES & LOGIC
-  // ----------------------------------------------------
-  const [assignments, setAssignments] = useState<AssignmentItem[]>([
-    { title: 'Electrophilic Addition Quiz Problems', batch: 'JEE-Morning-A1', subject: 'Chemistry', dueDate: '2026-07-25', status: 'Active' },
-    { title: 'Rotational Dynamics Exercise sheet', batch: 'JEE-Evening-B1', subject: 'Physics', dueDate: '2026-07-28', status: 'Active' }
-  ]);
-  const [assignSearch, setAssignSearch] = useState('');
-  const [showAddAssignModal, setShowAddAssignModal] = useState(false);
-  const [assignCurrentPage, setAssignCurrentPage] = useState(1);
   
-  // Creation state
-  const [assignTitle, setAssignTitle] = useState('');
-  const [assignBatch, setAssignBatch] = useState('');
-  const [assignSubject, setAssignSubject] = useState('Chemistry');
-  const [assignDueDate, setAssignDueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
-  const [selectedAssignment, setSelectedAssignment] = useState<AssignmentItem | null>(null);
-
-  // List Filters
-  const [assignFilterBranch, setAssignFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
-  const [assignFilterCourse, setAssignFilterCourse] = useState('All');
-  const [assignFilterProgram, setAssignFilterProgram] = useState('All');
-  const [assignFilterLevel, setAssignFilterLevel] = useState('All');
-  const [assignFilterYear, setAssignFilterYear] = useState('All');
-  const [assignFilterBatch, setAssignFilterBatch] = useState('All');
-
-  // Filter available batches for the Assignments list filters dropdown
-  const assignDropdownBatches = batches.filter(b => {
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
-    const batchBranch = b.branch || 'Mumbai West';
-    const matchBranch = assignFilterBranch === 'All' || batchBranch === assignFilterBranch;
-    const matchCourse = assignFilterCourse === 'All' || b.course === assignFilterCourse;
-    const matchProgram = assignFilterProgram === 'All' || b.program === assignFilterProgram;
-    const matchLevel = assignFilterLevel === 'All' || b.level === assignFilterLevel;
-    const matchYear = assignFilterYear === 'All' || b.academicYear === assignFilterYear;
-    return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
-  });
-
-  // Keep batch list filter in sync
-  useEffect(() => {
-    if (assignFilterBatch !== 'All') {
-      const exists = assignDropdownBatches.some(b => b.name === assignFilterBatch);
-      if (!exists) setAssignFilterBatch('All');
-    }
-  }, [assignFilterBranch, assignFilterCourse, assignFilterProgram, assignFilterLevel, assignFilterYear]);
+  const teacherBatches = batches.filter(b => TEACHER_ASSIGNED_BATCHES.includes(b.name));
 
   // ----------------------------------------------------
-  // CLASSROOM EVALUATION EXAMS STATES & LOGIC
+  // LIST FILTERS (Shared logic but kept separate for UI)
   // ----------------------------------------------------
-  const [examSearch, setExamSearch] = useState('');
-  const [showAddExamModal, setShowAddExamModal] = useState(false);
-  const [examCurrentPage, setExamCurrentPage] = useState(1);
-
-  // Creation state
-  const [examName, setExamName] = useState('');
-  const [examBatch, setExamBatch] = useState('');
-  const [examTotalMarks, setExamTotalMarks] = useState(100);
-  const [examPassingMarks, setExamPassingMarks] = useState(40);
-  const [selectedExam, setSelectedExam] = useState<ExamItem | null>(null);
-
-  useEffect(() => {
-    setIsEditingExam(selectedExam?.status !== 'Marks Published');
-  }, [selectedExam]);
-
-  // List Filters
-  const [examFilterBranch, setExamFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
-  const [examFilterCourse, setExamFilterCourse] = useState('All');
-  const [examFilterProgram, setExamFilterProgram] = useState('All');
-  const [examFilterLevel, setExamFilterLevel] = useState('All');
-  const [examFilterYear, setExamFilterYear] = useState('All');
-  const [examFilterBatch, setExamFilterBatch] = useState('All');
-
-  // Filter available batches for the Exams list filters dropdown
-  const examDropdownBatches = batches.filter(b => {
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
-    const batchBranch = b.branch || 'Mumbai West';
-    const matchBranch = examFilterBranch === 'All' || batchBranch === examFilterBranch;
-    const matchCourse = examFilterCourse === 'All' || b.course === examFilterCourse;
-    const matchProgram = examFilterProgram === 'All' || b.program === examFilterProgram;
-    const matchLevel = examFilterLevel === 'All' || b.level === examFilterLevel;
-    const matchYear = examFilterYear === 'All' || b.academicYear === examFilterYear;
-    return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
-  });
-
-  // Keep batch list filter in sync
-  useEffect(() => {
-    if (examFilterBatch !== 'All') {
-      const exists = examDropdownBatches.some(b => b.name === examFilterBatch);
-      if (!exists) setExamFilterBatch('All');
-    }
-  }, [examFilterBranch, examFilterCourse, examFilterProgram, examFilterLevel, examFilterYear]);
-
-  // ----------------------------------------------------
-  // HIERARCHICAL FILTERS FOR CREATION MODALS
-  // ----------------------------------------------------
-  const [selectedBranch, setSelectedBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
-  const [selectedCourse, setSelectedCourse] = useState('All');
-  const [selectedProgram, setSelectedProgram] = useState('All');
-  const [selectedLevel, setSelectedLevel] = useState('All');
-  const [selectedYear, setSelectedYear] = useState('All');
-
-  const creationAvailableBatches = batches.filter(b => {
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
-    const batchBranch = b.branch || 'Mumbai West';
-    const matchBranch = selectedBranch === 'All' || batchBranch === selectedBranch;
-    const matchCourse = selectedCourse === 'All' || b.course === selectedCourse;
-    const matchProgram = selectedProgram === 'All' || b.program === selectedProgram;
-    const matchLevel = selectedLevel === 'All' || b.level === selectedLevel;
-    const matchYear = selectedYear === 'All' || b.academicYear === selectedYear;
-    return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
-  });
-
-  // Keep target batch synchronized when filters update
-  useEffect(() => {
-    if (creationAvailableBatches.length > 0) {
-      const isAssignStillAvailable = creationAvailableBatches.some(b => b.name === assignBatch);
-      if (!isAssignStillAvailable) {
-        setAssignBatch(creationAvailableBatches[0].name);
-      }
-      const isExamStillAvailable = creationAvailableBatches.some(b => b.name === examBatch);
-      if (!isExamStillAvailable) {
-        setExamBatch(creationAvailableBatches[0].name);
-      }
-    } else {
-      setAssignBatch('');
-      setExamBatch('');
-    }
-  }, [selectedBranch, selectedCourse, selectedProgram, selectedLevel, selectedYear]);
-
+  const [search, setSearch] = useState('');
+  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
+  const [filterCourse, setFilterCourse] = useState('All');
+  const [filterProgram, setFilterProgram] = useState('All');
+  const [filterLevel, setFilterLevel] = useState('All');
+  const [filterYear, setFilterYear] = useState('All');
+  const [filterBatch, setFilterBatch] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+  
+  const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Filter and sort assignments list
-  const filteredAndSortedAssignments = assignments
-    .filter(a => {
+  // ----------------------------------------------------
+  // CREATION / EDITING STATES
+  // ----------------------------------------------------
+  const [showAssignForm, setShowAssignForm] = useState(false);
+  const [showExamForm, setShowExamForm] = useState(false);
+  const [showAssignDetails, setShowAssignDetails] = useState<AssignmentItem | null>(null);
+  const [showExamDetails, setShowExamDetails] = useState<ExamItem | null>(null);
+
+  // Assignment Form State
+  const [assignForm, setAssignForm] = useState<Partial<AssignmentItem>>({});
+  
+  // Exam Form State
+  const [examForm, setExamForm] = useState<Partial<ExamItem>>({});
+
+  // Reset pagination on tab change
+  useMemo(() => setCurrentPage(1), [activePrimaryTab, activeSubTab]);
+
+  // ----------------------------------------------------
+  // FILTERING LOGIC
+  // ----------------------------------------------------
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter(a => {
       if (!TEACHER_ASSIGNED_BATCHES.includes(a.batch)) return false;
-      const matchSearch = a.title.toLowerCase().includes(assignSearch.toLowerCase());
-      
+      if (activeSubTab === 'drafts' && a.status !== 'Draft') return false;
+      if (activeSubTab === 'active' && a.status === 'Draft') return false;
+
+      const matchSearch = a.title.toLowerCase().includes(search.toLowerCase());
       const matchedBatch = batches.find(b => b.name === a.batch);
       const batchBranch = matchedBatch?.branch || 'Mumbai West';
       
-      const matchBranch = currentUser?.role === 'branch-admin'
-        ? batchBranch === currentUser.branch
-        : (assignFilterBranch === 'All' || batchBranch === assignFilterBranch);
-      const matchCourse = assignFilterCourse === 'All' || matchedBatch?.course === assignFilterCourse;
-      const matchProgram = assignFilterProgram === 'All' || matchedBatch?.program === assignFilterProgram;
-      const matchLevel = assignFilterLevel === 'All' || matchedBatch?.level === assignFilterLevel;
-      const matchYear = assignFilterYear === 'All' || matchedBatch?.academicYear === assignFilterYear;
-      const matchBatch = assignFilterBatch === 'All' || a.batch === assignFilterBatch;
+      const matchBranch = currentUser?.role === 'branch-admin' ? batchBranch === currentUser.branch : (filterBranch === 'All' || batchBranch === filterBranch);
+      const matchCourse = filterCourse === 'All' || matchedBatch?.course === filterCourse;
+      const matchProgram = filterProgram === 'All' || matchedBatch?.program === filterProgram;
+      const matchLevel = filterLevel === 'All' || matchedBatch?.level === filterLevel;
+      const matchYear = filterYear === 'All' || matchedBatch?.academicYear === filterYear;
+      const matchBatch = filterBatch === 'All' || a.batch === filterBatch;
+      const matchStatus = filterStatus === 'All' || a.status === filterStatus;
       
-      return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch;
-    })
-    .sort((a, b) => a.title.localeCompare(b.title));
+      return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch && matchStatus;
+    }).sort((a, b) => a.title.localeCompare(b.title));
+  }, [assignments, activeSubTab, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterBatch, filterStatus, batches, currentUser]);
 
-  const assignTotalPages = Math.ceil(filteredAndSortedAssignments.length / itemsPerPage);
-  const paginatedAssignments = filteredAndSortedAssignments.slice((assignCurrentPage - 1) * itemsPerPage, assignCurrentPage * itemsPerPage);
-
-  // Filter and sort exams list
-  const filteredAndSortedExams = exams
-    .filter(e => {
+  const filteredExams = useMemo(() => {
+    return exams.filter(e => {
       if (!TEACHER_ASSIGNED_BATCHES.includes(e.batch)) return false;
-      const matchSearch = e.name.toLowerCase().includes(examSearch.toLowerCase());
-      
+      if (activeSubTab === 'drafts' && e.status !== 'Draft') return false;
+      if (activeSubTab === 'active' && e.status === 'Draft') return false;
+
+      const matchSearch = e.name.toLowerCase().includes(search.toLowerCase());
       const matchedBatch = batches.find(b => b.name === e.batch);
       const batchBranch = matchedBatch?.branch || 'Mumbai West';
       
-      const matchBranch = currentUser?.role === 'branch-admin'
-        ? batchBranch === currentUser.branch
-        : (examFilterBranch === 'All' || batchBranch === examFilterBranch);
-      const matchCourse = examFilterCourse === 'All' || matchedBatch?.course === examFilterCourse;
-      const matchProgram = examFilterProgram === 'All' || matchedBatch?.program === examFilterProgram;
-      const matchLevel = examFilterLevel === 'All' || matchedBatch?.level === examFilterLevel;
-      const matchYear = examFilterYear === 'All' || matchedBatch?.academicYear === examFilterYear;
-      const matchBatch = examFilterBatch === 'All' || e.batch === examFilterBatch;
+      const matchBranch = currentUser?.role === 'branch-admin' ? batchBranch === currentUser.branch : (filterBranch === 'All' || batchBranch === filterBranch);
+      const matchCourse = filterCourse === 'All' || matchedBatch?.course === filterCourse;
+      const matchProgram = filterProgram === 'All' || matchedBatch?.program === filterProgram;
+      const matchLevel = filterLevel === 'All' || matchedBatch?.level === filterLevel;
+      const matchYear = filterYear === 'All' || matchedBatch?.academicYear === filterYear;
+      const matchBatch = filterBatch === 'All' || e.batch === filterBatch;
+      const matchStatus = filterStatus === 'All' || e.status === filterStatus;
       
-      return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch;
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+      return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch && matchStatus;
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [exams, activeSubTab, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterBatch, filterStatus, batches, currentUser]);
 
-  const examTotalPages = Math.ceil(filteredAndSortedExams.length / itemsPerPage);
-  const paginatedExams = filteredAndSortedExams.slice((examCurrentPage - 1) * itemsPerPage, examCurrentPage * itemsPerPage);
+  const currentData = activePrimaryTab === 'homework' ? filteredAssignments : filteredExams;
+  const totalPages = Math.ceil(currentData.length / itemsPerPage);
+  const paginatedData = currentData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleOpenAddAssignModal = () => {
-    setSelectedBranch('All');
-    setSelectedCourse('All');
-    setSelectedProgram('All');
-    setSelectedLevel('All');
-    setSelectedYear('All');
-    setAssignmentFile(null);
-    setAssignTitle('');
-    if (batches.length > 0) {
-      setAssignBatch(batches[0].name);
+  // ----------------------------------------------------
+  // ACTIONS
+  // ----------------------------------------------------
+  const handleSaveAssignDraft = () => {
+    if (!assignForm.title || !assignForm.batch) return alert('Title and Target Batch are required');
+    const newId = assignForm.id || `A-${Date.now()}`;
+    const newAssign: AssignmentItem = {
+      ...(assignForm as AssignmentItem),
+      type: assignForm.type || 'Homework',
+      id: newId,
+      status: 'Draft',
+      assignedDate: '',
+      dueDate: assignForm.dueDate || 'Not Set'
+    };
+    
+    if (assignForm.id) {
+      setAssignments(prev => prev.map(a => a.id === newId ? newAssign : a));
+    } else {
+      setAssignments(prev => [newAssign, ...prev]);
     }
-    setShowAddAssignModal(true);
+    setShowAssignForm(false);
+    setSuccessMessage('Assignment saved as draft.');
+    setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  const handleOpenAddExamModal = () => {
-    setSelectedBranch('All');
-    setSelectedCourse('All');
-    setSelectedProgram('All');
-    setSelectedLevel('All');
-    setSelectedYear('All');
-    setExamName('');
-    setExamTotalMarks(100);
-    setExamPassingMarks(40);
-    if (batches.length > 0) {
-      setExamBatch(batches[0].name);
+  const handlePublishAssign = () => {
+    if (!assignForm.title || !assignForm.batch || !assignForm.dueDate) return alert('Please fill in all required fields to publish.');
+    if (!window.confirm(`Publish Assignment? \n\nAssignment: ${assignForm.title}\nBatch: ${assignForm.batch}\nDue: ${assignForm.dueDate}\n\nStudents will receive this assignment.`)) return;
+    
+    const newId = assignForm.id || `A-${Date.now()}`;
+    const newAssign: AssignmentItem = {
+      ...(assignForm as AssignmentItem),
+      type: assignForm.type || 'Homework',
+      id: newId,
+      status: 'Published',
+      assignedDate: new Date().toISOString().split('T')[0]
+    };
+    
+    if (assignForm.id) {
+      setAssignments(prev => prev.map(a => a.id === newId ? newAssign : a));
+    } else {
+      setAssignments(prev => [newAssign, ...prev]);
     }
-    setShowAddExamModal(true);
+    sendNotification({
+      id: `N-${Date.now()}`,
+      title: `New Assignment: ${newAssign.title}`,
+      message: `A new assignment has been published for ${newAssign.batch}. Due Date: ${newAssign.dueDate}`,
+      category: 'Academic',
+      sender: currentUser?.name || 'Teacher',
+      senderRole: 'Teacher',
+      createdAt: new Date().toISOString(),
+      direction: 'Outgoing',
+      status: 'Unread',
+      recipients: [{ type: 'Batch', id: newAssign.batch, name: newAssign.batch }]
+    });
+
+    setShowAssignForm(false);
+    setActiveSubTab('active');
+    setSuccessMessage('Assignment published successfully!');
+    setTimeout(() => setSuccessMessage(''), 3000);
   };
 
-  const handleAssignSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assignTitle || !assignBatch) return;
-    setAssignments(prev => [...prev, {
-      title: assignTitle,
-      batch: assignBatch,
-      subject: assignSubject,
-      dueDate: assignDueDate,
-      status: 'Active',
-      attachmentName: assignmentFile?.name
-    }]);
-    setShowAddAssignModal(false);
-    setSuccessMessage('New homework assignment published and assigned successfully!');
-    setTimeout(() => setSuccessMessage(''), 4000);
+  const handleCloseAssign = (id: string) => {
+    if (!window.confirm('Close Assignment? Students will no longer be able to submit.')) return;
+    setAssignments(prev => prev.map(a => a.id === id ? { ...a, status: 'Closed' } : a));
+    setShowAssignDetails(null);
   };
 
-  const handleExamSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!examName || !examBatch) return;
-    setExams(prev => [...prev, {
-      name: examName,
-      batch: examBatch,
-      totalMarks: examTotalMarks,
-      passingMarks: examPassingMarks,
-      average: 'TBD',
-      status: 'Scheduled'
-    }]);
-    setShowAddExamModal(false);
-    setSuccessMessage('New classroom evaluation test scheduled successfully!');
-    setTimeout(() => setSuccessMessage(''), 4000);
+  const handleDeleteAssign = (id: string) => {
+    if (!window.confirm('Delete Draft? This cannot be undone.')) return;
+    setAssignments(prev => prev.filter(a => a.id !== id));
+    setShowAssignDetails(null);
+  };
+
+  const handleSaveExamDraft = () => {
+    if (!examForm.name || !examForm.batch) return alert('Test name and Target Batch are required');
+    const newId = examForm.id || `EX-${Date.now()}`;
+    const newExam: ExamItem = {
+      ...(examForm as ExamItem),
+      type: examForm.type || 'Unit Test',
+      id: newId,
+      status: 'Draft',
+      examDate: examForm.examDate || 'Not Set',
+      totalMarks: examForm.totalMarks || 100,
+      passingMarks: examForm.passingMarks || 40,
+      average: ''
+    };
+    
+    if (examForm.id) {
+      setExams(prev => prev.map(e => e.id === newId ? newExam : e));
+    } else {
+      setExams(prev => [newExam, ...prev]);
+    }
+    setShowExamForm(false);
+    setSuccessMessage('Exam saved as draft.');
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  const handleScheduleExam = () => {
+    if (!examForm.name || !examForm.batch || !examForm.examDate) return alert('Please fill in required fields to schedule exam.');
+    if (!window.confirm(`Schedule Examination?\n\nTest: ${examForm.name}\nBatch: ${examForm.batch}\nDate: ${examForm.examDate}\nTotal Marks: ${examForm.totalMarks || 100}\n\nStudents will be scheduled for this evaluation.`)) return;
+    
+    const newId = examForm.id || `EX-${Date.now()}`;
+    const newExam: ExamItem = {
+      ...(examForm as ExamItem),
+      type: examForm.type || 'Unit Test',
+      id: newId,
+      status: 'Scheduled',
+      totalMarks: examForm.totalMarks || 100,
+      passingMarks: examForm.passingMarks || 40,
+      average: ''
+    };
+    
+    if (examForm.id) {
+      setExams(prev => prev.map(e => e.id === newId ? newExam : e));
+    } else {
+      setExams(prev => [newExam, ...prev]);
+    }
+    sendNotification({
+      id: `N-${Date.now()}`,
+      title: `Upcoming Exam: ${newExam.name}`,
+      message: `An exam has been scheduled on ${newExam.examDate} for ${newExam.batch}.`,
+      category: 'Examination',
+      sender: currentUser?.name || 'Teacher',
+      senderRole: 'Teacher',
+      createdAt: new Date().toISOString(),
+      direction: 'Outgoing',
+      status: 'Unread',
+      recipients: [{ type: 'Batch', id: newExam.batch, name: newExam.batch }]
+    });
+
+    setShowExamForm(false);
+    setActiveSubTab('active');
+    setSuccessMessage('Exam scheduled successfully!');
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  const handleCancelExam = (id: string) => {
+    if (!window.confirm('Cancel Examination? Students will no longer see it as an upcoming test.')) return;
+    setExams(prev => prev.map(e => e.id === id ? { ...e, status: 'Cancelled' } : e));
+    setShowExamDetails(null);
+  };
+
+  const handleDeleteExam = (id: string) => {
+    if (!window.confirm('Delete Draft? This cannot be undone.')) return;
+    setExams(prev => prev.filter(e => e.id !== id));
+    setShowExamDetails(null);
   };
 
   // ----------------------------------------------------
-  // FULL SCREEN DETAILS VIEWS
+  // RENDERERS
   // ----------------------------------------------------
-  if (selectedAssignment) {
-    const matchedBatch = batches.find(b => b.name === selectedAssignment.batch);
-    const branchVal = matchedBatch?.branch || 'Mumbai West';
-    const courseVal = matchedBatch?.course || 'JEE Prep Course';
-    const programVal = matchedBatch?.program || '2 Year';
-    const levelVal = matchedBatch?.level || 'year1';
-    const yearVal = matchedBatch?.academicYear || '2026-27';
 
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedAssignment(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Assignment Details</h2>
-            <p className="text-sm text-slate-500">View configuration, batch mapping, and attachments for this assignment.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6 animate-fade-in">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assignment Title</span>
-                <h3 className="text-xl font-bold text-slate-800 mt-1">{selectedAssignment.title}</h3>
-              </div>
-              
-              <hr className="border-slate-100" />
-              
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Submission Deadline</span>
-                  <span className="text-sm font-semibold text-slate-700 mt-1.5 block font-mono">{selectedAssignment.dueDate}</span>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Current Status</span>
-                  <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200 mt-1.5">
-                    {selectedAssignment.status}
-                  </span>
-                </div>
-              </div>
-
-              {selectedAssignment.attachmentName && (
-                <>
-                  <hr className="border-slate-100" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">Attached Document</span>
-                    <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl bg-slate-50 mt-2 max-w-xl">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">📄</span>
-                        <div>
-                          <span className="text-xs font-semibold text-slate-700 font-mono block">{selectedAssignment.attachmentName}</span>
-                          <span className="text-[10px] text-slate-400 block">Adobe PDF Document</span>
-                        </div>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          alert(`Downloading attached document: ${selectedAssignment.attachmentName}`);
-                        }}
-                      >
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="flex justify-end pt-4 border-t border-slate-100">
-                <Button onClick={() => setSelectedAssignment(null)} variant="secondary">Back to List</Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 animate-fade-in">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-3">Target Batch Mapping</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Branch</span>
-                  <span className="font-semibold text-slate-700">{branchVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Course</span>
-                  <span className="font-semibold text-slate-700">{courseVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Program</span>
-                  <span className="font-semibold text-slate-700">{programVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Level</span>
-                  <span className="font-semibold text-slate-700">{levelVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Academic Year</span>
-                  <span className="font-semibold text-slate-700 font-mono">{yearVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 pt-3">
-                  <span className="text-slate-500 font-bold">Target Batch</span>
-                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-150">{selectedAssignment.batch}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  const renderFilters = () => (
+    <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-wrap gap-4 items-end border">
+      <div className="flex-1 min-w-[200px]">
+        <label className="block text-xs text-gray-500 mb-1">Search</label>
+        <Input 
+          placeholder={activePrimaryTab === 'homework' ? "Search assignments..." : "Search exams..."}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
-    );
-  }
-
-  if (selectedExam) {
-    const matchedBatch = batches.find(b => b.name === selectedExam.batch);
-    const branchVal = matchedBatch?.branch || 'Mumbai West';
-    const courseVal = matchedBatch?.course || 'JEE Prep Course';
-    const programVal = matchedBatch?.program || '2 Year';
-    const levelVal = matchedBatch?.level || 'year1';
-    const yearVal = matchedBatch?.academicYear || '2026-27';
-
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedExam(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Classroom Test Details</h2>
-            <p className="text-sm text-slate-500">View configuration, batch mapping, and passing thresholds for this evaluation.</p>
-          </div>
+      {currentUser?.role !== 'branch-admin' && (
+        <div className="w-40">
+          <label className="block text-xs text-gray-500 mb-1">Branch</label>
+          <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
+            <option value="All">All Branches</option>
+            {uniqueBranches.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6 animate-fade-in">
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Test Title</span>
-                <h3 className="text-xl font-bold text-slate-800 mt-1">{selectedExam.name}</h3>
-              </div>
-              
-              <hr className="border-slate-100" />
-              
-              <div className="grid grid-cols-3 gap-6">
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-center">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Marks</span>
-                  <span className="text-2xl font-bold text-slate-800 mt-2 block font-mono">{selectedExam.totalMarks}</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-center">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Passing Threshold</span>
-                  <span className="text-2xl font-bold text-slate-800 mt-2 block font-mono">{selectedExam.passingMarks}</span>
-                </div>
-                <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 text-center">
-                  <span className="text-xs font-bold text-blue-500 uppercase tracking-wider block">Class Average</span>
-                  <span className="text-2xl font-bold text-blue-600 mt-2 block font-mono">{selectedExam.average}</span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Current Status</span>
-                  <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold mt-1.5 ${
-                    selectedExam.status === 'Scheduled' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                  }`}>
-                    {selectedExam.status}
-                  </span>
-                </div>
-                <Button onClick={() => setSelectedExam(null)} variant="secondary">Back to List</Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 animate-fade-in">
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-3">Target Batch Mapping</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Branch</span>
-                  <span className="font-semibold text-slate-700">{branchVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Course</span>
-                  <span className="font-semibold text-slate-700">{courseVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Program</span>
-                  <span className="font-semibold text-slate-700">{programVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Level</span>
-                  <span className="font-semibold text-slate-700">{levelVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                  <span className="text-slate-400 font-medium">Academic Year</span>
-                  <span className="font-semibold text-slate-700 font-mono">{yearVal}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 pt-3">
-                  <span className="text-slate-500 font-bold">Target Batch</span>
-                  <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-150">{selectedExam.batch}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      )}
+      <div className="w-40">
+        <label className="block text-xs text-gray-500 mb-1">Course</label>
+        <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)}>
+          <option value="All">All Courses</option>
+          {uniqueCourses.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
-    );
-  }
-
-  // ----------------------------------------------------
-  // ADD MODAL SCREEN RENDERERS
-  // ----------------------------------------------------
-  if (showAddAssignModal) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowAddAssignModal(false)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Create Homework Assignment</h2>
-            <p className="text-sm text-slate-500">Publish coursework or quiz tasks for active student batches.</p>
-          </div>
-        </div>
-
-        <div className="w-full">
-          <form onSubmit={handleAssignSubmit} className="space-y-4 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <Input label="Assignment Title" required placeholder="e.g. Electrophilic Addition Quiz Problems" value={assignTitle} onChange={(e) => setAssignTitle(e.target.value)} />
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <Select 
-                label="Branch" 
-                value={selectedBranch} 
-                onChange={(e) => setSelectedBranch(e.target.value)} 
-                options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
-                disabled={currentUser?.role === 'branch-admin'}
-              />
-              <Select 
-                label="Course" 
-                value={selectedCourse} 
-                onChange={(e) => setSelectedCourse(e.target.value)} 
-                options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
-              />
-              <Select 
-                label="Program" 
-                value={selectedProgram} 
-                onChange={(e) => setSelectedProgram(e.target.value)} 
-                options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
-              />
-              <Select 
-                label="Level" 
-                value={selectedLevel} 
-                onChange={(e) => setSelectedLevel(e.target.value)} 
-                options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
-              />
-              <Select 
-                label="Academic Year" 
-                value={selectedYear} 
-                onChange={(e) => setSelectedYear(e.target.value)} 
-                options={[{ value: 'All', label: 'All Years' }, ...uniqueYears.map(y => ({ value: y, label: y }))]}
-              />
-              <Select 
-                label="Allocate to Batch" 
-                required
-                value={assignBatch} 
-                onChange={(e) => setAssignBatch(e.target.value)} 
-                options={creationAvailableBatches.map(b => ({ value: b.name, label: b.name }))}
-                disabled={creationAvailableBatches.length === 0}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select 
-                label="Subject Area" 
-                value={assignSubject} 
-                onChange={(e) => setAssignSubject(e.target.value)} 
-                options={[
-                  { value: 'Chemistry', label: 'Chemistry' },
-                  { value: 'Physics', label: 'Physics' },
-                  { value: 'Mathematics', label: 'Mathematics' },
-                  { value: 'Biology', label: 'Biology' }
-                ]}
-              />
-              <Input label="Submission Deadline" type="date" value={assignDueDate} onChange={(e) => setAssignDueDate(e.target.value)} />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block font-display">Assignment Details Document (PDF)</label>
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg bg-white text-sm text-slate-700 hover:bg-slate-50 cursor-pointer shadow-sm font-semibold transition-all">
-                  <span>Choose PDF File</span>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setAssignmentFile(file);
-                    }}
-                  />
-                </label>
-                {assignmentFile ? (
-                  <span className="text-xs text-emerald-655 font-medium font-mono">
-                    ✓ {assignmentFile.name}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400">No file chosen</span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddAssignModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" disabled={!assignBatch}>Publish Assignment</Button>
-            </div>
-          </form>
-        </div>
+      <div className="w-32">
+        <label className="block text-xs text-gray-500 mb-1">Program</label>
+        <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)}>
+          <option value="All">All Programs</option>
+          {uniquePrograms.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
       </div>
-    );
-  }
+      <div className="w-32">
+        <label className="block text-xs text-gray-500 mb-1">Level</label>
+        <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}>
+          <option value="All">All Levels</option>
+          {uniqueLevels.map(l => <option key={l} value={l}>{l}</option>)}
+        </select>
+      </div>
+      <div className="w-32">
+        <label className="block text-xs text-gray-500 mb-1">Batch</label>
+        <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}>
+          <option value="All">All Batches</option>
+          {teacherBatches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+        </select>
+      </div>
+      <div className="w-40">
+        <label className="block text-xs text-gray-500 mb-1">Status</label>
+        <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <option value="All">All Statuses</option>
+          {activeSubTab === 'drafts' ? (
+            <option value="Draft">Draft</option>
+          ) : activePrimaryTab === 'homework' ? (
+            <>
+              <option value="Published">Published</option>
+              <option value="Closed">Closed</option>
+            </>
+          ) : (
+            <>
+              <option value="Scheduled">Scheduled</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Marks Pending">Marks Pending</option>
+              <option value="Marks Published">Marks Published</option>
+              <option value="Cancelled">Cancelled</option>
+            </>
+          )}
+        </select>
+      </div>
+    </div>
+  );
 
-  if (showAddExamModal) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowAddExamModal(false)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Schedule Classroom Test</h2>
-            <p className="text-sm text-slate-500">Define offline evaluation tests, assign target batches, and record scores.</p>
-          </div>
+  const renderAssignForm = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+          <h2 className="text-xl font-semibold text-gray-800">{assignForm.id ? 'Edit Assignment' : 'Create Assignment'}</h2>
+          <Button variant="ghost" size="sm" onClick={() => setShowAssignForm(false)}><XCircle className="w-5 h-5 text-gray-500" /></Button>
         </div>
-
-        <div className="w-full">
-          <form onSubmit={handleExamSubmit} className="space-y-4 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <Input label="Test Name Title" required placeholder="e.g. Periodic Chemistry Evaluation Test #4" value={examName} onChange={(e) => setExamName(e.target.value)} />
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <Select 
-                label="Branch" 
-                value={selectedBranch} 
-                onChange={(e) => setSelectedBranch(e.target.value)} 
-                options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
-                disabled={currentUser?.role === 'branch-admin'}
-              />
-              <Select 
-                label="Course" 
-                value={selectedCourse} 
-                onChange={(e) => setSelectedCourse(e.target.value)} 
-                options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
-              />
-              <Select 
-                label="Program" 
-                value={selectedProgram} 
-                onChange={(e) => setSelectedProgram(e.target.value)} 
-                options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
-              />
-              <Select 
-                label="Level" 
-                value={selectedLevel} 
-                onChange={(e) => setSelectedLevel(e.target.value)} 
-                options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
-              />
-              <Select 
-                label="Academic Year" 
-                value={selectedYear} 
-                onChange={(e) => setSelectedYear(e.target.value)} 
-                options={[{ value: 'All', label: 'All Years' }, ...uniqueYears.map(y => ({ value: y, label: y }))]}
-              />
-              <Select 
-                label="Allocate Target Batch" 
-                required
-                value={examBatch} 
-                onChange={(e) => setExamBatch(e.target.value)} 
-                options={creationAvailableBatches.map(b => ({ value: b.name, label: b.name }))}
-                disabled={creationAvailableBatches.length === 0}
-              />
-            </div>
-
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          
+          <div>
+            <h3 className="font-semibold text-sm text-blue-800 mb-3 uppercase tracking-wider">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Total Score Marks" type="number" value={examTotalMarks} onChange={(e) => setExamTotalMarks(Number(e.target.value))} />
-              <Input label="Passing Threshold" type="number" value={examPassingMarks} onChange={(e) => setExamPassingMarks(Number(e.target.value))} />
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-600 mb-1">Assignment Title <span className="text-red-500">*</span></label>
+                <Input value={assignForm.title || ''} onChange={e => setAssignForm({...assignForm, title: e.target.value})} placeholder="e.g. Kinematics Problem Set" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Type</label>
+                <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={assignForm.type || 'Homework'} onChange={e => setAssignForm({...assignForm, type: e.target.value})}>
+                  <option value="Homework">Homework</option>
+                  <option value="Worksheet">Worksheet</option>
+                  <option value="Practice set">Practice set</option>
+                  <option value="Reading task">Reading task</option>
+                  <option value="Revision work">Revision work</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Subject</label>
+                <Input value={assignForm.subject || ''} onChange={e => setAssignForm({...assignForm, subject: e.target.value})} placeholder="e.g. Physics" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-600 mb-1">Instructions / Description</label>
+                <textarea 
+                  className="w-full border rounded-md p-2 h-24 text-sm"
+                  value={assignForm.description || ''} 
+                  onChange={e => setAssignForm({...assignForm, description: e.target.value})} 
+                  placeholder="Enter detailed instructions here..."
+                ></textarea>
+              </div>
             </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddExamModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" disabled={!examBatch}>Schedule Test</Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
+          </div>
 
-  if (selectedAssignment) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedAssignment(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
           <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Assignment Details</h2>
-            <p className="text-sm text-slate-500">View configuration and student submissions.</p>
+            <h3 className="font-semibold text-sm text-blue-800 mb-3 uppercase tracking-wider">Academic Target & Schedule</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Target Batch <span className="text-red-500">*</span></label>
+                <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={assignForm.batch || ''} onChange={e => setAssignForm({...assignForm, batch: e.target.value})}>
+                  <option value="">Select a batch...</option>
+                  {teacherBatches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Due Date</label>
+                <Input type="date" value={assignForm.dueDate === 'Not Set' ? '' : (assignForm.dueDate || '')} onChange={e => setAssignForm({...assignForm, dueDate: e.target.value})} />
+              </div>
+            </div>
           </div>
         </div>
+        <div className="p-4 border-t bg-gray-50 flex justify-between rounded-b-lg">
+          <Button variant="outline" onClick={() => setShowAssignForm(false)}>Cancel</Button>
+          <div className="space-x-3">
+            <Button variant="outline" onClick={handleSaveAssignDraft}>Save Draft</Button>
+            <Button className="bg-blue-600 text-white" onClick={handlePublishAssign}>Publish Assignment</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
-        <div className="grid grid-cols-1 gap-6">
-          <Card>
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{selectedAssignment.title}</h3>
-                <p className="text-sm text-slate-500 font-medium mt-1">
-                  Batch: {selectedAssignment.batch} • Subject: {selectedAssignment.subject} • Due Date: {selectedAssignment.dueDate}
-                </p>
-                {selectedAssignment.attachmentName && (
-                  <div className="mt-4">
-                    <span className="inline-flex items-center gap-1 text-sm text-emerald-600 bg-emerald-50 px-3 py-1 rounded border border-emerald-100 font-semibold font-mono">
-                      📄 {selectedAssignment.attachmentName}
-                    </span>
-                  </div>
-                )}
+  const renderExamForm = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+          <h2 className="text-xl font-semibold text-gray-800">{examForm.id ? 'Edit Test' : 'Schedule Test'}</h2>
+          <Button variant="ghost" size="sm" onClick={() => setShowExamForm(false)}><XCircle className="w-5 h-5 text-gray-500" /></Button>
+        </div>
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          
+          <div>
+            <h3 className="font-semibold text-sm text-blue-800 mb-3 uppercase tracking-wider">Basic Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm text-gray-600 mb-1">Test Title <span className="text-red-500">*</span></label>
+                <Input value={examForm.name || ''} onChange={e => setExamForm({...examForm, name: e.target.value})} placeholder="e.g. Periodic Chemistry Evaluation" />
               </div>
-              <span className="flex items-center gap-1 text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                {selectedAssignment.status}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Type</label>
+                <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={examForm.type || 'Unit Test'} onChange={e => setExamForm({...examForm, type: e.target.value})}>
+                  <option value="Unit Test">Unit Test</option>
+                  <option value="Chapter Test">Chapter Test</option>
+                  <option value="Weekly Test">Weekly Test</option>
+                  <option value="Mock Test">Mock Test</option>
+                  <option value="Term Examination">Term Examination</option>
+                  <option value="Internal Assessment">Internal Assessment</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Subject</label>
+                <Input value={examForm.subject || ''} onChange={e => setExamForm({...examForm, subject: e.target.value})} placeholder="e.g. Chemistry" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-sm text-blue-800 mb-3 uppercase tracking-wider">Academic Mapping</h3>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Target Batch <span className="text-red-500">*</span></label>
+                <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={examForm.batch || ''} onChange={e => setExamForm({...examForm, batch: e.target.value})}>
+                  <option value="">Select a batch...</option>
+                  {teacherBatches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-sm text-blue-800 mb-3 uppercase tracking-wider">Exam Schedule</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Exam Date</label>
+                <Input type="date" value={examForm.examDate === 'Not Set' ? '' : (examForm.examDate || '')} onChange={e => setExamForm({...examForm, examDate: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Start Time</label>
+                <Input type="time" value={examForm.startTime || ''} onChange={e => setExamForm({...examForm, startTime: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Duration</label>
+                <Input value={examForm.duration || ''} onChange={e => setExamForm({...examForm, duration: e.target.value})} placeholder="e.g. 90 mins" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-sm text-blue-800 mb-3 uppercase tracking-wider">Evaluation</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Total Marks</label>
+                <Input type="number" value={examForm.totalMarks || 100} onChange={e => setExamForm({...examForm, totalMarks: parseInt(e.target.value)})} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Passing Threshold</label>
+                <Input type="number" value={examForm.passingMarks || 40} onChange={e => setExamForm({...examForm, passingMarks: parseInt(e.target.value)})} />
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div className="p-4 border-t bg-gray-50 flex justify-between rounded-b-lg">
+          <Button variant="outline" onClick={() => setShowExamForm(false)}>Cancel</Button>
+          <div className="space-x-3">
+            <Button variant="outline" onClick={handleSaveExamDraft}>Save Draft</Button>
+            <Button className="bg-blue-600 text-white" onClick={handleScheduleExam}>Schedule Exam</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const getStatusBadgeColor = (status: string) => {
+    switch(status) {
+      case 'Draft': return 'bg-gray-100 text-gray-800';
+      case 'Published': 
+      case 'Scheduled': return 'bg-blue-100 text-blue-800';
+      case 'Closed': 
+      case 'Completed': return 'bg-green-100 text-green-800';
+      case 'Cancelled': return 'bg-red-100 text-red-800';
+      case 'Marks Published': return 'bg-purple-100 text-purple-800';
+      case 'Marks Pending': return 'bg-orange-100 text-orange-800';
+      case 'In Progress': return 'bg-teal-100 text-teal-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Assignment and Exams</h1>
+          <p className="text-gray-600 mt-1">Manage homework, practice sets, and classroom evaluations</p>
+        </div>
+        <div>
+          {activePrimaryTab === 'homework' ? (
+            <Button className="bg-blue-600 text-white" onClick={() => {
+              setAssignForm({});
+              setShowAssignForm(true);
+            }}>
+              <Plus className="w-4 h-4 mr-2" /> Create Assignment
+            </Button>
+          ) : (
+            <Button className="bg-blue-600 text-white" onClick={() => {
+              setExamForm({});
+              setShowExamForm(true);
+            }}>
+              <Plus className="w-4 h-4 mr-2" /> Schedule Test
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {successMessage && (
+        <div className="mb-6 p-4 bg-green-50 text-green-800 rounded-lg flex items-center border border-green-200">
+          <CheckCircle2 className="w-5 h-5 mr-3 text-green-500" />
+          {successMessage}
+        </div>
+      )}
+
+      {/* Primary Tabs */}
+      <div className="flex space-x-1 border-b mb-6">
+        <button
+          className={`py-3 px-6 font-medium text-sm flex items-center border-b-2 transition-colors ${activePrimaryTab === 'homework' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          onClick={() => { setActivePrimaryTab('homework'); setActiveSubTab('active'); }}
+        >
+          <BookOpen className="w-4 h-4 mr-2" />
+          Homework & Assignments
+        </button>
+        <button
+          className={`py-3 px-6 font-medium text-sm flex items-center border-b-2 transition-colors ${activePrimaryTab === 'exams' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          onClick={() => { setActivePrimaryTab('exams'); setActiveSubTab('active'); }}
+        >
+          <ClipboardList className="w-4 h-4 mr-2" />
+          Exams & Assessments
+        </button>
+      </div>
+
+      {/* Secondary Tabs */}
+      <div className="flex space-x-4 mb-6">
+        <button
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeSubTab === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          onClick={() => setActiveSubTab('active')}
+        >
+          {activePrimaryTab === 'homework' ? 'Active Assignments' : 'Scheduled / Active Exams'}
+        </button>
+        <button
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${activeSubTab === 'drafts' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          onClick={() => setActiveSubTab('drafts')}
+        >
+          Drafts
+        </button>
+      </div>
+
+      {renderFilters()}
+
+      <Card>
+        <div className="overflow-x-auto min-h-[300px]">
+          {activePrimaryTab === 'homework' ? (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Assignment</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Target Batch</th>
+                  {activeSubTab === 'active' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned</th>}
+                  {activeSubTab === 'drafts' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Updated</th>}
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Due Date</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(paginatedData as AssignmentItem[]).length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-gray-500">
+                      <div className="flex flex-col items-center justify-center">
+                        <FileText className="w-10 h-10 text-gray-300 mb-3" />
+                        <p>No {activeSubTab === 'active' ? 'active assignments' : 'assignment drafts'} found.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  (paginatedData as AssignmentItem[]).map((assign) => (
+                    <tr key={assign.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-gray-900">{assign.title}</div>
+                        <div className="text-xs text-gray-500">{assign.type}</div>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{assign.subject}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{assign.batch}</td>
+                      {activeSubTab === 'active' && <td className="py-3 px-4 text-sm text-gray-600">{assign.assignedDate || '-'}</td>}
+                      {activeSubTab === 'drafts' && <td className="py-3 px-4 text-sm text-gray-600">Today</td>}
+                      <td className="py-3 px-4 text-sm text-gray-600">{assign.dueDate}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(assign.status)}`}>
+                          {assign.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => setShowAssignDetails(assign)} title="View Details">
+                            <Eye className="w-4 h-4 text-gray-500" />
+                          </Button>
+                          {(assign.status === 'Draft' || assign.status === 'Published') && (
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              setAssignForm(assign);
+                              setShowAssignForm(true);
+                            }} title="Edit">
+                              <Edit3 className="w-4 h-4 text-blue-500" />
+                            </Button>
+                          )}
+                          {assign.status === 'Published' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleCloseAssign(assign.id)} title="Close Assignment">
+                              <XCircle className="w-4 h-4 text-yellow-600" />
+                            </Button>
+                          )}
+                          {assign.status === 'Draft' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteAssign(assign.id)} title="Delete Draft">
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Test Name</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Target Batch</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Exam Date</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Marks</th>
+                  {activeSubTab === 'active' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Average</th>}
+                  {activeSubTab === 'drafts' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Updated</th>}
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {(paginatedData as ExamItem[]).length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-gray-500">
+                       <div className="flex flex-col items-center justify-center">
+                        <ClipboardList className="w-10 h-10 text-gray-300 mb-3" />
+                        <p>No {activeSubTab === 'active' ? 'scheduled examinations' : 'examination drafts'} found.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  (paginatedData as ExamItem[]).map((exam) => (
+                    <tr key={exam.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-gray-900">{exam.name}</div>
+                        <div className="text-xs text-gray-500">{exam.type}</div>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{exam.subject}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600">{exam.batch}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600">
+                        {exam.examDate}
+                        {exam.startTime && <div className="text-xs text-gray-400">{exam.startTime}</div>}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">
+                        {exam.totalMarks} <span className="text-xs text-gray-400">(Pass: {exam.passingMarks})</span>
+                      </td>
+                      {activeSubTab === 'active' && (
+                        <td className="py-3 px-4 text-sm text-gray-600">
+                          {exam.average || <span className="text-gray-400 italic">Not available</span>}
+                        </td>
+                      )}
+                      {activeSubTab === 'drafts' && <td className="py-3 px-4 text-sm text-gray-600">Today</td>}
+                      <td className="py-3 px-4">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(exam.status)}`}>
+                          {exam.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => setShowExamDetails(exam)} title="View Details">
+                            <Eye className="w-4 h-4 text-gray-500" />
+                          </Button>
+                          {(exam.status === 'Draft' || exam.status === 'Scheduled') && (
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              setExamForm(exam);
+                              setShowExamForm(true);
+                            }} title="Edit">
+                              <Edit3 className="w-4 h-4 text-blue-500" />
+                            </Button>
+                          )}
+                          {exam.status === 'Scheduled' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleCancelExam(exam.id)} title="Cancel Exam">
+                              <XCircle className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
+                          {exam.status === 'Draft' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteExam(exam.id)} title="Delete Draft">
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {totalPages > 1 && (
+          <div className="p-4 border-t">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+      </Card>
+
+      {/* Side-Sheets for Details */}
+      {showAssignDetails && (
+        <div className="fixed inset-y-0 right-0 w-[450px] bg-white shadow-2xl z-50 border-l flex flex-col transform transition-transform duration-300">
+          <div className="flex items-center justify-between p-6 border-b bg-gray-50">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+              <FileText className="w-5 h-5 mr-2 text-blue-600" />
+              Assignment Details
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setShowAssignDetails(null)}><XCircle className="w-5 h-5 text-gray-500" /></Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="mb-6">
+              <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusBadgeColor(showAssignDetails.status)}`}>
+                {showAssignDetails.status}
               </span>
             </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-4">Student ID</th>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {students.filter(s => s.batch === selectedAssignment.batch).map(student => (
-                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-slate-600">{student.studentId}</td>
-                      <td className="px-6 py-4 font-medium text-slate-800">{student.name}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="text-slate-400 text-xs">-</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+            <h3 className="text-xl font-bold text-gray-900 mb-1">{showAssignDetails.title}</h3>
+            <p className="text-sm text-gray-500 mb-6">{showAssignDetails.type} • {showAssignDetails.subject}</p>
 
-  if (selectedExam) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedExam(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Classroom Test Details</h2>
-            <p className="text-sm text-slate-500">View configuration, batch mapping, and record scores.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          <Card>
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+            <div className="space-y-6">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">{selectedExam.name}</h3>
-                <p className="text-sm text-slate-500 font-medium mt-1">
-                  Batch: {selectedExam.batch} • Total Marks: {selectedExam.totalMarks} • Passing: {selectedExam.passingMarks}
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Academic Mapping</h4>
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-gray-500 block">Target Batch</span><span className="font-medium text-gray-900">{showAssignDetails.batch}</span></div>
+                    <div><span className="text-gray-500 block">Created By</span><span className="font-medium text-gray-900">{currentUser?.name}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-gray-500 block">Assigned On</span><span className="font-medium text-gray-900">{showAssignDetails.assignedDate || '-'}</span></div>
+                    <div><span className="text-gray-500 block">Due Date</span><span className="font-medium text-gray-900">{showAssignDetails.dueDate}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Instructions</h4>
+                <p className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg border whitespace-pre-wrap">
+                  {showAssignDetails.description || 'No detailed instructions provided.'}
                 </p>
               </div>
-              {selectedExam.status === 'Marks Published' && (
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                    <CheckCircle2 size={16} /> Published
-                  </span>
-                  {!isEditingExam && (
-                    <Button variant="secondary" className="flex items-center gap-2" onClick={() => setIsEditingExam(true)}>
-                      <Edit3 size={16} /> Edit Marks
-                    </Button>
-                  )}
+
+              {showAssignDetails.attachmentName && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Attachments</h4>
+                  <div className="flex items-center p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-700 text-sm">
+                    <FileText className="w-4 h-4 mr-2" />
+                    {showAssignDetails.attachmentName}
+                  </div>
                 </div>
               )}
             </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-4">Student ID</th>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4 text-center">Marks Obtained</th>
-                    <th className="px-6 py-4 text-center">Result</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {students.filter(s => s.batch === selectedExam.batch).map(student => {
-                    const marks = selectedExam.studentMarks?.[student.studentId];
-                    const hasMarks = marks !== undefined;
-                    const isPassing = hasMarks && marks >= selectedExam.passingMarks;
-
-                    return (
-                      <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-mono text-slate-600">{student.studentId}</td>
-                        <td className="px-6 py-4 font-medium text-slate-800">{student.name}</td>
-                        <td className="px-6 py-4 text-center">
-                          {!isEditingExam ? (
-                            <span className="font-bold text-slate-700">{hasMarks ? marks : '-'}</span>
-                          ) : (
-                            <input 
-                              type="number" 
-                              defaultValue={marks}
-                              max={selectedExam.totalMarks}
-                              className="w-20 text-center border border-slate-300 rounded-md py-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {hasMarks ? (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${isPassing ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                              {isPassing ? 'PASS' : 'FAIL'}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-xs">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {isEditingExam && (
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
-                {selectedExam.status === 'Marks Published' && (
-                  <Button variant="secondary" onClick={() => setIsEditingExam(false)}>Cancel</Button>
-                )}
-                <Button variant="primary" className="flex items-center gap-2" onClick={() => {
-                  setSuccessMessage('Marks saved successfully!');
-                  setIsEditingExam(false);
-                  setTimeout(() => setSuccessMessage(''), 3000);
-                }}>
-                  <FileSpreadsheet size={16} /> Save Marks
-                </Button>
-              </div>
+          </div>
+          <div className="p-4 border-t bg-gray-50 flex gap-3">
+            {showAssignDetails.status === 'Draft' && (
+              <>
+                <Button className="flex-1 bg-blue-600 text-white" onClick={() => {
+                  setAssignForm(showAssignDetails);
+                  setShowAssignDetails(null);
+                  setShowAssignForm(true);
+                }}>Edit & Publish</Button>
+              </>
             )}
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
-          ✓ {successMessage}
+            {showAssignDetails.status === 'Published' && (
+              <Button className="flex-1 bg-yellow-500 text-white" onClick={() => {
+                handleCloseAssign(showAssignDetails.id);
+                setShowAssignDetails(null);
+              }}>Close Assignment</Button>
+            )}
+            <Button variant="outline" className="flex-1" onClick={() => setShowAssignDetails(null)}>Close View</Button>
+          </div>
         </div>
       )}
 
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Assignment and Exams</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage all batch homework assignments, evaluative classroom tests, and study files.</p>
+      {showExamDetails && (
+        <div className="fixed inset-y-0 right-0 w-[450px] bg-white shadow-2xl z-50 border-l flex flex-col transform transition-transform duration-300">
+          <div className="flex items-center justify-between p-6 border-b bg-gray-50">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+              <ClipboardList className="w-5 h-5 mr-2 text-blue-600" />
+              Examination Details
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => setShowExamDetails(null)}><XCircle className="w-5 h-5 text-gray-500" /></Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="mb-6">
+              <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusBadgeColor(showExamDetails.status)}`}>
+                {showExamDetails.status}
+              </span>
+            </div>
+            
+            <h3 className="text-xl font-bold text-gray-900 mb-1">{showExamDetails.name}</h3>
+            <p className="text-sm text-gray-500 mb-6">{showExamDetails.type} • {showExamDetails.subject}</p>
+
+            <div className="space-y-6">
+              {showExamDetails.status === 'Marks Published' && (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <div className="text-sm text-blue-700 font-semibold mb-1">Class Average</div>
+                  <div className="text-2xl font-bold text-blue-900">{showExamDetails.average}</div>
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Academic Mapping</h4>
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-gray-500 block">Target Batch</span><span className="font-medium text-gray-900">{showExamDetails.batch}</span></div>
+                    <div><span className="text-gray-500 block">Created By</span><span className="font-medium text-gray-900">{currentUser?.name}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="col-span-2"><span className="text-gray-500 block">Exam Date</span><span className="font-medium text-gray-900">{showExamDetails.examDate}</span></div>
+                    <div><span className="text-gray-500 block">Start Time</span><span className="font-medium text-gray-900">{showExamDetails.startTime || '-'}</span></div>
+                    <div><span className="text-gray-500 block">Duration</span><span className="font-medium text-gray-900">{showExamDetails.duration || '-'}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Evaluation Rules</h4>
+                <div className="bg-gray-50 p-4 rounded-lg border">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-gray-500 block">Total Marks</span><span className="font-medium text-gray-900">{showExamDetails.totalMarks}</span></div>
+                    <div><span className="text-gray-500 block">Passing Threshold</span><span className="font-medium text-gray-900">{showExamDetails.passingMarks}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 border-t bg-gray-50 flex gap-3">
+            {showExamDetails.status === 'Draft' && (
+              <Button className="flex-1 bg-blue-600 text-white" onClick={() => {
+                setExamForm(showExamDetails);
+                setShowExamDetails(null);
+                setShowExamForm(true);
+              }}>Edit & Schedule</Button>
+            )}
+            {showExamDetails.status === 'Scheduled' && (
+              <Button className="flex-1 bg-red-500 text-white" onClick={() => handleCancelExam(showExamDetails.id)}>Cancel Exam</Button>
+            )}
+            {(showExamDetails.status === 'Completed' || showExamDetails.status === 'Marks Published') && (
+              <Button className="flex-1 bg-green-600 text-white" onClick={() => {
+                 window.location.href = '/teacher/grades'; 
+              }}>View Results</Button>
+            )}
+            <Button variant="outline" className="flex-1" onClick={() => setShowExamDetails(null)}>Close View</Button>
+          </div>
         </div>
-        
-        {activeTab === 'assignments' ? (
-          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddAssignModal}>
-            <Plus size={16} /> Create Assignment
-          </Button>
-        ) : (
-          <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddExamModal}>
-            <Plus size={16} /> Schedule Test
-          </Button>
-        )}
-      </div>
-
-      {/* Tabs Menu */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('assignments')}
-          className={`flex items-center gap-2 px-5 py-3 border-b-2 font-display text-sm font-bold transition-all cursor-pointer ${
-            activeTab === 'assignments'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <BookOpen size={16} />
-          Homework Assignments
-        </button>
-        <button
-          onClick={() => setActiveTab('exams')}
-          className={`flex items-center gap-2 px-5 py-3 border-b-2 font-display text-sm font-bold transition-all cursor-pointer ${
-            activeTab === 'exams'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <ClipboardList size={16} />
-          Classroom Evaluations
-        </button>
-      </div>
-
-      {activeTab === 'assignments' ? (
-        <>
-          {/* ASSIGNMENTS LIST VIEW - HIERARCHICAL FILTERS */}
-          <div className="space-y-4 bg-white border border-slate-200 p-5 rounded-xl shadow-sm animate-fade-in">
-            <Input label="Search" placeholder="Search assignments by name..." 
-              value={assignSearch} 
-              onChange={(e) => setAssignSearch(e.target.value)} 
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
-              <Select 
-                label="Branch" 
-                value={assignFilterBranch} 
-                onChange={(e) => setAssignFilterBranch(e.target.value)} 
-                options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
-                disabled={currentUser?.role === 'branch-admin'}
-              />
-              <Select 
-                label="Course" 
-                value={assignFilterCourse} 
-                onChange={(e) => setAssignFilterCourse(e.target.value)} 
-                options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
-              />
-              <Select 
-                label="Program" 
-                value={assignFilterProgram} 
-                onChange={(e) => setAssignFilterProgram(e.target.value)} 
-                options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
-              />
-              <Select 
-                label="Level" 
-                value={assignFilterLevel} 
-                onChange={(e) => setAssignFilterLevel(e.target.value)} 
-                options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
-              />
-              <Select 
-                label="Academic Year" 
-                value={assignFilterYear} 
-                onChange={(e) => setAssignFilterYear(e.target.value)} 
-                options={[{ value: 'All', label: 'All Years' }, ...uniqueYears.map(y => ({ value: y, label: y }))]}
-              />
-              <Select 
-                label="Target Batch" 
-                value={assignFilterBatch} 
-                onChange={(e) => setAssignFilterBatch(e.target.value)} 
-                options={[{ value: 'All', label: 'All Batches' }, ...assignDropdownBatches.map(b => ({ value: b.name, label: b.name }))]}
-              />
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
-                <CardTitle>Active Homeworks &amp; Worksheets</CardTitle>
-              </div>
-            </CardHeader>
-            <Table headers={['Assignment Title', 'Allotted Batch', 'Subject Name', 'Due Deadline', 'Status']}>
-              {paginatedAssignments.map((a, idx) => (
-                <tr 
-                  key={idx} 
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
-                  onClick={() => setSelectedAssignment(a)}
-                >
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-slate-800">{a.title}</div>
-                    {a.attachmentName && (
-                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-semibold font-mono">
-                        📄 {a.attachmentName}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">{a.batch}</td>
-                  <td className="px-6 py-4">{a.subject}</td>
-                  <td className="px-6 py-4 font-mono text-xs">{a.dueDate}</td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-600">
-                      {a.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-            <Pagination
-              currentPage={assignCurrentPage}
-              totalPages={assignTotalPages}
-              totalItems={filteredAndSortedAssignments.length}
-              pageSize={itemsPerPage}
-              onPageChange={setAssignCurrentPage}
-            />
-          </Card>
-        </>
-      ) : (
-        <>
-          {/* EVALUATIONS LIST VIEW - HIERARCHICAL FILTERS */}
-          <div className="space-y-4 bg-white border border-slate-200 p-5 rounded-xl shadow-sm animate-fade-in">
-            <Input label="Search" placeholder="Search exams by name..." 
-              value={examSearch} 
-              onChange={(e) => setExamSearch(e.target.value)} 
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
-              <Select 
-                label="Branch" 
-                value={examFilterBranch} 
-                onChange={(e) => setExamFilterBranch(e.target.value)} 
-                options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
-                disabled={currentUser?.role === 'branch-admin'}
-              />
-              <Select 
-                label="Course" 
-                value={examFilterCourse} 
-                onChange={(e) => setExamFilterCourse(e.target.value)} 
-                options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
-              />
-              <Select 
-                label="Program" 
-                value={examFilterProgram} 
-                onChange={(e) => setExamFilterProgram(e.target.value)} 
-                options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
-              />
-              <Select 
-                label="Level" 
-                value={examFilterLevel} 
-                onChange={(e) => setExamFilterLevel(e.target.value)} 
-                options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
-              />
-              <Select 
-                label="Academic Year" 
-                value={examFilterYear} 
-                onChange={(e) => setExamFilterYear(e.target.value)} 
-                options={[{ value: 'All', label: 'All Years' }, ...uniqueYears.map(y => ({ value: y, label: y }))]}
-              />
-              <Select 
-                label="Target Batch" 
-                value={examFilterBatch} 
-                onChange={(e) => setExamFilterBatch(e.target.value)} 
-                options={[{ value: 'All', label: 'All Batches' }, ...examDropdownBatches.map(b => ({ value: b.name, label: b.name }))]}
-              />
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
-                <CardTitle>Scheduled Examinations &amp; Quizzes</CardTitle>
-              </div>
-            </CardHeader>
-            <Table headers={['Test Name', 'Batch', 'Total Marks', 'Passing Threshold', 'Class average', 'Status']}>
-              {paginatedExams.map((e, idx) => (
-                <tr 
-                  key={idx} 
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
-                  onClick={() => setSelectedExam(e)}
-                >
-                  <td className="px-6 py-4 font-semibold text-slate-800">{e.name}</td>
-                  <td className="px-6 py-4">{e.batch}</td>
-                  <td className="px-6 py-4 font-mono text-xs">{e.totalMarks} Marks</td>
-                  <td className="px-6 py-4 font-mono text-xs">{e.passingMarks} Marks</td>
-                  <td className="px-6 py-4 font-mono text-xs text-blue-600 font-semibold">{e.average}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
-                      e.status === 'Marks Published' ? 'bg-emerald-50 text-emerald-600 border border-emerald-250' : 'bg-blue-50 text-blue-600'
-                    }`}>
-                      {e.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-            <Pagination
-              currentPage={examCurrentPage}
-              totalPages={examTotalPages}
-              totalItems={filteredAndSortedExams.length}
-              pageSize={itemsPerPage}
-              onPageChange={setExamCurrentPage}
-            />
-          </Card>
-        </>
       )}
+
     </div>
   );
 };
