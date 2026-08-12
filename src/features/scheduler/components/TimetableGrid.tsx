@@ -95,6 +95,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
           {DAYS.map((day, dayIndex) => {
             // Find lectures for this day
             const dayLectures = lectures.filter(l => {
+              if (l.status === 'CANCELLED') return false;
               const d = new Date(l.date);
               const jsDay = d.getDay();
               const mapDay = jsDay === 0 ? 'Sunday' : DAYS[jsDay - 1];
@@ -157,6 +158,12 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                           const d = new Date(selectedWeekStart);
                           d.setDate(d.getDate() + dayIndex);
                           targetDate = d.toISOString().split('T')[0];
+                        } else if (isDefaultMode) {
+                          // In default mode, we just need ANY date that falls on this day of the week.
+                          // Let's use a known Monday (e.g. 2024-01-01) and add dayIndex.
+                          const d = new Date('2024-01-01T12:00:00Z');
+                          d.setDate(d.getDate() + dayIndex);
+                          targetDate = d.toISOString().split('T')[0];
                         }
                         
                         onEditLecture({ date: targetDate || new Date().toISOString() } as Lecture);
@@ -178,7 +185,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
   // Day View
   if (viewMode === 'day') {
     const today = selectedWeekStart ? new Date(selectedWeekStart) : new Date();
-    const dayLectures = lectures.filter(l => l.date === today.toISOString().split('T')[0])
+    const dayLectures = lectures.filter(l => l.date === today.toISOString().split('T')[0] && l.status !== 'CANCELLED')
                                 .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
                                 
     return (

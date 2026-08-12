@@ -14,10 +14,11 @@ interface LectureFormModalProps {
   branchId: string;
   batchId: string;
   existingLecture?: Lecture;
+  initialDate?: string;
   isDefaultMode?: boolean;
 }
 
-export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onClose, branchId, batchId, existingLecture, isDefaultMode }) => {
+export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onClose, branchId, batchId, existingLecture, initialDate, isDefaultMode = false }) => {
   const { courses, batches, staff } = useApp();
   const { rooms, lectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
@@ -53,11 +54,12 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
       });
     } else {
       // Defaults
+      const targetDate = initialDate || new Date().toISOString().split('T')[0];
       setFormData(prev => ({
         ...prev,
         batchId: batchId,
-        date: new Date().toISOString().split('T')[0],
-        dayOfWeek: new Date().getDay(),
+        date: targetDate,
+        dayOfWeek: new Date(targetDate).getDay(),
         startTime: '09:00',
         endTime: '10:30',
         roomId: '',
@@ -90,12 +92,19 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
     e.preventDefault();
     if (conflicts.some(c => c.severity === 'BLOCKING')) return;
 
+    let finalDate = formData.date;
+    if (isDefaultMode) {
+      const d = new Date('2024-01-07T12:00:00Z'); // Sunday
+      d.setDate(d.getDate() + parseInt(formData.dayOfWeek.toString()));
+      finalDate = d.toISOString().split('T')[0];
+    }
+
     if (existingLecture) {
       updateLecture(existingLecture.id, {
         subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
         teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
         roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-        date: formData.date,
+        date: finalDate,
         startTime: formData.startTime,
         endTime: formData.endTime,
         lectureType: formData.lectureType,
@@ -110,7 +119,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
         teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
         roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-        date: formData.date,
+        date: finalDate,
         startTime: formData.startTime,
         endTime: formData.endTime,
         lectureType: formData.lectureType,

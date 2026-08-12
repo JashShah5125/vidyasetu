@@ -32,6 +32,7 @@ export const LectureScheduler = () => {
   const [editorContext, setEditorContext] = useState<CreateTimetableContext | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLecture, setEditingLecture] = useState<Lecture | undefined>(undefined);
+  const [initialDate, setInitialDate] = useState<string | undefined>(undefined);
 
   // Derived options
   const availableBatches = useMemo(() => {
@@ -135,7 +136,16 @@ export const LectureScheduler = () => {
             <TimetableGrid 
               lectures={editorLectures}
               viewMode="week"
-              onEditLecture={(l) => { setEditingLecture(l.id ? l : undefined); setIsFormOpen(true); }}
+              onEditLecture={(l) => { 
+                if (l.id) {
+                  setEditingLecture(l);
+                  setInitialDate(undefined);
+                } else {
+                  setEditingLecture(undefined);
+                  setInitialDate(l.date);
+                }
+                setIsFormOpen(true); 
+              }}
               isDefaultMode={editorContext.scheduleScope === 'DEFAULT'}
               selectedWeekStart={editorContext.weekStartDate}
             />
@@ -255,6 +265,7 @@ export const LectureScheduler = () => {
           branchId={editorContext.branchId}
           batchId={editorContext.batchId}
           existingLecture={editingLecture}
+          initialDate={initialDate}
           isDefaultMode={editorContext.scheduleScope === 'DEFAULT'}
         />
       )}
