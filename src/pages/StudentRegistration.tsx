@@ -282,7 +282,7 @@ export const StudentRegistration = () => {
                       <div className={`p-2 rounded-full ${uploaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                         {uploaded ? <CheckCircle size={20} /> : <Upload size={20} />}
                       </div>
-                      <div className="text-sm font-semibold text-slate-700">{docType}</div>
+                      <div className="font-medium text-slate-900">{docType}</div>
                       {uploaded ? (
                         <div className="text-xs text-emerald-600">{uploaded.fileName}</div>
                       ) : (

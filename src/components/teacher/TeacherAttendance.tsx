@@ -10,13 +10,15 @@ import {
   XCircle, Clock as ClockIcon, ChevronLeft, ChevronRight, AlertCircle, FileText 
 } from 'lucide-react';
 import { 
-  INITIAL_LECTURES, TEACHER_ASSIGNED_BATCHES, 
+  TEACHER_ASSIGNED_BATCHES, 
   INITIAL_ATTENDANCE_HISTORY
 } from '../../data/mockData';
-import type { Lecture, AttendanceSubmission, StudentAttendanceRecord } from '../../data/mockData';
+import type { AttendanceSubmission } from '../../data/mockData';
+import type { Lecture } from '../../features/scheduler/types/scheduler';
 
 export const TeacherAttendance: React.FC = () => {
   const { currentUser, batches, branches, courses, students, addToast } = useApp();
+  const { lectures } = useScheduler();
   
   // Date Navigation State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -58,13 +60,13 @@ export const TeacherAttendance: React.FC = () => {
   });
   
   const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
-  const uniqueSubjects = Array.from(new Set(INITIAL_LECTURES.filter(l => activeBatches.includes(l.batchId)).map(l => l.subject)));
+  const uniqueSubjects = Array.from(new Set(lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId)));
 
   // Filtered Lectures for current date
-  const todaysLectures = INITIAL_LECTURES.filter(l => 
+  const todaysLectures = lectures.filter(l => 
     l.date === currentDateStr && 
     activeBatches.includes(l.batchId) &&
-    (filterSubject === 'All' || l.subject === filterSubject)
+    (filterSubject === 'All' || l.subjectId === filterSubject)
   );
 
   // Navigation handlers
@@ -150,14 +152,13 @@ export const TeacherAttendance: React.FC = () => {
 
     return (
       <div className="space-y-6 animate-fade-in">
-        {/* REGISTER HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold mb-1 cursor-pointer hover:text-slate-800" onClick={handleCancelRegister}>
               <ChevronLeft size={16} /> Back to Lectures
             </div>
             <h2 className="text-2xl font-display font-bold text-slate-900">{activeLecture.batchId} Attendance</h2>
-            <p className="text-sm text-slate-500 mt-1">{activeLecture.subject} • {activeLecture.topic} • {activeLecture.startTime}</p>
+            <p className="text-sm text-slate-500 mt-1">{activeLecture.subjectId} • {activeLecture.topic} • {activeLecture.startTime}</p>
           </div>
           
           <div className="flex gap-4 p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -180,7 +181,6 @@ export const TeacherAttendance: React.FC = () => {
           </div>
         </div>
 
-        {/* REGISTER WORKSPACE */}
         <Card className="overflow-hidden">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="relative w-full max-w-sm">
@@ -263,7 +263,6 @@ export const TeacherAttendance: React.FC = () => {
             )}
           </Table>
 
-          {/* REGISTER FOOTER (SUBMIT) */}
           <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
             <div className="text-sm font-semibold text-amber-600 flex items-center gap-2">
               {hasUnsavedChanges && <><AlertCircle size={16} /> Unsaved changes</>}
@@ -280,13 +279,11 @@ export const TeacherAttendance: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* PAGE HEADER */}
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">Lecture Attendance</h2>
         <p className="text-sm text-slate-500 mt-1">Record and review attendance for your assigned lectures and batches.</p>
       </div>
 
-      {/* CONTEXT FILTER BAR */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex justify-between items-center">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -314,7 +311,6 @@ export const TeacherAttendance: React.FC = () => {
         </div>
       </div>
 
-      {/* TABS NAVIGATION */}
       <div className="flex border-b border-slate-200 overflow-x-auto hide-scrollbar">
         {[
           { id: 'lectures', label: 'Lectures' },
@@ -336,7 +332,6 @@ export const TeacherAttendance: React.FC = () => {
         ))}
       </div>
 
-      {/* LECTURES TAB CONTENT */}
       {activeTab === 'lectures' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -365,8 +360,8 @@ export const TeacherAttendance: React.FC = () => {
                     <div className="font-bold text-blue-700">{lecture.batchId}</div>
                     <div className="text-xs text-slate-500 mt-0.5">{batchInfo?.course} • {batchInfo?.level}</div>
                   </td>
-                  <td className="px-6 py-4 font-semibold text-slate-700">{lecture.subject}</td>
-                  <td className="px-6 py-4 text-slate-600">{lecture.room}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-700">{lecture.subjectId}</td>
+                  <td className="px-6 py-4 text-slate-600">{lecture.roomId}</td>
                   <td className="px-6 py-4 text-slate-600">{studentCount}</td>
                   <td className="px-6 py-4">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${

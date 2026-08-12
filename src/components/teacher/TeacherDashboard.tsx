@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { BookOpen, Calendar, HelpCircle, GraduationCap, ArrowLeft, Clock, MapPin, AlertCircle, FileText, CheckCircle } from 'lucide-react';
-import { INITIAL_LECTURES, TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS, INITIAL_SCHEDULE_CHANGES } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS, INITIAL_SCHEDULE_CHANGES } from '../../data/mockData';
+
 export const TeacherDashboard: React.FC = () => {
   const { currentUser, doubts, sendDoubtReply, addToast, batches, branches, courses, students } = useApp();
+  const { lectures } = useScheduler();
 
   // Global Filters
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
@@ -77,10 +80,11 @@ export const TeacherDashboard: React.FC = () => {
     setCurrentPage(1);
   }, [doubtFilter]);
 
-  const filteredLectures = INITIAL_LECTURES.filter(l => {
+  const filteredLectures = lectures.filter(l => {
     const matchBatch = activeBatches.includes(l.batchId);
     const matchLectureFilter = lectureFilter === 'All' || l.batchId === lectureFilter;
-    return matchBatch && matchLectureFilter;
+    const isPublished = l.publishStatus === 'PUBLISHED' && l.status !== 'CANCELLED';
+    return matchBatch && matchLectureFilter && isPublished;
   });
 
   const handleQuickAnswer = (id: string) => {
@@ -360,10 +364,10 @@ export const TeacherDashboard: React.FC = () => {
                       <div key={lecture.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-blue-200 transition-colors cursor-pointer">
                         <div>
                           <div className="text-sm font-bold text-slate-900">{lecture.startTime} – {lecture.endTime}</div>
-                          <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subject}</div>
+                          <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subjectId}</div>
                           <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.topic}</div>
                           <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
-                            <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.room}</span>
+                            <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.roomId}</span>
                             <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><Clock size={12}/> Attendance Pending</span>
                           </div>
                         </div>

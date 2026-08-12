@@ -9,14 +9,14 @@ import {
   Calendar as CalendarIcon, MapPin, Clock, ArrowLeft, ArrowRight,
   BookOpen, AlertCircle, FileText, CheckCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { 
-  INITIAL_LECTURES, TEACHER_ASSIGNED_BATCHES, 
-  INITIAL_EXAMS, INITIAL_ASSIGNMENTS, INITIAL_SCHEDULE_CHANGES
-} from '../../data/mockData';
-import type { Lecture } from '../../data/mockData';
+
+import { TEACHER_ASSIGNED_BATCHES, INITIAL_SCHEDULE_CHANGES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../data/mockData';
+import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
+import type { Lecture } from '../../features/scheduler/types/scheduler';
 
 export const TeacherSchedule: React.FC = () => {
   const { currentUser, batches, branches, courses } = useApp();
+  const { lectures } = useScheduler();
   const navigate = useNavigate();
 
   // View State
@@ -56,11 +56,11 @@ export const TeacherSchedule: React.FC = () => {
 
   const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
 
-  const uniqueSubjects = Array.from(new Set(INITIAL_LECTURES.filter(l => activeBatches.includes(l.batchId)).map(l => l.subject)));
+  const uniqueSubjects = Array.from(new Set(lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId)));
 
   // Filtered Data
-  const filteredLectures = INITIAL_LECTURES.filter(l => {
-    return activeBatches.includes(l.batchId) && (filterSubject === 'All' || l.subject === filterSubject);
+  const filteredLectures = lectures.filter(l => {
+    return activeBatches.includes(l.batchId) && (filterSubject === 'All' || l.subjectId === filterSubject);
   });
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -177,16 +177,16 @@ export const TeacherSchedule: React.FC = () => {
                   <div key={lecture.id} onClick={() => setSelectedLecture(lecture)} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-blue-300 transition-colors cursor-pointer">
                     <div>
                       <div className="text-sm font-bold text-slate-900">{lecture.startTime} – {lecture.endTime}</div>
-                      <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subject}</div>
-                      <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.topic}</div>
+                      <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subjectId}</div>
+                      <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.lectureType}</div>
                       <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
-                        <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.room}</span>
-                        <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><CheckCircle size={12}/> Attendance Pending</span>
+                        <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.roomId}</span>
+                        {lecture.status === 'SCHEDULED' && <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><CheckCircle size={12}/> Attendance Pending</span>}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 w-full sm:w-auto">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${
-                        lecture.status === 'Scheduled' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-600 border-slate-200'
+                        lecture.status === 'SCHEDULED' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-600 border-slate-200'
                       }`}>
                         {lecture.status}
                       </span>
@@ -236,8 +236,8 @@ export const TeacherSchedule: React.FC = () => {
                               <div className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                                 <Clock size={14} className="text-slate-400"/> {lecture.startTime} – {lecture.endTime}
                               </div>
-                              <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subject}</div>
-                              <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.room}</div>
+                              <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subjectId}</div>
+                              <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.roomId}</div>
                             </div>
                             <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedLecture(lecture); }}>
                               Details
@@ -276,7 +276,7 @@ export const TeacherSchedule: React.FC = () => {
                 {(() => {
                   const weekLectures = filteredLectures.filter(l => l.date >= getDayString(0) && l.date <= getDayString(6));
                   const hours = weekLectures.reduce((acc, l) => acc + calculateDuration(l.startTime, l.endTime), 0);
-                  const subjectsCount = new Set(weekLectures.map(l => l.subject)).size;
+                  const subjectsCount = new Set(weekLectures.map(l => l.subjectId)).size;
                   const batchesCount = new Set(weekLectures.map(l => l.batchId)).size;
                   return (
                     <>
@@ -322,9 +322,9 @@ export const TeacherSchedule: React.FC = () => {
                           {dayLectures.length > 0 ? dayLectures.map(lecture => (
                             <div key={lecture.id} onClick={() => setSelectedLecture(lecture)} className="p-2 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-400 cursor-pointer group">
                               <div className="text-xs font-bold text-slate-800">{lecture.startTime} - {lecture.endTime}</div>
-                              <div className="text-xs font-semibold text-blue-700 mt-1 truncate">{lecture.subject}</div>
+                              <div className="text-xs font-semibold text-blue-700 mt-1 truncate">{lecture.subjectId}</div>
                               <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">{lecture.batchId}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1"><MapPin size={10}/> {lecture.room}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1"><MapPin size={10}/> {lecture.roomId}</div>
                             </div>
                           )) : (
                             <div className="h-full w-full flex items-center justify-center pt-8 text-[10px] text-slate-300 font-bold uppercase">
@@ -394,7 +394,7 @@ export const TeacherSchedule: React.FC = () => {
                       </span>
                     </div>
                     <div>
-                      <div className="text-sm font-bold text-slate-800">{change.subject}</div>
+                      <div className="font-semibold text-slate-700">{change.subject}</div>
                       <div className="text-xs text-slate-500 mt-0.5">{change.batchId}</div>
                       
                       <div className="text-xs font-semibold text-slate-500 mt-2">{change.dateTime}</div>
@@ -427,8 +427,8 @@ export const TeacherSchedule: React.FC = () => {
         {selectedLecture && (
           <div className="space-y-6">
             <div>
-              <div className="text-xl font-bold text-slate-900">{selectedLecture.subject}</div>
-              <div className="text-sm text-slate-500 mt-1">Topic: {selectedLecture.topic || 'Not specified'}</div>
+              <div className="text-xl font-bold text-slate-900">{selectedLecture.subjectId}</div>
+              <div className="text-sm text-slate-500 mt-1">Type: {selectedLecture.lectureType || 'Not specified'}</div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -441,7 +441,7 @@ export const TeacherSchedule: React.FC = () => {
               </div>
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="text-xs font-bold text-slate-400 uppercase">Location</div>
-                <div className="text-sm font-semibold text-slate-800 mt-1">{selectedLecture.room}</div>
+                <div className="text-sm font-semibold text-slate-800 mt-1">{selectedLecture.roomId}</div>
               </div>
             </div>
 

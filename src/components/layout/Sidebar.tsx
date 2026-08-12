@@ -144,6 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Classroom Operations',
             links: [
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
+              { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
               { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
               { name: 'Exam Grading', label: 'Evaluations & Grading', path: '/exams', icon: ClipboardList }
             ]
@@ -197,7 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Classroom Operations',
             links: [
               { name: 'Mark Attendance', label: 'Class Attendance', path: '/attendance', icon: CheckSquare },
-              { name: 'Academic Timetable', label: 'Timetable Schedule', path: '/timetable', icon: Calendar },
+              { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
               { name: 'Assignment and Exams', label: 'Home Assignments', path: '/assignments', icon: BookOpen },
               { name: 'Exam Grading', label: 'Grades & Grading', path: '/exams', icon: ClipboardList }
             ]

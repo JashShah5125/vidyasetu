@@ -421,26 +421,26 @@ export const INITIAL_COURSES: Course[] = [
 
 export const INITIAL_BATCHES: Batch[] = [
   // JEE Prep Course (2 Year & 1 Year & Crash Course)
-  { name: 'JEE-Morning-A1', course: 'JEE Prep Course', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '09:00 AM - 10:30 AM', room: 'Classroom 101' },
-  { name: 'JEE-Morning-A2', course: 'JEE Prep Course', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '11:00 AM - 12:30 PM', room: 'Classroom 102' },
-  { name: 'JEE-Evening-B1', course: 'JEE Prep Course', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '05:00 PM - 06:30 PM', room: 'Classroom 101' },
-  { name: 'JEE-Weekend-Pro', course: 'JEE Prep Course', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '10:00 AM - 02:00 PM', room: 'Auditorium A' },
-  { name: 'JEE-Crash-Dec', course: 'JEE Prep Course', program: 'Crash Course', level: 'year1', academicYear: '2025-26', timing: '03:00 PM - 06:00 PM', room: 'Hall 3' },
+  { name: 'JEE-Morning-A1', course: 'JEE Prep Course', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '09:00 AM - 10:30 AM', room: 'Classroom 101', branch: 'Mumbai West' },
+  { name: 'JEE-Morning-A2', course: 'JEE Prep Course', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '11:00 AM - 12:30 PM', room: 'Classroom 102', branch: 'Mumbai West' },
+  { name: 'JEE-Evening-B1', course: 'JEE Prep Course', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '05:00 PM - 06:30 PM', room: 'Classroom 101', branch: 'Mumbai West' },
+  { name: 'JEE-Weekend-Pro', course: 'JEE Prep Course', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '10:00 AM - 02:00 PM', room: 'Auditorium A', branch: 'Pune Camp' },
+  { name: 'JEE-Crash-Dec', course: 'JEE Prep Course', program: 'Crash Course', level: 'year1', academicYear: '2025-26', timing: '03:00 PM - 06:00 PM', room: 'Hall 3', branch: 'Delhi South' },
 
   // NEET Batch Premium (1 Year & Repeater)
-  { name: 'NEET-Regular-M1', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '11:00 AM - 12:30 PM', room: 'Classroom 201' },
-  { name: 'NEET-Regular-M2', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2027-28', timing: '01:00 PM - 02:30 PM', room: 'Classroom 202' },
-  { name: 'NEET-Repeater-X', course: 'NEET Batch Premium', program: 'Repeater', level: 'year1', academicYear: '2026-27', timing: '08:00 AM - 12:00 PM', room: 'Auditorium B' },
+  { name: 'NEET-Regular-M1', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '11:00 AM - 12:30 PM', room: 'Classroom 201', branch: 'Mumbai West' },
+  { name: 'NEET-Regular-M2', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2027-28', timing: '01:00 PM - 02:30 PM', room: 'Classroom 202', branch: 'Pune Camp' },
+  { name: 'NEET-Repeater-X', course: 'NEET Batch Premium', program: 'Repeater', level: 'year1', academicYear: '2026-27', timing: '08:00 AM - 12:00 PM', room: 'Auditorium B', branch: 'Mumbai West' },
 
   // Class 10 Foundation (2 Year & 1 Year)
-  { name: 'F10-Morning-Alpha', course: 'Class 10 Foundation', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '07:30 AM - 09:00 AM', room: 'Lab 1' },
-  { name: 'F10-Morning-Beta', course: 'Class 10 Foundation', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '07:30 AM - 09:00 AM', room: 'Lab 2' },
-  { name: 'F10-Evening-Fast', course: 'Class 10 Foundation', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '06:00 PM - 07:30 PM', room: 'Classroom 105' },
+  { name: 'F10-Morning-Alpha', course: 'Class 10 Foundation', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '07:30 AM - 09:00 AM', room: 'Lab 1', branch: 'Mumbai West' },
+  { name: 'F10-Morning-Beta', course: 'Class 10 Foundation', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '07:30 AM - 09:00 AM', room: 'Lab 2', branch: 'Delhi South' },
+  { name: 'F10-Evening-Fast', course: 'Class 10 Foundation', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '06:00 PM - 07:30 PM', room: 'Classroom 105', branch: 'Mumbai West' },
 
   // 8th Standard
-  { name: '8TH-ICSE-Alpha', course: '8th Standard', program: '8th std ICSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 301' },
-  { name: '8TH-CBSE-Beta', course: '8th Standard', program: '8th std CBSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 302' },
-  { name: '8TH-STATE-Gamma', course: '8th Standard', program: '8th std State Board', level: 'class8', academicYear: '2025-26', timing: '05:30 PM - 07:00 PM', room: 'Classroom 303' }
+  { name: '8TH-ICSE-Alpha', course: '8th Standard', program: '8th std ICSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 301', branch: 'Pune Camp' },
+  { name: '8TH-CBSE-Beta', course: '8th Standard', program: '8th std CBSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 302', branch: 'Pune Camp' },
+  { name: '8TH-STATE-Gamma', course: '8th Standard', program: '8th std State Board', level: 'class8', academicYear: '2025-26', timing: '05:30 PM - 07:00 PM', room: 'Classroom 303', branch: 'Pune Camp' }
 ];
 
 export const INITIAL_BRANCHES: Branch[] = [
@@ -1070,24 +1070,68 @@ export const INITIAL_FEE_PLANS: FeePlan[] = [
   { id: 'FP-10', course: '8th Standard', program: '8th std State Board', totalFees: 40000, downPayment: 8000, months: 8, installment: 4000 },
 ];
 
-export interface Lecture {
-  id: string;
-  batchId: string;
-  subject: string;
-  teacherId: string;
-  room: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  topic: string;
-  status: 'Scheduled' | 'Occurred' | 'Cancelled';
-}
+import type { Lecture, Room } from '../features/scheduler/types/scheduler';
+
+export const INITIAL_ROOMS: Room[] = [
+  { id: 'R1', branchId: 'B1', name: 'Room 101', capacity: 40, type: 'CLASSROOM', isActive: true },
+  { id: 'R2', branchId: 'B1', name: 'Room 102', capacity: 30, type: 'CLASSROOM', isActive: true },
+  { id: 'R3', branchId: 'B1', name: 'Chem Lab', capacity: 20, type: 'LAB', isActive: true },
+  { id: 'R4', branchId: 'B2', name: 'Room 201', capacity: 50, type: 'CLASSROOM', isActive: true }
+];
 
 export const INITIAL_LECTURES: Lecture[] = [
-  { id: 'L1', batchId: 'JEE-Morning-A1', subject: 'Chemistry (Physical)', teacherId: 'T1', room: 'Room 101', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:30', topic: 'Thermodynamics', status: 'Scheduled' },
-  { id: 'L2', batchId: 'NEET-Regular-B1', subject: 'Chemistry (Organic)', teacherId: 'T1', room: 'Room 104', date: new Date().toISOString().split('T')[0], startTime: '11:00', endTime: '12:30', topic: 'Nomenclature', status: 'Scheduled' },
-  { id: 'L3', batchId: 'JEE-Evening-B1', subject: 'Chemistry (Inorganic)', teacherId: 'T1', room: 'Room 102', date: new Date().toISOString().split('T')[0], startTime: '15:00', endTime: '16:30', topic: 'Periodic Table', status: 'Scheduled' }
+  // Monday
+  { id: 'L1', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Mathematics', teacherId: 'R. Sharma', roomId: 'Room 201', date: '2026-08-10', startTime: '08:00', endTime: '08:45', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L2', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'English', teacherId: 'S. Verma', roomId: 'Room 202', date: '2026-08-10', startTime: '08:45', endTime: '09:30', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L3', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Physics', teacherId: 'A. Singh', roomId: 'Lab 1', date: '2026-08-10', startTime: '09:30', endTime: '10:15', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L4', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Chemistry', teacherId: 'P. Mehta', roomId: 'Lab 2', date: '2026-08-10', startTime: '10:30', endTime: '11:15', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L5', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'History', teacherId: 'V. Joshi', roomId: 'Room 203', date: '2026-08-10', startTime: '11:15', endTime: '12:00', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L6', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Computer', teacherId: 'N. Gupta', roomId: 'Lab 3', date: '2026-08-10', startTime: '12:40', endTime: '13:25', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L7', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Physical Ed.', teacherId: 'M. Khan', roomId: 'Ground', date: '2026-08-10', startTime: '13:25', endTime: '14:10', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+
+  // Tuesday
+  { id: 'L8', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Science', teacherId: 'A. Singh', roomId: 'Room 204', date: '2026-08-11', startTime: '08:00', endTime: '08:45', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L9', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Hindi', teacherId: 'K. Gupta', roomId: 'Room 205', date: '2026-08-11', startTime: '08:45', endTime: '09:30', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L10', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Mathematics', teacherId: 'R. Sharma', roomId: 'Room 201', date: '2026-08-11', startTime: '09:30', endTime: '10:15', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L11', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'English', teacherId: 'S. Verma', roomId: 'Room 202', date: '2026-08-11', startTime: '10:30', endTime: '11:15', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L12', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Geography', teacherId: 'T. Das', roomId: 'Room 203', date: '2026-08-11', startTime: '11:15', endTime: '12:00', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L13', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Art', teacherId: 'P. Rao', roomId: 'Room 106', date: '2026-08-11', startTime: '12:40', endTime: '13:25', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+
+  // Wednesday
+  { id: 'L14', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Physics', teacherId: 'A. Singh', roomId: 'Lab 1', date: '2026-08-12', startTime: '08:00', endTime: '08:45', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L15', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Mathematics', teacherId: 'R. Sharma', roomId: 'Room 201', date: '2026-08-12', startTime: '08:45', endTime: '09:30', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L16', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Chemistry', teacherId: 'P. Mehta', roomId: 'Lab 2', date: '2026-08-12', startTime: '09:30', endTime: '10:15', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L17', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'English', teacherId: 'S. Verma', roomId: 'Room 202', date: '2026-08-12', startTime: '10:30', endTime: '11:15', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L18', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Computer', teacherId: 'N. Gupta', roomId: 'Lab 3', date: '2026-08-12', startTime: '11:15', endTime: '12:00', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L19', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Hindi', teacherId: 'K. Gupta', roomId: 'Room 205', date: '2026-08-12', startTime: '12:40', endTime: '13:25', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L20', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Music', teacherId: 'R. Iyer', roomId: 'Room 107', date: '2026-08-12', startTime: '13:25', endTime: '14:10', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+
+  // Thursday
+  { id: 'L21', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Chemistry', teacherId: 'P. Mehta', roomId: 'Lab 2', date: '2026-08-13', startTime: '08:00', endTime: '08:45', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L22', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'History', teacherId: 'V. Joshi', roomId: 'Room 203', date: '2026-08-13', startTime: '08:45', endTime: '09:30', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L23', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Mathematics', teacherId: 'R. Sharma', roomId: 'Room 201', date: '2026-08-13', startTime: '09:30', endTime: '10:15', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L24', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Biology', teacherId: 'D. Patel', roomId: 'Lab 1', date: '2026-08-13', startTime: '10:30', endTime: '11:15', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '', isOverride: true },
+  { id: 'L25', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Physical Ed.', teacherId: 'M. Khan', roomId: 'Ground', date: '2026-08-13', startTime: '11:15', endTime: '12:00', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L26', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Science', teacherId: 'A. Singh', roomId: 'Room 204', date: '2026-08-13', startTime: '12:40', endTime: '13:25', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L27', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Value Ed.', teacherId: 'S. Nair', roomId: 'Room 105', date: '2026-08-13', startTime: '13:25', endTime: '14:10', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+
+  // Friday
+  { id: 'L28', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'English', teacherId: 'S. Verma', roomId: 'Room 202', date: '2026-08-14', startTime: '08:00', endTime: '08:45', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L29', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Geography', teacherId: 'T. Das', roomId: 'Room 203', date: '2026-08-14', startTime: '08:45', endTime: '09:30', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L30', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Computer', teacherId: 'N. Gupta', roomId: 'Lab 3', date: '2026-08-14', startTime: '09:30', endTime: '10:15', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L31', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Mathematics', teacherId: 'R. Sharma', roomId: 'Room 201', date: '2026-08-14', startTime: '10:30', endTime: '11:15', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L32', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Hindi', teacherId: 'K. Gupta', roomId: 'Room 205', date: '2026-08-14', startTime: '11:15', endTime: '12:00', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L33', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Chemistry', teacherId: 'P. Mehta', roomId: 'Lab 2', date: '2026-08-14', startTime: '12:40', endTime: '13:25', lectureType: 'Lab', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+
+  // Saturday
+  { id: 'L34', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Physical Ed.', teacherId: 'M. Khan', roomId: 'Ground', date: '2026-08-15', startTime: '08:00', endTime: '08:45', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L35', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Art', teacherId: 'P. Rao', roomId: 'Room 106', date: '2026-08-15', startTime: '08:45', endTime: '09:30', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L36', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Music', teacherId: 'R. Iyer', roomId: 'Room 107', date: '2026-08-15', startTime: '09:30', endTime: '10:15', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L37', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Value Ed.', teacherId: 'S. Nair', roomId: 'Room 105', date: '2026-08-15', startTime: '10:30', endTime: '11:15', lectureType: 'Activity', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L38', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'English', teacherId: 'S. Verma', roomId: 'Room 202', date: '2026-08-15', startTime: '11:15', endTime: '12:00', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' },
+  { id: 'L39', branchId: 'B1', academicYearId: 'AY26', batchId: 'JEE-Morning-A1', subjectId: 'Hindi', teacherId: 'K. Gupta', roomId: 'Room 205', date: '2026-08-15', startTime: '12:40', endTime: '13:25', lectureType: 'Regular', publishStatus: 'PUBLISHED', status: 'SCHEDULED', createdAt: '', updatedAt: '' }
 ];
+
 
 export interface ScheduleChange {
   id: string;

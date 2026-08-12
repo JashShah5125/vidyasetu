@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { FeeConfigProvider } from './context/FeeConfigContext';
+import { SchedulerProvider } from './features/scheduler/context/SchedulerContext';
 import { Layout } from './components/layout/Layout';
 import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
@@ -11,6 +12,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
 import { InstituteUpgradePlan } from './pages/InstituteUpgradePlan';
 import { InstituteCheckout } from './pages/InstituteCheckout';
+import { LectureScheduler } from './features/scheduler/components/LectureScheduler';
 import { BranchSetup } from './pages/BranchSetup';
 import { BranchDetail } from './pages/BranchDetail';
 import { CourseSetup } from './pages/CourseSetup';
@@ -309,6 +311,7 @@ const ContentRouter = () => {
       <Route path="/staff/new" element={<StaffCreate />} />
       <Route path="/admissions" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/students" element={isTeacher ? <TeacherStudents /> : <Students />} />
+      <Route path="/admin/timetable" element={<LectureScheduler />} />
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={isTeacher ? <TeacherSchedule /> : <Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
@@ -567,8 +570,10 @@ export default function App() {
   return (
     <AppProvider>
       <FeeConfigProvider>
-        <ScrollToTop />
-        <MainContent />
+        <SchedulerProvider>
+          <ScrollToTop />
+          <MainContent />
+        </SchedulerProvider>
       </FeeConfigProvider>
     </AppProvider>
   );

@@ -7,17 +7,19 @@ import { Pagination } from '../ui/Pagination';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import type { Student } from '../../data/mockData';
+import type { Lecture } from '../../features/scheduler/types/scheduler';
+import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 import { 
   TEACHER_ASSIGNED_BATCHES, 
   INITIAL_ATTENDANCE_HISTORY, 
   INITIAL_ASSIGNMENTS, 
-  EXAM_RESULTS, 
-  INITIAL_LECTURES 
+  EXAM_RESULTS
 } from '../../data/mockData';
 import { Clock as ClockIcon, Calendar as CalendarIcon, FileText, Award, ArrowLeft } from 'lucide-react';
 
 export const TeacherStudents: React.FC = () => {
   const { students: allStudents, batches } = useApp();
+  const { lectures } = useScheduler();
   
   const students = useMemo(() => {
     return allStudents.filter(s => TEACHER_ASSIGNED_BATCHES.includes(s.batch));
@@ -318,8 +320,8 @@ export const TeacherStudents: React.FC = () => {
             {profileTab === 'schedule' && (
               <div className="space-y-4 animate-fade-in border border-slate-200 rounded-xl overflow-hidden">
                 <Table headers={['Date', 'Time', 'Subject', 'Batch', 'Room', 'Type']}>
-                  {INITIAL_LECTURES.filter(l => l.batchId === selectedStudent.batch).length > 0 ? 
-                    INITIAL_LECTURES.filter(l => l.batchId === selectedStudent.batch).map(l => (
+                  {lectures.filter(l => l.batchId === selectedStudent.batch).length > 0 ? 
+                    lectures.filter(l => l.batchId === selectedStudent.batch).map(l => (
                       <tr key={l.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 font-medium text-slate-900">{l.date}</td>
                         <td className="px-6 py-4 text-slate-600">{l.startTime} – {l.endTime}</td>
