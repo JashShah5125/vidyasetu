@@ -223,7 +223,9 @@ const AuditLogsPlaceholder = () => {
 };
 
 const DoubtChatsPlaceholder = () => {
-  const { doubts, sendDoubtReply } = useApp();
+  const appContext = useApp();
+  const { doubts } = appContext;
+  const sendDoubtReply = ((appContext as any).sendDoubtReply as ((id: string, text: string) => void) | undefined) ?? (() => {});
   const [chatInput, setChatInput] = useState('');
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">

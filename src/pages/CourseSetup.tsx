@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { BookOpen, Plus, Search, ArrowRight, Download } from 'lucide-react';
+import { BookOpen, Plus, Search, ArrowRight, Download, ShieldAlert } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 
 export const CourseSetup: React.FC = () => {
@@ -63,6 +63,11 @@ export const CourseSetup: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
+      {currentUser?.role === 'branch-admin' && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify course setup.
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -159,7 +164,10 @@ export const CourseSetup: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <button
-                      onClick={() => navigate(`/courses/${course.code}`)}
+                      onClick={() => {
+                        if (currentUser?.role === 'branch-admin') return;
+                        navigate(`/courses/${course.code}`);
+                      }}
                       className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
                     >
                       Manage <ArrowRight size={14} />

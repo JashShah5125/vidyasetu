@@ -24,6 +24,7 @@ export const FeesMaster: React.FC = () => {
   const [months, setMonths] = useState<number | ''>('');
 
   const [successMsg, setSuccessMsg] = useState('');
+  const [editingPlan, setEditingPlan] = useState<FeePlan | null>(null);
 
   // Get available programs for the selected course
   const availablePrograms = useMemo(() => {
@@ -157,24 +158,47 @@ export const FeesMaster: React.FC = () => {
   const balance = (Number(totalFees) || 0) - (Number(downPayment) || 0);
   const monthlyInstallment = (Number(months) || 0) > 0 ? balance / (Number(months) as number) : 0;
 
+  const handleEditPlan = (plan: FeePlan) => {
+    setEditingPlan(plan);
+    setSelectedCourse(plan.course);
+    setSelectedProgram(plan.program);
+    setTotalFees(plan.totalFees);
+    setDownPayment(plan.downPayment);
+    setMonths(plan.months);
+    setView('form');
+  };
+
   const handleSave = () => {
     if (!selectedCourse || !selectedProgram || totalFees === '' || downPayment === '' || months === '') {
       alert("Please fill in all fields before saving.");
       return;
     }
     
-    const newPlan: FeePlan = {
-      id: Math.random().toString(36).substring(7),
-      course: selectedCourse,
-      program: selectedProgram,
-      totalFees: Number(totalFees),
-      downPayment: Number(downPayment),
-      months: Number(months),
-      installment: monthlyInstallment
-    };
-
-    setPlans([...plans, newPlan]);
-    setSuccessMsg('Fee Configuration Saved Successfully!');
+    if (editingPlan) {
+      setPlans(prev => prev.map(p => p.id === editingPlan.id ? {
+        ...p,
+        course: selectedCourse,
+        program: selectedProgram,
+        totalFees: Number(totalFees),
+        downPayment: Number(downPayment),
+        months: Number(months),
+        installment: monthlyInstallment
+      } : p));
+      setSuccessMsg('Fee Configuration Updated Successfully!');
+    } else {
+      const newPlan: FeePlan = {
+        id: Math.random().toString(36).substring(7),
+        course: selectedCourse,
+        program: selectedProgram,
+        totalFees: Number(totalFees),
+        downPayment: Number(downPayment),
+        months: Number(months),
+        installment: monthlyInstallment
+      };
+      setPlans([...plans, newPlan]);
+      setSuccessMsg('Fee Configuration Saved Successfully!');
+    }
+    
     setView('list');
     setTimeout(() => setSuccessMsg(''), 4000);
     
@@ -184,6 +208,7 @@ export const FeesMaster: React.FC = () => {
     setTotalFees('');
     setDownPayment('');
     setMonths('');
+    setEditingPlan(null);
   };
 
   return (
@@ -201,7 +226,7 @@ export const FeesMaster: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1">Configure full package payments and standard installment plans.</p>
         </div>
         {activeMainTab === 'full-course' && view === 'list' && !isReadOnly && (
-          <Button variant="primary" onClick={() => setView('form')} className="flex items-center gap-2">
+          <Button variant="primary" onClick={() => { setEditingPlan(null); setSelectedCourse(''); setSelectedProgram(''); setTotalFees(''); setDownPayment(''); setMonths(''); setView('form'); }} className="flex items-center gap-2">
             <Plus size={16} /> Configure New Plan
           </Button>
         )}
@@ -260,12 +285,13 @@ export const FeesMaster: React.FC = () => {
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Total Fees</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Down Payment</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Installments</th>
+                  {!isReadOnly && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {plans.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500 italic">No plans configured yet.</td>
+                    <td colSpan={isReadOnly ? 5 : 6} className="px-6 py-8 text-center text-slate-500 italic">No plans configured yet.</td>
                   </tr>
                 ) : (
                   plans.map((plan) => (
@@ -278,6 +304,13 @@ export const FeesMaster: React.FC = () => {
                         <div className="font-semibold text-blue-600">{plan.months} months</div>
                         <div className="text-xs text-slate-500">@ ₹{plan.installment.toLocaleString(undefined, { maximumFractionDigits: 2 })}/mo</div>
                       </td>
+                      {!isReadOnly && (
+                        <td className="px-6 py-4 text-right">
+                          <Button variant="outline" size="sm" onClick={() => handleEditPlan(plan)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
+                            <Edit2 size={14} />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}

@@ -7,13 +7,17 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
+import { Modal } from '../components/ui/Modal';
 import { Plus, ArrowLeft } from 'lucide-react';
+import type { Staff } from '../data/mockData';
 
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff, currentUser } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [staffProfileTab, setStaffProfileTab] = useState<'overview' | 'employment' | 'salary' | 'access'>('overview');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
@@ -193,6 +197,399 @@ export const Users: React.FC = () => {
     );
   }
 
+  if (selectedStaff) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        {/* Header section with back button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSelectedStaff(null)}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={26} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              Staff Profile: {selectedStaff.name}
+            </h2>
+            <p className="text-sm text-slate-500">Review staff info, employment attributes, and credentials.</p>
+          </div>
+        </div>
+
+        <div className="space-y-6 flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+          {/* Tabs selectors inside profile */}
+          <div className="flex border-b border-slate-200 bg-slate-50 p-2 rounded-xl">
+            {['overview', 'employment', 'salary', 'access'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setStaffProfileTab(tab as any)}
+                className={`flex-1 text-center py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer rounded-lg ${
+                  staffProfileTab === tab 
+                    ? 'bg-white text-blue-600 shadow-sm border-blue-600 font-extrabold' 
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                }`}
+              >
+                {tab === 'overview' ? 'Personal & Contact' : 
+                 tab === 'employment' ? 'Employment & Assignment' : 
+                 tab === 'salary' ? 'Salary & Banking' : 
+                 'System & Access'}
+              </button>
+            ))}
+          </div>
+
+          {/* Profile Tab Contents */}
+          <div className="py-2">
+            {staffProfileTab === 'overview' && (
+              <div className="space-y-6">
+                {/* Header summary card */}
+                <div className="flex items-center gap-5 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl">
+                  <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+                    {selectedStaff.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <h4 className="font-display font-extrabold text-slate-900 text-lg">{selectedStaff.name}</h4>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs font-medium text-slate-500">
+                      <span>Staff ID: <strong className="font-mono text-slate-700">{selectedStaff.employeeId || `EMP-${selectedStaff.id || '2938'}`}</strong></span>
+                      <span>&bull;</span>
+                      <span>Role: <strong className="text-slate-700">{selectedStaff.role}</strong></span>
+                      <span>&bull;</span>
+                      <span>Primary Branch: <strong className="text-slate-700">{selectedStaff.branch}</strong></span>
+                      <span>&bull;</span>
+                      <span>Designation: <strong className="text-slate-700">{selectedStaff.designation || 'Specialist Staff'}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic details */}
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      1. Identity &amp; Personal Info
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Gender</span>
+                        <strong className="text-slate-700">{selectedStaff.gender || 'Male'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Date of Birth</span>
+                        <strong className="text-slate-700">{selectedStaff.dob || '10-05-1988'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Blood Group</span>
+                        <strong className="text-slate-700">{selectedStaff.bloodGroup || 'B+'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Marital Status</span>
+                        <strong className="text-slate-700">{selectedStaff.maritalStatus || 'Married'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Aadhaar Card No</span>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.aadhaar || 'XXXX-XXXX-8839'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">PAN Card No</span>
+                        <strong className="text-slate-700 font-mono uppercase">{selectedStaff.pan || 'DDFPX8823K'}</strong>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Contact details */}
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      2. Contact &amp; Emergency Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Official Email</span>
+                        <strong className="text-slate-750 font-mono text-xs block truncate">{selectedStaff.email}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Personal Email</span>
+                        <strong className="text-slate-700 font-mono text-xs block truncate">{selectedStaff.personalEmail || 'personal.mail@example.com'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Primary Mobile</span>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.mobile || '9876543210'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Alternate Mobile</span>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.alternateMobile || '9822345511'}</strong>
+                      </div>
+                      <div className="col-span-2 border-t border-slate-50 pt-2">
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Emergency Contact Person</span>
+                        <strong className="text-slate-700">Mrs. Priya Sen (Spouse) &bull; 9866113322</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Addresses */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Current Address</span>
+                    <strong className="text-slate-700 font-medium block mb-2">{selectedStaff.currentAddress || 'Flat A-202, Regency Park, Pune Road'}</strong>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">City</span>
+                        <strong className="text-slate-600">{selectedStaff.city || 'Pune'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">State</span>
+                        <strong className="text-slate-600">{selectedStaff.state || 'Maharashtra'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">Pin Code</span>
+                        <strong className="text-slate-600 font-mono">{selectedStaff.pinCode || '411001'}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Permanent Address</span>
+                    <strong className="text-slate-700 font-medium block mb-2">{selectedStaff.permanentAddress || 'Same as current address'}</strong>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">City</span>
+                        <strong className="text-slate-600">{selectedStaff.city || 'Pune'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">State</span>
+                        <strong className="text-slate-600">{selectedStaff.state || 'Maharashtra'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">Pin Code</span>
+                        <strong className="text-slate-600 font-mono">{selectedStaff.pinCode || '411001'}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {staffProfileTab === 'employment' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Employment setup */}
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Employment Setup Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Employee Type</span>
+                        <strong className="text-slate-750">{selectedStaff.employeeType || 'Teaching'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Department</span>
+                        <strong className="text-slate-750">{selectedStaff.department || 'Science & Academics'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Joining Date</span>
+                        <strong className="text-slate-700">{selectedStaff.joiningDate || '11-06-2022'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Employment Model</span>
+                        <strong className="text-slate-700">{selectedStaff.employmentType || 'Full-Time'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Reporting Manager</span>
+                        <strong className="text-slate-700">{selectedStaff.reportingManager || 'Academic Director'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Work Experience</span>
+                        <strong className="text-slate-700">{selectedStaff.experience || '6 Years'}</strong>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Qualifications</span>
+                        <strong className="text-slate-700 block">{selectedStaff.qualification || 'M.Sc. in Organic Chemistry'}</strong>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Branch Office details */}
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Branch &amp; Security Roles Assigned
+                    </h3>
+                    <div className="space-y-4 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Primary Branch Office</span>
+                        <strong className="text-slate-700 font-bold">{selectedStaff.branch}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Additional Hub Permissions</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {selectedStaff.additionalBranches && selectedStaff.additionalBranches.length > 0 ? (
+                            selectedStaff.additionalBranches.map((b: string) => (
+                              <span key={b} className="bg-slate-100 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded border border-slate-200">{b}</span>
+                            ))
+                          ) : (
+                            <span className="text-slate-455 italic text-xs">No additional branches configured</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Assigned Security Roles</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {selectedStaff.roles && selectedStaff.roles.length > 0 ? (
+                            selectedStaff.roles.map((r: string) => (
+                              <span key={r} className="bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded border border-blue-100">{r}</span>
+                            ))
+                          ) : (
+                            <span className="bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded border border-blue-100">{selectedStaff.role}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Teacher configurations */}
+                {(selectedStaff.role?.toLowerCase().includes('teacher') || selectedStaff.employeeType === 'Teaching') && (
+                  <Card className="p-5 border border-slate-200/80 shadow-sm space-y-4">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">
+                      Teacher Specific Academic Assignments
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Subjects Assigned</span>
+                        <strong className="text-slate-700 block">{selectedStaff.subjects?.join(', ') || 'Chemistry, Biochemistry'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Assigned Courses</span>
+                        <strong className="text-slate-700 block">{selectedStaff.coursesAssigned?.join(', ') || 'JEE Prep, Advanced Medical Prep'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Lecture Limits</span>
+                        <strong className="text-slate-700 block">{selectedStaff.maxLecturesPerDay || 4} lectures/day &bull; {selectedStaff.maxLecturesPerWeek || 20} lectures/week</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Teaching Modes</span>
+                        <strong className="text-slate-700 block">{selectedStaff.teachingMode?.join(', ') || 'Offline, Hybrid'}</strong>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {staffProfileTab === 'salary' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="bg-slate-50 p-5 border border-slate-200 rounded-2xl">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Compensation Model</span>
+                    <div className="text-3xl font-display font-extrabold text-slate-800 mt-1">{selectedStaff.salaryType || 'Monthly Salary'}</div>
+                    <span className="text-[10px] text-slate-400 font-semibold block mt-1">Structured Payroll Cycle</span>
+                  </div>
+                  <div className="bg-blue-50/50 p-5 border border-blue-200 rounded-2xl">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Payout Rate</span>
+                    <div className="text-3xl font-display font-extrabold text-blue-700 mt-1">
+                      ₹{selectedStaff.monthlySalary ? selectedStaff.monthlySalary.toLocaleString() : selectedStaff.hourlyRate ? `${selectedStaff.hourlyRate.toLocaleString()}/hr` : '85,000'}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-semibold block mt-1">Gross Salary / Base Hourly Charge</span>
+                  </div>
+                  <div className="bg-emerald-50/50 p-5 border border-emerald-200 rounded-2xl">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">PF &amp; Taxes Deductions</span>
+                    <div className="text-3xl font-display font-extrabold text-emerald-700 mt-1">Structure Configured</div>
+                    <span className="text-[10px] text-slate-400 font-semibold block mt-1">Professional Tax &amp; TDS Enforced</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Bank Payout Account Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Beneficiary Bank</span>
+                        <strong className="text-slate-700">{selectedStaff.bankName || 'HDFC Bank Ltd'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Account Holder Name</span>
+                        <strong className="text-slate-700">{selectedStaff.accountHolder || selectedStaff.name}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Account Number</span>
+                        <strong className="text-slate-750 font-mono block truncate">{selectedStaff.accountNumber || '50100492837311'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">IFSC Routing Code</span>
+                        <strong className="text-slate-700 font-mono uppercase">{selectedStaff.ifsc || 'HDFC0000120'}</strong>
+                      </div>
+                      <div className="col-span-2 border-t border-slate-50 pt-2">
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Primary UPI Address</span>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.upiId || `${selectedStaff.mobile || '9876543210'}@hdfcbank`}</strong>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="p-5 border border-slate-200/80 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                      Government Statutory Registrations
+                    </h3>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Provident Fund (PF) No</span>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.pfNumber || 'MH/PUN/0092837/000'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">ESIC Account No</span>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.esicNumber || '31-88-293847-001-0293'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Professional Tax (PT)</span>
+                        <strong className="text-emerald-700">PT Deductible</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">TDS Deductions</span>
+                        <strong className="text-emerald-700">TDS Applicable (10% standard)</strong>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {staffProfileTab === 'access' && (
+              <div className="space-y-6">
+                <Card className="p-5 border border-slate-200/80 shadow-sm max-w-2xl">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                    Portal Security &amp; Credentials
+                  </h3>
+                  <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                    <div>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Login Account Username</span>
+                      <strong className="text-slate-750 font-mono block">{selectedStaff.username || selectedStaff.email}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Permission Profile</span>
+                      <strong className="text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs">{selectedStaff.permissionProfile || `${selectedStaff.role} Access Profile`}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Mobile Login Permission</span>
+                      <strong className="text-emerald-700">Enabled</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Next Force Pass Reset</span>
+                      <strong className="text-slate-450 italic">Not Required (Pass Reset Checked)</strong>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-6">
+            <Button type="button" variant="secondary" onClick={() => setSelectedStaff(null)}>
+              Close Profile
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -214,7 +611,7 @@ export const Users: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
         <Input
           label="Search"
-          placeholder="Search by name, email..."
+          placeholder="Search staff by name or email..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           wrapperClassName="sm:col-span-2"
@@ -225,18 +622,16 @@ export const Users: React.FC = () => {
           onChange={(e) => setFilterRole(e.target.value)}
           options={[
             { value: 'All', label: 'All Roles' },
-            ...uniqueRoles.map(r => ({ value: r, label: r }))
+            ...uniqueRoles.map(r => ({ value: r || '', label: r || '' }))
           ]}
         />
         <Select
           label="Branch"
           value={filterBranch}
           onChange={(e) => setFilterBranch(e.target.value)}
-          options={currentUser?.role === 'branch-admin' ? [
-            { value: currentUser.branch || '', label: currentUser.branch || '' }
-          ] : [
+          options={[
             { value: 'All', label: 'All Branches' },
-            ...uniqueBranches.map(b => ({ value: b, label: b }))
+            ...uniqueBranches.map(b => ({ value: b || '', label: b || '' }))
           ]}
           disabled={currentUser?.role === 'branch-admin'}
         />
@@ -244,24 +639,29 @@ export const Users: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Institute Faculty & Counsel Staff</CardTitle>
+          <CardTitle>Staff Members</CardTitle>
         </CardHeader>
-        <Table headers={['Staff Name', 'Email Address', 'Security Role', 'Primary Branch', 'Status', 'Actions']}>
+        <Table headers={['Staff Name', 'Official Email', 'Primary Branch', 'Assigned Role', 'Status', 'Actions']}>
           {paginatedStaff.map((s, idx) => (
             <tr key={idx} className="hover:bg-slate-50">
-              <td className="px-6 py-4 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs uppercase border border-slate-200">
-                  {s.name.split(' ').map(n => n[0]).join('')}
+              <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-xs font-bold font-display border border-slate-200">
+                    {s.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800 block">{s.name}</span>
+                    <span className="text-[10px] font-mono text-slate-400">EMP-{(s as any).employeeId || s.id || '2938'}</span>
+                  </div>
                 </div>
-                <span className="font-semibold text-slate-800">{s.name}</span>
               </td>
               <td className="px-6 py-4 font-mono text-xs">{s.email}</td>
+              <td className="px-6 py-4 text-xs font-medium text-slate-700">{s.branch}</td>
               <td className="px-6 py-4">
-                <span className={`px-2 py-0.5 border rounded text-[10px] uppercase font-bold tracking-wide ${roleBadgeColors(s.role)}`}>
+                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold border ${roleBadgeColors(s.role)}`}>
                   {s.role}
                 </span>
               </td>
-              <td className="px-6 py-4">{s.branch}</td>
               <td className="px-6 py-4">
                 <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${s.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
                   {s.status}
@@ -269,6 +669,9 @@ export const Users: React.FC = () => {
               </td>
               <td className="px-6 py-4">
                 <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" className="py-1" onClick={() => { setSelectedStaff(s); setStaffProfileTab('overview'); }}>
+                    View Profile
+                  </Button>
                   <Button variant="secondary" size="sm" className="py-1" onClick={() => handleEditStaff(s)}>
                     Edit
                   </Button>

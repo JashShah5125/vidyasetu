@@ -334,6 +334,111 @@ export const TenantSubscriptions: React.FC = () => {
     );
   }
 
+  if (showView && viewingItem) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => { setShowView(false); setViewingItem(null); }}
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Subscription Details</h2>
+            <p className="text-sm text-slate-500 mt-1">Review active plan, expiry details, and limit overrides for {viewingItem.tenantName}</p>
+          </div>
+        </div>
+
+        <div className="space-y-6 flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+            {/* Header card */}
+            <div className="flex items-center gap-4 bg-gradient-to-r from-slate-800 to-slate-900 text-white p-5 rounded-2xl">
+              <div className="w-12 h-12 rounded-full bg-white/10 font-bold flex items-center justify-center text-lg uppercase flex-shrink-0">
+                {viewingItem.tenantName.substring(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-base">{viewingItem.tenantName}</h4>
+                <div className="text-xs opacity-60 font-mono mt-0.5">{viewingItem.tenantId}</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-lg font-bold">{viewingItem.planName}</div>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold mt-1 ${statusColors[viewingItem.status]}`}>{viewingItem.status}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              {[
+                { label: 'Start Date', val: formatDate(viewingItem.startDate) },
+                { label: 'Expiry Date', val: formatDate(viewingItem.expiryDate) },
+                { label: 'Billing Cycle', val: viewingItem.billingCycle },
+                { label: 'Invoice', val: viewingItem.invoiceNumber || '—' },
+              ].map(({ label, val }) => (
+                <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">{label}</span>
+                  <span className="font-mono font-bold text-slate-800 block mt-0.5">{val}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Commercial */}
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">Commercial</p>
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Discount</span>
+                  <span className="font-bold text-emerald-600 text-sm block mt-0.5">{viewingItem.discount}%</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Final Price</span>
+                  <span className="font-bold text-slate-800 text-sm block mt-0.5">₹{viewingItem.finalPrice.toLocaleString()}</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold block uppercase">GST %</span>
+                  <span className="font-bold text-slate-800 text-sm block mt-0.5">{viewingItem.tax}%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Effective limits with overrides */}
+            {(() => {
+              const plan = plans.find(p => p.id === viewingItem.planId);
+              if (!plan) return null;
+              return (
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">
+                    Effective Limits <span className="text-amber-600 font-bold">(*overridden)</span>
+                  </p>
+                  <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                    {[
+                      { label: 'Branches', p: plan.maxBranches, o: viewingItem.overrides.maxBranches },
+                      { label: 'Staff Users', p: plan.maxStaffUsers, o: viewingItem.overrides.maxStaffUsers },
+                      { label: 'Students', p: plan.maxStudents, o: viewingItem.overrides.maxStudents },
+                      { label: 'Parents', p: plan.maxParents, o: viewingItem.overrides.maxParents },
+                      { label: 'Teachers', p: plan.maxTeachers, o: viewingItem.overrides.maxTeachers },
+                    ].map(({ label, p, o }) => (
+                      <div key={label} className={`rounded-xl p-3 text-center border ${o !== undefined ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                        <span className="text-[9px] font-bold block uppercase text-slate-400">{label}</span>
+                        <span className={`text-sm font-bold block mt-0.5 ${o !== undefined ? 'text-amber-700' : 'text-slate-800'}`}>
+                          {effectiveLimit(p, o)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+              <Button variant="secondary" onClick={() => { setShowView(false); setViewingItem(null); }}>Back to Tenants</Button>
+              <Button variant="primary" style={{ gap: '6px' }} onClick={() => { setShowView(false); handleOpenEdit(viewingItem); }}>
+                <Edit size={14} /> Edit Subscription
+              </Button>
+            </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {successMsg && (
@@ -487,97 +592,7 @@ export const TenantSubscriptions: React.FC = () => {
         />
       </Card>
 
-      {/* ── View Details Modal ── */}
-      {showView && viewingItem && (
-        <Modal isOpen={showView} onClose={() => { setShowView(false); setViewingItem(null); }}
-          title="Subscription Details" size="2xl">
-          <div className="space-y-5">
-            {/* Header card */}
-            <div className="flex items-center gap-4 bg-gradient-to-r from-slate-800 to-slate-900 text-white p-4 rounded-xl">
-              <div className="w-12 h-12 rounded-full bg-white/10 font-bold flex items-center justify-center text-lg uppercase">
-                {viewingItem.tenantName.substring(0, 2)}
-              </div>
-              <div>
-                <h4 className="font-bold text-base">{viewingItem.tenantName}</h4>
-                <div className="text-xs opacity-60 font-mono mt-0.5">{viewingItem.tenantId}</div>
-              </div>
-              <div className="ml-auto text-right">
-                <div className="text-lg font-bold">{viewingItem.planName}</div>
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold mt-1 ${statusColors[viewingItem.status]}`}>{viewingItem.status}</span>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              {[
-                { label: 'Start Date', val: formatDate(viewingItem.startDate) },
-                { label: 'Expiry Date', val: formatDate(viewingItem.expiryDate) },
-                { label: 'Billing Cycle', val: viewingItem.billingCycle },
-                { label: 'Invoice', val: viewingItem.invoiceNumber || '—' },
-              ].map(({ label, val }) => (
-                <div key={label} className="bg-slate-50 border border-slate-100 rounded-lg p-2.5">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">{label}</span>
-                  <span className="font-mono font-bold text-slate-800 block mt-0.5">{val}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Commercial */}
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mb-3">Commercial</p>
-              <div className="grid grid-cols-3 gap-3 text-xs">
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Discount</span>
-                  <span className="font-bold text-emerald-600 text-sm">{viewingItem.discount}%</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">Final Price</span>
-                  <span className="font-bold text-slate-800 text-sm">₹{viewingItem.finalPrice.toLocaleString()}</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">GST %</span>
-                  <span className="font-bold text-slate-800 text-sm">{viewingItem.tax}%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Effective limits with overrides */}
-            {(() => {
-              const plan = plans.find(p => p.id === viewingItem.planId);
-              if (!plan) return null;
-              return (
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mb-3">
-                    Effective Limits <span className="text-amber-600 font-bold">(*overridden)</span>
-                  </p>
-                  <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                    {[
-                      { label: 'Branches', p: plan.maxBranches, o: viewingItem.overrides.maxBranches },
-                      { label: 'Staff Users', p: plan.maxStaffUsers, o: viewingItem.overrides.maxStaffUsers },
-                      { label: 'Students', p: plan.maxStudents, o: viewingItem.overrides.maxStudents },
-                      { label: 'Parents', p: plan.maxParents, o: viewingItem.overrides.maxParents },
-                      { label: 'Teachers', p: plan.maxTeachers, o: viewingItem.overrides.maxTeachers },
-                    ].map(({ label, p, o }) => (
-                      <div key={label} className={`rounded-lg p-2.5 text-center border ${o !== undefined ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
-                        <span className="text-[9px] font-bold block uppercase text-slate-400">{label}</span>
-                        <span className={`text-sm font-bold block mt-0.5 ${o !== undefined ? 'text-amber-700' : 'text-slate-800'}`}>
-                          {effectiveLimit(p, o)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="secondary" onClick={() => { setShowView(false); setViewingItem(null); }}>Close</Button>
-              <Button variant="primary" style={{ gap: '6px' }} onClick={() => handleOpenEdit(viewingItem)}>
-                <Edit size={14} /> Edit Subscription
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 };
