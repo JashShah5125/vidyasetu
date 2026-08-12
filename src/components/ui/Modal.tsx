@@ -8,7 +8,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -28,7 +28,8 @@ export const Modal: React.FC<ModalProps> = ({
     xl: 'max-w-xl',
     '2xl': 'max-w-2xl',
     '3xl': 'max-w-3xl',
-    '4xl': 'max-w-4xl'
+    '4xl': 'max-w-4xl',
+    full: 'max-w-full h-full'
   };
 
   return createPortal(
@@ -40,8 +41,10 @@ export const Modal: React.FC<ModalProps> = ({
       />
       
       {/* Modal Dialog */}
-      <div className={`relative w-full ${sizeClasses[size]} mx-auto z-50 my-auto`}>
-        <div className="relative flex flex-col w-full max-h-[calc(100vh-48px)] bg-white border border-slate-100 rounded-2xl shadow-2xl outline-none focus:outline-none transform transition-all duration-300 scale-100">
+      <div className={`relative w-full ${sizeClasses[size]} mx-auto z-50 ${size === 'full' ? 'h-[calc(100vh-32px)]' : 'my-auto'}`}>
+        <div className={`relative flex flex-col w-full bg-white border border-slate-100 rounded-2xl shadow-2xl outline-none focus:outline-none transform transition-all duration-300 scale-100 ${
+          size === 'full' ? 'h-full' : 'max-h-[calc(100vh-48px)]'
+        }`}>
           
           {/* Header */}
           <div className="flex items-center justify-between p-5 border-b border-slate-100 rounded-t-2xl flex-shrink-0">

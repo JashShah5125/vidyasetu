@@ -485,6 +485,253 @@ export const SubscriptionPlans: React.FC = () => {
     );
   }
 
+  if (showViewModal && viewingPlan) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => { setShowViewModal(false); setViewingPlan(null); }}
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Plan Details</h2>
+            <p className="text-sm text-slate-500 mt-1">Review system resources, limits, and module configurations for {viewingPlan.name}</p>
+          </div>
+        </div>
+
+        <div className="space-y-6 flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+            {/* ── Hero header ── */}
+            <div className={`flex flex-col sm:flex-row sm:items-center gap-4 p-5 rounded-2xl ${viewingPlan.status === 'Active' ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-slate-600 to-slate-700'} text-white`}>
+              <div className="w-14 h-14 rounded-2xl bg-white/20 font-extrabold flex items-center justify-center text-xl uppercase flex-shrink-0">
+                {viewingPlan.name.substring(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xl font-extrabold">{viewingPlan.name}</h3>
+                  <span className="text-xs font-bold font-mono bg-white/20 px-2 py-0.5 rounded">{viewingPlan.code}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${viewingPlan.status === 'Active' ? 'bg-white/20 text-white' : 'bg-white/10 text-white/70'}`}>{viewingPlan.status}</span>
+                </div>
+                <p className="text-sm opacity-75 mt-1">{viewingPlan.description}</p>
+              </div>
+              <div className="text-left sm:text-right flex-shrink-0">
+                <div className="text-3xl font-extrabold">
+                  {viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${viewingPlan.price.toLocaleString()}`}
+                </div>
+                <div className="text-xs opacity-75 mt-0.5">
+                  per {viewingPlan.billingType.toLowerCase()} · Order #{viewingPlan.displayOrder}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Section 02: Billing ── */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">02 · Billing</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: 'Billing Type', val: viewingPlan.billingType },
+                  { label: 'Price', val: viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency} ${viewingPlan.price.toLocaleString()}` },
+                  { label: 'Trial Days', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
+                  { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
+                  { label: 'Renewal Price', val: viewingPlan.renewalPrice > 0 ? `${viewingPlan.currency} ${viewingPlan.renewalPrice.toLocaleString()}` : '—' },
+                  { label: 'Currency', val: viewingPlan.currency },
+                  { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
+                ].map(({ label, val }) => (
+                  <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">{label}</span>
+                    <span className="text-sm font-semibold text-slate-800 block mt-0.5">{val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Section 03: Resource Limits ── */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">03 · Resource Limits</p>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {[
+                  { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
+                  { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
+                  { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
+                  { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },
+                  { label: 'Parents', val: displayLimit(viewingPlan.maxParents) },
+                  { label: 'Teachers', val: displayLimit(viewingPlan.maxTeachers) },
+                  { label: 'Storage', val: viewingPlan.maxStorage },
+                  { label: 'File Size', val: viewingPlan.maxFileSize },
+                  { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
+                  { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
+                  { label: 'API Calls', val: displayLimit(viewingPlan.maxApiCalls) },
+                ].map(({ label, val }) => (
+                  <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{label}</span>
+                    <span className={`text-sm font-bold block mt-0.5 ${val === 'Unlimited' ? 'text-emerald-600' : 'text-slate-800'}`}>{val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Section 04: Feature Access (grouped) ── */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">04 · Feature Access</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {([
+                  {
+                    group: 'Core ERP',
+                    items: [
+                      { key: 'admissions', label: 'Admissions' }, { key: 'studentManagement', label: 'Student Management' },
+                      { key: 'parentPortal', label: 'Parent Portal' }, { key: 'teacherPortal', label: 'Teacher Portal' },
+                      { key: 'attendance', label: 'Attendance' }, { key: 'timetable', label: 'Timetable' },
+                    ]
+                  },
+                  {
+                    group: 'Academic',
+                    items: [
+                      { key: 'assignments', label: 'Assignments' }, { key: 'exams', label: 'Exams' },
+                      { key: 'results', label: 'Results' }, { key: 'doubts', label: 'Doubts & Q&A' },
+                    ]
+                  },
+                  {
+                    group: 'Finance',
+                    items: [
+                      { key: 'fees', label: 'Fees' }, { key: 'payroll', label: 'Payroll' },
+                      { key: 'income', label: 'Income Tracker' }, { key: 'expenses', label: 'Expense Tracker' },
+                    ]
+                  },
+                  {
+                    group: 'Communication',
+                    items: [
+                      { key: 'notifications', label: 'Push Notifications' }, { key: 'sms', label: 'SMS' },
+                      { key: 'whatsapp', label: 'WhatsApp' }, { key: 'email', label: 'Email' },
+                    ]
+                  },
+                  {
+                    group: 'Administration',
+                    items: [
+                      { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
+                      { key: 'importExport', label: 'Import / Export' }, { key: 'apiAccess', label: 'API Access' },
+                    ]
+                  },
+                ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
+                  <div key={group} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{group}</p>
+                    <div className="space-y-1">
+                      {items.map(({ key, label }) => {
+                        const on = viewingPlan.features[key];
+                        return (
+                          <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
+                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                              {on ? '✓' : '✗'}
+                            </span>
+                            {label}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Sections 05–07 in 3 columns ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+              {/* Section 05: Support */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">05 · Support</p>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
+                  {([
+                    { key: 'emailSupport', label: 'Email Support' },
+                    { key: 'chatSupport', label: 'Chat Support' },
+                    { key: 'phoneSupport', label: 'Phone Support' },
+                    { key: 'dedicatedAccountManager', label: 'Dedicated Account Manager' },
+                    { key: 'onboardingAssistance', label: 'Onboarding Assistance' },
+                  ] as { key: keyof SupportConfig; label: string }[]).map(({ key, label }) => {
+                    const on = viewingPlan.support[key];
+                    return (
+                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
+                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                          {on ? '✓' : '✗'}
+                        </span>
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Section 06: Branding */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">06 · Branding</p>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
+                  {([
+                    { key: 'whiteLabel', label: 'White Label' },
+                    { key: 'customDomain', label: 'Custom Domain' },
+                    { key: 'customLogo', label: 'Custom Logo' },
+                    { key: 'customEmailTemplates', label: 'Custom Email Templates' },
+                  ] as { key: keyof BrandingConfig; label: string }[]).map(({ key, label }) => {
+                    const on = viewingPlan.branding[key];
+                    return (
+                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
+                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                          {on ? '✓' : '✗'}
+                        </span>
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Section 07: Integrations */}
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">07 · Integrations</p>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
+                  {([
+                    { key: 'razorpay', label: 'Razorpay' },
+                    { key: 'cashfree', label: 'Cashfree' },
+                    { key: 'biometricDevices', label: 'Biometric Devices' },
+                    { key: 'zoom', label: 'Zoom' },
+                    { key: 'googleMeet', label: 'Google Meet' },
+                    { key: 'googleCalendar', label: 'Google Calendar' },
+                    { key: 'whatsappBusiness', label: 'WhatsApp Business' },
+                    { key: 'apiAccess', label: 'API Access' },
+                  ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
+                    const on = viewingPlan.integrations[key];
+                    return (
+                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
+                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                          {on ? '✓' : '✗'}
+                        </span>
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Section 08: Notes ── */}
+            {viewingPlan.notes && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">08 · Internal Notes</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 leading-relaxed">
+                  {viewingPlan.notes}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button variant="secondary" onClick={() => { setShowViewModal(false); setViewingPlan(null); }}>Back to Plans</Button>
+              <Button variant="primary" style={{ gap: '6px' }} onClick={() => { setShowViewModal(false); handleOpenEditModal(viewingPlan); }}>
+                <Edit size={14} /> Edit Plan
+              </Button>
+            </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {successMsg && (
@@ -705,241 +952,7 @@ export const SubscriptionPlans: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── View Plan Details Modal ── */}
-      {showViewModal && viewingPlan && (
-        <Modal isOpen={showViewModal} onClose={() => { setShowViewModal(false); setViewingPlan(null); }}
-          title="Plan Details" size="4xl">
-          <div className="space-y-6">
 
-            {/* ── Hero header ── */}
-            <div className={`flex flex-col sm:flex-row sm:items-center gap-4 p-5 rounded-2xl ${viewingPlan.status === 'Active' ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-slate-600 to-slate-700'} text-white`}>
-              <div className="w-14 h-14 rounded-2xl bg-white/20 font-extrabold flex items-center justify-center text-xl uppercase flex-shrink-0">
-                {viewingPlan.name.substring(0, 2)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-xl font-extrabold">{viewingPlan.name}</h3>
-                  <span className="text-xs font-bold font-mono bg-white/20 px-2 py-0.5 rounded">{viewingPlan.code}</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${viewingPlan.status === 'Active' ? 'bg-white/20 text-white' : 'bg-white/10 text-white/70'}`}>{viewingPlan.status}</span>
-                </div>
-                <p className="text-sm opacity-75 mt-1">{viewingPlan.description}</p>
-              </div>
-              <div className="text-left sm:text-right flex-shrink-0">
-                <div className="text-3xl font-extrabold">
-                  {viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${viewingPlan.price.toLocaleString()}`}
-                </div>
-                <div className="text-xs opacity-75 mt-0.5">
-                  per {viewingPlan.billingType.toLowerCase()} · Order #{viewingPlan.displayOrder}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Section 02: Billing ── */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">02 · Billing</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: 'Billing Type', val: viewingPlan.billingType },
-                  { label: 'Price', val: viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency} ${viewingPlan.price.toLocaleString()}` },
-                  { label: 'Trial Days', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
-                  { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
-                  { label: 'Renewal Price', val: viewingPlan.renewalPrice > 0 ? `${viewingPlan.currency} ${viewingPlan.renewalPrice.toLocaleString()}` : '—' },
-                  { label: 'Currency', val: viewingPlan.currency },
-                  { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
-                ].map(({ label, val }) => (
-                  <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">{label}</span>
-                    <span className="text-sm font-semibold text-slate-800 block mt-0.5">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Section 03: Resource Limits ── */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">03 · Resource Limits</p>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {[
-                  { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
-                  { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
-                  { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
-                  { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },
-                  { label: 'Parents', val: displayLimit(viewingPlan.maxParents) },
-                  { label: 'Teachers', val: displayLimit(viewingPlan.maxTeachers) },
-                  { label: 'Storage', val: viewingPlan.maxStorage },
-                  { label: 'File Size', val: viewingPlan.maxFileSize },
-                  { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
-                  { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
-                  { label: 'API Calls', val: displayLimit(viewingPlan.maxApiCalls) },
-                ].map(({ label, val }) => (
-                  <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{label}</span>
-                    <span className={`text-sm font-bold block mt-0.5 ${val === 'Unlimited' ? 'text-emerald-600' : 'text-slate-800'}`}>{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Section 04: Feature Access (grouped) ── */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">04 · Feature Access</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {([
-                  {
-                    group: 'Core ERP',
-                    items: [
-                      { key: 'admissions', label: 'Admissions' }, { key: 'studentManagement', label: 'Student Management' },
-                      { key: 'parentPortal', label: 'Parent Portal' }, { key: 'teacherPortal', label: 'Teacher Portal' },
-                      { key: 'attendance', label: 'Attendance' }, { key: 'timetable', label: 'Timetable' },
-                    ]
-                  },
-                  {
-                    group: 'Academic',
-                    items: [
-                      { key: 'assignments', label: 'Assignments' }, { key: 'exams', label: 'Exams' },
-                      { key: 'results', label: 'Results' }, { key: 'doubts', label: 'Doubts & Q&A' },
-                    ]
-                  },
-                  {
-                    group: 'Finance',
-                    items: [
-                      { key: 'fees', label: 'Fees' }, { key: 'payroll', label: 'Payroll' },
-                      { key: 'income', label: 'Income Tracker' }, { key: 'expenses', label: 'Expense Tracker' },
-                    ]
-                  },
-                  {
-                    group: 'Communication',
-                    items: [
-                      { key: 'notifications', label: 'Push Notifications' }, { key: 'sms', label: 'SMS' },
-                      { key: 'whatsapp', label: 'WhatsApp' }, { key: 'email', label: 'Email' },
-                    ]
-                  },
-                  {
-                    group: 'Administration',
-                    items: [
-                      { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
-                      { key: 'importExport', label: 'Import / Export' }, { key: 'apiAccess', label: 'API Access' },
-                    ]
-                  },
-                ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
-                  <div key={group} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{group}</p>
-                    <div className="space-y-1">
-                      {items.map(({ key, label }) => {
-                        const on = viewingPlan.features[key];
-                        return (
-                          <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                              {on ? '✓' : '✗'}
-                            </span>
-                            {label}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Sections 05–07 in 3 columns ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-              {/* Section 05: Support */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">05 · Support</p>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
-                  {([
-                    { key: 'emailSupport', label: 'Email Support' },
-                    { key: 'chatSupport', label: 'Chat Support' },
-                    { key: 'phoneSupport', label: 'Phone Support' },
-                    { key: 'dedicatedAccountManager', label: 'Dedicated Account Manager' },
-                    { key: 'onboardingAssistance', label: 'Onboarding Assistance' },
-                  ] as { key: keyof SupportConfig; label: string }[]).map(({ key, label }) => {
-                    const on = viewingPlan.support[key];
-                    return (
-                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                          {on ? '✓' : '✗'}
-                        </span>
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Section 06: Branding */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">06 · Branding</p>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
-                  {([
-                    { key: 'whiteLabel', label: 'White Label' },
-                    { key: 'customDomain', label: 'Custom Domain' },
-                    { key: 'customLogo', label: 'Custom Logo' },
-                    { key: 'customEmailTemplates', label: 'Custom Email Templates' },
-                  ] as { key: keyof BrandingConfig; label: string }[]).map(({ key, label }) => {
-                    const on = viewingPlan.branding[key];
-                    return (
-                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                          {on ? '✓' : '✗'}
-                        </span>
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Section 07: Integrations */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">07 · Integrations</p>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
-                  {([
-                    { key: 'razorpay', label: 'Razorpay' },
-                    { key: 'cashfree', label: 'Cashfree' },
-                    { key: 'biometricDevices', label: 'Biometric Devices' },
-                    { key: 'zoom', label: 'Zoom' },
-                    { key: 'googleMeet', label: 'Google Meet' },
-                    { key: 'googleCalendar', label: 'Google Calendar' },
-                    { key: 'whatsappBusiness', label: 'WhatsApp Business' },
-                    { key: 'apiAccess', label: 'API Access' },
-                  ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
-                    const on = viewingPlan.integrations[key];
-                    return (
-                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                          {on ? '✓' : '✗'}
-                        </span>
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Section 08: Notes ── */}
-            {viewingPlan.notes && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">08 · Internal Notes</p>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 leading-relaxed">
-                  {viewingPlan.notes}
-                </div>
-              </div>
-            )}
-
-            {/* Footer actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="secondary" onClick={() => { setShowViewModal(false); setViewingPlan(null); }}>Close</Button>
-              <Button variant="primary" style={{ gap: '6px' }} onClick={() => handleOpenEditModal(viewingPlan)}>
-                <Edit size={14} /> Edit Plan
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
 
       {/* ── Visibility Manager Modal ── */}
       {managingVisibilityPlan && (

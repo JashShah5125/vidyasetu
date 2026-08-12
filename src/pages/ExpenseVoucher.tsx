@@ -79,7 +79,7 @@ export const ExpenseVoucher: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+    <div className="w-full min-h-screen bg-slate-50 p-6 md:p-8 animate-fade-in space-y-6">
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/dashboard')}
