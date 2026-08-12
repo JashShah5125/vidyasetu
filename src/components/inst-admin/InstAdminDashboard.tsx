@@ -37,7 +37,8 @@ const KpiCard: React.FC<{
 export const InstAdminDashboard: React.FC = () => {
   const { 
     currentUser, students, staff, branches, courses, batches, 
-    leads, doubts, auditLogs, exams, sendDoubtReply, approveStudentRegistration 
+    leads, doubts, auditLogs, exams, approveStudentRegistration,
+    sendDoubtReply
   } = useApp();
   
   // Filter states persisted in localStorage to ensure matching values and state retention on refresh
@@ -1053,3 +1054,4 @@ export const InstAdminDashboard: React.FC = () => {
     </div>
   );
 };
+
