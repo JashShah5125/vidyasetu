@@ -22,7 +22,7 @@ export const TeacherStudents: React.FC = () => {
   const { lectures } = useScheduler();
   
   const students = useMemo(() => {
-    return allStudents.filter(s => TEACHER_ASSIGNED_BATCHES.includes(s.batch));
+    return allStudents.filter(s => s.batch && TEACHER_ASSIGNED_BATCHES.includes(s.batch));
   }, [allStudents]);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,8 +38,8 @@ export const TeacherStudents: React.FC = () => {
   }, [batches]);
 
   const uniqueCourses = Array.from(new Set(teacherBatchesInfo.map(b => b.course)));
-  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program)));
-  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level)));
+  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program).filter(Boolean))) as string[];
+  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level).filter(Boolean))) as string[];
   const availableBatches = teacherBatchesInfo.filter(b => {
       const matchC = filterCourse === 'All' || b.course === filterCourse;
       const matchP = filterProgram === 'All' || b.program === filterProgram;
@@ -54,7 +54,7 @@ export const TeacherStudents: React.FC = () => {
     .filter(s => {
       const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           s.studentId.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchBatch = filterBatch === 'All' ? allowedBatchesSet.has(s.batch) : s.batch === filterBatch;
+      const matchBatch = filterBatch === 'All' ? s.batch && allowedBatchesSet.has(s.batch) : s.batch === filterBatch;
       return matchSearch && matchBatch;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -325,9 +325,9 @@ export const TeacherStudents: React.FC = () => {
                       <tr key={l.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 font-medium text-slate-900">{l.date}</td>
                         <td className="px-6 py-4 text-slate-600">{l.startTime} – {l.endTime}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-700">{l.subject}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-700">{l.subjectId}</td>
                         <td className="px-6 py-4 font-bold text-blue-700">{l.batchId}</td>
-                        <td className="px-6 py-4 text-slate-600">{l.room}</td>
+                        <td className="px-6 py-4 text-slate-600">{l.roomId}</td>
                         <td className="px-6 py-4">
                           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-slate-100 text-slate-600 border-slate-200">
                             Lecture

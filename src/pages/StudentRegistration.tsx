@@ -146,7 +146,9 @@ export const StudentRegistration = () => {
   };
 
   const handleSubmit = () => {
-    convertLeadToStudent(lead.id, formData);
+    if (lead) {
+      convertLeadToStudent(lead.id, formData);
+    }
     addToast('Student successfully registered!', 'success');
     navigate('/students'); // Or wherever
   };

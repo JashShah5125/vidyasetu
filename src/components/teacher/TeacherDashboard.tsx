@@ -365,7 +365,7 @@ export const TeacherDashboard: React.FC = () => {
                         <div>
                           <div className="text-sm font-bold text-slate-900">{lecture.startTime} – {lecture.endTime}</div>
                           <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subjectId}</div>
-                          <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.topic}</div>
+                          <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId}</div>
                           <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
                             <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.roomId}</span>
                             <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><Clock size={12}/> Attendance Pending</span>
@@ -420,8 +420,8 @@ export const TeacherDashboard: React.FC = () => {
                                   <div className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                                     <Clock size={14} className="text-slate-400"/> {lecture.startTime} – {lecture.endTime}
                                   </div>
-                                  <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subject}</div>
-                                  <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.room}</div>
+                                  <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subjectId}</div>
+                                  <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.roomId}</div>
                                 </div>
                                 <Button variant="secondary" size="sm">Details</Button>
                               </div>
@@ -454,7 +454,7 @@ export const TeacherDashboard: React.FC = () => {
                             {filteredLectures.slice(0, Math.floor(Math.random() * 3) + 1).map((l, i) => (
                               <div key={i} className="p-2 bg-white border border-slate-200 rounded-md shadow-sm hover:border-blue-400 cursor-pointer">
                                 <div className="text-xs font-bold text-slate-800">{l.startTime}</div>
-                                <div className="text-xs font-semibold text-blue-700 truncate">{l.subject}</div>
+                                <div className="text-xs font-semibold text-blue-700 truncate">{l.subjectId}</div>
                                 <div className="text-[10px] text-slate-500 truncate">{l.batchId}</div>
                               </div>
                             ))}

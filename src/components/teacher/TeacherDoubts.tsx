@@ -36,8 +36,8 @@ export const TeacherDoubts: React.FC = () => {
   }, [batches]);
 
   const uniqueCourses = Array.from(new Set(teacherBatchesInfo.map(b => b.course)));
-  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program)));
-  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level)));
+  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program).filter(Boolean))) as string[];
+  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level).filter(Boolean))) as string[];
   const availableBatches = teacherBatchesInfo.filter(b => {
       const matchC = filterCourse === 'All' || b.course === filterCourse;
       const matchP = filterProgram === 'All' || b.program === filterProgram;

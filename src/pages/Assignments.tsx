@@ -263,13 +263,17 @@ export const Assignments: React.FC = () => {
     e.preventDefault();
     if (!examName || !examBatch) return;
     setExams(prev => [...prev, {
+      id: `EXAM-${Math.floor(Math.random() * 1000)}`,
+      type: 'Exam',
+      subject: 'Subject',
+      examDate: new Date().toISOString().split('T')[0],
       name: examName,
       batch: examBatch,
       totalMarks: examTotalMarks,
       passingMarks: examPassingMarks,
       average: 'TBD',
       status: 'Scheduled'
-    }]);
+    } as any]);
     setShowAddExamModal(false);
     setSuccessMessage('New classroom evaluation test scheduled successfully!');
     setTimeout(() => setSuccessMessage(''), 4000);
@@ -678,178 +682,6 @@ export const Assignments: React.FC = () => {
               <Button type="submit" variant="primary" disabled={!examBatch}>Schedule Test</Button>
             </div>
           </form>
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedAssignment) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedAssignment(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Assignment Details</h2>
-            <p className="text-sm text-slate-500">View configuration and student submissions.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          <Card>
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{selectedAssignment.title}</h3>
-                <p className="text-sm text-slate-500 font-medium mt-1">
-                  Batch: {selectedAssignment.batch} • Subject: {selectedAssignment.subject} • Due Date: {selectedAssignment.dueDate}
-                </p>
-                {selectedAssignment.attachmentName && (
-                  <div className="mt-4">
-                    <span className="inline-flex items-center gap-1 text-sm text-emerald-600 bg-emerald-50 px-3 py-1 rounded border border-emerald-100 font-semibold font-mono">
-                      📄 {selectedAssignment.attachmentName}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <span className="flex items-center gap-1 text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                {selectedAssignment.status}
-              </span>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-4">Student ID</th>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {students.filter(s => s.batch === selectedAssignment.batch).map(student => (
-                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-slate-600">{student.studentId}</td>
-                      <td className="px-6 py-4 font-medium text-slate-800">{student.name}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="text-slate-400 text-xs">-</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedExam) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedExam(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Classroom Test Details</h2>
-            <p className="text-sm text-slate-500">View configuration, batch mapping, and record scores.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          <Card>
-            <div className="p-6 border-b border-slate-100 flex justify-between items-start">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{selectedExam.name}</h3>
-                <p className="text-sm text-slate-500 font-medium mt-1">
-                  Batch: {selectedExam.batch} • Total Marks: {selectedExam.totalMarks} • Passing: {selectedExam.passingMarks}
-                </p>
-              </div>
-              {selectedExam.status === 'Marks Published' && (
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                    <CheckCircle2 size={16} /> Published
-                  </span>
-                  {!isEditingExam && (
-                    <Button variant="secondary" className="flex items-center gap-2" onClick={() => setIsEditingExam(true)}>
-                      <Edit3 size={16} /> Edit Marks
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-4">Student ID</th>
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4 text-center">Marks Obtained</th>
-                    <th className="px-6 py-4 text-center">Result</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {students.filter(s => s.batch === selectedExam.batch).map(student => {
-                    const marks = selectedExam.studentMarks?.[student.studentId];
-                    const hasMarks = marks !== undefined;
-                    const isPassing = hasMarks && marks >= selectedExam.passingMarks;
-
-                    return (
-                      <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-mono text-slate-600">{student.studentId}</td>
-                        <td className="px-6 py-4 font-medium text-slate-800">{student.name}</td>
-                        <td className="px-6 py-4 text-center">
-                          {!isEditingExam ? (
-                            <span className="font-bold text-slate-700">{hasMarks ? marks : '-'}</span>
-                          ) : (
-                            <input 
-                              type="number" 
-                              defaultValue={marks}
-                              max={selectedExam.totalMarks}
-                              className="w-20 text-center border border-slate-300 rounded-md py-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {hasMarks ? (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${isPassing ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                              {isPassing ? 'PASS' : 'FAIL'}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-xs">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {isEditingExam && (
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-xl">
-                {selectedExam.status === 'Marks Published' && (
-                  <Button variant="secondary" onClick={() => setIsEditingExam(false)}>Cancel</Button>
-                )}
-                <Button variant="primary" className="flex items-center gap-2" onClick={() => {
-                  setSuccessMessage('Marks saved successfully!');
-                  setIsEditingExam(false);
-                  setTimeout(() => setSuccessMessage(''), 3000);
-                }}>
-                  <FileSpreadsheet size={16} /> Save Marks
-                </Button>
-              </div>
-            )}
-          </Card>
         </div>
       </div>
     );

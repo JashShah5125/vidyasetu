@@ -10,7 +10,7 @@ import { Award, Search, FileSpreadsheet, CheckCircle2, ArrowLeft, Edit3 } from '
 import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
 
 export const TeacherGrades: React.FC = () => {
-  const { exams, students, batches, branches, courses, currentUser } = useApp();
+  const { exams, students, batches, branches, courses, currentUser, addToast } = useApp();
   const [selectedExamName, setSelectedExamName] = useState<string | null>(null);
   
   // Extract unique filter options

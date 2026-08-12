@@ -38,8 +38,8 @@ export const TeacherNotifications: React.FC = () => {
   }, [batches]);
 
   const uniqueCourses = Array.from(new Set(teacherBatchesInfo.map(b => b.course)));
-  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => composeCourse === 'All' || b.course === composeCourse).map(b => b.program)));
-  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (composeCourse === 'All' || b.course === composeCourse) && (composeProgram === 'All' || b.program === composeProgram)).map(b => b.level)));
+  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => composeCourse === 'All' || b.course === composeCourse).map(b => b.program).filter(Boolean))) as string[];
+  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (composeCourse === 'All' || b.course === composeCourse) && (composeProgram === 'All' || b.program === composeProgram)).map(b => b.level).filter(Boolean))) as string[];
   const availableBatches = teacherBatchesInfo.filter(b => {
       const matchC = composeCourse === 'All' || b.course === composeCourse;
       const matchP = composeProgram === 'All' || b.program === composeProgram;
@@ -49,7 +49,7 @@ export const TeacherNotifications: React.FC = () => {
   const uniqueBatches = Array.from(new Set(availableBatches.map(b => b.name)));
 
   const teacherStudents = useMemo(() => {
-    return students.filter(s => TEACHER_ASSIGNED_BATCHES.includes(s.batch));
+    return students.filter(s => s.batch && TEACHER_ASSIGNED_BATCHES.includes(s.batch));
   }, [students]);
 
   // List processing

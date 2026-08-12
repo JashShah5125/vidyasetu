@@ -268,13 +268,17 @@ export const ExamMarks: React.FC = () => {
     e.preventDefault();
     if (!examName || !examBatch) return;
     setExams(prev => [...prev, {
+      id: `EXAM-${Math.floor(Math.random() * 1000)}`,
+      type: 'Exam',
+      subject: 'Subject',
+      examDate: new Date().toISOString().split('T')[0],
       name: examName,
       batch: examBatch,
       totalMarks: examTotalMarks,
       passingMarks: examPassingMarks,
       average: 'TBD',
       status: 'Scheduled'
-    }]);
+    } as any]);
     setShowAddExamModal(false);
     setSuccessMessage('New classroom evaluation test scheduled successfully!');
     setTimeout(() => setSuccessMessage(''), 4000);

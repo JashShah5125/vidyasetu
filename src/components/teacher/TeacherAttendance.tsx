@@ -15,6 +15,7 @@ import {
 } from '../../data/mockData';
 import type { AttendanceSubmission } from '../../data/mockData';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
+import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 
 export const TeacherAttendance: React.FC = () => {
   const { currentUser, batches, branches, courses, students, addToast } = useApp();
@@ -60,10 +61,10 @@ export const TeacherAttendance: React.FC = () => {
   });
   
   const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
-  const uniqueSubjects = Array.from(new Set(lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId)));
+  const uniqueSubjects = Array.from(new Set(lectures.filter((l: Lecture) => activeBatches.includes(l.batchId)).map((l: Lecture) => l.subjectId).filter(Boolean))) as string[];
 
   // Filtered Lectures for current date
-  const todaysLectures = lectures.filter(l => 
+  const todaysLectures = lectures.filter((l: Lecture) => 
     l.date === currentDateStr && 
     activeBatches.includes(l.batchId) &&
     (filterSubject === 'All' || l.subjectId === filterSubject)
@@ -157,8 +158,10 @@ export const TeacherAttendance: React.FC = () => {
             <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold mb-1 cursor-pointer hover:text-slate-800" onClick={handleCancelRegister}>
               <ChevronLeft size={16} /> Back to Lectures
             </div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">{activeLecture.batchId} Attendance</h2>
-            <p className="text-sm text-slate-500 mt-1">{activeLecture.subjectId} • {activeLecture.topic} • {activeLecture.startTime}</p>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-slate-800">{activeLecture.batchId}</h3>
+              <p className="text-sm text-slate-500 mt-1">{activeLecture.subjectId} • {activeLecture.startTime}</p>
+            </div>
           </div>
           
           <div className="flex gap-4 p-3 bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -342,15 +345,17 @@ export const TeacherAttendance: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <Select 
-                label="" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}
+                label="Subject" 
                 options={[{ value: 'All', label: 'All Subjects' }, ...uniqueSubjects.map(s => ({ value: s, label: s }))]}
+                value={filterSubject} 
+                onChange={(e) => setFilterSubject(e.target.value)}
               />
               <Button variant="secondary" onClick={handleToday}>Today</Button>
             </div>
           </div>
 
           <Table headers={['Time', 'Batch', 'Subject', 'Room', 'Students', 'Status', 'Action']}>
-            {todaysLectures.length > 0 ? todaysLectures.map(lecture => {
+            {todaysLectures.length > 0 ? todaysLectures.map((lecture: Lecture) => {
               const batchInfo = batches.find(b => b.name === lecture.batchId);
               const studentCount = students.filter(s => s.batch === lecture.batchId).length;
               return (
@@ -365,10 +370,10 @@ export const TeacherAttendance: React.FC = () => {
                   <td className="px-6 py-4 text-slate-600">{studentCount}</td>
                   <td className="px-6 py-4">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${
-                      lecture.status === 'Scheduled' ? (isFutureDate ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-600 border-amber-100') : 
+                      lecture.status === 'SCHEDULED' ? (isFutureDate ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-600 border-amber-100') : 
                       'bg-emerald-50 text-emerald-600 border-emerald-100'
                     }`}>
-                      {lecture.status === 'Scheduled' ? (isFutureDate ? 'Upcoming' : 'Pending') : lecture.status}
+                      {lecture.status === 'SCHEDULED' ? (isFutureDate ? 'Upcoming' : 'Pending') : lecture.status}
                     </span>
                   </td>
                   <td className="px-6 py-4">

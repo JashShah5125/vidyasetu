@@ -1,6 +1,6 @@
 export type PublishStatus = 'DRAFT' | 'PUBLISHED';
 export type LectureStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
-export type LectureType = 'Regular' | 'Tutorial' | 'Practical' | 'Lab' | 'Doubt Session' | 'Revision' | 'Test Preparation';
+export type LectureType = 'Regular' | 'Tutorial' | 'Practical' | 'Lab' | 'Doubt Session' | 'Revision' | 'Test Preparation' | 'Activity';
 
 export interface Room {
   id: string;

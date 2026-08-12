@@ -753,6 +753,8 @@ export const TeacherAssignments: React.FC = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
+              totalItems={currentData.length}
+              pageSize={itemsPerPage}
             />
           </div>
         )}

@@ -41,9 +41,8 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
     if (existingLecture) {
       setFormData({
         academicYearId: existingLecture.academicYearId,
-        batchId: batchId,
-        subjectId: existingLecture.subjectId,
-        teacherId: existingLecture.teacherId,
+        subjectId: existingLecture.subjectId || '',
+        teacherId: existingLecture.teacherId || '',
         roomId: existingLecture.roomId || '',
         date: existingLecture.date,
         dayOfWeek: new Date(existingLecture.date).getDay(),
@@ -57,7 +56,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
       const targetDate = initialDate || new Date().toISOString().split('T')[0];
       setFormData(prev => ({
         ...prev,
-        batchId: batchId,
         date: targetDate,
         dayOfWeek: new Date(targetDate).getDay(),
         startTime: '09:00',

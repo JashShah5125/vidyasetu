@@ -56,7 +56,7 @@ export const TeacherSchedule: React.FC = () => {
 
   const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
 
-  const uniqueSubjects = Array.from(new Set(lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId)));
+  const uniqueSubjects = Array.from(new Set(lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId).filter(Boolean))) as string[];
 
   // Filtered Data
   const filteredLectures = lectures.filter(l => {
