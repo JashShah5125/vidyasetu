@@ -62,10 +62,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
         <button
           onClick={logout}
-          className="p-2 border border-slate-200 hover:bg-slate-50 transition-colors rounded-lg text-slate-500 hover:text-slate-700 cursor-pointer shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 transition-colors rounded-lg text-xs font-semibold text-slate-600 hover:text-red-600 cursor-pointer shadow-sm"
           title="Sign Out"
         >
-          <LogOut size={16} />
+          <LogOut size={14} />
+          <span>Sign Out</span>
         </button>
       </div>
     </div>

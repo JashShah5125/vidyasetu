@@ -4,12 +4,14 @@ import { useApp } from '../context/AppContext';
 import type { Role } from '../data/mockData';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const { login } = useApp();
   const navigate = useNavigate();
   const [emailInput, setEmailInput] = useState('admin@apexiit.com');
   const [passwordInput, setPasswordInput] = useState('password');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const emailPresets: Record<Role, string> = {
@@ -65,14 +67,43 @@ export const Login: React.FC = () => {
             onChange={(e) => setEmailInput(e.target.value)}
             required
           />
-          <Input 
-            label="Password" 
-            type="password" 
-            placeholder="e.g. password" 
-            value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)}
-            required
-          />
+          <div className="relative flex flex-col gap-1.5 w-full">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center">
+              Password
+              <span className="text-red-500 font-bold ml-1">*</span>
+            </label>
+            <div className="relative w-full">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                placeholder="e.g. password" 
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                required
+                className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg pl-3 pr-10 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer select-none"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center text-xs">
+            <label className="flex items-center gap-1.5 text-slate-500 cursor-pointer select-none">
+              <input type="checkbox" className="rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
+              <span>Remember me</span>
+            </label>
+            <button 
+              type="button" 
+              onClick={() => setErrorMessage('Demo Mode: Password reset is disabled. Please use "password".')}
+              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
+            >
+              Forgot Password?
+            </button>
+          </div>
 
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 text-center animate-fade-in">
@@ -84,10 +115,22 @@ export const Login: React.FC = () => {
             type="submit"
             variant="primary" 
             fullWidth 
+            disabled={!emailInput.trim() || !passwordInput.trim()}
             style={{ padding: '12px' }}
           >
             Sign In
           </Button>
+
+          <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100/50">
+            Don't have an account?{' '}
+            <button 
+              type="button" 
+              onClick={() => setErrorMessage('Self-registration is disabled. Please contact your administrator.')}
+              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
+            >
+              Register your Institute
+            </button>
+          </div>
         </form>
 
         {/* Quick Demo Switcher helper */}

@@ -825,7 +825,7 @@ export const InstAdminDashboard: React.FC = () => {
               </div>
 
               {/* Staff Attendance Rate */}
-              <div>
+              <div> 
                 <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1">
                   <span>Teacher &amp; Staff Attendance Rate</span>
                   <span className="text-slate-800">{staffAttendanceRate}%</span>

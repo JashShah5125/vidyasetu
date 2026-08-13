@@ -283,6 +283,7 @@ const ContentRouter = () => {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : <Dashboard />} />
       <Route path="/tenants" element={<TenantsManager initialOpenCreate={false} />} />
       <Route path="/tenants/create" element={<TenantsManager initialOpenCreate={true} />} />
@@ -348,7 +349,8 @@ const MainContent: React.FC = () => {
   if (!currentUser) {
     return (
       <Routes>
-        <Route path="*" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
