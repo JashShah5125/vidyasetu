@@ -26,7 +26,7 @@ export const Select: React.FC<SelectProps> = ({
       {label && (
         <label 
           htmlFor={id} 
-          className="text-xs font-semibold text-slate-600 uppercase tracking-wide"
+          className="text-xs font-semibold text-slate-700"
         >
           {label}
         </label>

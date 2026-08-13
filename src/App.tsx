@@ -64,19 +64,19 @@ const GlobalProvidersPlaceholder = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
       <div className="flex flex-col gap-1">
         <span className="text-slate-400 font-semibold uppercase text-[10px]">SMS Gateway API</span> 
-        <strong className="text-slate-700">Twilio SMS (Configured)</strong>
+        <strong className="text-slate-700">Twilio SMS (Active)</strong>
       </div>
       <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">WhatsApp Business Key</span> 
+        <span className="text-slate-400 font-semibold uppercase text-[10px]">WhatsApp Provider</span> 
         <strong className="text-slate-700">Meta Business API (Active)</strong>
       </div>
       <div className="flex flex-col gap-1">
         <span className="text-slate-400 font-semibold uppercase text-[10px]">SMTP Email Client</span> 
-        <strong className="text-slate-700">Amazon SES (Verified Relay)</strong>
+        <strong className="text-slate-700">Amazon SES (Active)</strong>
       </div>
       <div className="flex flex-col gap-1">
         <span className="text-slate-400 font-semibold uppercase text-[10px]">Payment Gateway</span> 
-        <strong className="text-slate-700">Razorpay Key (live_xxx)</strong>
+        <strong className="text-slate-700">Razorpay (Active)</strong>
       </div>
     </div>
   </div>
@@ -158,7 +158,12 @@ const AuditLogsPlaceholder = () => {
                 <td className="px-6 py-4 text-slate-700 font-semibold">{log.institute || 'System / Platform'}</td>
                 <td className="px-6 py-4 font-mono text-xs text-slate-500">{log.ipAddress || '192.168.1.1'}</td>
                 <td className="px-6 py-4 font-mono text-xs text-blue-600">{log.action}</td>
-                <td className="px-6 py-4 truncate max-w-xs">{log.details}</td>
+                <td className="px-6 py-4 max-w-xs" title={log.details}>
+                  <div className="truncate text-slate-700">{log.details}</div>
+                  <div className="text-blue-600 text-[10px] font-bold mt-1 hover:underline cursor-pointer inline-flex items-center">
+                    View Details &rarr;
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

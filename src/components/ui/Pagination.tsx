@@ -68,6 +68,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       {/* Right: page controls */}
       <div className="flex items-center gap-1">
         <button
+          type="button"
           className={`${btnBase} ${btnIdle}`}
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
@@ -76,6 +77,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           <ChevronsLeft size={15} />
         </button>
         <button
+          type="button"
           className={`${btnBase} ${btnIdle}`}
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
@@ -89,6 +91,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             <span key={`ellipsis-${i}`} className="px-1 text-slate-400 text-sm select-none">…</span>
           ) : (
             <button
+              type="button"
               key={p}
               className={`${btnBase} ${p === currentPage ? btnActive : btnIdle}`}
               onClick={() => onPageChange(p as number)}
@@ -99,6 +102,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         )}
 
         <button
+          type="button"
           className={`${btnBase} ${btnIdle}`}
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages || totalPages === 0}
@@ -107,6 +111,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           <ChevronRight size={15} />
         </button>
         <button
+          type="button"
           className={`${btnBase} ${btnIdle}`}
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages || totalPages === 0}
@@ -132,10 +137,11 @@ export const Pagination: React.FC<PaginationProps> = ({
                 }
               }
             }}
-            placeholder="Page"
-            className="w-12 border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 text-center"
+            placeholder="Enter page"
+            className="w-20 border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 text-center"
           />
           <button
+            type="button"
             onClick={() => {
               const page = Number(gotoInput);
               if (page >= 1 && page <= totalPages) {
