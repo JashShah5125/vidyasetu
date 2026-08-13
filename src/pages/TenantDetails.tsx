@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
-import { formatDate } from '../data/mockData';
+import { formatDate, getTenantStatus } from '../data/mockData';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 
@@ -394,11 +394,20 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
             <div className="text-sm text-slate-500 font-mono mt-1">Tenant ID: {viewingTenant.id}</div>
           </div>
           <div className="flex items-center gap-3 select-none flex-shrink-0">
-            <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
-              viewingTenant.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-            }`}>
-              {viewingTenant.status}
-            </span>
+            {(() => {
+              const status = getTenantStatus(viewingTenant);
+              let badgeColors = 'bg-red-50 text-red-750 border border-red-200';
+              if (status === 'Active') {
+                badgeColors = 'bg-emerald-50 text-emerald-705 border border-emerald-200';
+              } else if (status === 'Pending') {
+                badgeColors = 'bg-amber-50 text-amber-705 border border-amber-200';
+              }
+              return (
+                <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${badgeColors}`}>
+                  {status}
+                </span>
+              );
+            })()}
             <span className="text-[11px] text-slate-600 font-bold bg-white border border-slate-200 shadow-sm px-3 py-1.5 rounded-full uppercase tracking-wider">
               {viewingTenant.plan}
             </span>
@@ -895,7 +904,19 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
               <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Active Status Suspensions / Activations</h5>
               <div className="flex items-center gap-6 bg-white border border-slate-200 shadow-sm rounded-xl p-6">
                 <div className="flex-1">
-                  <h6 className="text-base font-bold text-slate-900">Current Access Status: <span className={viewingTenant.status === 'Active' ? 'text-emerald-600' : 'text-red-600'}>{viewingTenant.status}</span></h6>
+                  <h6 className="text-base font-bold text-slate-900">
+                    Current Access Status:{' '}
+                    {(() => {
+                      const status = getTenantStatus(viewingTenant);
+                      let colorClass = 'text-red-600';
+                      if (status === 'Active') {
+                        colorClass = 'text-emerald-600';
+                      } else if (status === 'Pending') {
+                        colorClass = 'text-amber-600';
+                      }
+                      return <span className={colorClass}>{status}</span>;
+                    })()}
+                  </h6>
                   <p className="text-sm text-slate-500 mt-2 leading-relaxed">
                     Suspending a tenant prevents their staff, teachers, and students from accessing their portals immediately. They will receive a "Service Suspended" screen upon login.
                   </p>

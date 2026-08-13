@@ -609,6 +609,17 @@ export const formatDate = (dateStr: string | undefined): string => {
   return dateStr;
 };
 
+export const getTenantStatus = (t: { status: string; startDate?: string }): string => {
+  if (t.startDate) {
+    const today = new Date('2026-08-13');
+    const start = new Date(t.startDate);
+    if (start > today) {
+      return 'Pending';
+    }
+  }
+  return t.status;
+};
+
 // ─── Feature Access Flags ─────────────────────────────────────────────────
 export interface FeatureAccess {
   // Core ERP
