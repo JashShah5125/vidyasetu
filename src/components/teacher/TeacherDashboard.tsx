@@ -244,10 +244,10 @@ export const TeacherDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-        <div className="lg:col-span-1 flex flex-col h-full">
-          <Card className="flex flex-col h-full flex-1 justify-between">
-            <CardHeader>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="lg:col-span-1 flex flex-col h-[680px]">
+          <Card className="flex flex-col h-full flex-1 p-5 overflow-hidden">
+            <CardHeader className="px-0 pt-0 pb-5 border-b border-slate-100 flex-shrink-0">
               <div className="flex justify-between items-center w-full">
                 <CardTitle>Academic doubts forum Q&amp;A</CardTitle>
                 <div className="w-40">
@@ -263,7 +263,7 @@ export const TeacherDashboard: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-            <div className="space-y-4 flex-1">
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1 mt-4">
               {paginatedDoubts.map((d, idx) => (
                 <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <div className="flex justify-between items-center text-xs font-bold text-slate-400">
@@ -335,7 +335,7 @@ export const TeacherDashboard: React.FC = () => {
           </Card>
         </div>
 
-        <div className="lg:col-span-1 flex flex-col h-full">
+        <div className="lg:col-span-1 flex flex-col h-[680px]">
           {/* Schedule Component */}
           <Card className="overflow-hidden h-full flex flex-col flex-1">
             <div className="border-b border-slate-100 bg-slate-50 p-5 flex-shrink-0">
@@ -357,7 +357,7 @@ export const TeacherDashboard: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-5 bg-white flex-1 overflow-y-auto max-h-[500px] pr-1.5 space-y-4">
+            <div className="p-5 bg-white flex-1 overflow-y-auto pr-1.5 space-y-4">
               {/* TODAY TAB */}
               {scheduleTab === 'today' && (
                 <div className="space-y-4">
@@ -399,6 +399,7 @@ export const TeacherDashboard: React.FC = () => {
                                 const courseName = batches.find(b => b.name === lecture.batchId)?.course || '';
                                 navigate('/attendance', { 
                                   state: { 
+                                    activeLecture: lecture,
                                     branch: lecture.branchId || currentUser?.branch || 'Mumbai West', 
                                     course: courseName,
                                     batch: lecture.batchId,
