@@ -4,12 +4,14 @@ import { useScheduler } from '../../features/scheduler/context/SchedulerContext'
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { useNavigate } from 'react-router-dom';
 import { BookOpen, Calendar, HelpCircle, GraduationCap, ArrowLeft, Clock, MapPin, AlertCircle, FileText, CheckCircle } from 'lucide-react';
 import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS, INITIAL_SCHEDULE_CHANGES } from '../../data/mockData';
 
 export const TeacherDashboard: React.FC = () => {
   const { currentUser, doubts, sendDoubtReply, addToast, batches, branches, courses, students } = useApp();
-  const { lectures } = useScheduler();
+  const { lectures, updateLecture } = useScheduler();
+  const navigate = useNavigate();
 
   // Global Filters
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
@@ -242,9 +244,9 @@ export const TeacherDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="lg:col-span-1">
-          <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        <div className="lg:col-span-1 flex flex-col h-full">
+          <Card className="flex flex-col h-full flex-1 justify-between">
             <CardHeader>
               <div className="flex justify-between items-center w-full">
                 <CardTitle>Academic doubts forum Q&amp;A</CardTitle>
@@ -261,7 +263,7 @@ export const TeacherDashboard: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               {paginatedDoubts.map((d, idx) => (
                 <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <div className="flex justify-between items-center text-xs font-bold text-slate-400">
@@ -292,7 +294,7 @@ export const TeacherDashboard: React.FC = () => {
               ))}
             </div>
             {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold text-slate-500 shadow-sm select-none mt-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl text-xs font-semibold text-slate-500 shadow-sm select-none mt-4 flex-shrink-0">
                 <div>
                   Showing <span className="text-slate-800 font-bold">{Math.min((currentPage - 1) * itemsPerPage + 1, doubts.length)}</span> to <span className="text-slate-800 font-bold">{Math.min(currentPage * itemsPerPage, doubts.length)}</span> of <span className="text-slate-855 font-bold">{doubts.length}</span> doubts
                 </div>
@@ -333,14 +335,14 @@ export const TeacherDashboard: React.FC = () => {
           </Card>
         </div>
 
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 flex flex-col h-full">
           {/* Schedule Component */}
-          <Card className="overflow-hidden">
-            <div className="border-b border-slate-100 bg-slate-50 p-5">
+          <Card className="overflow-hidden h-full flex flex-col flex-1">
+            <div className="border-b border-slate-100 bg-slate-50 p-5 flex-shrink-0">
                <h3 className="text-lg font-bold text-slate-900">Schedule</h3>
                <p className="text-sm text-slate-500">Your teaching schedule and academic activities</p>
             </div>
-            <div className="flex border-b border-slate-100 overflow-x-auto hide-scrollbar bg-white">
+            <div className="flex border-b border-slate-100 overflow-x-auto hide-scrollbar bg-white flex-shrink-0">
               <button 
                 onClick={() => setScheduleTab('today')}
                 className={`flex-none px-5 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${scheduleTab === 'today' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
@@ -355,7 +357,7 @@ export const TeacherDashboard: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-5 bg-white min-h-[300px]">
+            <div className="p-5 bg-white flex-1 overflow-y-auto max-h-[500px] pr-1.5 space-y-4">
               {/* TODAY TAB */}
               {scheduleTab === 'today' && (
                 <div className="space-y-4">
@@ -368,14 +370,46 @@ export const TeacherDashboard: React.FC = () => {
                           <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId}</div>
                           <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
                             <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.roomId}</span>
-                            <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><Clock size={12}/> Attendance Pending</span>
+                            {lecture.status === 'COMPLETED' ? (
+                              <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md"><CheckCircle size={12}/> Attendance Marked</span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><Clock size={12}/> Attendance Pending</span>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col gap-2 w-full sm:w-auto">
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-blue-50 text-blue-600 border border-blue-100 text-center">
-                            Upcoming
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${
+                            lecture.status === 'COMPLETED'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : 'bg-blue-50 text-blue-600 border-blue-100'
+                          }`}>
+                            {lecture.status === 'COMPLETED' ? 'Completed' : 'Upcoming'}
                           </span>
-                          <Button variant="primary" size="sm" className="w-full">Mark Attendance</Button>
+                          {lecture.status === 'COMPLETED' ? (
+                            <Button variant="secondary" size="sm" disabled className="w-full flex items-center justify-center gap-1 opacity-75 cursor-default">
+                              <CheckCircle size={14} className="text-emerald-500"/> Marked
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="primary" 
+                              size="sm" 
+                              className="w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const courseName = batches.find(b => b.name === lecture.batchId)?.course || '';
+                                navigate('/attendance', { 
+                                  state: { 
+                                    branch: lecture.branchId || currentUser?.branch || 'Mumbai West', 
+                                    course: courseName,
+                                    batch: lecture.batchId,
+                                    date: lecture.date 
+                                  } 
+                                });
+                              }}
+                            >
+                              Mark Attendance
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -388,69 +422,17 @@ export const TeacherDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* UPCOMING TAB */}
-              {scheduleTab === 'upcoming' && (
-                <div className="space-y-6">
-                  {filteredLectures.filter(l => l.date > new Date().toISOString().split('T')[0]).length > 0 ? (
-                    Object.entries(
-                      filteredLectures
-                        .filter(l => l.date > new Date().toISOString().split('T')[0])
-                        .reduce((acc, l) => {
-                          if (!acc[l.date]) acc[l.date] = [];
-                          acc[l.date].push(l);
-                          return acc;
-                        }, {} as Record<string, typeof filteredLectures>)
-                    ).sort(([a], [b]) => a.localeCompare(b)).map(([dateStr, dayLectures]) => {
-                      const dateObj = new Date(dateStr);
-                      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-                      const dayNum = dateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }).toUpperCase();
-                      return (
-                        <div key={dateStr} className="space-y-3">
-                          <div className="flex items-center gap-3">
-                            <div className="text-xs font-bold text-slate-500 tracking-wider w-24">
-                              {dayName} — {dayNum}
-                            </div>
-                            <div className="h-px bg-slate-200 flex-1"></div>
-                            <div className="text-xs font-semibold text-slate-400">{dayLectures.length} lectures</div>
-                          </div>
-                          <div className="space-y-3 pl-0 sm:pl-28">
-                            {dayLectures.map(lecture => (
-                              <div key={lecture.id} className="p-3 bg-white border border-slate-200 rounded-lg flex justify-between items-center hover:border-blue-300 transition-colors cursor-pointer">
-                                <div>
-                                  <div className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                                    <Clock size={14} className="text-slate-400"/> {lecture.startTime} – {lecture.endTime}
-                                  </div>
-                                  <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subjectId}</div>
-                                  <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.roomId}</div>
-                                </div>
-                                <Button variant="secondary" size="sm">Details</Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="py-12 text-center flex flex-col items-center justify-center">
-                      <Calendar className="text-slate-300 mb-3" size={32} />
-                      <div className="text-slate-500 font-medium">No upcoming lectures in the next 7 days.</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* WEEKLY SCHEDULE TAB */}
               {scheduleTab === 'weekly' && (
                 <div className="space-y-4">
                   {filteredLectures.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className="border border-slate-200 rounded-xl overflow-hidden">
+                        <div key={day} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                           <div className="bg-slate-100 p-2 text-center text-xs font-bold text-slate-700 uppercase tracking-widest border-b border-slate-200">
                             {day}
                           </div>
                           <div className="p-3 space-y-2 min-h-[100px] bg-slate-50/50">
-                            {/* Rendering a mock weekly view based on existing lectures spread out roughly */}
                             {filteredLectures.slice(0, Math.floor(Math.random() * 3) + 1).map((l, i) => (
                               <div key={i} className="p-2 bg-white border border-slate-200 rounded-md shadow-sm hover:border-blue-400 cursor-pointer">
                                 <div className="text-xs font-bold text-slate-800">{l.startTime}</div>
@@ -466,83 +448,6 @@ export const TeacherDashboard: React.FC = () => {
                     <div className="py-12 text-center flex flex-col items-center justify-center">
                       <Calendar className="text-slate-300 mb-3" size={32} />
                       <div className="text-slate-500 font-medium">No scheduled lectures for this week.</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ACADEMIC EVENTS TAB */}
-              {scheduleTab === 'events' && (
-                <div className="space-y-4">
-                  {(() => {
-                    const events = [
-                      ...INITIAL_EXAMS.filter(e => activeBatches.includes(e.batch)).map(e => ({ type: 'EXAM', title: e.name, batch: e.batch, date: '12 Aug', time: '10:00 AM – 12:00 PM', location: 'Room 101' })),
-                      ...INITIAL_ASSIGNMENTS.filter(a => activeBatches.includes(a.batchId)).map(a => ({ type: 'ASSIGNMENT DEADLINE', title: a.title, batch: a.batchId, date: '13 Aug', time: '11:59 PM', location: 'Online' }))
-                    ];
-                    return events.length > 0 ? (
-                      events.map((ev, i) => (
-                        <div key={i} className="p-4 bg-white border border-slate-200 hover:border-blue-300 rounded-xl flex flex-col sm:flex-row justify-between gap-4 cursor-pointer">
-                          <div>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${ev.type === 'EXAM' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                              {ev.type}
-                            </span>
-                            <div className="text-base font-bold text-slate-900 mt-2">{ev.title}</div>
-                            <div className="text-sm font-semibold text-slate-600 mt-1">{ev.batch}</div>
-                          </div>
-                          <div className="flex flex-col gap-1 text-sm text-slate-600">
-                            <span className="flex items-center gap-2"><Calendar size={14}/> {ev.date}</span>
-                            <span className="flex items-center gap-2"><Clock size={14}/> {ev.time}</span>
-                            <span className="flex items-center gap-2"><MapPin size={14}/> {ev.location}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="py-12 text-center flex flex-col items-center justify-center">
-                        <FileText className="text-slate-300 mb-3" size={32} />
-                        <div className="text-slate-500 font-medium">No upcoming academic events.</div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
-
-              {/* CHANGES TAB */}
-              {scheduleTab === 'changes' && (
-                <div className="space-y-4">
-                  {INITIAL_SCHEDULE_CHANGES.filter(c => activeBatches.includes(c.batchId)).length > 0 ? (
-                    INITIAL_SCHEDULE_CHANGES.filter(c => activeBatches.includes(c.batchId)).map(change => (
-                      <div key={change.id} className="p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl flex flex-col gap-3 cursor-pointer">
-                        <div className="flex justify-between items-start">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${
-                            change.type === 'ROOM_CHANGE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
-                            change.type === 'CANCELLED' ? 'bg-red-50 text-red-600 border-red-100' : 
-                            'bg-amber-50 text-amber-600 border-amber-100'
-                          }`}>
-                            {change.type.replace('_', ' ')}
-                          </span>
-                          <span className={`text-xs font-bold ${change.status === 'Upcoming' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {change.status}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="text-sm font-bold text-slate-800">{change.subject} — {change.batchId}</div>
-                          <div className="text-xs font-semibold text-slate-500 mt-1">{change.dateTime}</div>
-                          <div className="mt-3 flex items-center gap-3 text-sm font-semibold bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
-                            <span className="text-slate-600 line-through decoration-slate-400">{change.previousValue}</span>
-                            {change.newValue && (
-                              <>
-                                <ArrowLeft size={14} className="text-slate-400 rotate-180" />
-                                <span className="text-slate-900">{change.newValue}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-12 text-center flex flex-col items-center justify-center">
-                      <AlertCircle className="text-slate-300 mb-3" size={32} />
-                      <div className="text-slate-500 font-medium">No recent schedule changes.</div>
                     </div>
                   )}
                 </div>

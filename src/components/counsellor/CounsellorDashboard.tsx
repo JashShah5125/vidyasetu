@@ -3,9 +3,11 @@ import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Table } from '../ui/Table';
 import { Phone, Users, CheckSquare, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const CounsellorDashboard: React.FC = () => {
   const { currentUser, leads } = useApp();
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
 
@@ -76,20 +78,20 @@ export const CounsellorDashboard: React.FC = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
           <Card>
             <CardHeader>
               <CardTitle>Active Client Enquiries Registry</CardTitle>
             </CardHeader>
-            <Table headers={['Student Name', 'Mobile Contact', 'Course Target', 'Source Channel', 'Status']}>
+            <Table headers={['Student Name', 'Mobile Contact', 'Course Target', 'Source Channel', 'Status']} className="[&_th]:px-3.5 [&_th]:py-3">
               {paginatedLeads.map((l, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs">{l.mobile}</td>
-                  <td className="px-6 py-4 text-xs">{l.course}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{l.source}</td>
-                  <td className="px-6 py-4">
+                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer animate-fade-in" onClick={() => navigate('/leads', { state: { activeLeadId: l.id } })}>{l.name}</td>
+                  <td className="px-3.5 py-3 font-mono text-xs">{l.mobile}</td>
+                  <td className="px-3.5 py-3 text-xs">{l.course}</td>
+                  <td className="px-3.5 py-3 text-xs text-slate-500">{l.source}</td>
+                  <td className="px-3.5 py-3">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
                       l.status === 'New Enquiry' ? 'bg-blue-50 text-blue-600' :
                       l.status === 'Follow-up' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
@@ -142,7 +144,7 @@ export const CounsellorDashboard: React.FC = () => {
           </Card>
         </div>
 
-        <div>
+        <div className="lg:col-span-1">
           <Card>
             <CardHeader>
               <CardTitle>Admissions Callback Queue</CardTitle>
