@@ -137,7 +137,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                 }
               }
             }}
-            placeholder="Enter page"
+            
             className="w-20 border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 text-center"
           />
           <button
