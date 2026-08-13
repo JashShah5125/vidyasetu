@@ -12,7 +12,7 @@ import type { Lecture } from '../types/scheduler';
 
 export const LectureScheduler = () => {
   const { currentUser, branches, batches } = useApp();
-  const { lectures, addLectures } = useScheduler();
+  const { lectures, addLectures, publishLectures } = useScheduler();
 
   // Filters State (View Mode)
   const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch : '';
@@ -33,6 +33,30 @@ export const LectureScheduler = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLecture, setEditingLecture] = useState<Lecture | undefined>(undefined);
   const [initialDate, setInitialDate] = useState<string | undefined>(undefined);
+  const [toast, setToast] = useState('');
+
+  const handleSaveDraft = () => {
+    setToast('Draft timetable saved successfully.');
+    setTimeout(() => {
+      setToast('');
+      setEditorContext(null);
+    }, 1500);
+  };
+
+  const handlePublish = () => {
+    if (editorLectures.length === 0) {
+      setToast('Cannot publish an empty timetable. Please add at least one lecture.');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    const draftLectureIds = editorLectures.filter(l => l.publishStatus !== 'PUBLISHED').map(l => l.id).filter(Boolean) as string[];
+    publishLectures(draftLectureIds);
+    setToast('Timetable published successfully.');
+    setTimeout(() => {
+      setToast('');
+      setEditorContext(null);
+    }, 1500);
+  };
 
   // Derived options
   const availableBatches = useMemo(() => {
@@ -96,6 +120,11 @@ export const LectureScheduler = () => {
 
   return (
     <div className="space-y-6">
+      {toast && (
+        <div className="fixed top-4 right-4 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-sm z-50 animate-fade-in">
+          ✓ {toast}
+        </div>
+      )}
       
       {/* Editor View */}
       {editorContext ? (
@@ -127,8 +156,8 @@ export const LectureScheduler = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline">Save Draft</Button>
-              <Button variant="primary">Publish</Button>
+              <Button variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
+              <Button variant="primary" onClick={handlePublish}>Publish</Button>
             </div>
           </div>
           

@@ -69,8 +69,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const handleNext = () => {
     if (step === 1 && (!branchId || !courseId || !programId || !levelId || !batchId)) return;
-    if (step === 2 && !scheduleScope) return;
-    setStep(s => s + 1);
+    setStep(2);
   };
 
   const handleComplete = () => {
@@ -78,7 +77,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
       branchId, courseId, programId, levelId, batchId,
       scheduleScope,
       weekStartDate: scheduleScope === 'WEEK' ? weekStartDate : undefined,
-      creationMode
+      creationMode: defaultExists ? 'DEFAULT' : 'BLANK'
     });
   };
 
@@ -103,18 +102,18 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
       <div className="space-y-6">
         
         {/* Progress Bar */}
-        <div className="flex items-center justify-between mb-8">
-          {[1, 2, 3].map((s) => (
+        <div className="flex items-center justify-between mb-8 relative">
+          {[1, 2].map((s) => (
             <div key={s} className="flex flex-col items-center relative z-10">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm border-2 ${step >= s ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-400'}`}>
                 {s}
               </div>
               <div className={`text-xs font-semibold mt-2 ${step >= s ? 'text-slate-800' : 'text-slate-400'}`}>
-                {s === 1 ? 'Context' : s === 2 ? 'Scope' : 'Creation'}
+                {s === 1 ? 'Context' : 'Scope'}
               </div>
             </div>
           ))}
-          <div className="absolute left-[10%] right-[10%] h-0.5 bg-slate-200 z-0 top-4" />
+          <div className="absolute left-4 right-4 h-0.5 bg-slate-200 z-0 top-4" />
         </div>
 
         {/* Step 1: Academic Context */}
@@ -133,7 +132,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
         {step === 2 && (
           <div className="space-y-4 animate-fade-in">
              <h4 className="font-semibold text-slate-800 mb-4 text-lg">Step 2: Select Schedule Scope</h4>
-             <div className="space-y-3">
+             <div className="space-y-4">
                <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${scheduleScope === 'DEFAULT' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
                  <input type="radio" name="scope" value="DEFAULT" checked={scheduleScope === 'DEFAULT'} onChange={() => setScheduleScope('DEFAULT')} className="mt-1" />
                  <div className="ml-3">
@@ -141,6 +140,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
                    <div className="text-sm text-slate-500">The recurring weekly pattern for this batch.</div>
                  </div>
                </label>
+               
                <label className={`flex items-start p-4 border rounded-xl cursor-pointer transition-colors ${scheduleScope === 'WEEK' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
                  <input type="radio" name="scope" value="WEEK" checked={scheduleScope === 'WEEK'} onChange={() => setScheduleScope('WEEK')} className="mt-1" />
                  <div className="ml-3">
@@ -148,55 +148,21 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
                    <div className="text-sm text-slate-500">Actual schedule instances for a particular date range.</div>
                  </div>
                </label>
+               
+               {scheduleScope === 'WEEK' && (
+                 <div className="p-4 bg-slate-50 border border-slate-250 rounded-xl space-y-2 animate-fade-in mt-2">
+                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">
+                     Select Week (Starting Monday)
+                   </label>
+                   <input 
+                     type="date" 
+                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500" 
+                     value={weekStartDate} 
+                     onChange={e => setWeekStartDate(e.target.value)} 
+                   />
+                 </div>
+               )}
              </div>
-          </div>
-        )}
-
-        {/* Step 3: Creation Method */}
-        {step === 3 && (
-          <div className="space-y-4 animate-fade-in">
-             <h4 className="font-semibold text-slate-800 mb-4 text-lg">Step 3: Creation Method</h4>
-             
-             {scheduleScope === 'DEFAULT' ? (
-                defaultExists ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-                    <p className="text-amber-800 font-semibold mb-2">A default timetable already exists for this batch.</p>
-                    <p className="text-sm text-amber-700 mb-6">You cannot create a second default timetable. You can edit the existing one instead.</p>
-                    <Button variant="primary" onClick={() => { setCreationMode('DEFAULT'); handleComplete(); }}>Edit Existing Default</Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-slate-600 mb-4 font-medium">How do you want to start?</p>
-                    <label className={`flex items-center p-4 border rounded-xl cursor-pointer transition-colors border-emerald-500 bg-emerald-50`}>
-                      <input type="radio" checked readOnly className="mt-0.5" />
-                      <div className="ml-3 font-semibold text-slate-800">Start Blank</div>
-                    </label>
-                  </div>
-                )
-             ) : (
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Select Week (Starting Monday)</label>
-                    <input type="date" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={weekStartDate} onChange={e => setWeekStartDate(e.target.value)} />
-                  </div>
-                  <div>
-                    <p className="text-slate-600 mb-4 font-medium">How do you want to start?</p>
-                    <div className="space-y-3">
-                      <label className={`flex items-center p-4 border rounded-xl cursor-pointer transition-colors ${creationMode === 'BLANK' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                        <input type="radio" checked={creationMode === 'BLANK'} onChange={() => setCreationMode('BLANK')} className="mt-0.5" />
-                        <div className="ml-3 font-semibold text-slate-800">Start Blank Timetable</div>
-                      </label>
-                      <label className={`flex items-center p-4 border rounded-xl cursor-pointer transition-colors ${creationMode === 'DEFAULT' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'} ${!defaultExists ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <input type="radio" checked={creationMode === 'DEFAULT'} onChange={() => setCreationMode('DEFAULT')} disabled={!defaultExists} className="mt-0.5" />
-                        <div className="ml-3">
-                          <div className="font-semibold text-slate-800">Use Default Timetable</div>
-                          {!defaultExists && <div className="text-xs text-slate-500">No default timetable exists for this batch.</div>}
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-             )}
           </div>
         )}
       </div>
@@ -209,12 +175,10 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
         )}
         
-        {step < 3 ? (
-          <Button variant="primary" onClick={handleNext} disabled={step === 1 && (!branchId || !courseId || !programId || !levelId || !batchId)}>Next</Button>
+        {step === 1 ? (
+          <Button variant="primary" onClick={handleNext} disabled={!branchId || !courseId || !programId || !levelId || !batchId}>Next</Button>
         ) : (
-          !(scheduleScope === 'DEFAULT' && defaultExists) && (
-            <Button variant="primary" onClick={handleComplete}>Open Editor</Button>
-          )
+          <Button variant="primary" onClick={handleComplete}>Open Timetable</Button>
         )}
       </div>
     </Modal>

@@ -575,7 +575,7 @@ export const SystemConfiguration: React.FC = () => {
             </div>
           }
         >
-          <div className="text-sm text-slate-605">
+          <div className="text-sm text-slate-600">
             Are you sure you want to delete this role definition? This action cannot be undone.
           </div>
         </Modal>
