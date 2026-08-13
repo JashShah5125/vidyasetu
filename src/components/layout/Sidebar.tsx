@@ -20,7 +20,8 @@ import {
   Ticket,
   BarChart3,
   ChevronLeft,
-  Zap
+  Zap,
+  DoorOpen
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -122,7 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
               { name: 'Subject Management', label: 'Subject Setup', path: '/subjects', icon: BookOpen },
-              { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers }
+              { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
+              { name: 'Classroom Master', label: 'Classroom Master', path: '/classrooms', icon: DoorOpen }
             ]
           },
           {
@@ -175,7 +177,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Courses', label: 'Courses Offered', path: '/courses', icon: BookOpen },
               { name: 'Subject Management', label: 'Subject Syllabus', path: '/subjects', icon: BookOpen },
-              { name: 'Batch Management', label: 'Batches list', path: '/batches', icon: Layers }
+              { name: 'Batch Management', label: 'Batches list', path: '/batches', icon: Layers },
+              { name: 'Classroom Master', label: 'Classroom Master', path: '/classrooms', icon: DoorOpen }
             ]
           },
           {

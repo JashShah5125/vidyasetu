@@ -19,6 +19,7 @@ import { CourseSetup } from './pages/CourseSetup';
 import { CourseDetail } from './pages/CourseDetail';
 import { BatchSetup } from './pages/BatchSetup';
 import { SubjectSetup } from './pages/SubjectSetup';
+import { ClassroomSetup } from './pages/ClassroomSetup';
 import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
@@ -315,6 +316,7 @@ const ContentRouter = () => {
       <Route path="/courses/:code" element={<CourseDetail />} />
       <Route path="/batches" element={<BatchSetup />} />
       <Route path="/subjects" element={<SubjectSetup />} />
+      <Route path="/classrooms" element={<ClassroomSetup />} />
       <Route path="/staff" element={<Users />} />
       <Route path="/staff/new" element={<StaffCreate />} />
       <Route path="/admissions" element={<LeadsAdmissions initialTab="admission" />} />
