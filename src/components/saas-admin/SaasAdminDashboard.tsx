@@ -113,31 +113,77 @@ export const SaasAdminDashboard: React.FC = () => {
       {/* Main metrics charts layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="font-bold text-slate-800 text-sm">Platform Monthly Recurring Revenue (2026)</h3>
-          <div className="h-48 flex items-end justify-between gap-2 pt-6 border-b border-slate-100 px-4">
-            <div className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full bg-purple-600/30 rounded-t-md hover:bg-purple-600 transition-all duration-150" style={{ height: '50px' }}></div>
-              <span className="text-[9px] text-slate-400 font-bold">Jan</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">Platform Monthly Recurring Revenue (2026)</h3>
+              <p className="text-xs text-slate-500 mt-0.5">SaaS subscription MRR trends across all registered institutes.</p>
             </div>
-            <div className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full bg-purple-600/30 rounded-t-md hover:bg-purple-600 transition-all duration-150" style={{ height: '70px' }}></div>
-              <span className="text-[9px] text-slate-400 font-bold">Feb</span>
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs font-semibold">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-purple-600/30 border border-purple-200 rounded"></span>
+                <span className="text-slate-500">Past Months</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-purple-600 rounded shadow-sm shadow-purple-500/20 animate-pulse"></span>
+                <span className="text-slate-800">Current Month</span>
+              </div>
             </div>
-            <div className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full bg-purple-600/30 rounded-t-md hover:bg-purple-600 transition-all duration-150" style={{ height: '90px' }}></div>
-              <span className="text-[9px] text-slate-400 font-bold">Mar</span>
+          </div>
+
+          <div className="flex h-56 pt-6">
+            {/* Y-Axis values */}
+            <div className="flex flex-col justify-between text-[10px] text-slate-400 font-bold pr-3 border-r border-slate-100 h-[174px] text-right w-12 shrink-0 select-none">
+              <span>₹5.0L</span>
+              <span>₹4.0L</span>
+              <span>₹3.0L</span>
+              <span>₹2.0L</span>
+              <span>₹1.0L</span>
+              <span>₹0</span>
             </div>
-            <div className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full bg-purple-600/30 rounded-t-md hover:bg-purple-600 transition-all duration-150" style={{ height: '110px' }}></div>
-              <span className="text-[9px] text-slate-400 font-bold">Apr</span>
-            </div>
-            <div className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full bg-purple-600/30 rounded-t-md hover:bg-purple-600 transition-all duration-150" style={{ height: '130px' }}></div>
-              <span className="text-[9px] text-slate-400 font-bold">May</span>
-            </div>
-            <div className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full bg-purple-600 rounded-t-md shadow-lg shadow-purple-500/20" style={{ height: '160px' }}></div>
-              <span className="text-[9px] text-slate-800 font-bold">Jun</span>
+
+            {/* Chart Area with Gridlines */}
+            <div className="flex-1 relative h-[174px] flex items-end justify-between gap-1.5 px-3">
+              {/* Horizontal Gridlines */}
+              <div className="absolute inset-y-0 top-0 h-[174px] flex flex-col justify-between pointer-events-none select-none left-0 right-0">
+                {[0, 1, 2, 3, 4, 5].map((_, idx) => (
+                  <div key={idx} className="border-b border-slate-100 w-full h-0"></div>
+                ))}
+              </div>
+
+              {/* Bars */}
+              {[
+                { m: 'Jan', val: '₹1.80L', h: '36%', isCurrent: false },
+                { m: 'Feb', val: '₹2.10L', h: '42%', isCurrent: false },
+                { m: 'Mar', val: '₹2.30L', h: '46%', isCurrent: false },
+                { m: 'Apr', val: '₹2.60L', h: '52%', isCurrent: false },
+                { m: 'May', val: '₹3.10L', h: '62%', isCurrent: false },
+                { m: 'Jun', val: '₹3.40L', h: '68%', isCurrent: false },
+                { m: 'Jul', val: '₹3.80L', h: '76%', isCurrent: false },
+                { m: 'Aug', val: '₹4.10L', h: '82%', isCurrent: true },
+              ].map((bar, idx) => (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group relative">
+                  {/* Actual Bar */}
+                  <div 
+                    className={`w-full rounded-t-md transition-all duration-200 cursor-pointer relative ${
+                      bar.isCurrent 
+                        ? 'bg-purple-600 shadow-lg shadow-purple-500/20 hover:bg-purple-700' 
+                        : 'bg-purple-600/30 hover:bg-purple-600/60'
+                    }`} 
+                    style={{ height: bar.h }}
+                  >
+                    {/* Tooltip above bar on hover/active */}
+                    <div className="absolute -translate-y-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[9px] px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap z-10 pointer-events-none">
+                      {bar.val}
+                    </div>
+                  </div>
+                  
+                  {/* Month Label */}
+                  <span className={`text-[9px] font-bold select-none mt-1 ${bar.isCurrent ? 'text-purple-700 font-extrabold scale-110' : 'text-slate-400'}`}>
+                    {bar.m}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

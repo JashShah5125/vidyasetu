@@ -19,9 +19,10 @@ export const Input: React.FC<InputProps> = ({
       {label && (
         <label 
           htmlFor={id} 
-          className="text-xs font-semibold text-slate-600 uppercase tracking-wide"
+          className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center"
         >
           {label}
+          {props.required && <span className="text-red-500 font-bold ml-1">*</span>}
         </label>
       )}
       <input

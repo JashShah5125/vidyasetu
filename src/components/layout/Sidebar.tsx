@@ -317,14 +317,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             : 'gap-3 px-3 py-2.5 w-full'
           }
           ${isActive
-            ? 'bg-blue-600/10 text-blue-400 border-blue-500/20'
-            : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-transparent'
+            ? 'bg-blue-600/10 border-blue-500/20'
+            : 'hover:bg-slate-800 border-transparent'
           }
         `}
         title={isCollapsed ? label : undefined}
       >
         {/* Icon */}
-        <div className="relative flex-shrink-0 flex items-center justify-center">
+        <div className={`relative flex-shrink-0 flex items-center justify-center transition-colors duration-150 ${isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-200'}`}>
           <Icon size={18} />
           {/* Badge in collapsed mode: dot on icon */}
           {isCollapsed && badge !== undefined && (
@@ -355,7 +355,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         {/* Label (expanded only) */}
         {!isCollapsed && (
           <>
-            <span className="text-sm font-medium whitespace-nowrap flex-1 min-w-0 truncate">
+            <span className={`text-sm whitespace-nowrap flex-1 min-w-0 truncate transition-colors duration-150 ${isActive ? 'text-slate-100 font-semibold' : 'text-slate-400 group-hover:text-slate-200'}`}>
               {label}
             </span>
             {badge !== undefined && (
