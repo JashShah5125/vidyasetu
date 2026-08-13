@@ -111,6 +111,7 @@ export const SubscriptionPlans: React.FC = () => {
   const [viewingPlan, setViewingPlan] = useState<SubscriptionPlan | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [expandedPlans, setExpandedPlans] = useState<Record<string, boolean>>({});
 
   const resetForm = () => {
     setCurrentStep(0);
@@ -836,16 +837,28 @@ export const SubscriptionPlans: React.FC = () => {
                   </div>
 
                   {/* Price */}
-                  <div className="flex items-end gap-0.5">
-                    {isFree ? (
-                      <span className="text-4xl font-extrabold text-slate-900">Free</span>
-                    ) : (
-                      <>
-                        <span className="text-4xl font-extrabold text-slate-900">
-                          {currencySymbol}{p.price.toLocaleString()}
-                        </span>
-                        <span className="text-slate-400 text-sm font-medium mb-1">{billingLabel}</span>
-                      </>
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-end gap-0.5">
+                      {isFree ? (
+                        <span className="text-4xl font-extrabold text-slate-900">Free</span>
+                      ) : (
+                        <>
+                          <span className="text-4xl font-extrabold text-slate-900">
+                            {currencySymbol}{p.price.toLocaleString()}
+                          </span>
+                          <span className="text-slate-400 text-sm font-medium mb-1">{billingLabel}</span>
+                        </>
+                      )}
+                    </div>
+                    {!isFree && (
+                      <span className="text-xs text-slate-400 font-semibold italic mt-0.5">
+                        {p.billingType === 'Yearly' 
+                          ? `(Equivalent to ${currencySymbol}${Math.round(p.price / 12).toLocaleString()}/month)` 
+                          : p.billingType === 'Monthly'
+                            ? `(Equivalent to ${currencySymbol}${(p.price * 12).toLocaleString()}/year)`
+                            : ''
+                        }
+                      </span>
                     )}
                   </div>
 
@@ -857,8 +870,8 @@ export const SubscriptionPlans: React.FC = () => {
                       </span>
                     )}
                     {p.setupFee > 0 && (
-                      <span className="text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                        {currencySymbol}{p.setupFee.toLocaleString()} Setup
+                      <span className="text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full" title="One-time onboarding and setup fee">
+                        {currencySymbol}{p.setupFee.toLocaleString()} Setup (One-time)
                       </span>
                     )}
                     {p.autoRenewal && (
@@ -871,20 +884,37 @@ export const SubscriptionPlans: React.FC = () => {
 
                   {/* Feature bullets */}
                   <ul className="flex-1 space-y-1.5 mt-1">
-                    {enabledFeatures.slice(0, 6).map(f => (
-                      <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
-                        {f}
-                      </li>
-                    ))}
-                    {enabledFeatures.length > 6 && (
-                      <li className="text-xs text-blue-500 font-semibold pl-3.5">
-                        +{enabledFeatures.length - 6} more features…
-                      </li>
-                    )}
-                    {enabledFeatures.length === 0 && (
-                      <li className="text-xs text-slate-400 italic">No features enabled yet</li>
-                    )}
+                    {(() => {
+                      const isExpanded = expandedPlans[p.id];
+                      const featuresToShow = isExpanded ? enabledFeatures : enabledFeatures.slice(0, 6);
+                      return (
+                        <>
+                          {featuresToShow.map(f => (
+                            <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
+                              {f}
+                            </li>
+                          ))}
+                          {enabledFeatures.length > 6 && (
+                            <li className="pl-3.5 mt-1">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedPlans(prev => ({ ...prev, [p.id]: !isExpanded }))}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-bold transition cursor-pointer select-none underline decoration-dotted"
+                              >
+                                {isExpanded 
+                                  ? 'Show less features' 
+                                  : `+${enabledFeatures.length - 6} more features…`
+                                }
+                              </button>
+                            </li>
+                          )}
+                          {enabledFeatures.length === 0 && (
+                            <li className="text-xs text-slate-400 italic">No features enabled yet</li>
+                          )}
+                        </>
+                      );
+                    })()}
                   </ul>
                 </div>
 

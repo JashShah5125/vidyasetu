@@ -7,7 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Plus, Upload, Trash, ArrowLeft } from 'lucide-react';
-import { formatDate } from '../data/mockData';
+import { formatDate, getTenantStatus } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
@@ -660,13 +660,24 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                       )}
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.mobile}</div>
                     </td>
-                    <td className="px-6 py-4"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs">{t.plan}</span></td>
+                    <td className="px-6 py-4 whitespace-nowrap"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">{t.plan}</span></td>
                     <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.startDate || '2026-04-15')}</td>
                     <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.renewalDate)}</td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${t.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                        {t.status}
-                      </span>
+                      {(() => {
+                        const status = getTenantStatus(t);
+                        let badgeColors = 'bg-red-50 text-red-600';
+                        if (status === 'Active') {
+                          badgeColors = 'bg-emerald-50 text-emerald-600';
+                        } else if (status === 'Pending') {
+                          badgeColors = 'bg-amber-50 text-amber-600';
+                        }
+                        return (
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${badgeColors}`}>
+                            {status}
+                          </span>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
