@@ -69,7 +69,7 @@ export const Settings: React.FC = () => {
               </div>
               <div className="flex justify-end">
                 <Button variant="primary" onClick={handlePasswordSave}>
-                  Update Password Credentials
+                  Update Password
                 </Button>
               </div>
             </div>

@@ -30,7 +30,7 @@ export const TenantSubscriptions: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('Active');
 
   // Form state – Tenant
   const [tenantId, setTenantId] = useState('');
@@ -499,7 +499,9 @@ export const TenantSubscriptions: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Active Subscriptions</CardTitle>
+          <CardTitle>
+            {filterStatus === 'All' ? 'All Subscriptions' : filterStatus === 'Active' ? 'Active Subscriptions' : `${filterStatus} Subscriptions`}
+          </CardTitle>
         </CardHeader>
         <Table headers={['Tenant', 'Plan', 'Billing Cycle', 'Start Date', 'Expiry Date', 'Price', 'Status', 'Payment Status', 'Overrides', 'Actions']}>
           {(() => {
@@ -553,8 +555,8 @@ export const TenantSubscriptions: React.FC = () => {
                           ? <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full"><AlertTriangle size={10} /> Custom</span>
                           : <span className="text-xs text-slate-400">Plan defaults</span>}
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="flex gap-1.5 flex-wrap">
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex gap-1.5 flex-nowrap">
                           <button onClick={() => { setViewingItem(sub); setShowView(true); }}
                             className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
                             <Eye size={13} /> View

@@ -310,7 +310,7 @@ export const SystemConfiguration: React.FC = () => {
 
               <div className="border-t border-slate-100 pt-4 flex justify-end">
                 <Button type="submit" variant="primary">
-                  Save Platform Constants
+                  Save Platform Configuration
                 </Button>
               </div>
             </form>

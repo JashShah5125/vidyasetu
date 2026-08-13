@@ -20,6 +20,14 @@ export const BillingRevenue: React.FC = () => {
     { id: 'INV-2026-004', tenantName: 'Zenith Career Hub', amount: 45000, tax: 8100, date: '2026-06-10', dueDate: '2026-07-10', status: 'Overdue' }
   ];
 
+  const outstandingAmount = invoices
+    .filter(inv => inv.status === 'Unpaid' || inv.status === 'Overdue')
+    .reduce((sum, inv) => sum + inv.amount + inv.tax, 0);
+
+  const outstandingCount = invoices
+    .filter(inv => inv.status === 'Unpaid' || inv.status === 'Overdue')
+    .length;
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterTenant, setFilterTenant] = useState('All');
@@ -64,8 +72,8 @@ export const BillingRevenue: React.FC = () => {
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Outstanding Payments</span>
-          <span className="text-2xl font-extrabold text-amber-600 block mt-1">₹3,45,000</span>
-          <span className="text-xs text-amber-500 font-semibold block mt-1">2 invoices pending follow-up</span>
+          <span className="text-2xl font-extrabold text-amber-600 block mt-1">₹{outstandingAmount.toLocaleString()}</span>
+          <span className="text-xs text-amber-500 font-semibold block mt-1">{outstandingCount} invoices pending follow-up</span>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Failed Payments (30d)</span>
