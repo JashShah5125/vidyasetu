@@ -6,6 +6,7 @@ import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { ArrowLeft } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
+import { useLocation } from 'react-router-dom';
 
 interface AttendanceProps {
   initialTab?: 'sheet' | 'timetable';
@@ -16,15 +17,18 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   const [subTab, setSubTab] = useState<'sheet' | 'timetable'>(initialTab);
   const [savedType, setSavedType] = useState<'student' | 'staff' | null>(null);
   
+  const location = useLocation();
+  const navState = location.state as { branch?: string; course?: string; batch?: string; date?: string } | null;
+
   // Attendance Category Tab
   const [attendanceType, setAttendanceType] = useState<'students' | 'staff'>('students');
 
   // Filters
-  const [branch, setBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West');
-  const [course, setCourse] = useState('JEE Prep Course');
-  const [batch, setBatch] = useState('JEE-Morning-A1');
+  const [branch, setBranch] = useState(navState?.branch || (currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West'));
+  const [course, setCourse] = useState(navState?.course || 'JEE Prep Course');
+  const [batch, setBatch] = useState(navState?.batch || 'JEE-Morning-A1');
   const [staffFilterRole, setStaffFilterRole] = useState('All');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(navState?.date || new Date().toISOString().split('T')[0]);
 
   // Selected person for history view
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);

@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Table } from '../ui/Table';
 import { Modal } from '../ui/Modal';
+import { useLocation } from 'react-router-dom';
 import { 
   Calendar as CalendarIcon, MapPin, Search, CheckCircle, 
   XCircle, Clock as ClockIcon, ChevronLeft, ChevronRight, AlertCircle, FileText 
@@ -21,8 +22,16 @@ export const TeacherAttendance: React.FC = () => {
   const { currentUser, batches, branches, courses, students, addToast } = useApp();
   const { lectures } = useScheduler();
   
+  const location = useLocation();
+  const navState = location.state as { activeLecture?: Lecture } | null;
+
   // Date Navigation State
-  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [currentDate, setCurrentDate] = useState<Date>(() => {
+    if (navState?.activeLecture?.date) {
+      return new Date(navState.activeLecture.date);
+    }
+    return new Date();
+  });
   const currentDateStr = currentDate.toISOString().split('T')[0];
   const todayStr = new Date().toISOString().split('T')[0];
   const isFutureDate = currentDateStr > todayStr;
@@ -31,7 +40,9 @@ export const TeacherAttendance: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'lectures' | 'history' | 'summary' | 'low_attendance'>('lectures');
   
   // Register State
-  const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
+  const [activeLecture, setActiveLecture] = useState<Lecture | null>(() => {
+    return navState?.activeLecture || null;
+  });
   const [attendanceState, setAttendanceState] = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [registerSearch, setRegisterSearch] = useState('');

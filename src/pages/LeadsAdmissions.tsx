@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -58,6 +58,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const { plans, customBundles, subjectsData } = useFeeConfig();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -248,6 +249,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setModalTab('profile');
     setShowLeadDetail(true);
   };
+
+  useEffect(() => {
+    if (location.state?.activeLeadId) {
+      const targetLead = leads.find(l => l.id === location.state.activeLeadId);
+      if (targetLead) {
+        handleOpenLeadDetail(targetLead);
+      }
+    }
+  }, [location.state?.activeLeadId, leads]);
 
   const handleAddInteractionField = () => {
     setNewInteractions([...newInteractions, { type: 'Call', status: fStatus, remarks: '', date: new Date().toISOString().split('T')[0], nextDate: '' }]);
