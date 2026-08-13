@@ -389,16 +389,13 @@ export const ClassroomSetup: React.FC = () => {
             </div>
           </div>
 
-          {currentUser?.role !== 'branch-admin' ? (
-            <Select
-              label="Branch"
-              value={filterBranch}
-              onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
-              options={branchFilterOptions}
-            />
-          ) : (
-            <div className="hidden md:block"></div>
-          )}
+          <Select
+            label="Branch"
+            value={filterBranch}
+            onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
+            options={branchFilterOptions}
+            disabled={currentUser?.role === 'branch-admin'}
+          />
 
           <Select
             label="Type"
