@@ -433,7 +433,7 @@ export const InstAdminDashboard: React.FC = () => {
         </div>
         
         <select 
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[140px] cursor-pointer"
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[180px] flex-1 cursor-pointer"
           value={filters.branch}
           onChange={(e) => setFilters({ ...filters, branch: e.target.value })}
           disabled={currentUser?.role === 'branch-admin'}
@@ -451,7 +451,7 @@ export const InstAdminDashboard: React.FC = () => {
         </select>
 
         <select 
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[140px] cursor-pointer"
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[180px] flex-1 cursor-pointer"
           value={filters.course}
           onChange={(e) => setFilters({ ...filters, course: e.target.value })}
         >
@@ -462,7 +462,7 @@ export const InstAdminDashboard: React.FC = () => {
         </select>
 
         <select 
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[140px] cursor-pointer"
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[180px] flex-1 cursor-pointer"
           value={filters.program}
           onChange={(e) => setFilters({ ...filters, program: e.target.value })}
         >
@@ -473,7 +473,7 @@ export const InstAdminDashboard: React.FC = () => {
         </select>
 
         <select 
-          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[140px] cursor-pointer"
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-blue-500 min-w-[180px] flex-1 cursor-pointer"
           value={filters.level}
           onChange={(e) => setFilters({ ...filters, level: e.target.value })}
         >
