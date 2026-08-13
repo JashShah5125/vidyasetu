@@ -844,19 +844,21 @@ export const SubscriptionPlans: React.FC = () => {
                       ) : (
                         <>
                           <span className="text-4xl font-extrabold text-slate-900">
-                            {currencySymbol}{p.price.toLocaleString()}
+                            {currencySymbol}
+                            {p.billingType === 'Yearly'
+                              ? Math.round(p.price / 12).toLocaleString()
+                              : p.price.toLocaleString()
+                            }
                           </span>
-                          <span className="text-slate-400 text-sm font-medium mb-1">{billingLabel}</span>
+                          <span className="text-slate-400 text-sm font-medium mb-1">/mo</span>
                         </>
                       )}
                     </div>
                     {!isFree && (
                       <span className="text-xs text-slate-400 font-semibold italic mt-0.5">
                         {p.billingType === 'Yearly' 
-                          ? `${currencySymbol}${Math.round(p.price / 12).toLocaleString()}/month` 
-                          : p.billingType === 'Monthly'
-                            ? `${currencySymbol}${(p.price * 12).toLocaleString()}/year`
-                            : ''
+                          ? `${currencySymbol}${p.price.toLocaleString()}/year` 
+                          : `${currencySymbol}${(p.price * 12).toLocaleString()}/year`
                         }
                       </span>
                     )}
