@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { Modal } from '../../components/ui/Modal';
+import { Trash2 } from 'lucide-react';
 
 export const SystemConfiguration: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'general' | 'smtp' | 'sms' | 'payments' | 'branding' | 'security' | 'permissions'>('general');
@@ -43,7 +45,7 @@ export const SystemConfiguration: React.FC = () => {
   const [passwordMinLength, setPasswordMinLength] = useState('8');
 
   // RBAC State
-  const [selectedRole, setSelectedRole] = useState<'institute_admin' | 'branch_admin' | 'teacher' | 'counsellor' | 'finance'>('institute_admin');
+  const [selectedRole, setSelectedRole] = useState<string>('institute_admin');
   const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
     institute_admin: {
       'View Dashboard': true, 'Export Dashboard Data': true,
@@ -105,6 +107,66 @@ export const SystemConfiguration: React.FC = () => {
     }));
   };
 
+  const handleCreateRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoleName.trim()) return;
+
+    const newId = newRoleName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (rolesList.find(r => r.id === newId)) {
+      alert("A role with this name already exists.");
+      return;
+    }
+
+    const newRole = {
+      id: newId,
+      label: newRoleName.trim(),
+      desc: newRoleDesc.trim() || 'Custom user role definition'
+    };
+
+    setRolesList(prev => [...prev, newRole]);
+    setRolePermissions(prev => ({
+      ...prev,
+      [newId]: {
+        'View Dashboard': true, 'Export Dashboard Data': false,
+        'View Programs': false, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
+        'View Sessions': false, 'Create Sessions': false, 'Edit Sessions': false, 'Delete Sessions': false, 'Approve Sessions': false, 'Edit Session Links': false,
+        'View Batches': false, 'Create Batches': false, 'Edit Batches': false, 'Delete Batches': false,
+        'View Enrollments': false, 'Create Enrollments': false, 'Edit Enrollments': false, 'Approve Enrollments': false,
+        'View Certificates': false, 'Generate Certificates': false, 'Issue Certificates': false
+      }
+    }));
+    setSelectedRole(newId);
+    setNewRoleName('');
+    setNewRoleDesc('');
+    setShowAddRoleModal(false);
+  };
+
+  const isSystemRole = (id: string) => ['institute_admin', 'branch_admin', 'teacher', 'counsellor', 'finance'].includes(id);
+
+  const [roleToDelete, setRoleToDelete] = useState<string | null>(null);
+
+  const handleDeleteRole = (roleId: string) => {
+    setRoleToDelete(roleId);
+  };
+
+  const performDeleteRole = (roleId: string) => {
+    const roleObj = rolesList.find(r => r.id === roleId);
+    const roleLabel = roleObj ? roleObj.label : 'Role';
+    
+    setRolesList(prev => prev.filter(r => r.id !== roleId));
+    setRolePermissions(prev => {
+      const next = { ...prev };
+      delete next[roleId];
+      return next;
+    });
+    if (selectedRole === roleId) {
+      setSelectedRole('institute_admin');
+    }
+    setRoleToDelete(null);
+    setToast(`"${roleLabel}" role definition deleted successfully.`);
+    setTimeout(() => setToast(''), 4000);
+  };
+
   const tabs = [
     { id: 'general', label: 'General Parameters' },
     { id: 'smtp', label: 'SMTP & Email' },
@@ -115,13 +177,17 @@ export const SystemConfiguration: React.FC = () => {
     { id: 'permissions', label: 'Roles & Permissions' }
   ] as const;
 
-  const rolesList = [
+  const [rolesList, setRolesList] = useState([
     { id: 'institute_admin', label: 'Institute Admin', desc: 'Institute-level administration and setups' },
     { id: 'branch_admin', label: 'Branch Admin', desc: 'Branch operations and registrations' },
     { id: 'teacher', label: 'Teacher', desc: 'Schedules and doubt clearance' },
     { id: 'counsellor', label: 'Counsellor', desc: 'Lead pipeline and enquiry logs' },
     { id: 'finance', label: 'Finance', desc: 'Fee ledger and invoice records' }
-  ] as const;
+  ]);
+
+  const [showAddRoleModal, setShowAddRoleModal] = useState(false);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newRoleDesc, setNewRoleDesc] = useState('');
 
   const modulesData = [
     {
@@ -323,19 +389,41 @@ export const SystemConfiguration: React.FC = () => {
           <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm h-fit">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 mb-4">User Roles Definition</h3>
             {rolesList.map((role) => (
-              <button
-                key={role.id}
-                onClick={() => setSelectedRole(role.id)}
-                className={`w-full text-left p-3.5 rounded-lg border text-sm transition-all cursor-pointer block ${
-                  selectedRole === role.id
-                    ? 'border-blue-600 bg-blue-50/50 text-blue-800 font-semibold shadow-sm'
-                    : 'border-slate-100 hover:border-slate-250 bg-slate-50/30 text-slate-700'
-                }`}
-              >
-                <div className="font-semibold text-xs text-slate-900">{role.label}</div>
-                <div className="text-[10px] text-slate-500 mt-1">{role.desc}</div>
-              </button>
+              <div key={role.id} className="relative group w-full">
+                <button
+                  onClick={() => setSelectedRole(role.id)}
+                  className={`w-full text-left p-3.5 pr-10 rounded-lg border text-sm transition-all cursor-pointer block ${
+                    selectedRole === role.id
+                      ? 'border-blue-600 bg-blue-50/50 text-blue-800 font-semibold shadow-sm'
+                      : 'border-slate-100 hover:border-slate-250 bg-slate-50/30 text-slate-700'
+                  }`}
+                >
+                  <div className="font-semibold text-xs text-slate-900">{role.label}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">{role.desc}</div>
+                </button>
+                
+                {!isSystemRole(role.id) && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteRole(role.id);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    title="Delete Role"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
             ))}
+            <Button 
+              variant="secondary" 
+              className="w-full justify-center flex items-center gap-1.5 mt-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700" 
+              onClick={() => setShowAddRoleModal(true)}
+            >
+              <span>+ Add New Role</span>
+            </Button>
           </div>
 
           {/* Right panel: Permissions Checkbox Cards */}
@@ -427,6 +515,70 @@ export const SystemConfiguration: React.FC = () => {
           </div>
 
         </div>
+      )}
+
+      {showAddRoleModal && (
+        <Modal
+          isOpen={showAddRoleModal}
+          onClose={() => setShowAddRoleModal(false)}
+          title="Add New Role Definition"
+          size="md"
+        >
+          <form onSubmit={handleCreateRole} className="space-y-4">
+            <Input
+              label="Role Name"
+              placeholder="e.g. Center Manager, Supervisor"
+              required
+              value={newRoleName}
+              onChange={(e) => setNewRoleName(e.target.value)}
+            />
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Role Description
+              </label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 min-h-[100px] resize-none"
+                placeholder="Describe this role's scope and access level..."
+                value={newRoleDesc}
+                onChange={(e) => setNewRoleDesc(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setShowAddRoleModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary">
+                Create Role
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {roleToDelete && (
+        <Modal
+          isOpen={!!roleToDelete}
+          onClose={() => setRoleToDelete(null)}
+          title="Confirm Deletion"
+          size="sm"
+          footer={
+            <div className="flex gap-2 justify-end w-full">
+              <Button variant="secondary" onClick={() => setRoleToDelete(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={() => performDeleteRole(roleToDelete)}
+              >
+                Delete Role
+              </Button>
+            </div>
+          }
+        >
+          <div className="text-sm text-slate-605">
+            Are you sure you want to delete this role definition? This action cannot be undone.
+          </div>
+        </Modal>
       )}
     </div>
   );
