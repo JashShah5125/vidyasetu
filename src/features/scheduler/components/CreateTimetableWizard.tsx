@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import courseHierarchy from '../../../data/courseHierarchy.json';
 import { useApp } from '../../../context/AppContext';
 import { Modal } from '../../../components/ui/Modal';
 import { Select } from '../../../components/ui/Select';
@@ -56,10 +57,23 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
     });
   }, [batches, branchId, branches]);
 
-  const uniqueCourses = useMemo(() => Array.from(new Set(availableBatches.map(b => b.course).filter(Boolean))), [availableBatches]);
-  const availablePrograms = useMemo(() => Array.from(new Set(availableBatches.filter(b => b.course === courseId).map(b => b.program).filter(Boolean))), [availableBatches, courseId]);
-  const availableLevels = useMemo(() => Array.from(new Set(availableBatches.filter(b => b.course === courseId && b.program === programId).map(b => b.level).filter(Boolean))), [availableBatches, courseId, programId]);
-  const availableBatchNames = useMemo(() => availableBatches.filter(b => b.course === courseId && b.program === programId && b.level === levelId).map(b => b.name), [availableBatches, courseId, programId, levelId]);
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
+  const availablePrograms = useMemo(() => {
+    const course = courseHierarchy.find(c => c.courseName === courseId);
+    return course ? course.programs.map(p => p.programName) : [];
+  }, [courseId]);
+  const availableLevels = useMemo(() => {
+    const course = courseHierarchy.find(c => c.courseName === courseId);
+    const program = course?.programs.find(p => p.programName === programId);
+    return program ? program.levels : [];
+  }, [courseId, programId]);
+  const availableBatchNames = useMemo(() => {
+    const course = courseHierarchy.find(c => c.courseName === courseId);
+    const program = course?.programs.find(p => p.programName === programId);
+    const level = program?.levels.find(l => l.levelId === levelId);
+    if (!level) return [];
+    return level.batches.filter(batchName => availableBatches.some(b => b.name === batchName));
+  }, [courseId, programId, levelId, availableBatches]);
 
   // Check if default timetable exists for selected batch
   const defaultExists = useMemo(() => {
@@ -124,7 +138,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
             <Select label="Branch" value={branchId} onChange={(e) => { setBranchId(e.target.value); setCourseId(''); setProgramId(''); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...branches.map(b=>({value:b.code,label:b.name}))]} />
             <Select label="Course" value={courseId} onChange={(e) => { setCourseId(e.target.value); setProgramId(''); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...uniqueCourses.map(c=>({value:c as string,label:c as string}))]} disabled={!branchId} />
             <Select label="Program" value={programId} onChange={(e) => { setProgramId(e.target.value); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...availablePrograms.map(p=>({value:p as string,label:p as string}))]} disabled={!courseId} />
-            <Select label="Level" value={levelId} onChange={(e) => { setLevelId(e.target.value); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...availableLevels.map(l=>({value:l as string,label:l as string}))]} disabled={!programId} />
+            <Select label="Level" value={levelId} onChange={(e) => { setLevelId(e.target.value); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...availableLevels.map(l=>({value:l.levelId,label:l.levelName}))]} disabled={!programId} />
             <Select label="Batch" value={batchId} onChange={(e) => setBatchId(e.target.value)} options={[{value:'',label:'Select...'}, ...availableBatchNames.map(b=>({value:b as string,label:b as string}))]} disabled={!levelId} />
           </div>
         )}

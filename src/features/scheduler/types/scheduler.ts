@@ -13,15 +13,15 @@ export interface Room {
 
 export interface Lecture {
   id: string;
-  
+
   branchId: string;
   academicYearId: string;
-  
+
   courseId?: string;
   programId?: string;
   levelId?: string;
   batchId: string;
-  
+
   activityType?: 'Lecture' | 'Break';
   subjectId?: string;
   teacherId?: string;
@@ -30,7 +30,7 @@ export interface Lecture {
   date: string;       // YYYY-MM-DD
   startTime: string;  // HH:MM
   endTime: string;    // HH:MM
-  
+
   lectureType?: LectureType;
 
   publishStatus: PublishStatus;
@@ -38,6 +38,7 @@ export interface Lecture {
 
   isOverride?: boolean; // True if this lecture overrides a default timetable slot
   defaultTimetableId?: string; // ID of the default timetable pattern this came from
+  dayOfWeek?: number; // 0 = Sunday, 1 = Monday, etc. (used for default template lectures)
 
   createdAt: string;
   updatedAt: string;

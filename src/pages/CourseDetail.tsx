@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
@@ -10,91 +10,7 @@ import {
   ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle, ShieldAlert
 } from 'lucide-react';
 
-// ─── Data Shape ───────────────────────────────────────────────────────────────
-
-interface AcademicLevel {
-  id: string;
-  name: string; // e.g. "Class XI", "Year 1"
-  duration?: string;
-}
-
-interface Program {
-  id: string;
-  name: string; // e.g. "2 Year", "1 Year Crash Course"
-  code: string;
-  enabled: boolean;
-  levels: AcademicLevel[];
-}
-
-interface CourseData {
-  name: string;
-  code: string;
-  duration: string;
-  enabled: boolean;
-  programs: Program[];
-}
-
-// ─── Mock Seed Data ────────────────────────────────────────────────────────────
-
-const SEED_DATA: Record<string, CourseData> = {
-  'JEE-PREP': {
-    name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', enabled: true,
-    programs: [
-      {
-        id: 'p1', name: '2 Year', code: 'PRG-001', enabled: true,
-        levels: [
-          { id: 'l1', name: 'Class XI' },
-          { id: 'l2', name: 'Class XII' },
-        ]
-      },
-      {
-        id: 'p2', name: '1 Year', code: 'PRG-002', enabled: true,
-        levels: [
-          { id: 'l3', name: 'Class XII (Dropper)' }
-        ]
-      },
-      { id: 'p3', name: 'Crash Course', code: 'PRG-003', enabled: false, levels: [] },
-    ]
-  },
-  'NEET-PREM': {
-    name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', enabled: true,
-    programs: [
-      {
-        id: 'p4', name: '1 Year', code: 'PRG-004', enabled: true,
-        levels: [
-          { id: 'l4', name: 'Class XII' }
-        ]
-      },
-      { id: 'p5', name: 'Repeater', code: 'PRG-005', enabled: true, levels: [{ id: 'l5', name: 'Repeater Batch' }] },
-    ]
-  },
-  'FOUND-10': {
-    name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', enabled: true,
-    programs: [
-      {
-        id: 'p6', name: '2 Year', code: 'PRG-006', enabled: true,
-        levels: [
-          { id: 'l6', name: 'Class VIII' },
-          { id: 'l7', name: 'Class IX' },
-        ]
-      },
-      { id: 'p7', name: '1 Year', code: 'PRG-007', enabled: false, levels: [] },
-    ]
-  },
-  '8TH-STD': {
-    name: '8th Standard', code: '8TH-STD', duration: '1 Year', enabled: true,
-    programs: [
-      {
-        id: 'p8', name: '8th std ICSE', code: 'PRG-008', enabled: true,
-        levels: [{ id: 'l8', name: 'Class VIII' }]
-      },
-      {
-        id: 'p9', name: '8th std CBSE', code: 'PRG-009', enabled: true,
-        levels: [{ id: 'l9', name: 'Class VIII' }]
-      }
-    ]
-  }
-};
+import type { AcademicLevel, Program, Course } from '../data/mockData';
 
 const newLevel = (): AcademicLevel => ({ id: `l-${Date.now()}`, name: '' });
 const newProgram = (): Program => ({ id: `p-${Date.now()}`, name: '', code: '', enabled: true, levels: [] });
@@ -224,7 +140,7 @@ const ProgramCard: React.FC<{
 export const CourseDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { courses, addToast, currentUser } = useApp();
+  const { courses, updateCourse, addCourse, addToast, currentUser } = useApp();
 
   const isNew = code === 'new';
   const isReadOnly = currentUser?.role === 'branch-admin';
@@ -236,26 +152,48 @@ export const CourseDetail: React.FC = () => {
     }
   }, [currentUser, isNew, navigate, addToast]);
 
-  const seedKey = code && SEED_DATA[code] ? code : null;
+  const existingCourse = useMemo(() => courses.find(c => c.code === code), [courses, code]);
 
   const [activeTab, setActiveTab] = useState<'general' | 'programs'>('general');
 
-  const [formData, setFormData] = useState<CourseData>(
-    seedKey
-      ? JSON.parse(JSON.stringify(SEED_DATA[seedKey]))
-      : { name: '', code: '', duration: '', enabled: true, programs: [] }
-  );
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    duration: '',
+    enabled: true,
+    programs: [] as Program[]
+  });
 
   React.useEffect(() => {
-    if (seedKey && SEED_DATA[seedKey]) {
-      setFormData(JSON.parse(JSON.stringify(SEED_DATA[seedKey])));
+    if (existingCourse) {
+      setFormData({
+        name: existingCourse.name,
+        code: existingCourse.code,
+        duration: existingCourse.duration || '',
+        enabled: existingCourse.status === 'Active',
+        programs: existingCourse.programDetails || []
+      });
     } else {
       setFormData({ name: '', code: code === 'new' ? '' : (code || ''), duration: '', enabled: true, programs: [] });
     }
-  }, [code, seedKey]);
+  }, [existingCourse, code]);
 
   const handleSave = () => {
-    addToast(`Course "${formData.name}" saved successfully.`);
+    const courseObj: Partial<Course> = {
+      name: formData.name,
+      code: formData.code,
+      duration: formData.duration,
+      status: formData.enabled ? 'Active' : 'Inactive',
+      programDetails: formData.programs
+    };
+
+    if (isNew) {
+      addCourse(courseObj as Course);
+      addToast(`Course "${formData.name}" created successfully.`);
+    } else {
+      updateCourse(formData.code, courseObj);
+      addToast(`Course "${formData.name}" updated successfully.`);
+    }
     navigate('/courses');
   };
 

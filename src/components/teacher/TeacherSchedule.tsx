@@ -5,7 +5,7 @@ import { Card } from '../ui/Card';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { 
+import {
   Calendar as CalendarIcon, MapPin, Clock, ArrowLeft, ArrowRight,
   BookOpen, AlertCircle, FileText, CheckCircle, ChevronLeft, ChevronRight
 } from 'lucide-react';
@@ -22,10 +22,10 @@ export const TeacherSchedule: React.FC = () => {
   // View State
   const [activeTab, setActiveTab] = useState<'today' | 'week' | 'upcoming' | 'events' | 'changes'>('today');
   const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null);
-  
+
   // Date Navigation State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  
+
   // Filter States
   const [filterYear, setFilterYear] = useState('All');
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
@@ -41,7 +41,7 @@ export const TeacherSchedule: React.FC = () => {
   const uniqueCourses = courses.map(c => c.name);
   const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
-  
+
   // Teacher's specific batches
   const dropdownBatches = batches.filter(b => {
     if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
@@ -68,11 +68,11 @@ export const TeacherSchedule: React.FC = () => {
 
   const handleNextDay = () => setCurrentDate(new Date(currentDate.getTime() + 86400000));
   const handlePrevDay = () => setCurrentDate(new Date(currentDate.getTime() - 86400000));
-  
+
   const getWeekStart = (date: Date) => {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
   };
   const weekStart = getWeekStart(currentDate);
@@ -113,31 +113,31 @@ export const TeacherSchedule: React.FC = () => {
           Schedule Context
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-          <Select 
+          <Select
             label="Academic Year" value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
             options={[{ value: 'All', label: 'All Years' }, ...uniqueYears.map(y => ({ value: y, label: y }))]}
           />
-          <Select 
+          <Select
             label="Branch" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}
             options={[{ value: 'All', label: 'All Branches' }, ...uniqueBranches.map(b => ({ value: b, label: b }))]}
           />
-          <Select 
+          <Select
             label="Course" value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)}
             options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
           />
-          <Select 
+          <Select
             label="Program" value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)}
             options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
           />
-          <Select 
+          <Select
             label="Level" value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}
             options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
           />
-          <Select 
+          <Select
             label="My Batches" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}
             options={[{ value: 'All', label: 'All My Batches' }, ...dropdownBatches.map(b => ({ value: b.name, label: b.name }))]}
           />
-          <Select 
+          <Select
             label="My Subjects" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}
             options={[{ value: 'All', label: 'All My Subjects' }, ...uniqueSubjects.map(s => ({ value: s, label: s }))]}
           />
@@ -154,14 +154,13 @@ export const TeacherSchedule: React.FC = () => {
             { id: 'events', label: 'Academic Events' },
             { id: 'changes', label: 'Changes' }
           ].map(tab => (
-            <button 
+            <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-none px-6 py-4 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
-                activeTab === tab.id 
-                ? 'border-blue-600 text-blue-700 bg-white' 
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
-              }`}
+              className={`flex-none px-6 py-4 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${activeTab === tab.id
+                  ? 'border-blue-600 text-blue-700 bg-white'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+                }`}
             >
               {tab.label}
             </button>
@@ -180,14 +179,13 @@ export const TeacherSchedule: React.FC = () => {
                       <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subjectId}</div>
                       <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.lectureType}</div>
                       <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
-                        <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.roomId}</span>
-                        {lecture.status === 'SCHEDULED' && <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><CheckCircle size={12}/> Attendance Pending</span>}
+                        <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12} /> {lecture.roomId}</span>
+                        {lecture.status === 'SCHEDULED' && <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><CheckCircle size={12} /> Attendance Pending</span>}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 w-full sm:w-auto">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${
-                        lecture.status === 'SCHEDULED' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-600 border-slate-200'
-                      }`}>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${lecture.status === 'SCHEDULED' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
                         {lecture.status}
                       </span>
                       <Button variant="primary" size="sm" className="w-full" onClick={(e) => { e.stopPropagation(); navigate('/attendance'); }}>
@@ -234,7 +232,7 @@ export const TeacherSchedule: React.FC = () => {
                           <div key={lecture.id} onClick={() => setSelectedLecture(lecture)} className="p-4 bg-white border border-slate-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-blue-300 transition-colors cursor-pointer">
                             <div>
                               <div className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                                <Clock size={14} className="text-slate-400"/> {lecture.startTime} – {lecture.endTime}
+                                <Clock size={14} className="text-slate-400" /> {lecture.startTime} – {lecture.endTime}
                               </div>
                               <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subjectId}</div>
                               <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.roomId}</div>
@@ -262,8 +260,8 @@ export const TeacherSchedule: React.FC = () => {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={() => setCurrentDate(new Date(currentDate.getTime() - 7 * 86400000))} className="p-2"><ChevronLeft size={16}/></Button>
-                  <Button variant="secondary" onClick={() => setCurrentDate(new Date(currentDate.getTime() + 7 * 86400000))} className="p-2"><ChevronRight size={16}/></Button>
+                  <Button variant="secondary" onClick={() => setCurrentDate(new Date(currentDate.getTime() - 7 * 86400000))} className="p-2"><ChevronLeft size={16} /></Button>
+                  <Button variant="secondary" onClick={() => setCurrentDate(new Date(currentDate.getTime() + 7 * 86400000))} className="p-2"><ChevronRight size={16} /></Button>
                   <Button variant="secondary" onClick={() => setCurrentDate(new Date())} className="text-xs">Current Week</Button>
                 </div>
                 <div className="text-sm font-bold text-slate-800">
@@ -324,7 +322,7 @@ export const TeacherSchedule: React.FC = () => {
                               <div className="text-xs font-bold text-slate-800">{lecture.startTime} - {lecture.endTime}</div>
                               <div className="text-xs font-semibold text-blue-700 mt-1 truncate">{lecture.subjectId}</div>
                               <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">{lecture.batchId}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1"><MapPin size={10}/> {lecture.roomId}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1"><MapPin size={10} /> {lecture.roomId}</div>
                             </div>
                           )) : (
                             <div className="h-full w-full flex items-center justify-center pt-8 text-[10px] text-slate-300 font-bold uppercase">
@@ -359,9 +357,9 @@ export const TeacherSchedule: React.FC = () => {
                         <div className="text-sm font-semibold text-slate-600 mt-1">{ev.batch}</div>
                       </div>
                       <div className="flex flex-col gap-1 text-sm text-slate-600 min-w-[200px]">
-                        <span className="flex items-center gap-2"><CalendarIcon size={14}/> {ev.date}</span>
-                        <span className="flex items-center gap-2"><Clock size={14}/> {ev.time}</span>
-                        <span className="flex items-center gap-2"><MapPin size={14}/> {ev.location}</span>
+                        <span className="flex items-center gap-2"><CalendarIcon size={14} /> {ev.date}</span>
+                        <span className="flex items-center gap-2"><Clock size={14} /> {ev.time}</span>
+                        <span className="flex items-center gap-2"><MapPin size={14} /> {ev.location}</span>
                       </div>
                     </div>
                   ))
@@ -382,11 +380,10 @@ export const TeacherSchedule: React.FC = () => {
                 INITIAL_SCHEDULE_CHANGES.filter(c => activeBatches.includes(c.batchId)).map(change => (
                   <div key={change.id} className="p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl flex flex-col gap-3 transition-colors cursor-pointer">
                     <div className="flex justify-between items-start">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${
-                        change.type === 'ROOM_CHANGE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
-                        change.type === 'CANCELLED' ? 'bg-red-50 text-red-600 border-red-100' : 
-                        'bg-amber-50 text-amber-600 border-amber-100'
-                      }`}>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${change.type === 'ROOM_CHANGE' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                          change.type === 'CANCELLED' ? 'bg-red-50 text-red-600 border-red-100' :
+                            'bg-amber-50 text-amber-600 border-amber-100'
+                        }`}>
                         {change.type.replace('_', ' ')}
                       </span>
                       <span className={`text-xs font-bold ${change.status === 'Upcoming' ? 'text-emerald-600' : 'text-slate-400'}`}>
@@ -396,9 +393,9 @@ export const TeacherSchedule: React.FC = () => {
                     <div>
                       <div className="font-semibold text-slate-700">{change.subject}</div>
                       <div className="text-xs text-slate-500 mt-0.5">{change.batchId}</div>
-                      
+
                       <div className="text-xs font-semibold text-slate-500 mt-2">{change.dateTime}</div>
-                      
+
                       <div className="mt-3 flex items-center gap-3 text-sm font-semibold bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
                         <span className="text-slate-600 line-through decoration-slate-400">{change.previousValue}</span>
                         {change.newValue && (
@@ -430,12 +427,12 @@ export const TeacherSchedule: React.FC = () => {
               <div className="text-xl font-bold text-slate-900">{selectedLecture.subjectId}</div>
               <div className="text-sm text-slate-500 mt-1">Type: {selectedLecture.lectureType || 'Not specified'}</div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="text-xs font-bold text-slate-400 uppercase">Date & Time</div>
                 <div className="text-sm font-semibold text-slate-800 mt-1">
-                  {new Date(selectedLecture.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}<br/>
+                  {new Date(selectedLecture.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}<br />
                   {selectedLecture.startTime} - {selectedLecture.endTime}
                 </div>
               </div>

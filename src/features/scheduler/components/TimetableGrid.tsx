@@ -2,6 +2,37 @@ import React, { useMemo } from 'react';
 import { Repeat, Plus } from 'lucide-react';
 import type { Lecture } from '../types/scheduler';
 import { timeToMinutes } from '../utils/schedulerUtils';
+import teachersList from '../../../data/teachers.json';
+import classroomsList from '../../../data/classrooms.json';
+
+const parseLocalDate = (dateStr: string): Date => {
+  if (dateStr.includes('T')) {
+    dateStr = dateStr.split('T')[0];
+  }
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts.map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateStr);
+};
+
+const formatLocalDate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const getTeacherName = (id: string) => {
+  const teacher = teachersList.find(t => t.id === id);
+  return teacher ? teacher.name : id;
+};
+
+const getRoomName = (id: string) => {
+  const room = classroomsList.find(r => r.id === id);
+  return room ? room.name : id;
+};
 
 interface TimetableGridProps {
   lectures: Lecture[];
@@ -28,6 +59,16 @@ const getLectureColor = (type?: string, isOverride?: boolean) => {
 export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode, onEditLecture, isDefaultMode, selectedWeekStart, readOnly = false }) => {
 
   if (viewMode === 'list') {
+    let filteredLectures = lectures;
+    if (!isDefaultMode && selectedWeekStart) {
+      const start = parseLocalDate(selectedWeekStart);
+      const end = parseLocalDate(selectedWeekStart);
+      end.setDate(end.getDate() + 6);
+      const startStr = formatLocalDate(start);
+      const endStr = formatLocalDate(end);
+      filteredLectures = lectures.filter(l => l.date >= startStr && l.date <= endStr);
+    }
+
     return (
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse bg-white">
@@ -42,15 +83,15 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {lectures.length === 0 ? (
+            {filteredLectures.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-slate-500">No lectures found for the selected filters.</td>
               </tr>
             ) : (
-              lectures.sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map(l => (
+              filteredLectures.sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)).map(l => (
                 <tr key={l.id} className="hover:bg-blue-50/50 cursor-pointer transition-colors" onClick={() => onEditLecture(l)}>
                   <td className="p-3">
-                    <div className="font-medium text-slate-900">{new Date(l.date).toLocaleDateString()}</div>
+                    <div className="font-medium text-slate-900">{parseLocalDate(l.date).toLocaleDateString()}</div>
                     <div className="text-xs text-slate-500">{l.startTime} - {l.endTime}</div>
                   </td>
                   <td className="p-3 font-medium text-slate-800">{l.batchId}</td>
@@ -58,8 +99,8 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                     <div className="font-medium text-blue-700">{l.subjectId}</div>
                     <div className="text-xs text-slate-500">{l.lectureType}</div>
                   </td>
-                  <td className="p-3 text-slate-700">{l.teacherId}</td>
-                  <td className="p-3 text-slate-600">{l.roomId || 'Unassigned'}</td>
+                  <td className="p-3 text-slate-700">{getTeacherName(l.teacherId)}</td>
+                  <td className="p-3 text-slate-600">{getRoomName(l.roomId) || 'Unassigned'}</td>
                   <td className="p-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                       l.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
@@ -94,12 +135,22 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
         <div className="flex bg-slate-50 min-h-[600px] overflow-x-auto">
           {DAYS.map((day, dayIndex) => {
             // Find lectures for this day
-            const dayLectures = lectures.filter(l => {
+             const dayLectures = lectures.filter(l => {
               if (l.status === 'CANCELLED') return false;
-              const d = new Date(l.date);
-              const jsDay = d.getDay();
-              const mapDay = jsDay === 0 ? 'Sunday' : DAYS[jsDay - 1];
-              return mapDay === day;
+              
+              if (isDefaultMode) {
+                const jsDay = l.date === '0000-00-00'
+                  ? (l.dayOfWeek !== undefined ? l.dayOfWeek : 1)
+                  : parseLocalDate(l.date).getDay();
+                const mapDay = jsDay === 0 ? 'Sunday' : DAYS[jsDay - 1];
+                return mapDay === day;
+              } else {
+                if (!selectedWeekStart) return false;
+                const targetDate = parseLocalDate(selectedWeekStart);
+                targetDate.setDate(targetDate.getDate() + dayIndex);
+                const targetStr = formatLocalDate(targetDate);
+                return l.date === targetStr;
+              }
             }).sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 
             return (
@@ -109,7 +160,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                   {!isDefaultMode && selectedWeekStart && (
                     <span className="text-xs text-slate-500 font-medium mt-0.5">
                       {(() => {
-                        const d = new Date(selectedWeekStart);
+                        const d = parseLocalDate(selectedWeekStart);
                         d.setDate(d.getDate() + dayIndex);
                         return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                       })()}
@@ -139,8 +190,13 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                       >
                         <div className="text-xs font-bold text-slate-700 opacity-70 mb-1">{lecture.startTime} - {lecture.endTime}</div>
                         <div className="font-bold text-slate-800 text-sm">{lecture.subjectId}</div>
-                        <div className="text-slate-600 text-xs mt-1">{lecture.teacherId}</div>
-                        <div className="text-slate-500 text-[11px] mt-1">{lecture.roomId || 'Room TBA'}</div>
+                        <div className="text-slate-600 text-xs mt-1">{getTeacherName(lecture.teacherId)}</div>
+                        <div className="text-slate-500 text-[11px] mt-1">{getRoomName(lecture.roomId) || 'Room TBA'}</div>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 bg-white/70 px-1.5 py-0.5 rounded border border-slate-200/60">
+                            {lecture.lectureType || 'Regular'}
+                          </span>
+                        </div>
                         {lecture.isOverride && (
                           <div className="absolute top-2 right-2 text-orange-500" title="Substitution">
                             <Repeat className="w-3.5 h-3.5" />
@@ -151,22 +207,19 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                   })}
 
                   {!readOnly && (
-                    <button 
+                    <button
                       onClick={() => {
-                        let targetDate = selectedWeekStart;
-                        if (!isDefaultMode && selectedWeekStart) {
-                          const d = new Date(selectedWeekStart);
-                          d.setDate(d.getDate() + dayIndex);
-                          targetDate = d.toISOString().split('T')[0];
-                        } else if (isDefaultMode) {
-                          // In default mode, we just need ANY date that falls on this day of the week.
-                          // Let's use a known Monday (e.g. 2024-01-01) and add dayIndex.
-                          const d = new Date('2024-01-01T12:00:00Z');
-                          d.setDate(d.getDate() + dayIndex);
-                          targetDate = d.toISOString().split('T')[0];
-                        }
-                        
-                        onEditLecture({ date: targetDate || new Date().toISOString() } as Lecture);
+                         if (isDefaultMode) {
+                           onEditLecture({ date: '0000-00-00', dayOfWeek: dayIndex + 1 } as Lecture);
+                         } else {
+                           let targetDate = selectedWeekStart;
+                           if (selectedWeekStart) {
+                             const d = parseLocalDate(selectedWeekStart);
+                             d.setDate(d.getDate() + dayIndex);
+                             targetDate = formatLocalDate(d);
+                           }
+                           onEditLecture({ date: targetDate || formatLocalDate(new Date()) } as Lecture);
+                         }
                       }}
                       className="w-full py-3 mt-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 text-sm font-semibold"
                     >
@@ -184,8 +237,9 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
 
   // Day View
   if (viewMode === 'day') {
-    const today = selectedWeekStart ? new Date(selectedWeekStart) : new Date();
-    const dayLectures = lectures.filter(l => l.date === today.toISOString().split('T')[0] && l.status !== 'CANCELLED')
+    const today = selectedWeekStart ? parseLocalDate(selectedWeekStart) : new Date();
+    const todayStr = formatLocalDate(today);
+    const dayLectures = lectures.filter(l => l.date === todayStr && l.status !== 'CANCELLED')
                                 .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
                                 
     return (
@@ -205,7 +259,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                 ) : (
                   <>
                     <div className="font-bold text-slate-800">{lecture.subjectId}</div>
-                    <div className="text-sm text-slate-600 mt-1">{lecture.teacherId} • {lecture.roomId || 'Room TBA'}</div>
+                    <div className="text-sm text-slate-600 mt-1">{getTeacherName(lecture.teacherId)} • {getRoomName(lecture.roomId) || 'Room TBA'}</div>
                   </>
                 )}
               </div>

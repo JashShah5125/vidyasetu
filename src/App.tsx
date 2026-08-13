@@ -64,19 +64,19 @@ const GlobalProvidersPlaceholder = () => (
     <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-3">Global Infrastructure Providers</h3>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
       <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">SMS Gateway API</span> 
+        <span className="text-slate-400 font-semibold uppercase text-[10px]">SMS Gateway API</span>
         <strong className="text-slate-700">Twilio SMS (Active)</strong>
       </div>
       <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">WhatsApp Provider</span> 
+        <span className="text-slate-400 font-semibold uppercase text-[10px]">WhatsApp Provider</span>
         <strong className="text-slate-700">Meta Business API (Active)</strong>
       </div>
       <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">SMTP Email Client</span> 
+        <span className="text-slate-400 font-semibold uppercase text-[10px]">SMTP Email Client</span>
         <strong className="text-slate-700">Amazon SES (Active)</strong>
       </div>
       <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">Payment Gateway</span> 
+        <span className="text-slate-400 font-semibold uppercase text-[10px]">Payment Gateway</span>
         <strong className="text-slate-700">Razorpay (Active)</strong>
       </div>
     </div>
@@ -147,8 +147,8 @@ const AuditLogsPlaceholder = () => {
           </thead>
           <tbody className="text-sm text-slate-600 divide-y divide-slate-100">
             {paginatedLogs.map((log, idx) => (
-              <tr 
-                key={idx} 
+              <tr
+                key={idx}
                 onClick={() => setSelectedLog(log)}
                 className="hover:bg-slate-50 cursor-pointer transition-colors"
               >
@@ -172,9 +172,9 @@ const AuditLogsPlaceholder = () => {
       </div>
 
       {selectedLog && (
-        <Modal 
-          isOpen={true} 
-          onClose={() => setSelectedLog(null)} 
+        <Modal
+          isOpen={true}
+          onClose={() => setSelectedLog(null)}
           title="Audit Log Entry Details"
         >
           <div className="space-y-4">
@@ -233,7 +233,7 @@ const AuditLogsPlaceholder = () => {
 const DoubtChatsPlaceholder = () => {
   const appContext = useApp();
   const { doubts } = appContext;
-  const sendDoubtReply = ((appContext as any).sendDoubtReply as ((id: string, text: string) => void) | undefined) ?? (() => {});
+  const sendDoubtReply = ((appContext as any).sendDoubtReply as ((id: string, text: string) => void) | undefined) ?? (() => { });
   const [chatInput, setChatInput] = useState('');
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
@@ -251,19 +251,19 @@ const DoubtChatsPlaceholder = () => {
               </div>
             ))}
           </div>
-          <form 
+          <form
             onSubmit={(e) => {
               e.preventDefault();
               if (chatInput) {
                 sendDoubtReply(d.id, chatInput);
                 setChatInput('');
               }
-            }} 
+            }}
             className="flex gap-2"
           >
-            <input 
-              type="text" 
-              placeholder="Type chemical mechanism explanation..." 
+            <input
+              type="text"
+              placeholder="Type chemical mechanism explanation..."
               className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-500"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -589,3 +589,4 @@ export default function App() {
     </AppProvider>
   );
 }
+
