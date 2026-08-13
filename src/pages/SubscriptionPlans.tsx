@@ -853,9 +853,9 @@ export const SubscriptionPlans: React.FC = () => {
                     {!isFree && (
                       <span className="text-xs text-slate-400 font-semibold italic mt-0.5">
                         {p.billingType === 'Yearly' 
-                          ? `(Equivalent to ${currencySymbol}${Math.round(p.price / 12).toLocaleString()}/month)` 
+                          ? `${currencySymbol}${Math.round(p.price / 12).toLocaleString()}/month` 
                           : p.billingType === 'Monthly'
-                            ? `(Equivalent to ${currencySymbol}${(p.price * 12).toLocaleString()}/year)`
+                            ? `${currencySymbol}${(p.price * 12).toLocaleString()}/year`
                             : ''
                         }
                       </span>
