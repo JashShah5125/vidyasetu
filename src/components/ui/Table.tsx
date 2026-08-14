@@ -4,9 +4,12 @@ interface TableProps {
   headers: string[];
   children: React.ReactNode;
   className?: string;
+  dense?: boolean;
 }
 
-export const Table: React.FC<TableProps> = ({ headers, children, className = '' }) => {
+export const Table: React.FC<TableProps> = ({ headers, children, className = '', dense = false }) => {
+  const paddingClass = dense ? 'px-3 py-3' : 'px-6 py-3.5';
+
   return (
     <div className={`w-full overflow-x-auto ${className}`}>
       <div className="inline-block min-w-full align-middle">
@@ -17,7 +20,9 @@ export const Table: React.FC<TableProps> = ({ headers, children, className = '' 
                 {headers.map((h, i) => (
                   <th
                     key={i}
-                    className="px-6 py-3.5 text-xs font-bold text-slate-500 uppercase tracking-wider select-none whitespace-nowrap"
+                    className={`${paddingClass} text-xs font-bold text-slate-500 uppercase tracking-wider select-none whitespace-nowrap ${
+                      h.toLowerCase() === 'academic year' ? 'text-center' : 'text-left'
+                    }`}
                   >
                     {h}
                   </th>
