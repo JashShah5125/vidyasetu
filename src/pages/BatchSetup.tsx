@@ -417,29 +417,29 @@ export const BatchSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={['Batch Name', 'Course', 'Program', 'Level', 'Academic Year', 'Timing', 'Room', 'Actions']}>
+            <Table dense headers={['Batch Name', 'Course', 'Program', 'Level', 'Academic Year', 'Timing', 'Room', 'Actions']}>
               {paginated.map((batch, idx) => (
                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-slate-800">{batch.name}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 font-semibold text-slate-800">{batch.name}</td>
+                  <td className="px-3 py-3">
                     <span className="flex items-center gap-1.5 text-sm text-slate-600">
                       <BookOpen size={13} className="text-purple-400 shrink-0" /> {batch.course}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{batch.program || '—'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-3 py-3 text-sm text-slate-600">{batch.program || '—'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap">
                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-semibold border border-slate-200">
                       {formatLevelLabel(batch.level || '')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-600 whitespace-nowrap">{batch.academicYear || '—'}</td>
-                  <td className="px-6 py-4">
-                    <span className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <td className="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap text-center">{batch.academicYear || '—'}</td>
+                  <td className="px-3 py-3">
+                    <span className="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
                       <Clock size={13} className="text-blue-400 shrink-0" /> {batch.timing}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{batch.room}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3 text-sm text-slate-600">{batch.room}</td>
+                  <td className="px-3 py-3">
                     <div className="flex items-center gap-3">
                       <button onClick={() => handleOpenEdit(idx)} className="text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors">Edit</button>
                       <button onClick={() => handleDelete(idx)} className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors">Delete</button>

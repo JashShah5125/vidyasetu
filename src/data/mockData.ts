@@ -593,7 +593,18 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
 
 export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   { id: 'AL-901', timestamp: '2026-07-21 10:15:23', actor: 'SaaS Platform Owner', role: 'SaaS Super Admin', action: 'CREATE_TENANT', details: 'Created tenant: Apex IIT Academy (VS-001)', ipAddress: '192.168.1.45', institute: 'Vidya Setu Platform' },
-  { id: 'AL-902', timestamp: '2026-07-21 11:30:12', actor: 'Dr. Ramesh Kumar', role: 'Institute Admin', action: 'UPDATE_FEES', details: 'Configured NEET Fee Plan structure', ipAddress: '192.168.1.88', institute: 'Apex IIT Academy' }
+  { id: 'AL-902', timestamp: '2026-07-21 11:30:12', actor: 'Dr. Ramesh Kumar', role: 'Institute Admin', action: 'UPDATE_FEES', details: 'Configured NEET Fee Plan structure', ipAddress: '192.168.1.88', institute: 'Apex IIT Academy' },
+  { id: 'AL-903', timestamp: '2026-08-12 09:30:15', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 10000 via Cash from student Rohan Deshmukh', ipAddress: '192.168.1.90', institute: 'Apex IIT Academy' },
+  { id: 'AL-904', timestamp: '2026-08-12 10:15:44', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 15000 via UPI from student Sameer Mehta', ipAddress: '192.168.1.90', institute: 'Apex IIT Academy' },
+  { id: 'AL-905', timestamp: '2026-08-12 11:45:23', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 12000 via Card from student Aditya Sharma', ipAddress: '192.168.1.91', institute: 'Apex IIT Academy' },
+  { id: 'AL-906', timestamp: '2026-08-12 14:20:10', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 20000 via Bank Transfer from student Sneha Patil', ipAddress: '192.168.1.91', institute: 'Apex IIT Academy' },
+  { id: 'AL-907', timestamp: '2026-08-12 16:35:50', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 10000 via UPI from student Kunal Sen', ipAddress: '192.168.1.92', institute: 'Apex IIT Academy' },
+  { id: 'AL-908', timestamp: '2026-08-13 09:15:30', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 15000 via Cash from student Priya Nair', ipAddress: '192.168.1.92', institute: 'Apex IIT Academy' },
+  { id: 'AL-909', timestamp: '2026-08-13 10:30:12', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 8000 via UPI from student Rohan Deshmukh', ipAddress: '192.168.1.90', institute: 'Apex IIT Academy' },
+  { id: 'AL-910', timestamp: '2026-08-13 11:20:45', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 12000 via Card from student Sameer Mehta', ipAddress: '192.168.1.90', institute: 'Apex IIT Academy' },
+  { id: 'AL-911', timestamp: '2026-08-13 13:40:18', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 10000 via Cash from student Aditya Sharma', ipAddress: '192.168.1.91', institute: 'Apex IIT Academy' },
+  { id: 'AL-912', timestamp: '2026-08-13 15:10:05', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 15000 via UPI from student Sneha Patil', ipAddress: '192.168.1.91', institute: 'Apex IIT Academy' },
+  { id: 'AL-913', timestamp: '2026-08-13 16:50:40', actor: 'Branch Administrator', role: 'Branch Admin', action: 'RECORD_PAYMENT', details: 'Collected fee Rs. 9000 via UPI from student Kunal Sen', ipAddress: '192.168.1.92', institute: 'Apex IIT Academy' }
 ];
 
 export const formatDate = (dateStr: string | undefined): string => {
@@ -976,6 +987,11 @@ export const INITIAL_SUBJECTS_MAP: Record<string, any[]> = {
     { id: 'f1', name: 'Advanced Math', code: 'MAT-F9', type: 'Core', fee: 30000 },
     { id: 'f2', name: 'Science Foundations', code: 'SCI-F9', type: 'Core', fee: 30000 },
     { id: 'f3', name: 'Mental Ability', code: 'MAT-NTSE', type: 'Core', fee: 20000 }
+  ],
+  // Foundation (1 Year - Year 1)
+  'FOUND-10-1 Year-year1': [
+    { id: 'f1', name: 'Advanced Math', code: 'MAT-F9', type: 'Core', fee: 30000 },
+    { id: 'f2', name: 'Science Foundations', code: 'SCI-F9', type: 'Core', fee: 30000 }
   ]
 };
 
@@ -1053,9 +1069,9 @@ export interface ExamItem {
 export const INITIAL_EXAMS: ExamItem[] = [
   { id: 'EX-201', name: 'Periodic Chemistry Evaluation Test #3', type: 'Unit Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: '2026-08-05', startTime: '10:00 AM', duration: '90 mins', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 35 } },
   { id: 'EX-202', name: 'Physics Mechanics Weekly Quiz #2', type: 'Weekly Test', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-08', startTime: '04:00 PM', duration: '60 mins', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2604': 38, 'STU-MUM-2605': 18 } },
-  { id: 'EX-203', name: 'Mathematics Mock Test 1', type: 'Mock Test', subject: 'Mathematics', batch: 'JEE-Morning-A1', examDate: '2026-08-25', startTime: '09:00 AM', duration: '180 mins', totalMarks: 300, passingMarks: 100, average: '', status: 'Scheduled' },
-  { id: 'EX-204', name: 'Draft: Organic Chem Review', type: 'Chapter Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: 'Not Set', totalMarks: 50, passingMarks: 20, average: '', status: 'Draft' },
-  { id: 'EX-205', name: 'Thermodynamics Assessment', type: 'Internal Assessment', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-10', startTime: '05:00 PM', duration: '45 mins', totalMarks: 40, passingMarks: 15, average: '', status: 'Cancelled' }
+  { id: 'EX-203', name: 'Mathematics Mock Test 1', type: 'Mock Test', subject: 'Mathematics', batch: 'JEE-Morning-A1', examDate: '2026-08-25', startTime: '09:00 AM', duration: '180 mins', totalMarks: 300, passingMarks: 100, average: '81.4%', status: 'Scheduled' },
+  { id: 'EX-204', name: 'Draft: Organic Chem Review', type: 'Chapter Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: 'Not Set', totalMarks: 50, passingMarks: 20, average: 'TBD', status: 'Draft' },
+  { id: 'EX-205', name: 'Thermodynamics Assessment', type: 'Internal Assessment', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-10', startTime: '05:00 PM', duration: '45 mins', totalMarks: 40, passingMarks: 15, average: 'TBD', status: 'Cancelled' }
 ];
 
 export interface FeePlan {

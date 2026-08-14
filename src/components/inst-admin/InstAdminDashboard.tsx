@@ -351,6 +351,7 @@ export const InstAdminDashboard: React.FC = () => {
   // Exams matched with course filters
   const filteredExams = useMemo(() => {
     return exams.filter(e => {
+      if (e.status === 'Draft') return false;
       const batchInfo = batches.find(b => b.name === e.batch);
       if (!batchInfo) return false;
       if (filters.branch !== 'all' && batchInfo.branch !== filters.branch) return false;
@@ -539,7 +540,7 @@ export const InstAdminDashboard: React.FC = () => {
                 <TrendingUp size={16} className="text-blue-500" />
                 Lead Conversion Funnel
               </h3>
-              <span className="text-xs text-slate-400 font-semibold uppercase">{filteredLeads.length} Total Leads</span>
+              <span className="text-xs text-slate-400 font-semibold uppercase">{filteredLeads.length} {filteredLeads.length === 1 ? 'Total Lead' : 'Total Leads'}</span>
             </div>
             
             <div className="space-y-3.5 mt-4">
@@ -580,7 +581,7 @@ export const InstAdminDashboard: React.FC = () => {
                 <div key={source.name} className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
                     <span>{source.name}</span>
-                    <span className="text-slate-400 font-normal">{source.count} leads ({source.percentage}%)</span>
+                    <span className="text-slate-400 font-normal">{source.count} {source.count === 1 ? 'lead' : 'leads'} ({source.percentage}%)</span>
                   </div>
                   <div className="w-full bg-slate-50 h-2 rounded-full overflow-hidden border border-slate-100">
                     <div 
@@ -698,7 +699,7 @@ export const InstAdminDashboard: React.FC = () => {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs font-bold text-rose-600">{formatCurrency(student.feePlan.pending)}</p>
-                    <p className="text-[9px] text-slate-400 font-medium">pending of {formatCurrency(student.feePlan.total)}</p>
+                    <p className="text-[9px] text-slate-400 font-medium">out of {formatCurrency(student.feePlan.total)} total</p>
                   </div>
                 </div>
               ))}
@@ -877,7 +878,7 @@ export const InstAdminDashboard: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
                     <span>Total Marks: {exam.totalMarks} · Passing: {exam.passingMarks}</span>
-                    <span className="text-blue-600 font-bold">Class Avg: {exam.average}</span>
+                    <span className="text-blue-600 font-bold">Class Avg: {exam.average || 'TBD'}</span>
                   </div>
                 </div>
               ))}
@@ -998,7 +999,7 @@ export const InstAdminDashboard: React.FC = () => {
               </div>
               <div>
                 <span className="font-bold text-slate-400 block uppercase">Class Average</span>
-                <span className="font-bold text-blue-600 mt-0.5 block">{selectedExam.average}</span>
+                <span className="font-bold text-blue-600 mt-0.5 block">{selectedExam.average || 'TBD'}</span>
               </div>
               <div>
                 <span className="font-bold text-slate-400 block uppercase">Status</span>

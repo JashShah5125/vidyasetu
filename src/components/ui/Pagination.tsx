@@ -21,6 +21,15 @@ export const Pagination: React.FC<PaginationProps> = ({
   pageSizeOptions = [10, 25, 50],
 }) => {
   const [gotoInput, setGotoInput] = React.useState('');
+
+  React.useEffect(() => {
+    if (gotoInput) {
+      const num = Number(gotoInput);
+      if (!isNaN(num) && (num > totalPages || num < 1)) {
+        setGotoInput(totalPages > 0 ? '1' : '');
+      }
+    }
+  }, [totalPages, gotoInput]);
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
@@ -127,7 +136,17 @@ export const Pagination: React.FC<PaginationProps> = ({
             min={1}
             max={totalPages}
             value={gotoInput}
-            onChange={e => setGotoInput(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              if (val === '') {
+                setGotoInput('');
+                return;
+              }
+              const num = Number(val);
+              if (!isNaN(num) && num <= totalPages && num >= 1) {
+                setGotoInput(val);
+              }
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 const page = Number(gotoInput);
@@ -137,8 +156,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                 }
               }
             }}
-            placeholder="Enter page"
-            className="w-20 border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 text-center"
+            className="w-24 border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 text-center"
           />
           <button
             type="button"
