@@ -389,6 +389,10 @@ export const InstAdminDashboard: React.FC = () => {
       // Details explicitly mention branch
       if (l.details && l.details.includes(filters.branch)) return true;
 
+      // Global system logs (e.g. course masters created, admin logins, etc.)
+      const isGlobal = l.role === 'inst-admin' || l.role === 'saas-admin' || l.role === 'System' || !l.role;
+      if (isGlobal) return true;
+
       return false;
     });
   }, [auditLogs, filteredStudents, staff, filters.branch, currentUser]);
