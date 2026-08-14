@@ -192,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Finance Hub',
             links: [
-              { name: 'Fees Master', label: 'Fees Config', path: '/fees-master', icon: DollarSign },
+              { name: 'Fees Master', label: 'Fees Master', path: '/fees-master', icon: DollarSign },
               { name: 'Record Fee', label: 'Fee Transactions', path: '/fees', icon: DollarSign },
               { name: 'Defaulters Ledger', label: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle }
             ]

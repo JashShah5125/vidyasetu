@@ -120,7 +120,7 @@ export const ExpenseVoucher: React.FC = () => {
               label="Branch"
               value={currentUser?.branch || 'Mumbai West'}
               disabled
-              className="bg-slate-100 border-slate-200 cursor-not-allowed font-semibold text-slate-500"
+              className="bg-slate-100 border-slate-200 cursor-default font-semibold text-slate-500"
             />
 
             <Select

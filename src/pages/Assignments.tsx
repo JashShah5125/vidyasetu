@@ -32,7 +32,11 @@ export const Assignments: React.FC = () => {
   const uniqueBranches = currentUser?.role === 'branch-admin'
     ? [currentUser.branch || '']
     : branches.map(b => b.name);
-  const uniqueCourses = courses.map(c => c.name);
+  const uniqueCourses = (
+    currentUser?.role === 'branch-admin'
+      ? courses.filter(c => (c.branches || []).includes(currentUser.branch || ''))
+      : courses
+  ).map(c => c.name);
   const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
   const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
