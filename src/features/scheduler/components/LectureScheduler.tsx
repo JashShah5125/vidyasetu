@@ -4,7 +4,7 @@ import { useApp } from '../../../context/AppContext';
 import { useScheduler } from '../context/SchedulerContext';
 import { Select } from '../../../components/ui/Select';
 import { Button } from '../../../components/ui/Button';
-import { Plus, Edit, ChevronLeft, ChevronRight, Calendar, User, MapPin, Copy, Sparkles, MessageSquare } from 'lucide-react';
+import { Plus, Edit, ChevronLeft, ChevronRight, Calendar, User, MapPin, Copy, Sparkles, MessageSquare, BookmarkCheck } from 'lucide-react';
 import courseHierarchy from '../../../data/courseHierarchy.json';
 import teachersList from '../../../data/teachers.json';
 import { TimetableGrid } from './TimetableGrid';
@@ -12,6 +12,7 @@ import { LectureFormModal } from './LectureFormModal';
 import { CreateTimetableWizard } from './CreateTimetableWizard';
 import { ReplicateWeekModal } from './ReplicateWeekModal';
 import { TeacherRequestsTab } from './TeacherRequestsTab';
+import { DefaultTimetableTab } from './DefaultTimetableTab';
 import type { CreateTimetableContext } from './CreateTimetableWizard';
 import type { Lecture } from '../types/scheduler';
 import type { ScheduleChange } from '../../../data/mockData';
@@ -70,7 +71,7 @@ export const LectureScheduler = () => {
   };
 
   // Tabs State
-  const [activeTab, setActiveTab] = useState<'batch' | 'teacher' | 'room' | 'requests'>('batch');
+  const [activeTab, setActiveTab] = useState<'batch' | 'teacher' | 'room' | 'requests' | 'default'>('batch');
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [selectedRoom, setSelectedRoom] = useState<string>('');
 
@@ -397,6 +398,10 @@ export const LectureScheduler = () => {
                   </span>
                 )}
               </button>
+              <button onClick={() => setActiveTab('default')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'default' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}>
+                <BookmarkCheck className="w-4 h-4" />
+                <span>Default Timetable</span>
+              </button>
             </div>
 
             {/* TAB 1: BATCH WEEKLY */}
@@ -543,6 +548,19 @@ export const LectureScheduler = () => {
                 onSolveRequest={handleSolveRequest}
                 currentBatch={batch}
                 currentBranch={branch}
+              />
+            )}
+
+            {/* TAB 5: DEFAULT TIMETABLE */}
+            {activeTab === 'default' && (
+              <DefaultTimetableTab
+                currentBatch={batch}
+                currentBranch={branch}
+                course={course}
+                program={program}
+                level={level}
+                availableBatches={availableBatchNames}
+                onSelectBatch={(b) => updateFilter('batch', b)}
               />
             )}
 
