@@ -63,11 +63,6 @@ export const CourseSetup: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
-      {currentUser?.role === 'branch-admin' && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
-          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify course setup.
-        </div>
-      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -78,15 +73,13 @@ export const CourseSetup: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
-          {currentUser?.role !== 'branch-admin' && (
-            <Button
-              variant="primary"
-              onClick={() => navigate('/courses/new')}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              <Plus size={16} className="mr-2" /> Add New Course
-            </Button>
-          )}
+          <Button
+            variant="primary"
+            onClick={() => navigate('/courses/new')}
+            style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+          >
+            <Plus size={16} className="mr-2" /> Add New Course
+          </Button>
         </div>
       </div>
 
@@ -131,7 +124,7 @@ export const CourseSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={['Course', 'Code', 'Programs', 'Branches', 'Actions']}>
+            <Table headers={currentUser?.role === 'branch-admin' ? ['Course', 'Code', 'Programs', 'Actions'] : ['Course', 'Code', 'Programs', 'Branches', 'Actions']}>
               {paginated.map(course => (
                 <tr key={course.code} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
@@ -150,22 +143,25 @@ export const CourseSetup: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {(course.branches || []).map((b, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">
-                          {b}
-                        </span>
-                      ))}
-                      {(!course.branches || course.branches.length === 0) && (
-                        <span className="text-xs text-slate-400 italic">Global (All)</span>
-                      )}
-                    </div>
-                  </td>
+                  {currentUser?.role !== 'branch-admin' && (
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {(course.branches || [])
+                          .filter(b => filterBranch === 'All' || b === filterBranch)
+                          .map((b, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">
+                              {b}
+                            </span>
+                          ))}
+                        {(!course.branches || course.branches.length === 0) && (
+                          <span className="text-xs text-slate-400 italic">Global (All)</span>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4">
                     <button
                       onClick={() => {
-                        if (currentUser?.role === 'branch-admin') return;
                         navigate(`/courses/${course.code}`);
                       }}
                       className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
