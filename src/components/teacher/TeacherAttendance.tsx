@@ -12,23 +12,48 @@ import {
 } from 'lucide-react';
 import { 
   TEACHER_ASSIGNED_BATCHES, 
-  INITIAL_ATTENDANCE_HISTORY
+  INITIAL_ATTENDANCE_HISTORY 
 } from '../../data/mockData';
 import type { AttendanceSubmission } from '../../data/mockData';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
 import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
+import teachersList from '../../data/teachers.json';
+import classroomsList from '../../data/classrooms.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
+
+const getTeacherName = (id?: string) => {
+  if (!id) return '';
+  const teacher = teachersList.find(t => t.id === id || t.name === id);
+  return teacher ? teacher.name : id;
+};
+
+const getRoomName = (id?: string) => {
+  if (!id) return '';
+  const room = classroomsList.find(r => r.id === id || r.name === id);
+  return room ? room.name : id;
+};
 
 export const TeacherAttendance: React.FC = () => {
   const { currentUser, batches, branches, courses, students, addToast } = useApp();
   const { lectures } = useScheduler();
   
   const location = useLocation();
-  const navState = location.state as { activeLecture?: Lecture } | null;
+  const navState = location.state as { activeLecture?: Lecture; branch?: string; course?: string; batch?: string; date?: string } | null;
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
 
   // Date Navigation State
   const [currentDate, setCurrentDate] = useState<Date>(() => {
-    if (navState?.activeLecture?.date) {
-      return new Date(navState.activeLecture.date);
+    if (navState?.date || navState?.activeLecture?.date) {
+      const dStr = navState.date || navState.activeLecture?.date;
+      return new Date(dStr!);
     }
     return new Date();
   });
@@ -53,33 +78,52 @@ export const TeacherAttendance: React.FC = () => {
   
   // Context Filter States
   const [filterYear, setFilterYear] = useState('All');
-  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
-  const [filterCourse, setFilterCourse] = useState('All');
-  const [filterBatch, setFilterBatch] = useState('All');
+  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : (navState?.branch || 'All'));
+  const [filterCourse, setFilterCourse] = useState(navState?.course || 'All');
+  const [filterBatch, setFilterBatch] = useState(navState?.batch || 'All');
   const [filterSubject, setFilterSubject] = useState('All');
 
   // Derived Filters
-  const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
-  const uniqueBranches = currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name);
-  const uniqueCourses = courses.map(c => c.name);
+  const uniqueYears = useMemo(() => Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[], [batches]);
+  const uniqueBranches = useMemo(() => currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name), [currentUser, branches]);
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
   
-  const dropdownBatches = batches.filter(b => {
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
-    const batchBranch = b.branch || 'Mumbai West';
-    return (filterBranch === 'All' || batchBranch === filterBranch) &&
-           (filterCourse === 'All' || b.course === filterCourse) &&
-           (filterYear === 'All' || b.academicYear === filterYear);
-  });
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
+
+  const dropdownBatches = useMemo(() => {
+    return batches.filter(b => {
+      if (teacherAssignedBatches.length > 0 && !teacherAssignedBatches.includes(b.name)) return false;
+      const batchBranch = b.branch || 'Mumbai West';
+      return (filterBranch === 'All' || batchBranch === filterBranch || (branches.find(br => br.code === filterBranch)?.name === batchBranch)) &&
+             (filterCourse === 'All' || b.course === filterCourse) &&
+             (filterYear === 'All' || b.academicYear === filterYear);
+    });
+  }, [batches, teacherAssignedBatches, filterBranch, filterCourse, filterYear, branches]);
   
-  const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
-  const uniqueSubjects = Array.from(new Set(lectures.filter((l: Lecture) => activeBatches.includes(l.batchId)).map((l: Lecture) => l.subjectId).filter(Boolean))) as string[];
+  const activeBatches = useMemo(() => filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch], [filterBatch, dropdownBatches]);
+  const uniqueSubjects = useMemo(() => {
+    const fromLectures = lectures.filter((l: Lecture) => activeBatches.includes(l.batchId)).map((l: Lecture) => l.subjectId);
+    const fromTeacher = currentTeacher?.subject ? [currentTeacher.subject] : [];
+    return Array.from(new Set([...fromLectures, ...fromTeacher].filter(Boolean))) as string[];
+  }, [lectures, activeBatches, currentTeacher]);
 
   // Filtered Lectures for current date
-  const todaysLectures = lectures.filter((l: Lecture) => 
-    l.date === currentDateStr && 
-    activeBatches.includes(l.batchId) &&
-    (filterSubject === 'All' || l.subjectId === filterSubject)
-  );
+  const todaysLectures = useMemo(() => {
+    return lectures.filter((l: Lecture) => {
+      if (l.status === 'CANCELLED') return false;
+      const isTeacherMatch = !currentTeacher || l.teacherId === currentTeacher.id || l.teacherId === currentTeacher.name || teacherAssignedBatches.includes(l.batchId);
+      if (!isTeacherMatch) return false;
+      const isDateMatch = l.date === currentDateStr;
+      const isBatchMatch = activeBatches.includes(l.batchId);
+      const isSubjectMatch = filterSubject === 'All' || l.subjectId === filterSubject;
+      return isDateMatch && isBatchMatch && isSubjectMatch;
+    });
+  }, [lectures, currentDateStr, currentTeacher, teacherAssignedBatches, activeBatches, filterSubject]);
 
   // Navigation handlers
   const handlePrevDay = () => setCurrentDate(new Date(currentDate.getTime() - 86400000));
@@ -377,7 +421,7 @@ export const TeacherAttendance: React.FC = () => {
                     <div className="text-xs text-slate-500 mt-0.5">{batchInfo?.course} • {batchInfo?.level}</div>
                   </td>
                   <td className="px-6 py-4 font-semibold text-slate-700">{lecture.subjectId}</td>
-                  <td className="px-6 py-4 text-slate-600">{lecture.roomId}</td>
+                  <td className="px-6 py-4 text-slate-600">{getRoomName(lecture.roomId) || 'Room TBA'}</td>
                   <td className="px-6 py-4 text-slate-600">{studentCount}</td>
                   <td className="px-6 py-4">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -8,19 +8,37 @@ import { Table } from '../ui/Table';
 import { Pagination } from '../ui/Pagination';
 import { Award, Search, FileSpreadsheet, CheckCircle2, ArrowLeft, Edit3 } from 'lucide-react';
 import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import teachersList from '../../data/teachers.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
 
 export const TeacherGrades: React.FC = () => {
   const { exams, students, batches, branches, courses, currentUser, addToast } = useApp();
   const [selectedExamName, setSelectedExamName] = useState<string | null>(null);
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
+
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
   
   // Extract unique filter options
-  const uniqueBranches = currentUser?.role === 'branch-admin'
+  const uniqueBranches = useMemo(() => currentUser?.role === 'branch-admin'
     ? [currentUser.branch || '']
-    : branches.map(b => b.name);
-  const uniqueCourses = courses.map(c => c.name);
-  const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
-  const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
-  const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
+    : branches.map(b => b.name), [currentUser, branches]);
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
+  const uniquePrograms = useMemo(() => Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[], [batches]);
+  const uniqueLevels = useMemo(() => Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[], [batches]);
+  const uniqueYears = useMemo(() => Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[], [batches]);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -35,7 +53,7 @@ export const TeacherGrades: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   
   // Filter exams to only those belonging to the teacher's assigned batches
-  const assignedExams = exams.filter(e => TEACHER_ASSIGNED_BATCHES.includes(e.batch));
+  const assignedExams = useMemo(() => exams.filter(e => teacherAssignedBatches.includes(e.batch)), [exams, teacherAssignedBatches]);
   
   const selectedExam = assignedExams.find(e => e.name === selectedExamName);
 
@@ -44,18 +62,18 @@ export const TeacherGrades: React.FC = () => {
   }, [selectedExam]);
 
   // Filter available batches for the dropdown
-  const dropdownBatches = batches.filter(b => {
+  const dropdownBatches = useMemo(() => batches.filter(b => {
     // We only want batches that the teacher is assigned to
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
+    if (!teacherAssignedBatches.includes(b.name)) return false;
 
     const batchBranch = b.branch || 'Mumbai West';
-    const matchBranch = filterBranch === 'All' || batchBranch === filterBranch;
+    const matchBranch = filterBranch === 'All' || batchBranch === filterBranch || (branches.find(br => br.code === filterBranch)?.name === batchBranch);
     const matchCourse = filterCourse === 'All' || b.course === filterCourse;
     const matchProgram = filterProgram === 'All' || b.program === filterProgram;
     const matchLevel = filterLevel === 'All' || b.level === filterLevel;
     const matchYear = filterYear === 'All' || b.academicYear === filterYear;
     return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
-  });
+  }), [batches, teacherAssignedBatches, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, branches]);
 
   // Keep batch list filter in sync
   useEffect(() => {

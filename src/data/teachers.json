@@ -1,0 +1,72 @@
+[
+  {
+    "id": "EMP-002",
+    "name": "Prof. Arvind Kelkar",
+    "subject": "Physics",
+    "batches": ["JEE-Morning-A1", "JEE-Morning-A2", "JEE-Evening-B1"]
+  },
+  {
+    "id": "T-001",
+    "name": "A. Singh",
+    "subject": "Physics",
+    "batches": ["JEE-Morning-A1", "NEET-Regular-M1", "NEET-Regular-M2"]
+  },
+  {
+    "id": "T-002",
+    "name": "R. Sharma",
+    "subject": "Mathematics",
+    "batches": ["JEE-Morning-A1", "JEE-Morning-A2", "JEE-Evening-B1"]
+  },
+  {
+    "id": "T-003",
+    "name": "P. Mehta",
+    "subject": "Chemistry",
+    "batches": ["JEE-Morning-A1", "JEE-Morning-A2", "NEET-Regular-M1", "NEET-Regular-M2"]
+  },
+  {
+    "id": "T-004",
+    "name": "D. Patel",
+    "subject": "Biology",
+    "batches": ["NEET-Regular-M1", "NEET-Regular-M2", "NEET-Repeater-X"]
+  },
+  {
+    "id": "T-005",
+    "name": "S. K. Gupta",
+    "subject": "Mathematics",
+    "batches": [
+      "FND-8-State", "FND-9-State", "FND-10-State",
+      "FND-8-CBSE", "FND-9-CBSE", "FND-10-CBSE",
+      "FND-8-ICSE", "FND-9-ICSE", "FND-10-ICSE"
+    ]
+  },
+  {
+    "id": "T-006",
+    "name": "V. K. Bansal",
+    "subject": "Science",
+    "batches": [
+      "FND-8-State", "FND-9-State", "FND-10-State",
+      "FND-8-CBSE", "FND-9-CBSE", "FND-10-CBSE",
+      "FND-8-ICSE", "FND-9-ICSE", "FND-10-ICSE"
+    ]
+  },
+  {
+    "id": "T-007",
+    "name": "S. Verma",
+    "subject": "English",
+    "batches": [
+      "FND-8-State", "FND-9-State", "FND-10-State",
+      "FND-8-CBSE", "FND-9-CBSE", "FND-10-CBSE",
+      "FND-8-ICSE", "FND-9-ICSE", "FND-10-ICSE"
+    ]
+  },
+  {
+    "id": "T-008",
+    "name": "V. Joshi",
+    "subject": "Social Studies",
+    "batches": [
+      "FND-8-State", "FND-9-State", "FND-10-State",
+      "FND-8-CBSE", "FND-9-CBSE", "FND-10-CBSE",
+      "FND-8-ICSE", "FND-9-ICSE", "FND-10-ICSE"
+    ]
+  }
+]

@@ -1,0 +1,147 @@
+[
+  {
+    "courseName": "JEE Prep Course",
+    "programs": [
+      {
+        "programName": "2 Year",
+        "levels": [
+          {
+            "levelId": "year1",
+            "levelName": "Class XI",
+            "batches": ["JEE-Morning-A1", "JEE-Morning-A2"],
+            "subjects": ["Mathematics", "Physics", "Chemistry"]
+          },
+          {
+            "levelId": "year2",
+            "levelName": "Class XII",
+            "batches": ["JEE-Evening-B1"],
+            "subjects": ["Mathematics", "Physics", "Chemistry"]
+          }
+        ]
+      },
+      {
+        "programName": "1 Year",
+        "levels": [
+          {
+            "levelId": "year1",
+            "levelName": "Class XII",
+            "batches": ["JEE-Weekend-Pro"],
+            "subjects": ["Mathematics", "Physics", "Chemistry"]
+          }
+        ]
+      },
+      {
+        "programName": "Crash Course",
+        "levels": [
+          {
+            "levelId": "year1",
+            "levelName": "Crash Course",
+            "batches": ["JEE-Crash-Dec"],
+            "subjects": ["Mathematics", "Physics", "Chemistry"]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseName": "NEET Batch Premium",
+    "programs": [
+      {
+        "programName": "1 Year",
+        "levels": [
+          {
+            "levelId": "year1",
+            "levelName": "Class XII",
+            "batches": ["NEET-Regular-M1", "NEET-Regular-M2"],
+            "subjects": ["Physics", "Chemistry", "Biology"]
+          }
+        ]
+      },
+      {
+        "programName": "Repeater",
+        "levels": [
+          {
+            "levelId": "year1",
+            "levelName": "Repeater Batch",
+            "batches": ["NEET-Repeater-X"],
+            "subjects": ["Physics", "Chemistry", "Biology"]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "courseName": "Foundation (8th to 10th)",
+    "programs": [
+      {
+        "programName": "8th to 10th State Board",
+        "levels": [
+          {
+            "levelId": "class8",
+            "levelName": "Class VIII",
+            "batches": ["FND-8-State"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          },
+          {
+            "levelId": "class9",
+            "levelName": "Class IX",
+            "batches": ["FND-9-State"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          },
+          {
+            "levelId": "class10",
+            "levelName": "Class X",
+            "batches": ["FND-10-State"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          }
+        ]
+      },
+      {
+        "programName": "8th to 10th CBSE",
+        "levels": [
+          {
+            "levelId": "class8",
+            "levelName": "Class VIII",
+            "batches": ["FND-8-CBSE"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          },
+          {
+            "levelId": "class9",
+            "levelName": "Class IX",
+            "batches": ["FND-9-CBSE"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          },
+          {
+            "levelId": "class10",
+            "levelName": "Class X",
+            "batches": ["FND-10-CBSE"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          }
+        ]
+      },
+      {
+        "programName": "8th to 10th ICSE",
+        "levels": [
+          {
+            "levelId": "class8",
+            "levelName": "Class VIII",
+            "batches": ["FND-8-ICSE"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          },
+          {
+            "levelId": "class9",
+            "levelName": "Class IX",
+            "batches": ["FND-9-ICSE"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          },
+          {
+            "levelId": "class10",
+            "levelName": "Class X",
+            "batches": ["FND-10-ICSE"],
+            "subjects": ["Mathematics", "Science", "English", "Social Studies"]
+          }
+        ]
+      }
+    ]
+  }
+]

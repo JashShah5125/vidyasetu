@@ -304,7 +304,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     label: string;
     badge?: number;
   }) => {
-    const isActive = path === '/leads' 
+    const isActive = path === '/leads'
       ? location.pathname === '/leads' || location.pathname === '/leads/pipeline'
       : path === '/fees'
         ? location.pathname === '/fees' || location.pathname.startsWith('/fees/')
@@ -395,11 +395,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         `}
       >
         {/* Brand header */}
-        <div 
+        <div
           onClick={isCollapsed ? onToggleCollapse : undefined}
-          className={`h-16 border-b border-slate-800 flex items-center flex-shrink-0 px-4 justify-between gap-3 ${
-            isCollapsed ? 'cursor-pointer hover:bg-slate-800/30' : ''
-          }`}
+          className={`h-16 border-b border-slate-800 flex items-center flex-shrink-0 px-4 justify-between gap-3 ${isCollapsed ? 'cursor-pointer hover:bg-slate-800/30' : ''
+            }`}
           title={isCollapsed ? 'Expand sidebar' : undefined}
         >
           <div className="flex items-center gap-3">
@@ -407,9 +406,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               <img src="/logo.png" alt="Logo" className="object-contain w-full h-full" />
             </div>
             <span
-              className={`font-display font-bold text-xl text-white tracking-tight whitespace-nowrap transition-opacity duration-300 ${
-                isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
-              }`}
+              className={`font-display font-bold text-xl text-white tracking-tight whitespace-nowrap transition-opacity duration-300 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                }`}
             >
               Vidya Setu
             </span>

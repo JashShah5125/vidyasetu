@@ -109,6 +109,7 @@ interface AppContextType {
   updateExamMarks: (studentId: string, testScore: string) => void;
   approveStudentRegistration: (studentId: string) => void;
   addCourse: (course: Course) => void;
+  updateCourse: (idOrCode: string, course: Partial<Course>) => void;
   addBatch: (batch: Batch) => void;
   addBranch: (branch: Branch) => void;
   addStaff: (staff: Staff) => void;
@@ -514,9 +515,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  const addCourse = (courseItem: Course) => {
-    setCourses(prev => [...prev, courseItem]);
-    logAction('ADD_COURSE', `Added Course Master: ${courseItem.name}`);
+  const addCourse = (course: Course) => {
+    const enriched = {
+      ...course,
+      id: course.id || `C-${Math.floor(100 + Math.random() * 900)}`,
+      programs: course.programDetails?.map(p => p.name) || course.programs || []
+    };
+    setCourses(prev => [...prev, enriched]);
+  };
+
+  const updateCourse = (idOrCode: string, updates: Partial<Course>) => {
+    setCourses(prev => prev.map(c => {
+      if (c.id === idOrCode || c.code === idOrCode) {
+        const merged = { ...c, ...updates };
+        // Sync backward-compatible programs array
+        if (updates.programDetails) {
+          merged.programs = updates.programDetails.map(p => p.name);
+        }
+        return merged;
+      }
+      return c;
+    }));
   };
 
   const addBatch = (batchItem: Batch) => {
@@ -726,6 +745,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateExamMarks,
       approveStudentRegistration,
       addCourse,
+      updateCourse,
       addBatch,
       addBranch,
       addStaff,

@@ -451,9 +451,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={courseOptions} />
-                <Select label="Program" value={fProgram} onChange={e => setFProgram(e.target.value)} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
-                <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[{ value: '', label: 'Select Level' }, { value: 'Beginner', label: 'Beginner' }, { value: 'Intermediate', label: 'Intermediate' }, { value: 'Advanced', label: 'Advanced' }]} />
+                <Select label="Interested Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); }} options={courseOptions} />
+                <Select label="Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); }} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
+                <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[{ value: '', label: 'Select Level' }, ...(courses.find(c => c.name === fCourse)?.programDetails?.find(p => p.name === fProgram)?.levels?.map(l => ({ value: l.name, label: l.name })) || [])]} />
                 <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
                   { value: 'Walk-in', label: 'Walk-in at Branch' },
                   { value: 'Phone Call', label: 'Phone Call' },
@@ -699,9 +699,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
               <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Interested Course" value={fCourse} onChange={e => setFCourse(e.target.value)} options={courseOptions} />
-                <Select label="Program" value={fProgram} onChange={e => setFProgram(e.target.value)} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
-                <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[{ value: '', label: 'Select Level' }, { value: 'Beginner', label: 'Beginner' }, { value: 'Intermediate', label: 'Intermediate' }, { value: 'Advanced', label: 'Advanced' }]} />
+                <Select label="Interested Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); }} options={courseOptions} />
+                <Select label="Program" value={fProgram} onChange={e => { setFProgram(e.target.value); setFLevel(''); }} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
+                <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[{ value: '', label: 'Select Level' }, ...(courses.find(c => c.name === fCourse)?.programDetails?.find(p => p.name === fProgram)?.levels?.map(l => ({ value: l.name, label: l.name })) || [])]} />
                 <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
                   { value: 'Walk-in', label: 'Walk-in at Branch' },
                   { value: 'Phone Call', label: 'Phone Call' },

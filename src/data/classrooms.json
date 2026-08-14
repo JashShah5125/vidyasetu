@@ -1,0 +1,56 @@
+[
+  {
+    "id": "R1",
+    "name": "Room 101",
+    "capacity": 40,
+    "type": "CLASSROOM"
+  },
+  {
+    "id": "R2",
+    "name": "Room 102",
+    "capacity": 30,
+    "type": "CLASSROOM"
+  },
+  {
+    "id": "R3",
+    "name": "Chem Lab",
+    "capacity": 20,
+    "type": "LAB"
+  },
+  {
+    "id": "R4",
+    "name": "Physics Lab",
+    "capacity": 25,
+    "type": "LAB"
+  },
+  {
+    "id": "R5",
+    "name": "Room 103",
+    "capacity": 35,
+    "type": "CLASSROOM"
+  },
+  {
+    "id": "R6",
+    "name": "Room 201",
+    "capacity": 50,
+    "type": "CLASSROOM"
+  },
+  {
+    "id": "R7",
+    "name": "Lab 1",
+    "capacity": 25,
+    "type": "LAB"
+  },
+  {
+    "id": "R8",
+    "name": "Lab 2",
+    "capacity": 25,
+    "type": "LAB"
+  },
+  {
+    "id": "R9",
+    "name": "Lab 3",
+    "capacity": 20,
+    "type": "LAB"
+  }
+]

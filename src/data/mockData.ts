@@ -1,6 +1,7 @@
 export type Role = 'saas-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance';
 
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   role: Role;
@@ -130,15 +131,32 @@ export interface AuditLog {
   institute?: string;
 }
 
+export interface AcademicLevel {
+  id: string;
+  name: string; // e.g. "Class XI", "Year 1"
+  duration?: string;
+}
+
+export interface Program {
+  id: string;
+  name: string; // e.g. "2 Year", "1 Year Crash Course"
+  code: string;
+  enabled: boolean;
+  levels: AcademicLevel[];
+}
+
 export interface Course {
   id?: string;
   name: string;
   code: string;
   fees?: number;
-  duration: string;
-  batches?: string;
-  programs: string[];
+  description?: string;
+  duration?: string;
   branches?: string[];
+  programs?: string[]; // Legacy array of strings for backward compatibility
+  programDetails?: Program[]; // New relational structure
+  batches?: string | string[];
+  status?: 'Active' | 'Inactive';
 }
 
 export interface Batch {
@@ -413,10 +431,48 @@ export const INITIAL_FEE_RECORDS: FeeRecord[] = [
 export const INITIAL_DOCUMENTS: Document[] = [];
 
 export const INITIAL_COURSES: Course[] = [
-  { name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', fees: 150000, programs: ['2 Year', '1 Year', 'Crash Course'], branches: ['Mumbai West', 'Pune Camp', 'Delhi South'] },
-  { name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', fees: 120000, programs: ['1 Year', 'Repeater'], branches: ['Mumbai West', 'Pune Camp'] },
-  { name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', fees: 80000, programs: ['2 Year', '1 Year'], branches: ['Mumbai West', 'Delhi South'] },
-  { name: '8th Standard', code: '8TH-STD', duration: '1 Year', fees: 60000, programs: ['8th std ICSE', '8th std State Board', '8th std CBSE'], branches: ['Pune Camp'] }
+  { 
+    id: 'C-001', name: 'JEE Prep Course', code: 'JEE-PREP', description: 'Comprehensive JEE Preparation', 
+    duration: '2 Years', branches: ['Mumbai West', 'Pune Camp'], programs: ['2 Year', '1 Year', 'Crash Course'], status: 'Active',
+    programDetails: [
+      {
+        id: 'p1', name: '2 Year', code: 'PRG-001', enabled: true,
+        levels: [ { id: 'l1', name: 'Class XI' }, { id: 'l2', name: 'Class XII' } ]
+      },
+      {
+        id: 'p2', name: '1 Year', code: 'PRG-002', enabled: true,
+        levels: [ { id: 'l3', name: 'Class XII (Dropper)' } ]
+      },
+      { id: 'p3', name: 'Crash Course', code: 'PRG-003', enabled: false, levels: [] },
+    ]
+  },
+  { 
+    id: 'C-002', name: 'NEET Batch Premium', code: 'NEET-PREM', description: 'Advanced NEET Coaching', 
+    duration: '1 Year', branches: ['Mumbai West'], programs: ['1 Year', 'Repeater'], status: 'Active',
+    programDetails: [
+      { id: 'p4', name: '1 Year', code: 'PRG-004', enabled: true, levels: [ { id: 'l4', name: 'Class XII' } ] },
+      { id: 'p5', name: 'Repeater', code: 'PRG-005', enabled: true, levels: [{ id: 'l5', name: 'Repeater Batch' }] },
+    ]
+  },
+  { 
+    id: 'C-003', name: 'Class 10 Foundation', code: 'FOUND-10', description: 'Strong foundation for boards and competitive exams', 
+    duration: '1 Year', branches: ['Pune Camp'], programs: ['2 Year', '1 Year'], status: 'Active',
+    programDetails: [
+      {
+        id: 'p6', name: '2 Year', code: 'PRG-006', enabled: true,
+        levels: [ { id: 'l6', name: 'Class VIII' }, { id: 'l7', name: 'Class IX' } ]
+      },
+      { id: 'p7', name: '1 Year', code: 'PRG-007', enabled: false, levels: [] },
+    ]
+  },
+  {
+    id: 'C-004', name: '8th Standard', code: '8TH-STD', description: '8th Standard Foundation',
+    duration: '1 Year', branches: ['Mumbai West', 'Pune Camp'], programs: ['8th std ICSE', '8th std CBSE'], status: 'Active',
+    programDetails: [
+      { id: 'p8', name: '8th std ICSE', code: 'PRG-008', enabled: true, levels: [{ id: 'l8', name: 'Class VIII' }] },
+      { id: 'p9', name: '8th std CBSE', code: 'PRG-009', enabled: true, levels: [{ id: 'l9', name: 'Class VIII' }] }
+    ]
+  }
 ];
 
 export const INITIAL_BATCHES: Batch[] = [
@@ -432,15 +488,16 @@ export const INITIAL_BATCHES: Batch[] = [
   { name: 'NEET-Regular-M2', course: 'NEET Batch Premium', program: '1 Year', level: 'year1', academicYear: '2027-28', timing: '01:00 PM - 02:30 PM', room: 'Classroom 202', branch: 'Pune Camp' },
   { name: 'NEET-Repeater-X', course: 'NEET Batch Premium', program: 'Repeater', level: 'year1', academicYear: '2026-27', timing: '08:00 AM - 12:00 PM', room: 'Auditorium B', branch: 'Mumbai West' },
 
-  // Class 10 Foundation (2 Year & 1 Year)
-  { name: 'F10-Morning-Alpha', course: 'Class 10 Foundation', program: '2 Year', level: 'year1', academicYear: '2026-27', timing: '07:30 AM - 09:00 AM', room: 'Lab 1', branch: 'Mumbai West' },
-  { name: 'F10-Morning-Beta', course: 'Class 10 Foundation', program: '2 Year', level: 'year2', academicYear: '2025-26', timing: '07:30 AM - 09:00 AM', room: 'Lab 2', branch: 'Delhi South' },
-  { name: 'F10-Evening-Fast', course: 'Class 10 Foundation', program: '1 Year', level: 'year1', academicYear: '2026-27', timing: '06:00 PM - 07:30 PM', room: 'Classroom 105', branch: 'Mumbai West' },
-
-  // 8th Standard
-  { name: '8TH-ICSE-Alpha', course: '8th Standard', program: '8th std ICSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 301', branch: 'Pune Camp' },
-  { name: '8TH-CBSE-Beta', course: '8th Standard', program: '8th std CBSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Classroom 302', branch: 'Pune Camp' },
-  { name: '8TH-STATE-Gamma', course: '8th Standard', program: '8th std State Board', level: 'class8', academicYear: '2025-26', timing: '05:30 PM - 07:00 PM', room: 'Classroom 303', branch: 'Pune Camp' }
+  // Foundation (8th to 10th)
+  { name: 'FND-8-State', course: 'Foundation (8th to 10th)', program: '8th to 10th State Board', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-9-State', course: 'Foundation (8th to 10th)', program: '8th to 10th State Board', level: 'class9', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-10-State', course: 'Foundation (8th to 10th)', program: '8th to 10th State Board', level: 'class10', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-8-CBSE', course: 'Foundation (8th to 10th)', program: '8th to 10th CBSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-9-CBSE', course: 'Foundation (8th to 10th)', program: '8th to 10th CBSE', level: 'class9', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-10-CBSE', course: 'Foundation (8th to 10th)', program: '8th to 10th CBSE', level: 'class10', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-8-ICSE', course: 'Foundation (8th to 10th)', program: '8th to 10th ICSE', level: 'class8', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-9-ICSE', course: 'Foundation (8th to 10th)', program: '8th to 10th ICSE', level: 'class9', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' },
+  { name: 'FND-10-ICSE', course: 'Foundation (8th to 10th)', program: '8th to 10th ICSE', level: 'class10', academicYear: '2026-27', timing: '04:00 PM - 05:30 PM', room: 'Room 103', branch: 'Mumbai West' }
 ];
 
 export const INITIAL_BRANCHES: Branch[] = [
@@ -1160,21 +1217,33 @@ export const INITIAL_LECTURES: Lecture[] = [
 ];
 
 
+import scheduleRequestsJson from './scheduleRequests.json';
+
 export interface ScheduleChange {
   id: string;
-  type: 'ROOM_CHANGE' | 'RESCHEDULED' | 'CANCELLED';
+  type: 'ROOM_CHANGE' | 'RESCHEDULED' | 'CANCELLED' | 'SUBSTITUTE' | 'OTHER';
   batchId: string;
   subject: string;
+  branchId?: string;
+  branchName?: string;
+  lectureId?: string;
+  teacherId?: string;
+  teacherName?: string;
+  date?: string;
+  time?: string;
   previousValue: string;
   newValue?: string;
   dateTime: string;
-  status: 'Upcoming' | 'Occurred';
+  status: 'Upcoming' | 'Occurred' | 'Pending Approval' | 'Approved' | 'Rejected';
+  requestedBy?: string;
+  message?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[] = [
-  { id: 'SC1', type: 'ROOM_CHANGE', batchId: 'JEE-Morning-A1', subject: 'Chemistry (Physical)', previousValue: 'Room 101', newValue: 'Room 104', dateTime: new Date().toISOString().split('T')[0] + ' 09:00', status: 'Upcoming' },
-  { id: 'SC2', type: 'RESCHEDULED', batchId: 'NEET-Regular-B1', subject: 'Chemistry (Organic)', previousValue: 'Today 11:00 AM', newValue: 'Tomorrow 10:00 AM', dateTime: new Date().toISOString().split('T')[0] + ' 11:00', status: 'Upcoming' },
-];
+export type ScheduleRequest = ScheduleChange;
+export const INITIAL_SCHEDULE_REQUESTS: ScheduleRequest[] = scheduleRequestsJson as ScheduleRequest[];
+export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[] = scheduleRequestsJson as ScheduleChange[];
 
 export interface Assignment {
   id: string;
