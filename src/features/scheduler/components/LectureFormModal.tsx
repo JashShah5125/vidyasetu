@@ -59,12 +59,11 @@ interface LectureFormModalProps {
   batchId: string;
   existingLecture?: Lecture;
   initialDate?: string;
-  isDefaultMode?: boolean;
   onSave?: (lecture: any) => void;
   onDelete?: (id: string) => void;
 }
 
-export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onClose, branchId, batchId, existingLecture, initialDate, isDefaultMode = false, onSave, onDelete }) => {
+export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onClose, branchId, batchId, existingLecture, initialDate, onSave, onDelete }) => {
   const { staff, branches } = useApp();
   const { rooms, lectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
@@ -77,7 +76,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
     teacherId: '',
     roomId: '',
     date: new Date().toISOString().split('T')[0],
-    dayOfWeek: new Date().getDay(),
     startTime: '09:00',
     endTime: '10:30',
     lectureType: 'Regular' as LectureType,
@@ -94,9 +92,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         teacherId: existingLecture.teacherId || '',
         roomId: existingLecture.roomId || '',
         date: existingLecture.date,
-        dayOfWeek: existingLecture.date === '0000-00-00'
-          ? (existingLecture.dayOfWeek || 1)
-          : parseLocalDate(existingLecture.date).getDay(),
         startTime: existingLecture.startTime || '09:00',
         endTime: existingLecture.endTime || '10:30',
         lectureType: existingLecture.lectureType || 'Regular',
@@ -108,7 +103,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
       setFormData(prev => ({
         ...prev,
         date: targetDate,
-        dayOfWeek: targetDate === '0000-00-00' ? 1 : parseLocalDate(targetDate).getDay(),
         startTime: '09:00',
         endTime: '10:30',
         roomId: '',
@@ -117,9 +111,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         activityType: 'Lecture'
       }));
     }
-  }, [existingLecture, isOpen, batchId]);
-
-
+  }, [existingLecture, isOpen, batchId, initialDate]);
 
   useEffect(() => {
     if (batchId && formData.date && formData.startTime && formData.endTime && (formData.activityType === 'Break' || formData.teacherId)) {
@@ -143,11 +135,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
     e.preventDefault();
     if (conflicts.some(c => c.severity === 'BLOCKING')) return;
 
-    let finalDate = formData.date;
-    if (isDefaultMode) {
-      finalDate = '0000-00-00';
-    }
-
     if (onSave) {
       onSave({
         id: existingLecture?.id,
@@ -157,8 +144,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
         teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
         roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-        date: finalDate,
-        dayOfWeek: isDefaultMode ? parseInt(formData.dayOfWeek.toString()) : undefined,
+        date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
         lectureType: formData.lectureType,
@@ -173,8 +159,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
           subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
           teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
           roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-          date: finalDate,
-          dayOfWeek: isDefaultMode ? parseInt(formData.dayOfWeek.toString()) : undefined,
+          date: formData.date,
           startTime: formData.startTime,
           endTime: formData.endTime,
           lectureType: formData.lectureType,
@@ -192,8 +177,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
           subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
           teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
           roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-          date: finalDate,
-          dayOfWeek: isDefaultMode ? parseInt(formData.dayOfWeek.toString()) : undefined,
+          date: formData.date,
           startTime: formData.startTime,
           endTime: formData.endTime,
           lectureType: formData.lectureType,
@@ -285,18 +269,10 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
 
         {/* Schedule Group */}
         <div className="grid grid-cols-3 gap-4 pb-4">
-          {isDefaultMode ? (
-            <Select
-              label="Day of Week" required
-              options={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, idx) => ({ value: idx.toString(), label: day }))}
-              value={formData.dayOfWeek.toString()} onChange={(e) => handleChange('dayOfWeek', e.target.value)}
-            />
-          ) : (
-            <Input
-              type="date" label="Date" required
-              value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
-            />
-          )}
+          <Input
+            type="date" label="Date" required
+            value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
+          />
           <Input
             type="time" label="Start Time" required
             value={formData.startTime} onChange={(e) => handleChange('startTime', e.target.value)}

@@ -7,6 +7,8 @@ import { Pagination } from '../ui/Pagination';
 import { Plus, ArrowLeft, BookOpen, ClipboardList, CheckCircle2, Edit3, Eye, FileText, Trash2, XCircle } from 'lucide-react';
 import type { AssignmentItem, ExamItem } from '../../data/mockData';
 import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import teachersList from '../../data/teachers.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
 
 export const TeacherAssignments: React.FC = () => {
   const { 
@@ -20,6 +22,22 @@ export const TeacherAssignments: React.FC = () => {
     currentUser, 
     sendNotification 
   } = useApp();
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
+
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
   
   // Navigation Tabs state
   const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'exams'>('homework');
@@ -29,12 +47,12 @@ export const TeacherAssignments: React.FC = () => {
   // ----------------------------------------------------
   // COMMON OPTIONS
   // ----------------------------------------------------
-  const uniqueBranches = currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name);
-  const uniqueCourses = courses.map(c => c.name);
-  const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
-  const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
+  const uniqueBranches = useMemo(() => currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name), [currentUser, branches]);
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
+  const uniquePrograms = useMemo(() => Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[], [batches]);
+  const uniqueLevels = useMemo(() => Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[], [batches]);
   
-  const teacherBatches = batches.filter(b => TEACHER_ASSIGNED_BATCHES.includes(b.name));
+  const teacherBatches = useMemo(() => batches.filter(b => teacherAssignedBatches.includes(b.name)), [batches, teacherAssignedBatches]);
 
   // ----------------------------------------------------
   // LIST FILTERS (Shared logic but kept separate for UI)
@@ -73,7 +91,7 @@ export const TeacherAssignments: React.FC = () => {
   // ----------------------------------------------------
   const filteredAssignments = useMemo(() => {
     return assignments.filter(a => {
-      if (!TEACHER_ASSIGNED_BATCHES.includes(a.batch)) return false;
+      if (!teacherAssignedBatches.includes(a.batch)) return false;
       if (activeSubTab === 'drafts' && a.status !== 'Draft') return false;
       if (activeSubTab === 'active' && a.status === 'Draft') return false;
 
@@ -91,11 +109,11 @@ export const TeacherAssignments: React.FC = () => {
       
       return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch && matchStatus;
     }).sort((a, b) => a.title.localeCompare(b.title));
-  }, [assignments, activeSubTab, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterBatch, filterStatus, batches, currentUser]);
+  }, [assignments, activeSubTab, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterBatch, filterStatus, batches, currentUser, teacherAssignedBatches]);
 
   const filteredExams = useMemo(() => {
     return exams.filter(e => {
-      if (!TEACHER_ASSIGNED_BATCHES.includes(e.batch)) return false;
+      if (!teacherAssignedBatches.includes(e.batch)) return false;
       if (activeSubTab === 'drafts' && e.status !== 'Draft') return false;
       if (activeSubTab === 'active' && e.status === 'Draft') return false;
 
@@ -113,7 +131,7 @@ export const TeacherAssignments: React.FC = () => {
       
       return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear && matchBatch && matchStatus;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [exams, activeSubTab, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterBatch, filterStatus, batches, currentUser]);
+  }, [exams, activeSubTab, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterBatch, filterStatus, batches, currentUser, teacherAssignedBatches]);
 
   const currentData = activePrimaryTab === 'homework' ? filteredAssignments : filteredExams;
   const totalPages = Math.ceil(currentData.length / itemsPerPage);

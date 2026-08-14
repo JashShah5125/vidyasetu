@@ -1,23 +1,72 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { Card } from '../ui/Card';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
+import { Table } from '../ui/Table';
 import { Modal } from '../ui/Modal';
 import {
   Calendar as CalendarIcon, MapPin, Clock, ArrowLeft, ArrowRight,
-  BookOpen, AlertCircle, FileText, CheckCircle, ChevronLeft, ChevronRight
+  BookOpen, AlertCircle, FileText, CheckCircle, ChevronLeft, ChevronRight,
+  Plus, Send, MessageSquare, Tag, CheckCircle2, User, CalendarPlus
 } from 'lucide-react';
 
-import { TEACHER_ASSIGNED_BATCHES, INITIAL_SCHEDULE_CHANGES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../data/mockData';
+import type { ScheduleChange } from '../../data/mockData';
+import scheduleRequestsData from '../../data/scheduleRequests.json';
 import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
+import { RequestChangeModal } from './RequestChangeModal';
+import teachersList from '../../data/teachers.json';
+import classroomsList from '../../data/classrooms.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
+
+const getTeacherName = (id?: string) => {
+  if (!id) return '';
+  const teacher = teachersList.find(t => t.id === id || t.name === id);
+  return teacher ? teacher.name : id;
+};
+
+const getRoomName = (id?: string) => {
+  if (!id) return '';
+  const room = classroomsList.find(r => r.id === id || r.name === id);
+  return room ? room.name : id;
+};
 
 export const TeacherSchedule: React.FC = () => {
-  const { currentUser, batches, branches, courses } = useApp();
+  const { currentUser, batches, branches, courses, addToast } = useApp();
   const { lectures } = useScheduler();
   const navigate = useNavigate();
+
+  // Schedule requests state initialized from scheduleRequests.json with localStorage persistence
+  const [scheduleChanges, setScheduleChanges] = useState<ScheduleChange[]>(() => {
+    const saved = localStorage.getItem('vs_schedule_requests');
+    return saved ? JSON.parse(saved) : (scheduleRequestsData as ScheduleChange[]);
+  });
+
+  useEffect(() => {
+    localStorage.setItem('vs_schedule_requests', JSON.stringify(scheduleChanges));
+  }, [scheduleChanges]);
+
+  // Request change modal state
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestPrefillLecture, setRequestPrefillLecture] = useState<Lecture | null>(null);
+  const [changesStatusFilter, setChangesStatusFilter] = useState<'All' | 'Pending' | 'Approved'>('All');
+
+  const handleAddScheduleChange = (newChange: ScheduleChange) => {
+    setScheduleChanges(prev => [newChange, ...prev]);
+    addToast('Schedule change request submitted successfully. Pending administration review.', 'success');
+  };
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
 
   // View State
   const [activeTab, setActiveTab] = useState<'today' | 'week' | 'upcoming' | 'events' | 'changes'>('today');
@@ -35,33 +84,83 @@ export const TeacherSchedule: React.FC = () => {
   const [filterBatch, setFilterBatch] = useState('All');
   const [filterSubject, setFilterSubject] = useState('All');
 
-  // Derived Filter Options
-  const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
-  const uniqueBranches = currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name);
-  const uniqueCourses = courses.map(c => c.name);
-  const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
-  const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
+  // Derived Filter Options from courseHierarchy.json & batches
+  const uniqueYears = useMemo(() => Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[], [batches]);
+  const uniqueBranches = useMemo(() => currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name), [currentUser, branches]);
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
 
-  // Teacher's specific batches
-  const dropdownBatches = batches.filter(b => {
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
-    const batchBranch = b.branch || 'Mumbai West';
-    const matchBranch = filterBranch === 'All' || batchBranch === filterBranch;
-    const matchCourse = filterCourse === 'All' || b.course === filterCourse;
-    const matchProgram = filterProgram === 'All' || b.program === filterProgram;
-    const matchLevel = filterLevel === 'All' || b.level === filterLevel;
-    const matchYear = filterYear === 'All' || b.academicYear === filterYear;
-    return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
-  });
+  const availablePrograms = useMemo(() => {
+    if (filterCourse === 'All') {
+      return Array.from(new Set(courseHierarchy.flatMap(c => c.programs.map(p => p.programName))));
+    }
+    const c = courseHierarchy.find(x => x.courseName === filterCourse);
+    return c ? c.programs.map(p => p.programName) : [];
+  }, [filterCourse]);
 
-  const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
+  const availableLevels = useMemo(() => {
+    if (filterCourse === 'All') {
+      return Array.from(new Set(courseHierarchy.flatMap(c => c.programs.flatMap(p => p.levels.map(l => l.levelName)))));
+    }
+    const c = courseHierarchy.find(x => x.courseName === filterCourse);
+    if (filterProgram === 'All') {
+      return Array.from(new Set(c ? c.programs.flatMap(p => p.levels.map(l => l.levelName)) : []));
+    }
+    const p = c?.programs.find(x => x.programName === filterProgram);
+    return p ? p.levels.map(l => l.levelName) : [];
+  }, [filterCourse, filterProgram]);
 
-  const uniqueSubjects = Array.from(new Set(lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId).filter(Boolean))) as string[];
+  // Teacher's specific assigned batches from teachers.json
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
 
-  // Filtered Data
-  const filteredLectures = lectures.filter(l => {
-    return activeBatches.includes(l.batchId) && (filterSubject === 'All' || l.subjectId === filterSubject);
-  });
+  const dropdownBatches = useMemo(() => {
+    return batches.filter(b => {
+      if (teacherAssignedBatches.length > 0 && !teacherAssignedBatches.includes(b.name)) return false;
+      const batchBranch = b.branch || 'Mumbai West';
+      const matchBranch = filterBranch === 'All' || batchBranch === filterBranch || (branches.find(br => br.code === filterBranch)?.name === batchBranch);
+      const matchCourse = filterCourse === 'All' || b.course === filterCourse;
+      const matchProgram = filterProgram === 'All' || b.program === filterProgram;
+      const matchLevel = filterLevel === 'All' || b.level === filterLevel;
+      const matchYear = filterYear === 'All' || b.academicYear === filterYear;
+      return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
+    });
+  }, [batches, teacherAssignedBatches, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, branches]);
+
+  const activeBatches = useMemo(() => {
+    return filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
+  }, [filterBatch, dropdownBatches]);
+
+  // Subjects derived from teacher profile & scheduled lectures
+  const uniqueSubjects = useMemo(() => {
+    const fromLectures = lectures.filter(l => activeBatches.includes(l.batchId)).map(l => l.subjectId);
+    const fromTeacher = currentTeacher?.subject ? [currentTeacher.subject] : [];
+    return Array.from(new Set([...fromLectures, ...fromTeacher].filter(Boolean))) as string[];
+  }, [lectures, activeBatches, currentTeacher]);
+
+  // Filtered Lectures from db.json / SchedulerContext
+  const filteredLectures = useMemo(() => {
+    return lectures.filter(l => {
+      if (l.status === 'CANCELLED') return false;
+
+      // Check if lecture is relevant to this teacher
+      const isTeacherMatch = !currentTeacher || l.teacherId === currentTeacher.id || l.teacherId === currentTeacher.name || teacherAssignedBatches.includes(l.batchId);
+      if (!isTeacherMatch) return false;
+
+      // Check batch filter
+      const isBatchMatch = activeBatches.includes(l.batchId);
+      if (!isBatchMatch) return false;
+
+      // Check subject filter
+      const isSubjectMatch = filterSubject === 'All' || l.subjectId === filterSubject;
+      if (!isSubjectMatch) return false;
+
+      return true;
+    });
+  }, [lectures, currentTeacher, teacherAssignedBatches, activeBatches, filterSubject]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const currentDateStr = currentDate.toISOString().split('T')[0];
@@ -127,11 +226,11 @@ export const TeacherSchedule: React.FC = () => {
           />
           <Select
             label="Program" value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)}
-            options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
+            options={[{ value: 'All', label: 'All Programs' }, ...availablePrograms.map(p => ({ value: p, label: p }))]}
           />
           <Select
             label="Level" value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}
-            options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
+            options={[{ value: 'All', label: 'All Levels' }, ...availableLevels.map(l => ({ value: l, label: l }))]}
           />
           <Select
             label="My Batches" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}
@@ -177,9 +276,9 @@ export const TeacherSchedule: React.FC = () => {
                     <div>
                       <div className="text-sm font-bold text-slate-900">{lecture.startTime} – {lecture.endTime}</div>
                       <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subjectId}</div>
-                      <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.lectureType}</div>
+                      <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId} • {lecture.lectureType || 'Regular'}</div>
                       <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
-                        <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12} /> {lecture.roomId}</span>
+                        <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12} /> {getRoomName(lecture.roomId) || 'Room TBA'}</span>
                         {lecture.status === 'SCHEDULED' && <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><CheckCircle size={12} /> Attendance Pending</span>}
                       </div>
                     </div>
@@ -188,7 +287,19 @@ export const TeacherSchedule: React.FC = () => {
                         }`}>
                         {lecture.status}
                       </span>
-                      <Button variant="primary" size="sm" className="w-full" onClick={(e) => { e.stopPropagation(); navigate('/attendance'); }}>
+                      <Button variant="primary" size="sm" className="w-full" onClick={(e) => {
+                        e.stopPropagation();
+                        const courseName = batches.find(b => b.name === lecture.batchId)?.course || '';
+                        navigate('/attendance', {
+                          state: {
+                            activeLecture: lecture,
+                            branch: lecture.branchId || currentUser?.branch || 'Mumbai West',
+                            course: courseName,
+                            batch: lecture.batchId,
+                            date: lecture.date
+                          }
+                        });
+                      }}>
                         Mark Attendance
                       </Button>
                     </div>
@@ -235,7 +346,7 @@ export const TeacherSchedule: React.FC = () => {
                                 <Clock size={14} className="text-slate-400" /> {lecture.startTime} – {lecture.endTime}
                               </div>
                               <div className="text-sm font-bold text-blue-700 mt-1">{lecture.subjectId}</div>
-                              <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {lecture.roomId}</div>
+                              <div className="text-xs text-slate-500 mt-0.5">{lecture.batchId} • {getRoomName(lecture.roomId) || 'Room TBA'}</div>
                             </div>
                             <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); setSelectedLecture(lecture); }}>
                               Details
@@ -322,7 +433,7 @@ export const TeacherSchedule: React.FC = () => {
                               <div className="text-xs font-bold text-slate-800">{lecture.startTime} - {lecture.endTime}</div>
                               <div className="text-xs font-semibold text-blue-700 mt-1 truncate">{lecture.subjectId}</div>
                               <div className="text-[10px] font-semibold text-slate-500 mt-1 truncate">{lecture.batchId}</div>
-                              <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1"><MapPin size={10} /> {lecture.roomId}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate flex items-center gap-1"><MapPin size={10} /> {getRoomName(lecture.roomId) || 'Room TBA'}</div>
                             </div>
                           )) : (
                             <div className="h-full w-full flex items-center justify-center pt-8 text-[10px] text-slate-300 font-bold uppercase">
@@ -375,45 +486,149 @@ export const TeacherSchedule: React.FC = () => {
 
           {/* CHANGES TAB */}
           {activeTab === 'changes' && (
-            <div className="space-y-4">
-              {INITIAL_SCHEDULE_CHANGES.filter(c => activeBatches.includes(c.batchId)).length > 0 ? (
-                INITIAL_SCHEDULE_CHANGES.filter(c => activeBatches.includes(c.batchId)).map(change => (
-                  <div key={change.id} className="p-4 bg-white border border-slate-200 hover:border-slate-300 rounded-xl flex flex-col gap-3 transition-colors cursor-pointer">
-                    <div className="flex justify-between items-start">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border ${change.type === 'ROOM_CHANGE' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                          change.type === 'CANCELLED' ? 'bg-red-50 text-red-600 border-red-100' :
-                            'bg-amber-50 text-amber-600 border-amber-100'
-                        }`}>
-                        {change.type.replace('_', ' ')}
-                      </span>
-                      <span className={`text-xs font-bold ${change.status === 'Upcoming' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        {change.status}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-700">{change.subject}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{change.batchId}</div>
-
-                      <div className="text-xs font-semibold text-slate-500 mt-2">{change.dateTime}</div>
-
-                      <div className="mt-3 flex items-center gap-3 text-sm font-semibold bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
-                        <span className="text-slate-600 line-through decoration-slate-400">{change.previousValue}</span>
-                        {change.newValue && (
-                          <>
-                            <ArrowRight size={14} className="text-slate-400" />
-                            <span className="text-slate-900">{change.newValue}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="py-12 text-center flex flex-col items-center justify-center">
-                  <AlertCircle className="text-slate-300 mb-3" size={32} />
-                  <div className="text-slate-500 font-medium">No recent schedule changes.</div>
+            <div className="space-y-5">
+              {/* Changes Header & Action Bar */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <CalendarPlus size={18} className="text-blue-600" />
+                    Schedule Changes & Requests
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    View scheduled modifications or submit a request to reschedule, change room, or cancel a lecture.
+                  </p>
                 </div>
-              )}
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setRequestPrefillLecture(null);
+                    setIsRequestModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 shadow-sm flex-shrink-0"
+                >
+                  <Plus size={16} />
+                  Request Change
+                </Button>
+              </div>
+
+              {/* Filter Pills - All, Pending, Approved only */}
+              <div className="flex items-center gap-2">
+                {(['All', 'Pending', 'Approved'] as const).map(status => {
+                  const count = scheduleChanges.filter(c => {
+                    if (!activeBatches.includes(c.batchId)) return false;
+                    if (status === 'All') return true;
+                    if (status === 'Pending') return c.status === 'Pending Approval';
+                    if (status === 'Approved') return c.status === 'Approved' || c.status === 'Upcoming' || c.status === 'Occurred';
+                    return false;
+                  }).length;
+
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => setChangesStatusFilter(status)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-2 ${
+                        changesStatusFilter === status
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{status}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
+                        changesStatusFilter === status ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Changes Table */}
+              {(() => {
+                const filtered = scheduleChanges.filter(c => {
+                  if (!activeBatches.includes(c.batchId)) return false;
+                  if (changesStatusFilter === 'All') return true;
+                  if (changesStatusFilter === 'Pending') return c.status === 'Pending Approval';
+                  if (changesStatusFilter === 'Approved') return c.status === 'Approved' || c.status === 'Upcoming' || c.status === 'Occurred';
+                  return true;
+                });
+
+                return (
+                  <Table headers={['Type', 'Batch', 'Subject', 'Date & Time', 'Original Schedule', 'Proposed Change', 'Reason / Message', 'Status']}>
+                    {filtered.length > 0 ? (
+                      filtered.map(change => {
+                        const isPending = change.status === 'Pending Approval';
+
+                        return (
+                          <tr key={change.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border whitespace-nowrap ${
+                                change.type === 'ROOM_CHANGE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                change.type === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                change.type === 'SUBSTITUTE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                change.type === 'RESCHEDULED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}>
+                                {change.type.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-blue-700 whitespace-nowrap">{change.batchId}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-slate-800 whitespace-nowrap">{change.subject}</div>
+                            </td>
+                            <td className="px-6 py-4 text-slate-600 font-medium whitespace-nowrap text-xs">
+                              {change.dateTime}
+                            </td>
+                            <td className="px-6 py-4 text-xs">
+                              <span className="text-slate-500 line-through decoration-slate-400">
+                                {change.previousValue}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-semibold">
+                              {change.newValue ? (
+                                <span className="text-slate-900 flex items-center gap-1">
+                                  <ArrowRight size={12} className="text-blue-500 flex-shrink-0" />
+                                  {change.newValue}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-slate-600 max-w-xs">
+                              {change.message ? (
+                                <div className="truncate" title={change.message}>
+                                  {change.message}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${
+                                isPending ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              }`}>
+                                {isPending ? <Clock size={11} /> : <CheckCircle size={11} />}
+                                {isPending ? 'Pending' : 'Approved'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
+                          <CalendarPlus className="mx-auto text-slate-300 mb-3" size={32} />
+                          <div className="font-semibold text-slate-700">No schedule changes found</div>
+                          <div className="text-xs text-slate-400 mt-1">No changes match the "{changesStatusFilter}" filter. Click "Request Change" to submit a request.</div>
+                        </td>
+                      </tr>
+                    )}
+                  </Table>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -425,7 +640,7 @@ export const TeacherSchedule: React.FC = () => {
           <div className="space-y-6">
             <div>
               <div className="text-xl font-bold text-slate-900">{selectedLecture.subjectId}</div>
-              <div className="text-sm text-slate-500 mt-1">Type: {selectedLecture.lectureType || 'Not specified'}</div>
+              <div className="text-sm text-slate-500 mt-1">Type: {selectedLecture.lectureType || 'Regular'}</div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -438,7 +653,7 @@ export const TeacherSchedule: React.FC = () => {
               </div>
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="text-xs font-bold text-slate-400 uppercase">Location</div>
-                <div className="text-sm font-semibold text-slate-800 mt-1">{selectedLecture.roomId}</div>
+                <div className="text-sm font-semibold text-slate-800 mt-1">{getRoomName(selectedLecture.roomId) || 'Room TBA'}</div>
               </div>
             </div>
 
@@ -450,6 +665,10 @@ export const TeacherSchedule: React.FC = () => {
                   <span className="font-bold text-blue-800">{selectedLecture.batchId}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-slate-500">Faculty</span>
+                  <span className="font-bold text-slate-700">{getTeacherName(selectedLecture.teacherId)}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-slate-500">Status</span>
                   <span className="font-bold text-blue-800">{selectedLecture.status}</span>
                 </div>
@@ -457,16 +676,55 @@ export const TeacherSchedule: React.FC = () => {
             </div>
 
             <div className="flex gap-3 pt-4 border-t border-slate-100">
-              <Button variant="primary" className="flex-1" onClick={() => navigate('/attendance')}>
+              <Button variant="primary" className="flex-1" onClick={() => {
+                const courseName = batches.find(b => b.name === selectedLecture.batchId)?.course || '';
+                navigate('/attendance', {
+                  state: {
+                    activeLecture: selectedLecture,
+                    branch: selectedLecture.branchId || currentUser?.branch || 'Mumbai West',
+                    course: courseName,
+                    batch: selectedLecture.batchId,
+                    date: selectedLecture.date
+                  }
+                });
+              }}>
                 Mark Attendance
               </Button>
-              <Button variant="secondary" className="flex-1" onClick={() => setSelectedLecture(null)}>
+              <Button
+                variant="secondary"
+                className="flex-1 text-amber-700 border-amber-200 hover:bg-amber-50"
+                onClick={() => {
+                  const lec = selectedLecture;
+                  setSelectedLecture(null);
+                  setRequestPrefillLecture(lec);
+                  setIsRequestModalOpen(true);
+                }}
+              >
+                Request Change
+              </Button>
+              <Button variant="secondary" onClick={() => setSelectedLecture(null)}>
                 Close
               </Button>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* REQUEST CHANGE MODAL */}
+      <RequestChangeModal
+        isOpen={isRequestModalOpen}
+        onClose={() => {
+          setIsRequestModalOpen(false);
+          setRequestPrefillLecture(null);
+        }}
+        onSubmit={handleAddScheduleChange}
+        batches={dropdownBatches}
+        lectures={lectures}
+        currentTeacher={currentTeacher}
+        getRoomName={getRoomName}
+        getTeacherName={getTeacherName}
+        prefillLecture={requestPrefillLecture}
+      />
 
     </div>
   );

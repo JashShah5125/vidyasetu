@@ -15,15 +15,40 @@ import {
   INITIAL_ASSIGNMENTS, 
   EXAM_RESULTS
 } from '../../data/mockData';
+import teachersList from '../../data/teachers.json';
+import classroomsList from '../../data/classrooms.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
 import { Clock as ClockIcon, Calendar as CalendarIcon, FileText, Award, ArrowLeft } from 'lucide-react';
 
+const getRoomName = (id?: string) => {
+  if (!id) return '';
+  const room = classroomsList.find(r => r.id === id || r.name === id);
+  return room ? room.name : id;
+};
+
 export const TeacherStudents: React.FC = () => {
-  const { students: allStudents, batches } = useApp();
+  const { students: allStudents, batches, currentUser } = useApp();
   const { lectures } = useScheduler();
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
+
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
   
   const students = useMemo(() => {
-    return allStudents.filter(s => s.batch && TEACHER_ASSIGNED_BATCHES.includes(s.batch));
-  }, [allStudents]);
+    return allStudents.filter(s => s.batch && teacherAssignedBatches.includes(s.batch));
+  }, [allStudents, teacherAssignedBatches]);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
@@ -34,10 +59,10 @@ export const TeacherStudents: React.FC = () => {
   const [profileTab, setProfileTab] = useState<'overview' | 'attendance' | 'assignments' | 'exams' | 'schedule' | 'basic'>('overview');
 
   const teacherBatchesInfo = useMemo(() => {
-    return batches.filter(b => TEACHER_ASSIGNED_BATCHES.includes(b.name));
-  }, [batches]);
+    return batches.filter(b => teacherAssignedBatches.includes(b.name));
+  }, [batches, teacherAssignedBatches]);
 
-  const uniqueCourses = Array.from(new Set(teacherBatchesInfo.map(b => b.course)));
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
   const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level).filter(Boolean))) as string[];
   const availableBatches = teacherBatchesInfo.filter(b => {
@@ -327,7 +352,7 @@ export const TeacherStudents: React.FC = () => {
                         <td className="px-6 py-4 text-slate-600">{l.startTime} – {l.endTime}</td>
                         <td className="px-6 py-4 font-semibold text-slate-700">{l.subjectId}</td>
                         <td className="px-6 py-4 font-bold text-blue-700">{l.batchId}</td>
-                        <td className="px-6 py-4 text-slate-600">{l.roomId}</td>
+                        <td className="px-6 py-4 text-slate-600">{getRoomName(l.roomId) || 'Room TBA'}</td>
                         <td className="px-6 py-4">
                           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border bg-slate-100 text-slate-600 border-slate-200">
                             Lecture

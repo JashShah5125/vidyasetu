@@ -1,38 +1,55 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import type { Lecture, Room, DefaultTimetable, PublishStatus, LectureStatus } from '../types/scheduler';
+import type { Lecture, Room, PublishStatus, LectureStatus } from '../types/scheduler';
 import classroomsList from '../../../data/classrooms.json';
+import initialDb from '../../../../server/db.json';
 
 interface SchedulerContextType {
   lectures: Lecture[];
   rooms: Room[];
-  defaultTimetables: DefaultTimetable[];
 
   // CRUD Operations
   addLectures: (newLectures: (Omit<Lecture, 'id' | 'createdAt' | 'updatedAt' | 'publishStatus' | 'status'> & { publishStatus?: PublishStatus })[]) => void;
   updateLecture: (id: string, updates: Partial<Lecture>) => void;
   cancelLecture: (id: string) => void;
   publishLectures: (lectureIds: string[]) => void;
-  syncLectures: (batchId: string, updatedLectures: Lecture[], isDefaultMode: boolean, publishStatus: PublishStatus) => Promise<void>;
-
-  // Templates
-  saveDefaultTimetable: (timetable: Omit<DefaultTimetable, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  syncLectures: (batchId: string, updatedLectures: Lecture[], publishStatus: PublishStatus) => Promise<void>;
 }
 
 const SchedulerContext = createContext<SchedulerContextType | undefined>(undefined);
 
 export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [lectures, setLectures] = useState<Lecture[]>([]);
+  const [lectures, setLectures] = useState<Lecture[]>(() => {
+    const saved = localStorage.getItem('vs_lectures');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch {}
+    }
+    return ((initialDb as any).lectures || []) as Lecture[];
+  });
+
   const [rooms] = useState<Room[]>(classroomsList as any[]);
-  const [defaultTimetables, setDefaultTimetables] = useState<DefaultTimetable[]>([]);
+
+  // Persist lectures to localStorage
+  useEffect(() => {
+    localStorage.setItem('vs_lectures', JSON.stringify(lectures));
+  }, [lectures]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const lecturesRes = await fetch('http://localhost:3002/lectures');
-        const lecturesData = await lecturesRes.json();
-        setLectures(lecturesData);
-      } catch (err) {
-        console.error('Error fetching scheduler data', err);
+        if (lecturesRes.ok) {
+          const lecturesData = await lecturesRes.json();
+          if (Array.isArray(lecturesData) && lecturesData.length > 0) {
+            setLectures(lecturesData);
+          }
+        }
+      } catch {
+        // Standalone offline / static build fallback
       }
     };
     fetchData();
@@ -119,49 +136,8 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  const saveDefaultTimetable = async (timetable: Omit<DefaultTimetable, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const now = new Date().toISOString();
-    const existingIdx = defaultTimetables.findIndex(t => t.batchId === timetable.batchId);
-    
-    if (existingIdx >= 0) {
-      const existingId = defaultTimetables[existingIdx].id;
-      const newDt: DefaultTimetable = {
-        ...timetable,
-        id: existingId,
-        createdAt: defaultTimetables[existingIdx].createdAt,
-        updatedAt: now
-      };
-      try {
-        await fetch(`http://localhost:3002/defaultTimetables/${existingId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newDt)
-        });
-        setDefaultTimetables(prev => {
-          const copy = [...prev];
-          copy[existingIdx] = newDt;
-          return copy;
-        });
-      } catch(err) { console.error('Error saving timetable', err); }
-    } else {
-      const newDt: DefaultTimetable = {
-        ...timetable,
-        id: `DT-${Math.floor(Math.random() * 90000)}`,
-        createdAt: now,
-        updatedAt: now
-      };
-      try {
-        await fetch(`http://localhost:3002/defaultTimetables`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newDt)
-        });
-        setDefaultTimetables(prev => [...prev, newDt]);
-      } catch(err) { console.error('Error saving timetable', err); }
-    }
-  };
-  const syncLectures = async (batchId: string, updatedLectures: Lecture[], isDefaultMode: boolean, publishStatus: PublishStatus) => {
-    const originalLectures = lectures.filter(l => l.batchId === batchId && (isDefaultMode ? l.isOverride === false : true));
+  const syncLectures = async (batchId: string, updatedLectures: Lecture[], publishStatus: PublishStatus) => {
+    const originalLectures = lectures.filter(l => l.batchId === batchId);
 
     // Lectures to delete: present in original but not in updated
     const toDelete = originalLectures.filter(orig => !updatedLectures.some(upd => upd.id === orig.id));
@@ -227,17 +203,16 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Error syncing lectures:', err);
     }
   };
+
   const value = useMemo(() => ({
     lectures,
     rooms,
-    defaultTimetables,
     addLectures,
     updateLecture,
     cancelLecture,
     publishLectures,
-    syncLectures,
-    saveDefaultTimetable
-  }), [lectures, rooms, defaultTimetables]);
+    syncLectures
+  }), [lectures, rooms]);
 
   return (
     <SchedulerContext.Provider value={value}>
@@ -253,3 +228,4 @@ export const useScheduler = () => {
   }
   return context;
 };
+

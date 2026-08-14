@@ -1,6 +1,7 @@
 export type Role = 'saas-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance';
 
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   role: Role;
@@ -148,12 +149,14 @@ export interface Course {
   id?: string;
   name: string;
   code: string;
+  fees?: number;
   description?: string;
   duration?: string;
   branches?: string[];
   programs?: string[]; // Legacy array of strings for backward compatibility
   programDetails?: Program[]; // New relational structure
-  status: 'Active' | 'Inactive';
+  batches?: string | string[];
+  status?: 'Active' | 'Inactive';
 }
 
 export interface Batch {
@@ -1198,21 +1201,33 @@ export const INITIAL_LECTURES: Lecture[] = [
 ];
 
 
+import scheduleRequestsJson from './scheduleRequests.json';
+
 export interface ScheduleChange {
   id: string;
-  type: 'ROOM_CHANGE' | 'RESCHEDULED' | 'CANCELLED';
+  type: 'ROOM_CHANGE' | 'RESCHEDULED' | 'CANCELLED' | 'SUBSTITUTE' | 'OTHER';
   batchId: string;
   subject: string;
+  branchId?: string;
+  branchName?: string;
+  lectureId?: string;
+  teacherId?: string;
+  teacherName?: string;
+  date?: string;
+  time?: string;
   previousValue: string;
   newValue?: string;
   dateTime: string;
-  status: 'Upcoming' | 'Occurred';
+  status: 'Upcoming' | 'Occurred' | 'Pending Approval' | 'Approved' | 'Rejected';
+  requestedBy?: string;
+  message?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[] = [
-  { id: 'SC1', type: 'ROOM_CHANGE', batchId: 'JEE-Morning-A1', subject: 'Chemistry (Physical)', previousValue: 'Room 101', newValue: 'Room 104', dateTime: new Date().toISOString().split('T')[0] + ' 09:00', status: 'Upcoming' },
-  { id: 'SC2', type: 'RESCHEDULED', batchId: 'NEET-Regular-B1', subject: 'Chemistry (Organic)', previousValue: 'Today 11:00 AM', newValue: 'Tomorrow 10:00 AM', dateTime: new Date().toISOString().split('T')[0] + ' 11:00', status: 'Upcoming' },
-];
+export type ScheduleRequest = ScheduleChange;
+export const INITIAL_SCHEDULE_REQUESTS: ScheduleRequest[] = scheduleRequestsJson as ScheduleRequest[];
+export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[] = scheduleRequestsJson as ScheduleChange[];
 
 export interface Assignment {
   id: string;

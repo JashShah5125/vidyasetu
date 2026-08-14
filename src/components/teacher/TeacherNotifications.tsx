@@ -6,9 +6,27 @@ import { Select } from '../ui/Select';
 import { Bell, Mail, Send, X, Paperclip } from 'lucide-react';
 import type { AppNotification, NotificationRecipient } from '../../data/mockData';
 import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import teachersList from '../../data/teachers.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
 
 export const TeacherNotifications: React.FC = () => {
   const { notifications, markNotificationRead, sendNotification, currentUser, batches, students } = useApp();
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
+
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
   
   // Navigation State
   const [activeTab, setActiveTab] = useState<'inbox' | 'sent'>('inbox');
@@ -34,10 +52,10 @@ export const TeacherNotifications: React.FC = () => {
 
   // ---- DERIVATIONS ---- //
   const teacherBatchesInfo = useMemo(() => {
-    return batches.filter(b => TEACHER_ASSIGNED_BATCHES.includes(b.name));
-  }, [batches]);
+    return batches.filter(b => teacherAssignedBatches.includes(b.name));
+  }, [batches, teacherAssignedBatches]);
 
-  const uniqueCourses = Array.from(new Set(teacherBatchesInfo.map(b => b.course)));
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
   const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => composeCourse === 'All' || b.course === composeCourse).map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (composeCourse === 'All' || b.course === composeCourse) && (composeProgram === 'All' || b.program === composeProgram)).map(b => b.level).filter(Boolean))) as string[];
   const availableBatches = teacherBatchesInfo.filter(b => {
@@ -49,8 +67,8 @@ export const TeacherNotifications: React.FC = () => {
   const uniqueBatches = Array.from(new Set(availableBatches.map(b => b.name)));
 
   const teacherStudents = useMemo(() => {
-    return students.filter(s => s.batch && TEACHER_ASSIGNED_BATCHES.includes(s.batch));
-  }, [students]);
+    return students.filter(s => s.batch && teacherAssignedBatches.includes(s.batch));
+  }, [students, teacherAssignedBatches]);
 
   // List processing
   const displayList = useMemo(() => {
