@@ -207,15 +207,15 @@ export const ProductAnalytics: React.FC = () => {
         <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ${branchOpen ? 'md:col-span-3' : ''}`}>
           <div className="p-5 space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Active Branches Registered</span>
-            <div className="flex items-end justify-between gap-2 flex-wrap">
-              <div className="space-y-1.5 w-full">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div className="space-y-1.5 flex-1 min-w-[200px]">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalBranches} Branches</span>
                 <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                   <span>↑ 8.3% growth rate</span>
                   <span className="text-slate-400 font-normal">this month</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
                 {branchOpen && <FilterChips value={branchFilter} onChange={setBranchFilter} />}
                 <ExpandToggle open={branchOpen} onClick={() => setBranchOpen(o => !o)} />
               </div>
@@ -238,8 +238,8 @@ export const ProductAnalytics: React.FC = () => {
         <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ${storageOpen ? 'md:col-span-3' : ''}`}>
           <div className="p-5 space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Global SaaS Cloud Storage Load</span>
-            <div className="flex items-end justify-between gap-2 flex-wrap">
-              <div className="space-y-1.5 w-full">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div className="space-y-1.5 flex-1 min-w-[200px]">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalUsedGB.toFixed(1)} GB / {TOTAL_PLATFORM_GB} GB</span>
                 <div className="text-xs text-slate-400 flex items-center gap-2">
                   <div className="w-full bg-slate-100 rounded-full h-1.5 min-w-[100px]">
@@ -251,7 +251,7 @@ export const ProductAnalytics: React.FC = () => {
                   <span className="whitespace-nowrap">{((totalUsedGB / TOTAL_PLATFORM_GB) * 100).toFixed(1)}% capacity</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
                 {storageOpen && <FilterChips value={storageFilter} onChange={setStorageFilter} />}
                 <ExpandToggle open={storageOpen} onClick={() => setStorageOpen(o => !o)} />
               </div>
@@ -274,14 +274,14 @@ export const ProductAnalytics: React.FC = () => {
         <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ${usersOpen ? 'md:col-span-3' : ''}`}>
           <div className="p-5 space-y-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Peak Active Concurrency Load</span>
-            <div className="flex items-end justify-between gap-2 flex-wrap">
-              <div className="space-y-1.5 w-full">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div className="space-y-1.5 flex-1 min-w-[200px]">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalActiveUsers.toLocaleString()} Active Users</span>
                 <div className="text-xs text-emerald-600 font-semibold">
                   <span>● 99.98% Service Level Agreement met</span>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
                 {usersOpen && <FilterChips value={usersFilter} onChange={setUsersFilter} />}
                 <ExpandToggle open={usersOpen} onClick={() => setUsersOpen(o => !o)} />
               </div>
