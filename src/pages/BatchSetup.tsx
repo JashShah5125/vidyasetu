@@ -10,6 +10,12 @@ import { Pagination } from '../components/ui/Pagination';
 export const BatchSetup: React.FC = () => {
   const { batches, courses, branches, currentUser } = useApp();
 
+  const myCourses = useMemo(() => {
+    return currentUser?.role === 'branch-admin'
+      ? courses.filter(c => (c.branches || []).includes(currentUser.branch || ''))
+      : courses;
+  }, [courses, currentUser]);
+
   // Local batch state since batches aren't managed via context mutations yet
   const [batchList, setBatchList] = useState(batches);
   const [search, setSearch] = useState('');
@@ -29,13 +35,13 @@ export const BatchSetup: React.FC = () => {
   const courseOptions = useMemo(() => {
     return [
       { value: 'All', label: 'All Courses' },
-      ...courses.map(c => ({ value: c.name, label: c.name }))
+      ...myCourses.map(c => ({ value: c.name, label: c.name }))
     ];
-  }, [courses]);
+  }, [myCourses]);
 
   const formCourseOptions = useMemo(() => {
-    return courses.map(c => ({ value: c.name, label: c.name }));
-  }, [courses]);
+    return myCourses.map(c => ({ value: c.name, label: c.name }));
+  }, [myCourses]);
 
   const formBranchOptions = useMemo(() => {
     if (currentUser?.role === 'branch-admin') {
@@ -53,17 +59,17 @@ export const BatchSetup: React.FC = () => {
 
   const filterProgramOptions = useMemo(() => {
     if (filterCourse === 'All') return [{ value: 'All', label: 'All Programs' }];
-    const course = courses.find(c => c.name === filterCourse);
+    const course = myCourses.find(c => c.name === filterCourse);
     if (!course || !course.programs) return [{ value: 'All', label: 'All Programs' }];
     return [{ value: 'All', label: 'All Programs' }, ...course.programs.map(p => ({ value: p, label: p }))];
-  }, [filterCourse, courses]);
+  }, [filterCourse, myCourses]);
 
   const formProgramOptions = useMemo(() => {
     if (!form.course) return [];
-    const course = courses.find(c => c.name === form.course);
+    const course = myCourses.find(c => c.name === form.course);
     if (!course || !course.programs) return [];
     return course.programs.map(p => ({ value: p, label: p }));
-  }, [form.course, courses]);
+  }, [form.course, myCourses]);
 
   const deriveLevels = (progName: string) => {
     if (!progName) return [];
@@ -141,8 +147,8 @@ export const BatchSetup: React.FC = () => {
   const handleOpenAdd = () => {
     setEditingIdx(null);
     const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch || '' : (branches[0]?.name || '');
-    const initialCourse = courses[0]?.name || '';
-    const initialProgram = courses[0]?.programs?.[0] || '';
+    const initialCourse = myCourses[0]?.name || '';
+    const initialProgram = myCourses[0]?.programs?.[0] || '';
     const initialLevel = deriveLevels(initialProgram)[0]?.value || '';
     setForm({ name: '', branch: initialBranch, course: initialCourse, program: initialProgram, level: initialLevel, academicYear: '2026-27', startTime: '', endTime: '', room: '' });
     setIsModalOpen(true);
@@ -254,7 +260,7 @@ export const BatchSetup: React.FC = () => {
               value={form.course}
               onChange={e => {
                 const newCourse = e.target.value;
-                const courseObj = courses.find(c => c.name === newCourse);
+                const courseObj = myCourses.find(c => c.name === newCourse);
                 const newProg = courseObj?.programs?.[0] || '';
                 const newLvl = deriveLevels(newProg)[0]?.value || '';
                 setForm(p => ({ ...p, course: newCourse, program: newProg, level: newLvl }));

@@ -12,6 +12,12 @@ import { INITIAL_SUBJECTS_MAP, INITIAL_BUNDLES_MAP } from '../data/mockData';
 export const SubjectSetup: React.FC = () => {
   const { courses, staff, currentUser } = useApp();
   
+  const myCourses = useMemo(() => {
+    return currentUser?.role === 'branch-admin'
+      ? courses.filter(c => (c.branches || []).includes(currentUser.branch || ''))
+      : courses;
+  }, [courses, currentUser]);
+
   const teachers = useMemo(() => staff.filter(s => s.role === 'Teacher'), [staff]);
 
   // Filters State
@@ -45,16 +51,16 @@ export const SubjectSetup: React.FC = () => {
   const courseOptions = useMemo(() => {
     return [
       { value: 'All', label: 'All Courses' },
-      ...courses.map(c => ({ value: c.code, label: c.name }))
+      ...myCourses.map(c => ({ value: c.code, label: c.name }))
     ];
-  }, [courses]);
+  }, [myCourses]);
 
   const programOptions = useMemo(() => {
     if (filterCourse === 'All') return [{ value: 'All', label: 'All Programs' }];
-    const course = courses.find(c => c.code === filterCourse);
+    const course = myCourses.find(c => c.code === filterCourse);
     if (!course || !course.programs) return [{ value: 'All', label: 'All Programs' }];
     return [{ value: 'All', label: 'All Programs' }, ...course.programs.map(p => ({ value: p, label: p }))];
-  }, [filterCourse, courses]);
+  }, [filterCourse, myCourses]);
 
   const levelOptions = useMemo(() => {
     if (filterProgram === 'All') return [{ value: 'All', label: 'All Levels' }];
@@ -70,7 +76,7 @@ export const SubjectSetup: React.FC = () => {
   // Flattened Data
   const parseKey = (key: string) => {
     let courseCode = '';
-    for (const c of courses) {
+    for (const c of myCourses) {
       if (key.startsWith(c.code + '-')) {
         courseCode = c.code;
         break;
@@ -85,7 +91,7 @@ export const SubjectSetup: React.FC = () => {
     const programName = remaining.substring(0, lastDashIdx);
     const levelValue = remaining.substring(lastDashIdx + 1);
     
-    const courseName = courses.find(c => c.code === courseCode)?.name || courseCode;
+    const courseName = myCourses.find(c => c.code === courseCode)?.name || courseCode;
     const levelLabels: any = { year1: 'Year 1', year2: 'Year 2', class8: 'Class 8' };
     const levelLabel = levelLabels[levelValue] || levelValue;
 
@@ -98,7 +104,7 @@ export const SubjectSetup: React.FC = () => {
       const parsed = parseKey(key);
       if (!parsed) continue;
       
-      const course = courses.find(c => c.code === parsed.courseCode);
+      const course = myCourses.find(c => c.code === parsed.courseCode);
       const isMyBranch = currentUser?.role === 'branch-admin'
         ? (course?.branches || []).includes(currentUser.branch || '')
         : true;
@@ -109,7 +115,7 @@ export const SubjectSetup: React.FC = () => {
       });
     }
     return list;
-  }, [assignedSubjectsMap, courses, currentUser]);
+  }, [assignedSubjectsMap, myCourses, currentUser]);
 
   const flatBundles = useMemo(() => {
     const list: any[] = [];
@@ -117,7 +123,7 @@ export const SubjectSetup: React.FC = () => {
       const parsed = parseKey(key);
       if (!parsed) continue;
       
-      const course = courses.find(c => c.code === parsed.courseCode);
+      const course = myCourses.find(c => c.code === parsed.courseCode);
       const isMyBranch = currentUser?.role === 'branch-admin'
         ? (course?.branches || []).includes(currentUser.branch || '')
         : true;
@@ -128,7 +134,7 @@ export const SubjectSetup: React.FC = () => {
       });
     }
     return list;
-  }, [bundlesMap, courses, currentUser]);
+  }, [bundlesMap, myCourses, currentUser]);
 
   // Applying Filters
   const filteredSubjects = useMemo(() => {
@@ -355,13 +361,13 @@ export const SubjectSetup: React.FC = () => {
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
               <Select
                 label="Assign to Course"
-                options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
+                options={[{ value: '', label: 'Select a course...' }, ...myCourses.map(c => ({ value: c.code, label: c.name }))]}
                 value={subjectForm.formCourse}
                 onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
               />
               <Select
                 label="Assign to Program"
-                options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
+                options={[{ value: '', label: 'Select a program...' }, ...(myCourses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
                 value={subjectForm.formProgram}
                 onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
                 disabled={!subjectForm.formCourse}
@@ -472,13 +478,13 @@ export const SubjectSetup: React.FC = () => {
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Context</h4>
               <Select
                 label="Course"
-                options={[{ value: '', label: 'Select a course...' }, ...courses.map(c => ({ value: c.code, label: c.name }))]}
+                options={[{ value: '', label: 'Select a course...' }, ...myCourses.map(c => ({ value: c.code, label: c.name }))]}
                 value={bundleForm.formCourse}
                 onChange={e => setBundleForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '', subjectIds: [] }))}
               />
               <Select
                 label="Program"
-                options={[{ value: '', label: 'Select a program...' }, ...(courses.find(c => c.code === bundleForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
+                options={[{ value: '', label: 'Select a program...' }, ...(myCourses.find(c => c.code === bundleForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
                 value={bundleForm.formProgram}
                 onChange={e => setBundleForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '', subjectIds: [] }))}
                 disabled={!bundleForm.formCourse}
@@ -544,15 +550,10 @@ export const SubjectSetup: React.FC = () => {
     );
   }
 
-  const isReadOnly = currentUser?.role === 'branch-admin';
+  const isReadOnly = false;
 
   return (
     <div className="space-y-6 animate-fade-in p-6">
-      {isReadOnly && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
-          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify subject and bundle configuration.
-        </div>
-      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
