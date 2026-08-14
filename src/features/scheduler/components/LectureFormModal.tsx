@@ -52,6 +52,16 @@ const getBatchMetadata = (batchId: string) => {
   return null;
 };
 
+const TEMPLATE_DAYS = [
+  { value: '2026-01-05', label: 'Monday' },
+  { value: '2026-01-06', label: 'Tuesday' },
+  { value: '2026-01-07', label: 'Wednesday' },
+  { value: '2026-01-08', label: 'Thursday' },
+  { value: '2026-01-09', label: 'Friday' },
+  { value: '2026-01-10', label: 'Saturday' },
+  { value: '2026-01-11', label: 'Sunday' }
+];
+
 interface LectureFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -59,11 +69,14 @@ interface LectureFormModalProps {
   batchId: string;
   existingLecture?: Lecture;
   initialDate?: string;
+  isTemplate?: boolean;
   onSave?: (lecture: any) => void;
   onDelete?: (id: string) => void;
 }
 
-export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onClose, branchId, batchId, existingLecture, initialDate, onSave, onDelete }) => {
+export const LectureFormModal: React.FC<LectureFormModalProps> = ({
+  isOpen, onClose, branchId, batchId, existingLecture, initialDate, isTemplate = false, onSave, onDelete
+}) => {
   const { staff, branches } = useApp();
   const { rooms, lectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
@@ -193,7 +206,12 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
   const isBlocking = conflicts.some(c => c.severity === 'BLOCKING');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={existingLecture ? 'Edit Lecture' : 'Schedule New Lecture'} size="lg">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isTemplate ? (existingLecture ? 'Edit Default Slot' : 'Add Default Slot') : (existingLecture ? 'Edit Lecture' : 'Schedule New Lecture')}
+      size="lg"
+    >
       <form onSubmit={(e) => handleSubmit(e, 'PUBLISHED')} className="p-6 space-y-6">
 
         {/* Prefilled Filter Information (Read Only) */}
@@ -269,10 +287,18 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
 
         {/* Schedule Group */}
         <div className="grid grid-cols-3 gap-4 pb-4">
-          <Input
-            type="date" label="Date" required
-            value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
-          />
+          {isTemplate ? (
+            <Select
+              label="Day of Week" required
+              options={TEMPLATE_DAYS}
+              value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
+            />
+          ) : (
+            <Input
+              type="date" label="Date" required
+              value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
+            />
+          )}
           <Input
             type="time" label="Start Time" required
             value={formData.startTime} onChange={(e) => handleChange('startTime', e.target.value)}

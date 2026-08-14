@@ -6,7 +6,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { Select } from '../../../components/ui/Select';
 import { Button } from '../../../components/ui/Button';
 import { TimetableGrid } from './TimetableGrid';
-import { Copy, PlusCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { Copy, PlusCircle, AlertCircle, Sparkles, BookmarkCheck } from 'lucide-react';
 import type { Lecture } from '../types/scheduler';
 
 export interface CreateTimetableContext {
@@ -73,7 +73,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
     initialContext?.weekStartDate ||
     new Date(new Date().setDate(new Date().getDate() - new Date().getDay() + 1)).toISOString().split('T')[0] // Monday of current week
   );
-  const [creationMode, setCreationMode] = useState<'BLANK' | 'REPLICATE'>('BLANK');
+  const [creationMode, setCreationMode] = useState<'BLANK' | 'DEFAULT' | 'REPLICATE'>('BLANK');
   const [selectedSourceWeek, setSelectedSourceWeek] = useState<string>('');
   
   // Derived Options
@@ -118,17 +118,28 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
     return Array.from(weekMap.entries()).map(([wStart, list]) => {
       const startD = parseLocalDate(wStart);
-      const endD = new Date(startD);
-      endD.setDate(endD.getDate() + 5);
-      const label = `Week of ${startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} (${list.length} activities)`;
-      return {
-        value: wStart,
-        label,
-        count: list.length,
-        startDate: wStart
-      };
-    }).sort((a, b) => b.startDate.localeCompare(a.startDate));
+      const endD = parseLocalDate(wStart);
+      endD.setDate(endD.getDate() + 6);
+
+      const label = `${startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} (${list.length} activities)`;
+      return { value: wStart, label, count: list.length };
+    }).sort((a, b) => b.value.localeCompare(a.value));
   }, [lectures, batchId]);
+
+  // Available default template for this batch
+  const defaultBatchLectures = useMemo(() => {
+    if (!batchId) return [];
+    const saved = localStorage.getItem('vs_default_timetables');
+    if (saved) {
+      try {
+        const store = JSON.parse(saved);
+        if (store[batchId] && Array.isArray(store[batchId])) {
+          return store[batchId] as Lecture[];
+        }
+      } catch {}
+    }
+    return [];
+  }, [batchId, isOpen]);
 
   // Auto-select first source week when availableWeeks updates
   React.useEffect(() => {
@@ -139,7 +150,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   // Source lectures for live preview
   const sourceLectures = useMemo(() => {
-    if (creationMode !== 'REPLICATE' || !selectedSourceWeek) return [];
+    if (creationMode !== 'REPLICATE' || !selectedSourceWeek || !batchId) return [];
     const start = parseLocalDate(selectedSourceWeek);
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
@@ -156,7 +167,37 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
   const handleComplete = () => {
     let initialLectures: Lecture[] | undefined = undefined;
 
-    if (creationMode === 'REPLICATE' && sourceLectures.length > 0 && weekStartDate) {
+    if (creationMode === 'DEFAULT' && defaultBatchLectures.length > 0 && weekStartDate) {
+      const targetMon = parseLocalDate(weekStartDate);
+      const templateMon = parseLocalDate('2026-01-05');
+
+      initialLectures = defaultBatchLectures.map(l => {
+        let dayOffset = 0;
+        if (l.date) {
+          const slotDate = parseLocalDate(l.date);
+          dayOffset = Math.round((slotDate.getTime() - templateMon.getTime()) / (1000 * 60 * 60 * 24));
+          if (isNaN(dayOffset) || dayOffset < 0 || dayOffset > 6) {
+            dayOffset = (slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1);
+          }
+        }
+
+        const newDate = new Date(targetMon);
+        newDate.setDate(newDate.getDate() + dayOffset);
+        const dateStr = formatLocalDate(newDate);
+
+        return {
+          ...l,
+          id: `TEMP-${Math.floor(10000 + Math.random() * 90000)}`,
+          date: dateStr,
+          batchId: batchId,
+          branchId: branchId || l.branchId || 'MUM-WEST',
+          publishStatus: 'DRAFT',
+          status: 'SCHEDULED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      });
+    } else if (creationMode === 'REPLICATE' && sourceLectures.length > 0 && weekStartDate) {
       const sourceStart = parseLocalDate(selectedSourceWeek);
       const targetStart = parseLocalDate(weekStartDate);
 
@@ -261,25 +302,37 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
             <div>
               <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2.5">Creation Method</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <label className={`flex items-start p-3.5 border rounded-xl cursor-pointer transition-all ${creationMode === 'BLANK' ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' : 'border-slate-200 hover:bg-slate-50'}`}>
                   <input type="radio" name="creationMode" checked={creationMode === 'BLANK'} onChange={() => setCreationMode('BLANK')} className="mt-1" />
-                  <div className="ml-3">
+                  <div className="ml-2.5">
                     <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                       <PlusCircle className="w-4 h-4 text-emerald-600" /> Start Blank
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5">Build a new schedule for this week from scratch.</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Build new from scratch.</div>
                   </div>
                 </label>
 
-                <label className={`flex items-start p-3.5 border rounded-xl cursor-pointer transition-all ${creationMode === 'REPLICATE' ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-slate-200 hover:bg-slate-50'} ${availableWeeks.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <input type="radio" name="creationMode" checked={creationMode === 'REPLICATE'} onChange={() => setCreationMode('REPLICATE')} disabled={availableWeeks.length === 0} className="mt-1" />
-                  <div className="ml-3">
+                <label className={`flex items-start p-3.5 border rounded-xl cursor-pointer transition-all ${creationMode === 'DEFAULT' ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-slate-200 hover:bg-slate-50'} ${defaultBatchLectures.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <input type="radio" name="creationMode" checked={creationMode === 'DEFAULT'} onChange={() => setCreationMode('DEFAULT')} disabled={defaultBatchLectures.length === 0} className="mt-1" />
+                  <div className="ml-2.5">
                     <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                      <Copy className="w-4 h-4 text-blue-600" /> Replicate Previous Week
+                      <BookmarkCheck className="w-4 h-4 text-blue-600" /> Use Default
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      {availableWeeks.length > 0 ? `Clone from ${availableWeeks.length} available past weeks.` : 'No past weeks available to copy.'}
+                      {defaultBatchLectures.length > 0 ? `Load ${defaultBatchLectures.length} master slots.` : 'No default timetable set.'}
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`flex items-start p-3.5 border rounded-xl cursor-pointer transition-all ${creationMode === 'REPLICATE' ? 'border-purple-500 bg-purple-50/50 shadow-sm' : 'border-slate-200 hover:bg-slate-50'} ${availableWeeks.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <input type="radio" name="creationMode" checked={creationMode === 'REPLICATE'} onChange={() => setCreationMode('REPLICATE')} disabled={availableWeeks.length === 0} className="mt-1" />
+                  <div className="ml-2.5">
+                    <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                      <Copy className="w-4 h-4 text-purple-600" /> Replicate
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {availableWeeks.length > 0 ? `Copy past week (${availableWeeks.length}).` : 'No past weeks.'}
                     </div>
                   </div>
                 </label>
@@ -321,6 +374,27 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
                     <span>No activities found in the selected source week.</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Default Timetable Preview */}
+            {creationMode === 'DEFAULT' && defaultBatchLectures.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-100 animate-fade-in">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                  <span className="flex items-center gap-1 text-blue-600">
+                    <BookmarkCheck className="w-3.5 h-3.5" /> Previewing {defaultBatchLectures.length} default template slots
+                  </span>
+                </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm max-h-[220px] overflow-y-auto">
+                  <TimetableGrid
+                    lectures={defaultBatchLectures}
+                    viewMode="week"
+                    onEditLecture={() => {}}
+                    selectedWeekStart="2026-01-05"
+                    readOnly={true}
+                    hideDates={true}
+                  />
+                </div>
               </div>
             )}
 

@@ -235,6 +235,59 @@ export const LectureScheduler = () => {
     }
   };
 
+  // Apply master default timetable to the current editor week
+  const handleUseDefaultTimetable = () => {
+    if (!editorContext) return;
+
+    const saved = localStorage.getItem('vs_default_timetables');
+    let defaultStore: Record<string, Lecture[]> = {};
+    if (saved) {
+      try {
+        defaultStore = JSON.parse(saved);
+      } catch {}
+    }
+
+    const batchDefaultLectures = defaultStore[editorContext.batchId];
+    if (!batchDefaultLectures || !Array.isArray(batchDefaultLectures) || batchDefaultLectures.length === 0) {
+      addToast(`No default timetable found for batch "${editorContext.batchId}". Please configure it in the Default Timetable tab first.`, 'warning');
+      return;
+    }
+
+    // Calculate target dates for the target week
+    const targetMon = parseLocalDate(editorContext.weekStartDate);
+    const templateMon = parseLocalDate('2026-01-05');
+
+    const instantiatedLectures: Lecture[] = batchDefaultLectures.map(l => {
+      let dayOffset = 0;
+      if (l.date) {
+        const slotDate = parseLocalDate(l.date);
+        dayOffset = Math.round((slotDate.getTime() - templateMon.getTime()) / (1000 * 60 * 60 * 24));
+        if (isNaN(dayOffset) || dayOffset < 0 || dayOffset > 6) {
+          dayOffset = (slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1);
+        }
+      }
+
+      const targetDate = new Date(targetMon);
+      targetDate.setDate(targetDate.getDate() + dayOffset);
+      const targetDateStr = formatLocalDate(targetDate);
+
+      return {
+        ...l,
+        id: `TEMP-${Math.floor(10000 + Math.random() * 90000)}`,
+        batchId: editorContext.batchId,
+        branchId: editorContext.branchId || l.branchId || 'MUM-WEST',
+        date: targetDateStr,
+        publishStatus: 'DRAFT',
+        status: 'SCHEDULED',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    setLocalLectures(instantiatedLectures);
+    addToast(`Default timetable loaded for week of ${new Date(editorContext.weekStartDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. Click "Publish" to save.`, 'info');
+  };
+
   return (
     <div className="space-y-6">
 
@@ -242,63 +295,102 @@ export const LectureScheduler = () => {
       {editorContext ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-100px)]">
           {/* Editor Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <Button variant="outline" size="sm" onClick={() => {
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/90 gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
                   setEditorContext(null);
                   setResolvingRequest(null);
-                }}>
-                  <ChevronLeft className="w-4 h-4 mr-1" /> Back
-                </Button>
-                <h2 className="text-xl font-bold text-slate-800">
-                  WEEKLY SCHEDULE
-                </h2>
-              </div>
-              <div className="text-sm text-slate-500 flex items-center gap-2">
-                <span className="font-semibold text-slate-700">{editorContext.courseId}</span> •
-                <span>{editorContext.programId}</span> •
-                <span>{editorContext.levelId}</span> •
-                <span className="font-semibold text-blue-600">{editorContext.batchId}</span>
-                <span className="mx-2">|</span>
-                <span className="font-semibold text-emerald-600">
-                  Week of {new Date(editorContext.weekStartDate).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
+                }}
+                className="text-xs font-semibold shadow-2xs border-slate-200 px-2.5 py-1.5"
+              >
+                <ChevronLeft className="w-4 h-4 mr-0.5 text-slate-500" /> Back
+              </Button>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-slate-900 tracking-tight whitespace-nowrap">
+                    WEEKLY SCHEDULE
+                  </h2>
+                  <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md text-xs tracking-tight">
+                    {editorContext.batchId}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
+                  {editorContext.courseId && <><span className="font-medium text-slate-700">{editorContext.courseId}</span><span>•</span></>}
+                  {editorContext.programId && <><span className="text-slate-600">{editorContext.programId}</span><span>•</span></>}
+                  {editorContext.levelId && <><span className="text-slate-600">{editorContext.levelId}</span><span className="text-slate-300">|</span></>}
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1">
+                    <Calendar size={11} className="text-emerald-600" />
+                    Week of {new Date(editorContext.weekStartDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => setIsReplicateModalOpen(true)}>
-                <Copy className="w-4 h-4 mr-1.5 text-blue-600" /> Replicate Previous Week
-              </Button>
-              <Button variant="outline" onClick={() => {
-                setEditorContext(null);
-                setResolvingRequest(null);
-              }}>Cancel</Button>
-              <Button variant="primary" onClick={async () => {
-                await syncLectures(editorContext.batchId, localLectures, 'PUBLISHED');
 
-                if (resolvingRequest) {
-                  const saved = localStorage.getItem('vs_schedule_requests');
-                  const allRequests: ScheduleChange[] = saved ? JSON.parse(saved) : (scheduleRequestsData as ScheduleChange[]);
-                  const updated = allRequests.map(r => {
-                    if (r.id === resolvingRequest.id) {
-                      return {
-                        ...r,
-                        status: 'Approved' as const,
-                        updatedAt: new Date().toISOString()
-                      };
-                    }
-                    return r;
-                  });
-                  localStorage.setItem('vs_schedule_requests', JSON.stringify(updated));
-                  setRequestsList(updated);
-                  addToast(`Schedule published and Request ${resolvingRequest.id} marked as Approved.`, 'success');
+            {/* Top Right Action Buttons Group */}
+            <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleUseDefaultTimetable}
+                className="text-xs font-semibold hover:text-blue-600 hover:border-blue-300 px-3 py-1.5"
+              >
+                <BookmarkCheck className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> Use Default
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsReplicateModalOpen(true)}
+                className="text-xs font-semibold hover:text-blue-600 hover:border-blue-300 px-3 py-1.5"
+              >
+                <Copy className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> Replicate Previous
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setEditorContext(null);
                   setResolvingRequest(null);
-                } else {
-                  addToast('Weekly timetable published successfully.', 'success');
-                }
-                setEditorContext(null);
-              }}>Publish</Button>
+                }}
+                className="text-xs font-medium text-slate-600 px-3 py-1.5"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={async () => {
+                  await syncLectures(editorContext.batchId, localLectures, 'PUBLISHED', editorContext.weekStartDate);
+
+                  if (resolvingRequest) {
+                    const saved = localStorage.getItem('vs_schedule_requests');
+                    const allRequests: ScheduleChange[] = saved ? JSON.parse(saved) : (scheduleRequestsData as ScheduleChange[]);
+                    const updated = allRequests.map(r => {
+                      if (r.id === resolvingRequest.id) {
+                        return {
+                          ...r,
+                          status: 'Approved' as const,
+                          updatedAt: new Date().toISOString()
+                        };
+                      }
+                      return r;
+                    });
+                    localStorage.setItem('vs_schedule_requests', JSON.stringify(updated));
+                    setRequestsList(updated);
+                    addToast(`Schedule published and Request ${resolvingRequest.id} marked as Approved.`, 'success');
+                    setResolvingRequest(null);
+                  } else {
+                    addToast('Weekly timetable published successfully.', 'success');
+                  }
+                  setEditorContext(null);
+                }}
+                className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs px-3.5 py-1.5"
+              >
+                Publish
+              </Button>
             </div>
           </div>
 
@@ -418,7 +510,7 @@ export const LectureScheduler = () => {
                         <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center">
                           {parseLocalDate(selectedWeekStart).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – {(() => {
                             const d = parseLocalDate(selectedWeekStart);
-                            d.setDate(d.getDate() + 5);
+                            d.setDate(d.getDate() + 6);
                             return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
                           })()}
                         </span>
@@ -470,7 +562,7 @@ export const LectureScheduler = () => {
                       <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center">
                         {parseLocalDate(selectedWeekStart).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – {(() => {
                           const d = parseLocalDate(selectedWeekStart);
-                          d.setDate(d.getDate() + 5);
+                          d.setDate(d.getDate() + 6);
                           return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
                         })()}
                       </span>
@@ -513,7 +605,7 @@ export const LectureScheduler = () => {
                       <span className="text-sm font-semibold text-slate-700 min-w-[120px] text-center">
                         {parseLocalDate(selectedWeekStart).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – {(() => {
                           const d = parseLocalDate(selectedWeekStart);
-                          d.setDate(d.getDate() + 5);
+                          d.setDate(d.getDate() + 6);
                           return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
                         })()}
                       </span>

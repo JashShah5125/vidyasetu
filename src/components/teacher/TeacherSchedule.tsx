@@ -376,7 +376,7 @@ export const TeacherSchedule: React.FC = () => {
                   <Button variant="secondary" onClick={() => setCurrentDate(new Date())} className="text-xs">Current Week</Button>
                 </div>
                 <div className="text-sm font-bold text-slate-800">
-                  Week: {weekStart.toLocaleDateString('en-US', { day: '2-digit', month: 'short' })} - {new Date(weekStart.getTime() + 5 * 86400000).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  Week: {weekStart.toLocaleDateString('en-US', { day: '2-digit', month: 'short' })} - {new Date(weekStart.getTime() + 6 * 86400000).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </div>
               </div>
 
@@ -413,7 +413,7 @@ export const TeacherSchedule: React.FC = () => {
               {/* CSS Grid Timetable */}
               <div className="overflow-x-auto">
                 <div className="min-w-[800px] border border-slate-200 rounded-xl overflow-hidden flex">
-                  {[0, 1, 2, 3, 4, 5].map((offset) => {
+                  {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
                     const dayDateStr = getDayString(offset);
                     const dayLectures = filteredLectures.filter(l => l.date === dayDateStr);
                     const isToday = dayDateStr === todayStr;
@@ -421,7 +421,7 @@ export const TeacherSchedule: React.FC = () => {
                       <div key={offset} className={`flex-1 border-r last:border-r-0 border-slate-200 ${isToday ? 'bg-blue-50/30' : 'bg-slate-50/30'}`}>
                         <div className={`p-3 text-center border-b border-slate-200 ${isToday ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'}`}>
                           <div className="text-xs font-bold uppercase tracking-widest">
-                            {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][offset]}
+                            {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][offset]}
                           </div>
                           <div className="text-[10px] font-semibold mt-0.5 opacity-80">
                             {new Date(dayDateStr).getDate()}

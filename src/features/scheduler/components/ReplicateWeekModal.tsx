@@ -70,7 +70,7 @@ export const ReplicateWeekModal: React.FC<ReplicateWeekModalProps> = ({
     const weeks = Array.from(weekMap.entries()).map(([weekStart, list]) => {
       const startD = parseLocalDate(weekStart);
       const endD = new Date(startD);
-      endD.setDate(endD.getDate() + 5);
+      endD.setDate(endD.getDate() + 6);
       const label = `Week of ${startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} (${list.length} activities)`;
       return {
         value: weekStart,
@@ -120,7 +120,7 @@ export const ReplicateWeekModal: React.FC<ReplicateWeekModalProps> = ({
     if (!targetWeekStart) return '';
     const startD = parseLocalDate(targetWeekStart);
     const endD = new Date(startD);
-    endD.setDate(endD.getDate() + 5);
+    endD.setDate(endD.getDate() + 6);
     return `${startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }, [targetWeekStart]);
 

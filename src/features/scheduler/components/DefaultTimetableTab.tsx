@@ -32,14 +32,8 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
 }) => {
   const { addToast } = useApp();
 
-  // Active batch selection
-  const [selectedBatch, setSelectedBatch] = useState<string>(currentBatch || availableBatches[0] || 'JEE-Morning-A1');
-
-  useEffect(() => {
-    if (currentBatch) {
-      setSelectedBatch(currentBatch);
-    }
-  }, [currentBatch]);
+  // Active batch selection directly from global filter
+  const selectedBatch = currentBatch;
 
   // Load master default timetables dictionary from localStorage or defaultTimetables.json
   const [defaultStore, setDefaultStore] = useState<Record<string, Lecture[]>>(() => {
@@ -102,32 +96,52 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
       {isEditing ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-100px)]">
           {/* Editor Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
-                  <ChevronLeft className="w-4 h-4 mr-1" /> Back
-                </Button>
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                  DEFAULT TIMETABLE (MASTER TEMPLATE)
-                </h2>
-              </div>
-              <div className="text-sm text-slate-500 flex items-center gap-2">
-                {course && <><span className="font-semibold text-slate-700">{course}</span> •</>}
-                {program && <><span>{program}</span> •</>}
-                {level && <><span>{level}</span> •</>}
-                <span className="font-semibold text-blue-600">{selectedBatch}</span>
-                <span className="mx-2">|</span>
-                <span className="font-semibold text-emerald-600">
-                  Recurring Weekly Template
-                </span>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/90 gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                className="text-xs font-semibold shadow-2xs border-slate-200 px-2.5 py-1.5"
+              >
+                <ChevronLeft className="w-4 h-4 mr-0.5 text-slate-500" /> Back
+              </Button>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-slate-900 tracking-tight whitespace-nowrap">
+                    DEFAULT TIMETABLE (MASTER TEMPLATE)
+                  </h2>
+                  <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md text-xs tracking-tight">
+                    {selectedBatch}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
+                  {course && <><span className="font-medium text-slate-700">{course}</span><span>•</span></>}
+                  {program && <><span className="text-slate-600">{program}</span><span>•</span></>}
+                  {level && <><span className="text-slate-600">{level}</span><span className="text-slate-300">|</span></>}
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1">
+                    <Calendar size={11} className="text-emerald-600" /> Recurring Weekly Template
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => setIsEditing(false)}>
+
+            <div className="flex items-center gap-2 shrink-0 self-end lg:self-auto">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                className="text-xs font-medium text-slate-600 px-3 py-1.5"
+              >
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handleSaveDefaultTimetable}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveDefaultTimetable}
+                className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs px-3.5 py-1.5"
+              >
                 Save Default Timetable
               </Button>
             </div>
@@ -150,57 +164,52 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
               }}
               selectedWeekStart={TEMPLATE_WEEK_START}
               readOnly={false}
+              hideDates={true}
             />
           </div>
         </div>
       ) : (
         /* VIEW MODE (SAME BLANK/SAVED TIMETABLE GRID WITH EDIT BUTTON) */
-        <div className="space-y-6">
-          {/* Header Row with Batch Selector and Edit Button */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                  <BookmarkCheck className="w-5 h-5 text-blue-600" />
-                  Default Timetable ({selectedBatch})
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Standard recurring weekly schedule for this batch. Click "Edit" to configure and save default slots.
-                </p>
+        currentBatch ? (
+          <div className="space-y-6">
+            {/* Header Row with Batch Title and Edit Button */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <BookmarkCheck className="w-5 h-5 text-blue-600" />
+                    Default Timetable ({currentBatch})
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Standard recurring weekly schedule for this batch. Click "Edit" to configure and save default slots.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button variant="primary" onClick={handleStartEdit}>
+                  <Edit className="w-4 h-4 mr-2" /> Edit
+                </Button>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-              {/* Batch Switcher if multiple batches available */}
-              {availableBatches.length > 1 && (
-                <div className="min-w-[180px]">
-                  <Select
-                    label=""
-                    options={availableBatches.map(b => ({ value: b, label: b }))}
-                    value={selectedBatch}
-                    onChange={(e) => {
-                      setSelectedBatch(e.target.value);
-                      if (onSelectBatch) onSelectBatch(e.target.value);
-                    }}
-                  />
-                </div>
-              )}
-
-              <Button variant="primary" onClick={handleStartEdit}>
-                <Edit className="w-4 h-4 mr-2" /> Edit
-              </Button>
-            </div>
+            {/* View Mode Grid: Displays Saved Lectures or Clean Blank Timetable Grid */}
+            <TimetableGrid
+              lectures={savedLectures}
+              viewMode="week"
+              onEditLecture={() => { }} // Disabled in view mode
+              selectedWeekStart={TEMPLATE_WEEK_START}
+              readOnly={true}
+              hideDates={true}
+            />
           </div>
-
-          {/* View Mode Grid: Displays Saved Lectures or Clean Blank Timetable Grid */}
-          <TimetableGrid
-            lectures={savedLectures}
-            viewMode="week"
-            onEditLecture={() => { }} // Disabled in view mode
-            selectedWeekStart={TEMPLATE_WEEK_START}
-            readOnly={true}
-          />
-        </div>
+        ) : (
+          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-16 text-center">
+            <Calendar className="mx-auto text-slate-300 mb-3" size={36} />
+            <p className="text-slate-700 font-semibold">Please select a Batch to view its default timetable.</p>
+            <p className="text-xs text-slate-400 mt-1">Use the dropdown filters above to select Course, Program, Level, and Batch.</p>
+          </div>
+        )
       )}
 
       {/* Shared LectureFormModal for Adding / Editing Slots */}
@@ -212,6 +221,7 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
           batchId={selectedBatch}
           existingLecture={editingLecture}
           initialDate={initialDate}
+          isTemplate={true}
           onSave={(lectureData) => {
             if (lectureData.id) {
               setLocalLectures(prev =>

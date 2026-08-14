@@ -42,9 +42,10 @@ interface TimetableGridProps {
   onEditLecture: (lecture: Lecture) => void;
   selectedWeekStart?: string; // For adding new lectures with correct date
   readOnly?: boolean;
+  hideDates?: boolean;
 }
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const getLectureColor = (type?: string, isOverride?: boolean) => {
   if (isOverride) return 'bg-orange-100 border-orange-200'; // Substitution / Override
@@ -57,7 +58,7 @@ const getLectureColor = (type?: string, isOverride?: boolean) => {
   }
 };
 
-export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode, onEditLecture, selectedWeekStart, readOnly = false }) => {
+export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode, onEditLecture, selectedWeekStart, readOnly = false, hideDates = false }) => {
 
   if (viewMode === 'list') {
     let filteredLectures = lectures;
@@ -133,8 +134,8 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400"></span> Substitution</div>
         </div>
 
-        {/* 6 Equal Days Grid - Fits full width with zero horizontal scrolling */}
-        <div className="grid grid-cols-6 divide-x divide-slate-200 bg-slate-100/40 w-full">
+        {/* 7 Equal Days Grid (Monday to Sunday) - Fits full width */}
+        <div className="grid grid-cols-7 divide-x divide-slate-200 bg-slate-100/40 w-full">
           {DAYS.map((day, dayIndex) => {
             // Find lectures for this day
             const dayLectures = lectures.filter(l => {
@@ -151,7 +152,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                 {/* Day Header */}
                 <div className="p-2 border-b border-slate-200 bg-slate-50 text-center flex flex-col justify-center select-none">
                   <span className="font-bold text-slate-800 text-xs sm:text-sm truncate">{day}</span>
-                  {selectedWeekStart && (
+                  {!hideDates && selectedWeekStart && (
                     <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
                       {(() => {
                         const d = parseLocalDate(selectedWeekStart);
