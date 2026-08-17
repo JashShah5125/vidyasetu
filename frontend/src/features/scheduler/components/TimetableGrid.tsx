@@ -24,12 +24,14 @@ const formatLocalDate = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
-const getTeacherName = (id: string) => {
+const getTeacherName = (id?: string) => {
+  if (!id) return '';
   const teacher = teachersList.find(t => t.id === id);
   return teacher ? teacher.name : id;
 };
 
-const getRoomName = (id: string) => {
+const getRoomName = (id?: string) => {
+  if (!id) return '';
   const room = classroomsList.find(r => r.id === id);
   return room ? room.name : id;
 };
@@ -38,12 +40,12 @@ interface TimetableGridProps {
   lectures: Lecture[];
   viewMode: 'week' | 'day' | 'list';
   onEditLecture: (lecture: Lecture) => void;
-  isDefaultMode?: boolean;
   selectedWeekStart?: string; // For adding new lectures with correct date
   readOnly?: boolean;
+  hideDates?: boolean;
 }
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const getLectureColor = (type?: string, isOverride?: boolean) => {
   if (isOverride) return 'bg-orange-100 border-orange-200'; // Substitution / Override
@@ -56,11 +58,11 @@ const getLectureColor = (type?: string, isOverride?: boolean) => {
   }
 };
 
-export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode, onEditLecture, isDefaultMode, selectedWeekStart, readOnly = false }) => {
+export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode, onEditLecture, selectedWeekStart, readOnly = false, hideDates = false }) => {
 
   if (viewMode === 'list') {
     let filteredLectures = lectures;
-    if (!isDefaultMode && selectedWeekStart) {
+    if (selectedWeekStart) {
       const start = parseLocalDate(selectedWeekStart);
       const end = parseLocalDate(selectedWeekStart);
       end.setDate(end.getDate() + 6);
@@ -122,43 +124,36 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
   // Week View: Time/Day columns
   if (viewMode === 'week') {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden w-full">
         {/* Legend */}
-        <div className="flex items-center gap-6 px-6 py-4 border-b border-slate-100 text-xs font-semibold text-slate-600">
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Lecture</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Lab</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-purple-400"></span> Activity</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Break</div>
-          <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400"></span> Substitution</div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 border-b border-slate-100 text-[11px] font-semibold text-slate-600 bg-slate-50/50">
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> Lecture</div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400"></span> Lab</div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-400"></span> Activity</div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-400"></span> Break</div>
+          <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-400"></span> Substitution</div>
         </div>
 
-        <div className="flex bg-slate-50 min-h-[600px] overflow-x-auto">
+        {/* 7 Equal Days Grid (Monday to Sunday) - Fits full width */}
+        <div className="grid grid-cols-7 divide-x divide-slate-200 bg-slate-100/40 w-full">
           {DAYS.map((day, dayIndex) => {
             // Find lectures for this day
-             const dayLectures = lectures.filter(l => {
+            const dayLectures = lectures.filter(l => {
               if (l.status === 'CANCELLED') return false;
-              
-              if (isDefaultMode) {
-                const jsDay = l.date === '0000-00-00'
-                  ? (l.dayOfWeek !== undefined ? l.dayOfWeek : 1)
-                  : parseLocalDate(l.date).getDay();
-                const mapDay = jsDay === 0 ? 'Sunday' : DAYS[jsDay - 1];
-                return mapDay === day;
-              } else {
-                if (!selectedWeekStart) return false;
-                const targetDate = parseLocalDate(selectedWeekStart);
-                targetDate.setDate(targetDate.getDate() + dayIndex);
-                const targetStr = formatLocalDate(targetDate);
-                return l.date === targetStr;
-              }
+              if (!selectedWeekStart) return false;
+              const targetDate = parseLocalDate(selectedWeekStart);
+              targetDate.setDate(targetDate.getDate() + dayIndex);
+              const targetStr = formatLocalDate(targetDate);
+              return l.date === targetStr;
             }).sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
 
             return (
-              <div key={day} className="flex-1 min-w-[200px] border-r border-slate-200 flex flex-col bg-white">
-                <div className="p-4 border-b border-slate-200 bg-slate-50 text-center flex flex-col justify-center">
-                  <span className="font-semibold text-slate-700">{day}</span>
-                  {!isDefaultMode && selectedWeekStart && (
-                    <span className="text-xs text-slate-500 font-medium mt-0.5">
+              <div key={day} className="min-w-0 flex flex-col bg-white">
+                {/* Day Header */}
+                <div className="p-2 border-b border-slate-200 bg-slate-50 text-center flex flex-col justify-center select-none">
+                  <span className="font-bold text-slate-800 text-xs sm:text-sm truncate">{day}</span>
+                  {!hideDates && selectedWeekStart && (
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
                       {(() => {
                         const d = parseLocalDate(selectedWeekStart);
                         d.setDate(d.getDate() + dayIndex);
@@ -167,17 +162,19 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                     </span>
                   )}
                 </div>
-                <div className="p-3 space-y-3 flex-1">
+
+                {/* Lecture Cards Container */}
+                <div className="p-1.5 sm:p-2 space-y-1.5 flex-1 min-h-[300px]">
                   {dayLectures.map(lecture => {
                     if (lecture.activityType === 'Break') {
                       return (
                         <div 
                           key={lecture.id}
                           onClick={() => !readOnly && onEditLecture(lecture)}
-                          className={`p-3 bg-slate-50 border border-slate-200 rounded-lg text-center transition-colors ${!readOnly ? 'cursor-pointer hover:bg-slate-100' : ''}`}
+                          className={`p-2 bg-slate-100/70 border border-slate-200 rounded-lg text-center transition-colors ${!readOnly ? 'cursor-pointer hover:bg-slate-200/60' : ''}`}
                         >
-                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{lecture.startTime} - {lecture.endTime}</div>
-                          <div className="text-sm font-semibold text-slate-600 mt-1">Break</div>
+                          <div className="text-[10px] font-bold text-slate-500 tracking-tight">{lecture.startTime} - {lecture.endTime}</div>
+                          <div className="text-xs font-semibold text-slate-600 mt-0.5">Break</div>
                         </div>
                       );
                     }
@@ -186,20 +183,20 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                       <div 
                         key={lecture.id}
                         onClick={() => !readOnly && onEditLecture(lecture)}
-                        className={`p-3 border rounded-lg transition-shadow relative ${!readOnly ? 'cursor-pointer hover:shadow-md' : ''} ${getLectureColor(lecture.lectureType, lecture.isOverride)}`}
+                        className={`p-2 sm:p-2.5 border rounded-lg transition-all relative ${!readOnly ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''} ${getLectureColor(lecture.lectureType, lecture.isOverride)}`}
                       >
-                        <div className="text-xs font-bold text-slate-700 opacity-70 mb-1">{lecture.startTime} - {lecture.endTime}</div>
-                        <div className="font-bold text-slate-800 text-sm">{lecture.subjectId}</div>
-                        <div className="text-slate-600 text-xs mt-1">{getTeacherName(lecture.teacherId)}</div>
-                        <div className="text-slate-500 text-[11px] mt-1">{getRoomName(lecture.roomId) || 'Room TBA'}</div>
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 bg-white/70 px-1.5 py-0.5 rounded border border-slate-200/60">
+                        <div className="text-[10px] sm:text-[11px] font-bold text-slate-600 opacity-80 leading-tight mb-1">{lecture.startTime} - {lecture.endTime}</div>
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm leading-snug truncate" title={lecture.subjectId}>{lecture.subjectId}</div>
+                        <div className="text-slate-600 text-[11px] truncate mt-0.5 leading-tight" title={getTeacherName(lecture.teacherId)}>{getTeacherName(lecture.teacherId)}</div>
+                        <div className="text-slate-500 text-[10px] truncate leading-tight mt-0.5" title={getRoomName(lecture.roomId) || 'Room TBA'}>{getRoomName(lecture.roomId) || 'Room TBA'}</div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60 leading-none">
                             {lecture.lectureType || 'Regular'}
                           </span>
                         </div>
                         {lecture.isOverride && (
-                          <div className="absolute top-2 right-2 text-orange-500" title="Substitution">
-                            <Repeat className="w-3.5 h-3.5" />
+                          <div className="absolute top-1.5 right-1.5 text-orange-500" title="Substitution">
+                            <Repeat className="w-3 h-3" />
                           </div>
                         )}
                       </div>
@@ -209,21 +206,17 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                   {!readOnly && (
                     <button
                       onClick={() => {
-                         if (isDefaultMode) {
-                           onEditLecture({ date: '0000-00-00', dayOfWeek: dayIndex + 1 } as Lecture);
-                         } else {
-                           let targetDate = selectedWeekStart;
-                           if (selectedWeekStart) {
-                             const d = parseLocalDate(selectedWeekStart);
-                             d.setDate(d.getDate() + dayIndex);
-                             targetDate = formatLocalDate(d);
-                           }
-                           onEditLecture({ date: targetDate || formatLocalDate(new Date()) } as Lecture);
-                         }
+                        let targetDate = selectedWeekStart;
+                        if (selectedWeekStart) {
+                          const d = parseLocalDate(selectedWeekStart);
+                          d.setDate(d.getDate() + dayIndex);
+                          targetDate = formatLocalDate(d);
+                        }
+                        onEditLecture({ date: targetDate || formatLocalDate(new Date()) } as Lecture);
                       }}
-                      className="w-full py-3 mt-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 text-sm font-semibold"
+                      className="w-full py-2 border border-dashed border-slate-200 rounded-lg text-slate-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-1 text-xs font-semibold"
                     >
-                      <Plus className="w-4 h-4" /> Add Activity
+                      <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add</span>
                     </button>
                   )}
                 </div>

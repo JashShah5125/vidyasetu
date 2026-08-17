@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext';
 
 export const FeesMaster: React.FC = () => {
   const { currentUser } = useApp();
-  const isReadOnly = currentUser?.role === 'branch-admin';
+  const isReadOnly = false;
   const [activeMainTab, setActiveMainTab] = useState<'full-course' | 'custom-bundles' | 'subject-wise'>('full-course');
   const [view, setView] = useState<'list' | 'form'>('list');
   const { plans, setPlans, customBundles, setCustomBundles, subjectsData, setSubjectsData } = useFeeConfig();
@@ -345,7 +345,7 @@ export const FeesMaster: React.FC = () => {
                 disabled={!selectedCourse}
                 options={[
                   { value: '', label: 'Choose a program...' },
-                  ...availablePrograms.map(p => ({ value: p, label: p }))
+                  ...(availablePrograms || []).map(p => ({ value: p, label: p }))
                 ]}
               />
             </div>
@@ -492,7 +492,7 @@ export const FeesMaster: React.FC = () => {
                 disabled={!subjectFilterCourse}
                 options={[
                   { value: '', label: 'All Programs...' },
-                  ...subjectAvailablePrograms.map(p => ({ value: p, label: p }))
+                  ...(subjectAvailablePrograms || []).map(p => ({ value: p, label: p }))
                 ]}
               />
               <Select
@@ -502,7 +502,7 @@ export const FeesMaster: React.FC = () => {
                 disabled={!subjectFilterProgram}
                 options={[
                   { value: '', label: 'All Levels...' },
-                  ...subjectAvailableLevels.map(l => ({ value: l, label: l }))
+                  ...(subjectAvailableLevels || []).map(l => ({ value: l, label: l }))
                 ]}
               />
             </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
@@ -10,7 +10,92 @@ import {
   ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle, ShieldAlert
 } from 'lucide-react';
 
-import type { AcademicLevel, Program, Course } from '../data/mockData';
+// ─── Data Shape ───────────────────────────────────────────────────────────────
+
+interface AcademicLevel {
+  id: string;
+  name: string; // e.g. "Class XI", "Year 1"
+  duration?: string;
+}
+
+interface Program {
+  id: string;
+  name: string; // e.g. "2 Year", "1 Year Crash Course"
+  code: string;
+  enabled: boolean;
+  levels: AcademicLevel[];
+}
+
+interface CourseData {
+  name: string;
+  code: string;
+  duration: string;
+  enabled: boolean;
+  programs: Program[];
+  branches?: string[];
+}
+
+// ─── Mock Seed Data ────────────────────────────────────────────────────────────
+
+const SEED_DATA: Record<string, CourseData> = {
+  'JEE-PREP': {
+    name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', enabled: true,
+    programs: [
+      {
+        id: 'p1', name: '2 Year', code: 'PRG-001', enabled: true,
+        levels: [
+          { id: 'l1', name: 'Class XI' },
+          { id: 'l2', name: 'Class XII' },
+        ]
+      },
+      {
+        id: 'p2', name: '1 Year', code: 'PRG-002', enabled: true,
+        levels: [
+          { id: 'l3', name: 'Class XII (Dropper)' }
+        ]
+      },
+      { id: 'p3', name: 'Crash Course', code: 'PRG-003', enabled: false, levels: [] },
+    ]
+  },
+  'NEET-PREM': {
+    name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', enabled: true,
+    programs: [
+      {
+        id: 'p4', name: '1 Year', code: 'PRG-004', enabled: true,
+        levels: [
+          { id: 'l4', name: 'Class XII' }
+        ]
+      },
+      { id: 'p5', name: 'Repeater', code: 'PRG-005', enabled: true, levels: [{ id: 'l5', name: 'Repeater Batch' }] },
+    ]
+  },
+  'FOUND-10': {
+    name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', enabled: true,
+    programs: [
+      {
+        id: 'p6', name: '2 Year', code: 'PRG-006', enabled: true,
+        levels: [
+          { id: 'l6', name: 'Class VIII' },
+          { id: 'l7', name: 'Class IX' },
+        ]
+      },
+      { id: 'p7', name: '1 Year', code: 'PRG-007', enabled: false, levels: [] },
+    ]
+  },
+  '8TH-STD': {
+    name: '8th Standard', code: '8TH-STD', duration: '1 Year', enabled: true,
+    programs: [
+      {
+        id: 'p8', name: '8th std ICSE', code: 'PRG-008', enabled: true,
+        levels: [{ id: 'l8', name: 'Class VIII' }]
+      },
+      {
+        id: 'p9', name: '8th std CBSE', code: 'PRG-009', enabled: true,
+        levels: [{ id: 'l9', name: 'Class VIII' }]
+      }
+    ]
+  }
+};
 
 const newLevel = (): AcademicLevel => ({ id: `l-${Date.now()}`, name: '' });
 const newProgram = (): Program => ({ id: `p-${Date.now()}`, name: '', code: '', enabled: true, levels: [] });
@@ -22,6 +107,11 @@ const LevelCard: React.FC<{
   onChange: (l: AcademicLevel) => void;
   onDelete: () => void;
 }> = ({ level, onChange, onDelete }) => {
+  const { currentUser } = useApp();
+  const { code } = useParams<{ code: string }>();
+  const isNew = code === 'new';
+  const disableInputs = currentUser?.role === 'branch-admin' && !isNew;
+
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex flex-col md:flex-row items-center p-3 gap-3">
       <Layers size={16} className="text-indigo-500 shrink-0 hidden md:block" />
@@ -31,6 +121,8 @@ const LevelCard: React.FC<{
           value={level.name}
           placeholder="Level Name (e.g. Class XI)"
           onChange={e => onChange({ ...level, name: e.target.value })}
+          disabled={disableInputs}
+          className="disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-default"
         />
       </div>
       <div className="w-full md:w-48 shrink-0">
@@ -45,14 +137,17 @@ const LevelCard: React.FC<{
           ]}
           value={level.duration || ''}
           onChange={e => onChange({ ...level, duration: e.target.value })}
+          disabled={disableInputs}
         />
       </div>
-      <button
-        onClick={onDelete}
-        className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer mt-1"
-      >
-        <Trash2 size={16} />
-      </button>
+      {!disableInputs && (
+        <button
+          onClick={onDelete}
+          className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer mt-1"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
     </div>
   );
 };
@@ -62,6 +157,10 @@ const ProgramCard: React.FC<{
   onChange: (p: Program) => void;
   onDelete: () => void;
 }> = ({ program, onChange, onDelete }) => {
+  const { currentUser } = useApp();
+  const { code } = useParams<{ code: string }>();
+  const isNew = code === 'new';
+  const disableInputs = currentUser?.role === 'branch-admin' && !isNew;
   const [open, setOpen] = useState(program.enabled);
 
   return (
@@ -82,9 +181,11 @@ const ProgramCard: React.FC<{
             onChange={(checked) => onChange({ ...program, enabled: checked })} 
             label={program.enabled ? 'Active' : 'Inactive'} 
           />
-          <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer">
-            <Trash2 size={15} />
-          </button>
+          {!disableInputs && (
+            <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer">
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -96,6 +197,8 @@ const ProgramCard: React.FC<{
               value={program.name}
               placeholder="e.g. 2 Year / 1 Year Crash Course / Repeater"
               onChange={e => onChange({ ...program, name: e.target.value })}
+              disabled={disableInputs}
+              className="disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-default"
             />
             <Input
               label="Program Code"
@@ -103,6 +206,8 @@ const ProgramCard: React.FC<{
               value={program.code}
               placeholder="e.g. PRG-001"
               onChange={e => onChange({ ...program, code: e.target.value })}
+              disabled={disableInputs}
+              className="disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-default"
             />
           </div>
 
@@ -122,12 +227,14 @@ const ProgramCard: React.FC<{
                 />
               ))}
             </div>
-            <button
-              onClick={() => onChange({ ...program, levels: [...program.levels, newLevel()] })}
-              className="flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 mt-3 cursor-pointer"
-            >
-              <Plus size={15} /> Add Academic Level
-            </button>
+            {!disableInputs && (
+              <button
+                onClick={() => onChange({ ...program, levels: [...program.levels, newLevel()] })}
+                className="flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 mt-3 cursor-pointer"
+              >
+                <Plus size={15} /> Add Academic Level
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -140,60 +247,89 @@ const ProgramCard: React.FC<{
 export const CourseDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { courses, updateCourse, addCourse, addToast, currentUser } = useApp();
+  const { courses, setCourses, addToast, currentUser, branches } = useApp();
 
   const isNew = code === 'new';
-  const isReadOnly = currentUser?.role === 'branch-admin';
+  const isReadOnly = false;
 
-  React.useEffect(() => {
-    if (currentUser?.role === 'branch-admin' && isNew) {
-      addToast('Access denied: Branch Admins cannot create courses.');
-      navigate('/courses');
-    }
-  }, [currentUser, isNew, navigate, addToast]);
-
-  const existingCourse = useMemo(() => courses.find(c => c.code === code), [courses, code]);
+  const seedKey = code && SEED_DATA[code] ? code : null;
 
   const [activeTab, setActiveTab] = useState<'general' | 'programs'>('general');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    duration: '',
-    enabled: true,
-    programs: [] as Program[]
-  });
+  const [formData, setFormData] = useState<CourseData>(
+    seedKey
+      ? { ...JSON.parse(JSON.stringify(SEED_DATA[seedKey])), branches: [] }
+      : { name: '', code: '', duration: '', enabled: true, programs: [], branches: [] }
+  );
 
   React.useEffect(() => {
-    if (existingCourse) {
+    const existing = courses.find(c => c.code === code);
+    if (existing) {
       setFormData({
-        name: existingCourse.name,
-        code: existingCourse.code,
-        duration: existingCourse.duration || '',
-        enabled: existingCourse.status === 'Active',
-        programs: existingCourse.programDetails || []
+        name: existing.name || '',
+        code: existing.code || '',
+        duration: existing.duration || '',
+        enabled: true,
+        programs: existing.programs ? existing.programs.map((p: any, idx: number) => ({
+          id: `p-${idx}`,
+          name: p,
+          code: `PRG-00${idx}`,
+          enabled: true,
+          levels: []
+        })) : [],
+        branches: existing.branches || []
+      });
+    } else if (seedKey && SEED_DATA[seedKey]) {
+      setFormData({
+        ...JSON.parse(JSON.stringify(SEED_DATA[seedKey])),
+        branches: []
       });
     } else {
-      setFormData({ name: '', code: code === 'new' ? '' : (code || ''), duration: '', enabled: true, programs: [] });
+      setFormData({ name: '', code: code === 'new' ? '' : (code || ''), duration: '', enabled: true, programs: [], branches: [] });
     }
-  }, [existingCourse, code]);
+  }, [code, seedKey, courses]);
 
   const handleSave = () => {
-    const courseObj: Partial<Course> = {
-      name: formData.name,
-      code: formData.code,
-      duration: formData.duration,
-      status: formData.enabled ? 'Active' : 'Inactive',
-      programDetails: formData.programs
-    };
-
-    if (isNew) {
-      addCourse(courseObj as Course);
-      addToast(`Course "${formData.name}" created successfully.`);
-    } else {
-      updateCourse(formData.code, courseObj);
-      addToast(`Course "${formData.name}" updated successfully.`);
+    if (!formData.name || !formData.code) {
+      addToast('Please enter both Course Name and Course Code.');
+      return;
     }
+    const selectedBranches = formData.branches || [];
+    if (selectedBranches.length === 0) {
+      addToast('Please select at least one branch.');
+      return;
+    }
+    
+    const existingIndex = courses.findIndex(c => c.code === code);
+    if (existingIndex > -1) {
+      // Edit mode
+      setCourses(prev => prev.map(c => {
+        if (c.code === code) {
+          return {
+            ...c,
+            name: formData.name,
+            code: formData.code,
+            branches: selectedBranches,
+            programs: formData.programs.map(p => p.name)
+          };
+        }
+        return c;
+      }));
+      addToast(`Course "${formData.name}" updated successfully.`);
+    } else {
+      // Create mode
+      const newCourseItem = {
+        name: formData.name,
+        code: formData.code,
+        duration: formData.duration || '1 Year',
+        fees: 80000,
+        programs: formData.programs.map(p => p.name),
+        branches: selectedBranches
+      };
+      setCourses(prev => [...prev, newCourseItem]);
+      addToast(`Course "${formData.name}" created successfully.`);
+    }
+    
     navigate('/courses');
   };
 
@@ -234,25 +370,27 @@ export const CourseDetail: React.FC = () => {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none mt-6 px-6">
-        {[
-          { id: 'general', label: 'General Info', icon: BookOpen },
-          { id: 'programs', label: 'Programs & Levels', icon: Layers },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer select-none ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <tab.icon size={15} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {currentUser?.role !== 'branch-admin' && (
+        <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none mt-6 px-6">
+          {[
+            { id: 'general', label: 'General Info', icon: BookOpen },
+            { id: 'programs', label: 'Programs & Levels', icon: Layers },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer select-none ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <tab.icon size={15} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <fieldset disabled={isReadOnly} className="contents">
         {/* Tab Content */}
@@ -272,20 +410,60 @@ export const CourseDetail: React.FC = () => {
                 label={formData.enabled ? 'Course Active' : 'Course Inactive'} 
               />
             </div>
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Input
-                label="Course Name"
-                value={formData.name}
-                placeholder="e.g. JEE Prep Course"
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-              />
-              <Input
-                label="Course Code"
-                value={formData.code}
-                placeholder="e.g. JEE-PREP"
-                onChange={e => setFormData({ ...formData, code: e.target.value })}
-              />
-            </div>
+            {(() => {
+              const disableInputs = currentUser?.role === 'branch-admin' && !isNew;
+              return (
+                <>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Input
+                      label="Course Name"
+                      value={formData.name}
+                      placeholder="e.g. JEE Prep Course"
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      disabled={disableInputs}
+                      className="disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-default"
+                    />
+                    <Input
+                      label="Course Code"
+                      value={formData.code}
+                      placeholder="e.g. JEE-PREP"
+                      onChange={e => setFormData({ ...formData, code: e.target.value })}
+                      disabled={disableInputs}
+                      className="disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-default"
+                    />
+                  </div>
+                  <div className="p-5 border-t border-slate-100 flex flex-col gap-3">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Offered in Branches</label>
+                    <div className="flex flex-wrap gap-5 mt-1">
+                      {branches.map(branch => {
+                        const isChecked = (formData.branches || []).includes(branch.name);
+                        return (
+                          <label key={branch.id} className={`flex items-center gap-2.5 select-none ${disableInputs ? 'cursor-default opacity-60' : 'cursor-pointer group'}`}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={disableInputs}
+                              onChange={e => {
+                                const checked = e.target.checked;
+                                const currentBranches = formData.branches || [];
+                                const updated = checked
+                                  ? [...currentBranches, branch.name]
+                                  : currentBranches.filter(name => name !== branch.name);
+                                setFormData({ ...formData, branches: updated });
+                              }}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 transition-all duration-150 cursor-pointer disabled:cursor-default"
+                            />
+                            <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
+                              {branch.name}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </Card>
         )}
 
@@ -299,12 +477,14 @@ export const CourseDetail: React.FC = () => {
                   Define which programs are available (e.g. 1 Year, 2 Year) and add academic levels under each.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => setFormData({ ...formData, programs: [...formData.programs, newProgram()] })}
-              >
-                <Plus size={15} className="mr-1.5" /> Add Program
-              </Button>
+              {!(currentUser?.role === 'branch-admin' && !isNew) && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setFormData({ ...formData, programs: [...formData.programs, newProgram()] })}
+                >
+                  <Plus size={15} className="mr-1.5" /> Add Program
+                </Button>
+              )}
             </div>
 
             {formData.programs.length === 0 && (

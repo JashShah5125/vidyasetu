@@ -315,6 +315,28 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, courses]
   );
 
+  const statsLeads = useMemo(() => {
+    return leads.filter(l => {
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? l.branch === currentUser.branch
+        : (filterBranch === 'All' || l.branch === filterBranch);
+      const matchCourse = filterCourse === 'All' || l.course === filterCourse;
+      const courseObj = courses.find(c => c.name === l.course);
+      const matchProgram = filterProgram === 'All' || (courseObj?.programs?.includes(filterProgram) ?? false);
+      return matchBranch && matchCourse && matchProgram;
+    });
+  }, [leads, filterBranch, filterCourse, filterProgram, currentUser, courses]);
+
+  const statsStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchBranch = currentUser?.role === 'branch-admin'
+        ? s.branch === currentUser.branch
+        : (filterBranch === 'All' || s.branch === filterBranch);
+      const matchCourse = filterCourse === 'All' || s.course === filterCourse;
+      return matchBranch && matchCourse;
+    });
+  }, [students, filterBranch, filterCourse, currentUser]);
+
   const pipelineLeads  = filteredLeads.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const totalPages     = Math.ceil(filteredLeads.length / PER_PAGE);
 
@@ -1033,14 +1055,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // Stats for pipeline header
   const stats = {
-    total:       leads.length,
-    new:         leads.filter(l => l.status === 'New Enquiry').length,
-    followup:    leads.filter(l => l.status === 'Follow-up').length,
-    interested:  leads.filter(l => l.status === 'Interested').length,
-    lost:        leads.filter(l => l.status === 'Not Interested').length,
-    converted:   students.length,
-    active:      students.filter(s => s.status === 'Active Student').length,
-    pending:     students.filter(s => s.status !== 'Active Student').length,
+    total:       statsLeads.length,
+    new:         statsLeads.filter(l => l.status === 'New Enquiry').length,
+    followup:    statsLeads.filter(l => l.status === 'Follow-up').length,
+    interested:  statsLeads.filter(l => l.status === 'Interested').length,
+    lost:        statsLeads.filter(l => l.status === 'Not Interested').length,
+    converted:   statsStudents.length,
+    active:      statsStudents.filter(s => s.status === 'Active Student').length,
+    pending:     statsStudents.filter(s => s.status !== 'Active Student').length,
   };
 
   return (

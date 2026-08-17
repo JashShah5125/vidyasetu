@@ -52,6 +52,16 @@ const getBatchMetadata = (batchId: string) => {
   return null;
 };
 
+const TEMPLATE_DAYS = [
+  { value: '2026-01-05', label: 'Monday' },
+  { value: '2026-01-06', label: 'Tuesday' },
+  { value: '2026-01-07', label: 'Wednesday' },
+  { value: '2026-01-08', label: 'Thursday' },
+  { value: '2026-01-09', label: 'Friday' },
+  { value: '2026-01-10', label: 'Saturday' },
+  { value: '2026-01-11', label: 'Sunday' }
+];
+
 interface LectureFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -59,12 +69,14 @@ interface LectureFormModalProps {
   batchId: string;
   existingLecture?: Lecture;
   initialDate?: string;
-  isDefaultMode?: boolean;
+  isTemplate?: boolean;
   onSave?: (lecture: any) => void;
   onDelete?: (id: string) => void;
 }
 
-export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onClose, branchId, batchId, existingLecture, initialDate, isDefaultMode = false, onSave, onDelete }) => {
+export const LectureFormModal: React.FC<LectureFormModalProps> = ({
+  isOpen, onClose, branchId, batchId, existingLecture, initialDate, isTemplate = false, onSave, onDelete
+}) => {
   const { staff, branches } = useApp();
   const { rooms, lectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
@@ -77,7 +89,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
     teacherId: '',
     roomId: '',
     date: new Date().toISOString().split('T')[0],
-    dayOfWeek: new Date().getDay(),
     startTime: '09:00',
     endTime: '10:30',
     lectureType: 'Regular' as LectureType,
@@ -94,9 +105,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         teacherId: existingLecture.teacherId || '',
         roomId: existingLecture.roomId || '',
         date: existingLecture.date,
-        dayOfWeek: existingLecture.date === '0000-00-00'
-          ? (existingLecture.dayOfWeek || 1)
-          : parseLocalDate(existingLecture.date).getDay(),
         startTime: existingLecture.startTime || '09:00',
         endTime: existingLecture.endTime || '10:30',
         lectureType: existingLecture.lectureType || 'Regular',
@@ -108,7 +116,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
       setFormData(prev => ({
         ...prev,
         date: targetDate,
-        dayOfWeek: targetDate === '0000-00-00' ? 1 : parseLocalDate(targetDate).getDay(),
         startTime: '09:00',
         endTime: '10:30',
         roomId: '',
@@ -117,9 +124,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         activityType: 'Lecture'
       }));
     }
-  }, [existingLecture, isOpen, batchId]);
-
-
+  }, [existingLecture, isOpen, batchId, initialDate]);
 
   useEffect(() => {
     if (batchId && formData.date && formData.startTime && formData.endTime && (formData.activityType === 'Break' || formData.teacherId)) {
@@ -143,11 +148,6 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
     e.preventDefault();
     if (conflicts.some(c => c.severity === 'BLOCKING')) return;
 
-    let finalDate = formData.date;
-    if (isDefaultMode) {
-      finalDate = '0000-00-00';
-    }
-
     if (onSave) {
       onSave({
         id: existingLecture?.id,
@@ -157,8 +157,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
         subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
         teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
         roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-        date: finalDate,
-        dayOfWeek: isDefaultMode ? parseInt(formData.dayOfWeek.toString()) : undefined,
+        date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
         lectureType: formData.lectureType,
@@ -173,8 +172,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
           subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
           teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
           roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-          date: finalDate,
-          dayOfWeek: isDefaultMode ? parseInt(formData.dayOfWeek.toString()) : undefined,
+          date: formData.date,
           startTime: formData.startTime,
           endTime: formData.endTime,
           lectureType: formData.lectureType,
@@ -192,8 +190,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
           subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
           teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
           roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-          date: finalDate,
-          dayOfWeek: isDefaultMode ? parseInt(formData.dayOfWeek.toString()) : undefined,
+          date: formData.date,
           startTime: formData.startTime,
           endTime: formData.endTime,
           lectureType: formData.lectureType,
@@ -209,7 +206,12 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
   const isBlocking = conflicts.some(c => c.severity === 'BLOCKING');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={existingLecture ? 'Edit Lecture' : 'Schedule New Lecture'} size="lg">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isTemplate ? (existingLecture ? 'Edit Default Slot' : 'Add Default Slot') : (existingLecture ? 'Edit Lecture' : 'Schedule New Lecture')}
+      size="lg"
+    >
       <form onSubmit={(e) => handleSubmit(e, 'PUBLISHED')} className="p-6 space-y-6">
 
         {/* Prefilled Filter Information (Read Only) */}
@@ -285,11 +287,11 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({ isOpen, onCl
 
         {/* Schedule Group */}
         <div className="grid grid-cols-3 gap-4 pb-4">
-          {isDefaultMode ? (
+          {isTemplate ? (
             <Select
               label="Day of Week" required
-              options={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, idx) => ({ value: idx.toString(), label: day }))}
-              value={formData.dayOfWeek.toString()} onChange={(e) => handleChange('dayOfWeek', e.target.value)}
+              options={TEMPLATE_DAYS}
+              value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
             />
           ) : (
             <Input

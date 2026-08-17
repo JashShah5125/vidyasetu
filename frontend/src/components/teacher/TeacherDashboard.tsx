@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
@@ -6,12 +6,36 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Calendar, HelpCircle, GraduationCap, ArrowLeft, Clock, MapPin, AlertCircle, FileText, CheckCircle } from 'lucide-react';
-import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS, INITIAL_SCHEDULE_CHANGES } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../data/mockData';
+import teachersList from '../../data/teachers.json';
+import classroomsList from '../../data/classrooms.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
+
+const getTeacherName = (id?: string) => {
+  if (!id) return '';
+  const teacher = teachersList.find(t => t.id === id || t.name === id);
+  return teacher ? teacher.name : id;
+};
+
+const getRoomName = (id?: string) => {
+  if (!id) return '';
+  const room = classroomsList.find(r => r.id === id || r.name === id);
+  return room ? room.name : id;
+};
 
 export const TeacherDashboard: React.FC = () => {
   const { currentUser, doubts, sendDoubtReply, addToast, batches, branches, courses, students } = useApp();
   const { lectures, updateLecture } = useScheduler();
   const navigate = useNavigate();
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
 
   // Global Filters
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
@@ -21,22 +45,51 @@ export const TeacherDashboard: React.FC = () => {
   const [filterYear, setFilterYear] = useState('All');
   const [filterBatch, setFilterBatch] = useState('All');
 
-  const uniqueBranches = currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name);
-  const uniqueCourses = courses.map(c => c.name);
-  const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
-  const uniqueLevels = Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[];
-  const uniqueYears = Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[];
+  const uniqueBranches = useMemo(() => currentUser?.role === 'branch-admin' ? [currentUser.branch || ''] : branches.map(b => b.name), [currentUser, branches]);
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
 
-  const dropdownBatches = batches.filter(b => {
-    if (!TEACHER_ASSIGNED_BATCHES.includes(b.name)) return false;
-    const batchBranch = b.branch || 'Mumbai West';
-    const matchBranch = filterBranch === 'All' || batchBranch === filterBranch;
-    const matchCourse = filterCourse === 'All' || b.course === filterCourse;
-    const matchProgram = filterProgram === 'All' || b.program === filterProgram;
-    const matchLevel = filterLevel === 'All' || b.level === filterLevel;
-    const matchYear = filterYear === 'All' || b.academicYear === filterYear;
-    return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
-  });
+  const uniquePrograms = useMemo(() => {
+    if (filterCourse === 'All') {
+      return Array.from(new Set(courseHierarchy.flatMap(c => c.programs.map(p => p.programName))));
+    }
+    const c = courseHierarchy.find(x => x.courseName === filterCourse);
+    return c ? c.programs.map(p => p.programName) : [];
+  }, [filterCourse]);
+
+  const uniqueLevels = useMemo(() => {
+    if (filterCourse === 'All') {
+      return Array.from(new Set(courseHierarchy.flatMap(c => c.programs.flatMap(p => p.levels.map(l => l.levelName)))));
+    }
+    const c = courseHierarchy.find(x => x.courseName === filterCourse);
+    if (filterProgram === 'All') {
+      return Array.from(new Set(c ? c.programs.flatMap(p => p.levels.map(l => l.levelName)) : []));
+    }
+    const p = c?.programs.find(x => x.programName === filterProgram);
+    return p ? p.levels.map(l => l.levelName) : [];
+  }, [filterCourse, filterProgram]);
+
+  const uniqueYears = useMemo(() => Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[], [batches]);
+
+  // Teacher's specific assigned batches from teachers.json
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
+
+  const dropdownBatches = useMemo(() => {
+    return batches.filter(b => {
+      if (teacherAssignedBatches.length > 0 && !teacherAssignedBatches.includes(b.name)) return false;
+      const batchBranch = b.branch || 'Mumbai West';
+      const matchBranch = filterBranch === 'All' || batchBranch === filterBranch || (branches.find(br => br.code === filterBranch)?.name === batchBranch);
+      const matchCourse = filterCourse === 'All' || b.course === filterCourse;
+      const matchProgram = filterProgram === 'All' || b.program === filterProgram;
+      const matchLevel = filterLevel === 'All' || b.level === filterLevel;
+      const matchYear = filterYear === 'All' || b.academicYear === filterYear;
+      return matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
+    });
+  }, [batches, teacherAssignedBatches, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, branches]);
 
   React.useEffect(() => {
     if (filterBatch !== 'All') {
@@ -45,7 +98,9 @@ export const TeacherDashboard: React.FC = () => {
     }
   }, [filterBranch, filterCourse, filterProgram, filterLevel, filterYear]);
 
-  const activeBatches = filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
+  const activeBatches = useMemo(() => {
+    return filterBatch === 'All' ? dropdownBatches.map(b => b.name) : [filterBatch];
+  }, [filterBatch, dropdownBatches]);
 
   const unresolvedDoubts = doubts.filter(d => {
     if (d.status !== 'Pending') return false;
@@ -82,12 +137,17 @@ export const TeacherDashboard: React.FC = () => {
     setCurrentPage(1);
   }, [doubtFilter]);
 
-  const filteredLectures = lectures.filter(l => {
-    const matchBatch = activeBatches.includes(l.batchId);
-    const matchLectureFilter = lectureFilter === 'All' || l.batchId === lectureFilter;
-    const isPublished = l.publishStatus === 'PUBLISHED' && l.status !== 'CANCELLED';
-    return matchBatch && matchLectureFilter && isPublished;
-  });
+  // Filtered Lectures from db.json
+  const filteredLectures = useMemo(() => {
+    return lectures.filter(l => {
+      if (l.status === 'CANCELLED') return false;
+      const isTeacherMatch = !currentTeacher || l.teacherId === currentTeacher.id || l.teacherId === currentTeacher.name || teacherAssignedBatches.includes(l.batchId);
+      if (!isTeacherMatch) return false;
+      const matchBatch = activeBatches.includes(l.batchId);
+      const matchLectureFilter = lectureFilter === 'All' || l.batchId === lectureFilter;
+      return matchBatch && matchLectureFilter;
+    });
+  }, [lectures, currentTeacher, teacherAssignedBatches, activeBatches, lectureFilter]);
 
   const handleQuickAnswer = (id: string) => {
     setActiveDoubtId(id);
@@ -369,7 +429,7 @@ export const TeacherDashboard: React.FC = () => {
                           <div className="text-base font-semibold text-blue-700 mt-1">{lecture.subjectId}</div>
                           <div className="text-sm text-slate-600 mt-0.5">{lecture.batchId}</div>
                           <div className="flex items-center gap-3 mt-2 text-xs font-semibold">
-                            <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {lecture.roomId}</span>
+                            <span className="flex items-center gap-1 text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-md"><MapPin size={12}/> {getRoomName(lecture.roomId) || 'Room TBA'}</span>
                             {lecture.status === 'COMPLETED' ? (
                               <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md"><CheckCircle size={12}/> Attendance Marked</span>
                             ) : (
@@ -426,31 +486,67 @@ export const TeacherDashboard: React.FC = () => {
               {/* WEEKLY SCHEDULE TAB */}
               {scheduleTab === 'weekly' && (
                 <div className="space-y-4">
-                  {filteredLectures.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                          <div className="bg-slate-100 p-2 text-center text-xs font-bold text-slate-700 uppercase tracking-widest border-b border-slate-200">
-                            {day}
-                          </div>
-                          <div className="p-3 space-y-2 min-h-[100px] bg-slate-50/50">
-                            {filteredLectures.slice(0, Math.floor(Math.random() * 3) + 1).map((l, i) => (
-                              <div key={i} className="p-2 bg-white border border-slate-200 rounded-md shadow-sm hover:border-blue-400 cursor-pointer">
-                                <div className="text-xs font-bold text-slate-800">{l.startTime}</div>
-                                <div className="text-xs font-semibold text-blue-700 truncate">{l.subjectId}</div>
-                                <div className="text-[10px] text-slate-500 truncate">{l.batchId}</div>
-                              </div>
-                            ))}
-                          </div>
+                  {(() => {
+                    const now = new Date();
+                    const dayOfWeek = now.getDay();
+                    const diffToMon = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+                    const monday = new Date(now.setDate(diffToMon));
+                    
+                    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dName, idx) => {
+                      const d = new Date(monday);
+                      d.setDate(d.getDate() + idx);
+                      const dateStr = d.toISOString().split('T')[0];
+                      const dayLectures = filteredLectures.filter(l => l.date === dateStr).sort((a, b) => a.startTime.localeCompare(b.startTime));
+                      return {
+                        name: dName,
+                        dateStr,
+                        dateNum: d.getDate(),
+                        lectures: dayLectures
+                      };
+                    });
+
+                    const hasAnyLectures = days.some(d => d.lectures.length > 0);
+
+                    if (!hasAnyLectures) {
+                      return (
+                        <div className="py-12 text-center flex flex-col items-center justify-center">
+                          <Calendar className="text-slate-300 mb-3" size={32} />
+                          <div className="text-slate-500 font-medium">No scheduled lectures for this week.</div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="py-12 text-center flex flex-col items-center justify-center">
-                      <Calendar className="text-slate-300 mb-3" size={32} />
-                      <div className="text-slate-500 font-medium">No scheduled lectures for this week.</div>
-                    </div>
-                  )}
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {days.map(dayObj => (
+                          <div key={dayObj.name} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                            <div className="bg-slate-100 px-3 py-1.5 flex items-center justify-between text-xs font-bold text-slate-700 border-b border-slate-200">
+                              <span className="uppercase tracking-wider">{dayObj.name}</span>
+                              <span className="text-[11px] text-slate-500 font-medium">{dayObj.dateNum}</span>
+                            </div>
+                            <div className="p-2.5 space-y-1.5 min-h-[90px] bg-slate-50/50">
+                              {dayObj.lectures.length > 0 ? (
+                                dayObj.lectures.map((l) => (
+                                  <div key={l.id} className="p-2 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition-colors cursor-pointer">
+                                    <div className="text-xs font-bold text-slate-800">{l.startTime} - {l.endTime}</div>
+                                    <div className="text-xs font-semibold text-blue-700 truncate">{l.subjectId}</div>
+                                    <div className="text-[10px] text-slate-500 truncate flex items-center justify-between mt-0.5">
+                                      <span>{l.batchId}</span>
+                                      <span className="text-slate-400 flex items-center gap-0.5"><MapPin size={9} /> {getRoomName(l.roomId) || 'Room TBA'}</span>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="h-full flex items-center justify-center text-[10px] text-slate-400 font-semibold py-4">
+                                  No Lectures
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

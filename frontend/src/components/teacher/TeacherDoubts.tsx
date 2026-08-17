@@ -6,9 +6,27 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { HelpCircle, CheckCircle2, MessageCircle, Send, Paperclip, Clock, BookOpen, AlertCircle, RefreshCw } from 'lucide-react';
 import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import teachersList from '../../data/teachers.json';
+import courseHierarchy from '../../data/courseHierarchy.json';
 
 export const TeacherDoubts: React.FC = () => {
-  const { doubts, addDoubtMessage, updateDoubtStatus, batches, students } = useApp();
+  const { doubts, addDoubtMessage, updateDoubtStatus, batches, students, currentUser } = useApp();
+
+  // Find logged-in teacher from teachers.json
+  const currentTeacher = useMemo(() => {
+    return teachersList.find(t =>
+      t.id === currentUser?.id ||
+      t.name === currentUser?.name ||
+      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
+    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
+  }, [currentUser]);
+
+  const teacherAssignedBatches = useMemo(() => {
+    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
+      return currentTeacher.batches;
+    }
+    return TEACHER_ASSIGNED_BATCHES;
+  }, [currentTeacher]);
   
   // States
   const [activeDoubtId, setActiveDoubtId] = useState<string | null>(null);
@@ -32,10 +50,10 @@ export const TeacherDoubts: React.FC = () => {
 
   // Derived Data (Scope to teacher's assigned batches)
   const teacherBatchesInfo = useMemo(() => {
-    return batches.filter(b => TEACHER_ASSIGNED_BATCHES.includes(b.name));
-  }, [batches]);
+    return batches.filter(b => teacherAssignedBatches.includes(b.name));
+  }, [batches, teacherAssignedBatches]);
 
-  const uniqueCourses = Array.from(new Set(teacherBatchesInfo.map(b => b.course)));
+  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
   const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program).filter(Boolean))) as string[];
   const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level).filter(Boolean))) as string[];
   const availableBatches = teacherBatchesInfo.filter(b => {
@@ -49,8 +67,8 @@ export const TeacherDoubts: React.FC = () => {
   const allowedBatchesSet = new Set(uniqueBatches);
 
   const teacherDoubts = useMemo(() => {
-    return doubts.filter(d => TEACHER_ASSIGNED_BATCHES.includes(d.batch));
-  }, [doubts]);
+    return doubts.filter(d => teacherAssignedBatches.includes(d.batch));
+  }, [doubts, teacherAssignedBatches]);
 
   const uniqueSubjects = Array.from(new Set(teacherDoubts.filter(d => allowedBatchesSet.has(d.batch)).map(d => d.subject)));
 
