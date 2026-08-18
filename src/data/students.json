@@ -12,8 +12,8 @@
     "admissionDate": "2026-06-15",
     "feePlan": {
       "total": 120000,
-      "paid": 80000,
-      "pending": 40000
+      "paid": 120000,
+      "pending": 0
     }
   },
   {

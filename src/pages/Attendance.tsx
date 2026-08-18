@@ -25,8 +25,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   // Filters
   const [branch, setBranch] = useState(navState?.branch || (currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West'));
-  const [course, setCourse] = useState(navState?.course || 'JEE Prep Course');
-  const [batch, setBatch] = useState(navState?.batch || 'JEE-Morning-A1');
+  const [course, setCourse] = useState(navState?.course || '');
+  const [batch, setBatch] = useState(navState?.batch || '');
   const [staffFilterRole, setStaffFilterRole] = useState('All');
   const [date, setDate] = useState(navState?.date || new Date().toISOString().split('T')[0]);
 
@@ -54,7 +54,15 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   // Derived unique course and batch names
   const uniqueCourses = useMemo(() => Array.from(new Set(students.map(s => s.course).filter(Boolean) as string[])), [students]);
-  const uniqueBatches = useMemo(() => Array.from(new Set(students.map(s => s.batch).filter(Boolean) as string[])), [students]);
+  // Filter batches by selected course
+  const uniqueBatches = useMemo(() => {
+    return Array.from(new Set(
+      students
+        .filter(s => !course || s.course === course)
+        .map(s => s.batch)
+        .filter(Boolean) as string[]
+    ));
+  }, [students, course]);
 
   // Filtered Lists
   const filteredStudents = students.filter(s => {
@@ -307,7 +315,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                 <Select 
                   label="Course" 
                   value={course} 
-                  onChange={(e) => setCourse(e.target.value)} 
+                  onChange={(e) => { setCourse(e.target.value); setBatch(''); }} 
                   options={[
                     { value: '', label: 'Select Course' },
                     ...uniqueCourses.map((c: string) => ({ value: c, label: c }))
