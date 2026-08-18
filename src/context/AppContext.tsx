@@ -19,7 +19,8 @@ import type {
   TenantSubscription,
   ExamItem,
   AppNotification,
-  AssignmentItem
+  AssignmentItem,
+  SupportTicket
 } from '../data/mockData';
 import {
   INITIAL_TENANTS,
@@ -39,7 +40,8 @@ import {
   INITIAL_TENANT_SUBSCRIPTIONS,
   INITIAL_EXAMS,
   INITIAL_NOTIFICATIONS,
-  TEACHER_INITIAL_ASSIGNMENTS
+  TEACHER_INITIAL_ASSIGNMENTS,
+  INITIAL_SUPPORT_TICKETS
 } from '../data/mockData';
 
 export interface ToastMessage {
@@ -108,6 +110,7 @@ interface AppContextType {
   updateAttendance: (studentId: string, status: 'Present' | 'Absent' | 'Late') => void;
   updateExamMarks: (studentId: string, testScore: string) => void;
   approveStudentRegistration: (studentId: string) => void;
+  allocateBatch: (studentId: string, batchName: string, courseName: string, programName: string, levelName: string) => void;
   addCourse: (course: Course) => void;
   updateCourse: (idOrCode: string, course: Partial<Course>) => void;
   addBatch: (batch: Batch) => void;
@@ -123,6 +126,10 @@ interface AppContextType {
   setStaff: React.Dispatch<React.SetStateAction<Staff[]>>;
   toasts: ToastMessage[];
   addToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning') => void;
+  tickets: SupportTicket[];
+  addSupportTicket: (subject: string, description: string, priority: 'Low' | 'Medium' | 'High' | 'Critical', tenantName: string) => void;
+  replyToSupportTicket: (ticketId: string, replyText: string, senderName: string) => void;
+  resolveSupportTicket: (ticketId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -160,6 +167,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [assignments, setAssignments] = useState<AssignmentItem[]>(TEACHER_INITIAL_ASSIGNMENTS);
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_SUPPORT_TICKETS);
 
   const logAction = (action: string, details: string) => {
     const actorName = currentUser ? currentUser.name : 'System';
@@ -492,10 +500,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Link Entities
     setParents(prev => prev.map(p => p.id === parent.id ? { ...p, childrenIds: [student.id] } : p));
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, enrollmentIds: [enrollment.id] } : s));
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, enrollmentIds: [enrollment.id], status: 'Verification Pending' } : s));
 
     // Update Lead Status
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Interested' } : l));
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Converted' } : l));
     
     logAction('CONVERT_LEAD', `Converted lead ${leadItem.name} via Registration Stepper`);
   };
@@ -513,6 +521,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return s;
     }));
+  };
+
+  const allocateBatch = (studentId: string, batchName: string, courseName: string, programName: string, levelName: string) => {
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          batch: batchName,
+          course: courseName,
+          program: programName,
+          level: levelName
+        };
+      }
+      return s;
+    }));
+
+    const student = students.find(s => s.id === studentId);
+    if (student && student.enrollmentIds && student.enrollmentIds.length > 0) {
+      setEnrollments(prev => prev.map(e => {
+        if (student.enrollmentIds.includes(e.id)) {
+          return {
+            ...e,
+            batchId: batchName,
+            course: courseName,
+            program: programName,
+            level: levelName
+          };
+        }
+        return e;
+      }));
+    }
+
+    logAction('ALLOCATE_BATCH', `Allocated batch ${batchName} to student ${student?.name || studentId}`);
   };
 
   const addCourse = (course: Course) => {
@@ -557,15 +598,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const student = students.find(s => s.id === studentId);
     if (!student) return null;
 
+    const studentEnrollments = enrollments.filter(e => student.enrollmentIds?.includes(e.id));
+    const mainEnrollment = studentEnrollments.find(e => e.status === 'Active') || studentEnrollments[0];
+    const feeRec = mainEnrollment ? feeRecords.find(f => f.enrollmentId === mainEnrollment.id) : null;
+    const studentFeePlan = student.feePlan || (feeRec ? {
+      total: feeRec.netFee,
+      paid: feeRec.downpayment,
+      pending: feeRec.netFee - feeRec.downpayment
+    } : { total: 120000, paid: 0, pending: 120000 });
+
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
-        const newPaid = s.feePlan.paid + Number(amount);
+        const baseFeePlan = s.feePlan || studentFeePlan;
+        const newPaid = baseFeePlan.paid + Number(amount);
         return {
           ...s,
+          status: 'Active Student',
           feePlan: {
-            ...s.feePlan,
+            ...baseFeePlan,
             paid: newPaid,
-            pending: Math.max(0, s.feePlan.total - newPaid)
+            pending: Math.max(0, baseFeePlan.total - newPaid)
           }
         };
       }
@@ -582,7 +634,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       course: student.course,
       amount: Number(amount),
       mode,
-      balance: Math.max(0, student.feePlan.total - (student.feePlan.paid + Number(amount)))
+      balance: Math.max(0, studentFeePlan.total - (studentFeePlan.paid + Number(amount)))
     };
   };
 
@@ -678,12 +730,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Notification sent successfully!');
   };
 
+  const addSupportTicket = (subject: string, description: string, priority: 'Low' | 'Medium' | 'High' | 'Critical', tenantName: string) => {
+    const newTicket: SupportTicket = {
+      id: `TKT-${Math.floor(100 + Math.random() * 900)}`,
+      tenantName,
+      subject,
+      priority,
+      status: 'Open',
+      created: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      replies: [
+        {
+          sender: currentUser?.name || 'Operator',
+          text: description,
+          time: new Date().toISOString().replace('T', ' ').substring(0, 19)
+        }
+      ],
+      description
+    };
+    setTickets(prev => [newTicket, ...prev]);
+    logAction('RAISE_TICKET', `Raised ticket regarding: ${subject}`);
+    addToast('Support ticket raised successfully!', 'success');
+  };
+
+  const replyToSupportTicket = (ticketId: string, replyText: string, senderName: string) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        const isStaff = currentUser?.role === 'saas-admin';
+        return {
+          ...t,
+          status: isStaff ? 'In Progress' : t.status,
+          replies: [
+            ...t.replies,
+            {
+              sender: senderName,
+              text: replyText,
+              time: new Date().toISOString().replace('T', ' ').substring(0, 19)
+            }
+          ]
+        };
+      }
+      return t;
+    }));
+    logAction('REPLY_TICKET', `Replied to ticket: ${ticketId}`);
+    addToast('Response sent.');
+  };
+
+  const resolveSupportTicket = (ticketId: string) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        return { ...t, status: 'Resolved' };
+      }
+      return t;
+    }));
+    logAction('RESOLVE_TICKET', `Resolved ticket: ${ticketId}`);
+    addToast(`Ticket resolved successfully!`, 'success');
+  };
+
   const enrichedStudents = useMemo(() => {
     return students.map(s => {
-      if (!s.enrollmentIds || s.enrollmentIds.length === 0) return s;
+      const baseFeePlan = s.feePlan || { total: 0, paid: 0, pending: 0 };
+      if (!s.enrollmentIds || s.enrollmentIds.length === 0) {
+        return {
+          ...s,
+          feePlan: baseFeePlan
+        };
+      }
       const studentEnrollments = enrollments.filter(e => s.enrollmentIds.includes(e.id));
       const mainEnrollment = studentEnrollments.find(e => e.status === 'Active') || studentEnrollments[0];
-      if (!mainEnrollment) return s;
+      if (!mainEnrollment) {
+        return {
+          ...s,
+          feePlan: baseFeePlan
+        };
+      }
       
       const feeRec = feeRecords.find(f => f.enrollmentId === mainEnrollment.id);
       
@@ -697,7 +816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           total: feeRec.netFee,
           paid: feeRec.downpayment,
           pending: feeRec.netFee - feeRec.downpayment
-        } : s.feePlan
+        } : baseFeePlan
       };
     });
   }, [students, enrollments, feeRecords]);
@@ -744,6 +863,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateAttendance,
       updateExamMarks,
       approveStudentRegistration,
+      allocateBatch,
       addCourse,
       updateCourse,
       addBatch,
@@ -761,7 +881,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToast,
       notifications,
       markNotificationRead,
-      sendNotification
+      sendNotification,
+      tickets,
+      addSupportTicket,
+      replyToSupportTicket,
+      resolveSupportTicket
     }}>
       {children}
     </AppContext.Provider>

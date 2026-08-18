@@ -373,7 +373,33 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      const scrollContainers = document.querySelectorAll('.overflow-y-auto');
+      scrollContainers.forEach(container => {
+        if (container.closest('aside') || container.closest('.bg-slate-900')) {
+          return;
+        }
+        container.scrollTop = 0;
+      });
+      const mainContainer = document.getElementById('main-scroll-container');
+      if (mainContainer) {
+        mainContainer.scrollTop = 0;
+      }
+      const mainTags = document.getElementsByTagName('main');
+      for (let i = 0; i < mainTags.length; i++) {
+        mainTags[i].scrollTop = 0;
+      }
+    };
+
+    resetScroll();
+    const animId = requestAnimationFrame(resetScroll);
+    const timeoutId = setTimeout(resetScroll, 50);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      clearTimeout(timeoutId);
+    };
   }, [pathname]);
 
   useEffect(() => {

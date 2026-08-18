@@ -549,8 +549,8 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                     {[
-                      { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Settled' },
-                      { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Settled' }
+                      { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Payment Complete' },
+                      { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Payment Complete' }
                     ].map((inv) => (
                       <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-4 font-mono font-bold text-slate-800">{inv.id}</td>

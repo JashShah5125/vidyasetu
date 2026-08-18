@@ -138,7 +138,7 @@ export const ApprovalCenter: React.FC = () => {
                         </Link>
                         <button 
                           onClick={() => setSelectedRequestForDetails(r)}
-                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-0.5 rounded border border-slate-200"
+                          className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-0.5 rounded border border-blue-200 font-semibold transition cursor-pointer"
                         >
                           Quick View Details
                         </button>

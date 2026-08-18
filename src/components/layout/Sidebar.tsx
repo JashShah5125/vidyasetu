@@ -164,6 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Institute Setup', label: 'Institute Profile', path: '/institute', icon: Settings },
               { name: 'Branches Manager', label: 'Branches Setup', path: '/branches', icon: Building2 },
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
               { name: 'Settings', label: 'Global Settings', path: '/settings', icon: Settings }
             ]
           }
@@ -219,6 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Institute Setup', label: 'Institute Details', path: '/institute', icon: Settings },
               { name: 'Branches Manager', label: 'Branch Details', path: '/branches', icon: Building2 },
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
               { name: 'Settings', label: 'Personal Settings', path: '/settings', icon: Settings }
             ]
           }

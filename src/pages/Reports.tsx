@@ -549,7 +549,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
 
           <Card className="animate-fade-in">
             <CardHeader>
-              <CardTitle>Tenant Performance Comparison Matrix</CardTitle>
+              <CardTitle>SaaS Tenant Usage &amp; Subscription Comparison Matrix</CardTitle>
             </CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
@@ -557,26 +557,30 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                     <th className="px-6 py-4">Tenant Code</th>
                     <th className="px-6 py-4">Institute Name</th>
-                    <th className="px-6 py-4 text-center">New Admissions</th>
-                    <th className="px-6 py-4 text-center">Gross Revenue</th>
-                    <th className="px-6 py-4 text-center">Avg Test Marks</th>
-                    <th className="px-6 py-4 text-center">Access Status</th>
+                    <th className="px-6 py-4 text-center">Plan Tier</th>
+                    <th className="px-6 py-4 text-center">Branch Utilization</th>
+                    <th className="px-6 py-4 text-center">Storage Load</th>
+                    <th className="px-6 py-4 text-center">Active Users</th>
+                    <th className="px-6 py-4 text-center">Billing Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                   {[
-                    { code: 'TEN-VS1', name: 'Apex IIT Academy', admissions: '12 Students', revenue: '₹1,30,000', marks: '83.8%', status: 'Active' },
-                    { code: 'TEN-VS2', name: 'Vanguard Classes', admissions: '6 Students', revenue: '₹55,000', marks: '78.5%', status: 'Active' },
-                    { code: 'TEN-VS3', name: 'Bright Future Tuition', admissions: '2 Students', revenue: '₹10,000', marks: '84.0%', status: 'Active' }
+                    { code: 'TEN-VS1', name: 'Apex IIT Academy', plan: 'Enterprise Custom', branches: '3 / 10', storage: '4.2 GB / 20 GB', users: '145 / 500', status: 'Active' },
+                    { code: 'TEN-VS2', name: 'Vanguard Classes', plan: 'Growth Plan', branches: '1 / 5', storage: '1.5 GB / 10 GB', users: '42 / 100', status: 'Active' },
+                    { code: 'TEN-VS3', name: 'Bright Future Tuition', plan: 'Growth Plan', branches: '2 / 5', storage: '8.0 GB / 20 GB', users: '85 / 200', status: 'Suspended' }
                   ].map((row) => (
                     <tr key={row.code} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
                       <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
-                      <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
-                      <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
-                      <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
+                      <td className="px-6 py-4 text-center font-semibold text-blue-600">{row.plan}</td>
+                      <td className="px-6 py-4 text-center font-medium text-slate-600">{row.branches}</td>
+                      <td className="px-6 py-4 text-center font-mono text-xs text-slate-500">{row.storage}</td>
+                      <td className="px-6 py-4 text-center font-medium text-slate-700">{row.users}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
                           {row.status}
                         </span>
                       </td>

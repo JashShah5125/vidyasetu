@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import courseHierarchy from '../data/courseHierarchy.json';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -99,6 +100,21 @@ const SEED_DATA: Record<string, CourseData> = {
 
 const newLevel = (): AcademicLevel => ({ id: `l-${Date.now()}`, name: '' });
 const newProgram = (): Program => ({ id: `p-${Date.now()}`, name: '', code: '', enabled: true, levels: [] });
+
+const getLevelsForProgram = (courseName: string, programName: string): AcademicLevel[] => {
+  const courseMatch = courseHierarchy.find(
+    c => c.courseName.toLowerCase() === courseName.toLowerCase()
+  );
+  if (!courseMatch) return [];
+  const programMatch = courseMatch.programs.find(
+    p => p.programName.toLowerCase() === programName.toLowerCase()
+  );
+  if (!programMatch) return [];
+  return programMatch.levels.map((lvl, index) => ({
+    id: lvl.levelId || `l-${index}-${Date.now()}`,
+    name: lvl.levelName
+  }));
+};
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -270,18 +286,23 @@ export const CourseDetail: React.FC = () => {
         code: existing.code || '',
         duration: existing.duration || '',
         enabled: true,
-        programs: existing.programs ? existing.programs.map((p: any, idx: number) => ({
+        programs: existing.programs ? existing.programs.map((pName: any, idx: number) => ({
           id: `p-${idx}`,
-          name: p,
-          code: `PRG-00${idx}`,
+          name: pName,
+          code: `PRG-00${idx + 1}`,
           enabled: true,
-          levels: []
+          levels: getLevelsForProgram(existing.name || '', pName)
         })) : [],
         branches: existing.branches || []
       });
     } else if (seedKey && SEED_DATA[seedKey]) {
+      const seedCourse = SEED_DATA[seedKey];
       setFormData({
-        ...JSON.parse(JSON.stringify(SEED_DATA[seedKey])),
+        ...JSON.parse(JSON.stringify(seedCourse)),
+        programs: seedCourse.programs.map((p, idx) => ({
+          ...p,
+          levels: getLevelsForProgram(seedCourse.name, p.name)
+        })),
         branches: []
       });
     } else {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
 
 interface FeatureFlag {
   id: string;
@@ -11,6 +12,7 @@ interface FeatureFlag {
 }
 
 export const FeatureFlags: React.FC = () => {
+  const { addToast } = useApp();
   const [flags, setFlags] = useState<FeatureFlag[]>([
     { id: 'FF-1', name: 'Online Admissions', code: 'ADMISSIONS', description: 'Enable digital application forms, query pipeline and conversion workflows.', enabledGlobally: true, category: 'Core ERP', affectedTenants: 12 },
     { id: 'FF-2', name: 'CRM & Pipeline', code: 'CRM', description: 'Leads trackers, counsellors assignment, follow-up scheduler and call logs.', enabledGlobally: true, category: 'Core ERP', affectedTenants: 10 },
@@ -24,14 +26,11 @@ export const FeatureFlags: React.FC = () => {
     { id: 'FF-10', name: 'Developer APIs Platform', code: 'API', description: 'Exposes secure endpoints for tenant integration.', enabledGlobally: true, category: 'Add-ons', affectedTenants: 4 }
   ]);
 
-  const [toast, setToast] = useState('');
-
   const toggleFlag = (id: string, name: string) => {
     setFlags(prev => prev.map(f => {
       if (f.id === id) {
         const nextState = !f.enabledGlobally;
-        setToast(`Feature Flag "${name}" is now ${nextState ? 'ENABLED' : 'DISABLED'} globally.`);
-        setTimeout(() => setToast(''), 4000);
+        addToast(`Feature Flag "${name}" is now ${nextState ? 'ENABLED' : 'DISABLED'} globally.`, 'info');
         return { ...f, enabledGlobally: nextState };
       }
       return f;
@@ -40,11 +39,6 @@ export const FeatureFlags: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {toast && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm font-semibold text-blue-800 animate-fade-in shadow-sm">
-          ℹ {toast}
-        </div>
-      )}
 
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">Feature Flags Manager</h2>
