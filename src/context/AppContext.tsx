@@ -149,12 +149,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [currentUser]);
 
   const [tenants, setTenants] = useState<Tenant[]>(INITIAL_TENANTS);
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
-  const [parents, setParents] = useState<Parent[]>(INITIAL_PARENTS);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(INITIAL_ENROLLMENTS);
-  const [feeRecords, setFeeRecords] = useState<FeeRecord[]>(INITIAL_FEE_RECORDS);
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    const saved = localStorage.getItem('vs_leads');
+    return saved ? JSON.parse(saved) : INITIAL_LEADS;
+  });
+  const [students, setStudents] = useState<Student[]>(() => {
+    const saved = localStorage.getItem('vs_students');
+    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+  });
+  const [parents, setParents] = useState<Parent[]>(() => {
+    const saved = localStorage.getItem('vs_parents');
+    return saved ? JSON.parse(saved) : INITIAL_PARENTS;
+  });
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(() => {
+    const saved = localStorage.getItem('vs_enrollments');
+    return saved ? JSON.parse(saved) : INITIAL_ENROLLMENTS;
+  });
+  const [feeRecords, setFeeRecords] = useState<FeeRecord[]>(() => {
+    const saved = localStorage.getItem('vs_fee_records');
+    return saved ? JSON.parse(saved) : INITIAL_FEE_RECORDS;
+  });
   const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
+
+  useEffect(() => {
+    localStorage.setItem('vs_leads', JSON.stringify(leads));
+    fetch('/api/save-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(leads)
+    }).catch(() => {});
+  }, [leads]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_students', JSON.stringify(students));
+    fetch('/api/save-students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(students)
+    }).catch(() => {});
+  }, [students]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_parents', JSON.stringify(parents));
+  }, [parents]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_enrollments', JSON.stringify(enrollments));
+  }, [enrollments]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_fee_records', JSON.stringify(feeRecords));
+  }, [feeRecords]);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);

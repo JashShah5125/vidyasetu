@@ -30,13 +30,34 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
   const [feeSelectedBundle, setFeeSelectedBundle] = useState(initialState?.feeSelectedBundle || '');
   const [feeSelectedSubjects, setFeeSelectedSubjects] = useState<string[]>(initialState?.feeSelectedSubjects || []);
 
-  const [customTotalFee, setCustomTotalFee] = useState<number | ''>(initialState?.totalFee || 0);
-  const [customDownpayment, setCustomDownpayment] = useState<number | ''>(initialState?.downpayment || 0);
-  const [customMonths, setCustomMonths] = useState<number | ''>(initialState?.installments || 1);
-  const [customDiscount, setCustomDiscount] = useState<number | ''>(initialState?.discount || 0);
+  const [customTotalFee, setCustomTotalFee] = useState<number | ''>(initialState?.totalFee ?? 0);
+  const [customDownpayment, setCustomDownpayment] = useState<number | ''>(initialState?.downpayment ?? 0);
+  const [customMonths, setCustomMonths] = useState<number | ''>(initialState?.installments ?? 1);
+  const [customDiscount, setCustomDiscount] = useState<number | ''>(initialState?.discount ?? 0);
   const [paymentMode, setPaymentMode] = useState<string>(initialState?.paymentMode || '');
 
   const [enrollType, setEnrollType] = useState<'Standard' | 'Custom Combo' | 'Subject-wise'>(initialState?.enrollType || 'Standard');
+
+  useEffect(() => {
+    if (initialState) {
+      if (initialState.course) setFCourse(initialState.course);
+      if (initialState.program) setFProgram(initialState.program);
+      if (initialState.level) setFLevel(initialState.level);
+      if (initialState.enrollType) setEnrollType(initialState.enrollType);
+      if (initialState.feeSelectedStandard) setFeeSelectedStandard(initialState.feeSelectedStandard);
+      if (initialState.feeSelectedBundle) setFeeSelectedBundle(initialState.feeSelectedBundle);
+      if (initialState.feeSelectedSubjects) setFeeSelectedSubjects(initialState.feeSelectedSubjects);
+      if (initialState.totalFee !== undefined) setCustomTotalFee(initialState.totalFee);
+      if (initialState.downpayment !== undefined) setCustomDownpayment(initialState.downpayment);
+      if (initialState.installments !== undefined) setCustomMonths(initialState.installments);
+      if (initialState.discount !== undefined) setCustomDiscount(initialState.discount);
+      if (initialState.paymentMode !== undefined) setPaymentMode(initialState.paymentMode);
+    } else {
+      if (initialCourse) setFCourse(initialCourse);
+      if (initialProgram) setFProgram(initialProgram);
+      if (initialLevel) setFLevel(initialLevel);
+    }
+  }, [initialState, initialCourse, initialProgram, initialLevel]);
 
   const netFee = useMemo(() => Math.max(0, Number(customTotalFee) - Number(customDiscount)), [customTotalFee, customDiscount]);
   const balance = useMemo(() => Math.max(0, netFee - Number(customDownpayment)), [netFee, customDownpayment]);
@@ -49,8 +70,8 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
       const plan = INITIAL_FEE_PLANS.find(p => p.id === feeSelectedStandard);
       if (plan) {
         calculatedBase = plan.totalFees;
-        setCustomDownpayment(plan.downPayment);
-        setCustomMonths(plan.months);
+        if (!initialState || customDownpayment === 0) setCustomDownpayment(plan.downPayment);
+        if (!initialState || customMonths === 1) setCustomMonths(plan.months);
       }
     } else if (enrollType === 'Custom Combo') {
       const courseObj = INITIAL_COURSES.find(c => c.name === fCourse);
@@ -60,8 +81,8 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
         const bundle = bundles.find(b => b.id === feeSelectedBundle);
         if (bundle) {
           calculatedBase = bundle.fee;
-          setCustomDownpayment(bundle.downPayment);
-          setCustomMonths(bundle.months);
+          if (!initialState || customDownpayment === 0) setCustomDownpayment(bundle.downPayment);
+          if (!initialState || customMonths === 1) setCustomMonths(bundle.months);
         }
       }
     } else if (enrollType === 'Subject-wise') {
@@ -74,7 +95,9 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
           .reduce((acc: number, s: any) => acc + (s.fee || 0), 0);
       }
     }
-    setCustomTotalFee(calculatedBase);
+    if (calculatedBase > 0) {
+      setCustomTotalFee(calculatedBase);
+    }
   }, [enrollType, feeSelectedStandard, feeSelectedBundle, feeSelectedSubjects, fCourse, fProgram, fLevel]);
 
   // Report changes back to parent
