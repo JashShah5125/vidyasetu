@@ -3,25 +3,54 @@
     "id": "L-101",
     "name": "Aarav Mehta",
     "mobile": "9898012345",
-    "course": "JEE Prep",
+    "parentMobile": "9898012346",
+    "course": "JEE Prep Course",
+    "program": "2 Year",
+    "level": "year1",
     "branch": "Mumbai West",
+    "preferredBranch": "Mumbai West",
     "source": "Google Ads",
     "counsellor": "Priya Sen",
     "status": "Fee Discussion",
-    "nextFollowUp": "2026-07-22",
+    "nextFollowUp": "2026-08-19",
     "remarks": "Interested in demo lecture.",
-    "followups": [],
-    "program": "",
-    "level": "year1",
-    "preferredBranch": "Mumbai West",
-    "demoScheduledOn": ""
+    "followups": [
+      {
+        "id": "ci4xz2k6q",
+        "date": "Aug 18",
+        "type": "Call",
+        "outcome": "feels interested",
+        "nextDate": "Aug 19"
+      }
+    ],
+    "demoScheduledOn": "",
+    "feeConfig": {
+      "enrollType": "Standard",
+      "course": "JEE Prep Course",
+      "program": "2 Year",
+      "level": "year1",
+      "feeSelectedStandard": "FP-01",
+      "feeSelectedBundle": "",
+      "feeSelectedSubjects": [],
+      "totalFee": 200000,
+      "discount": 0,
+      "netFee": 200000,
+      "downpayment": 40000,
+      "installments": 12,
+      "paymentMode": "",
+      "installmentAmount": 13333
+    }
   },
   {
     "id": "L-102",
     "name": "Sneha Patil",
     "mobile": "9767112233",
-    "course": "NEET Batch",
+    "parentMobile": "9767112234",
+    "course": "NEET Batch Premium",
+    "program": "2 Year",
+    "level": "year1",
     "branch": "Pune Camp",
+    "preferredBranch": "Pune Camp",
     "source": "Referral",
     "counsellor": "Priya Sen",
     "status": "Follow-up",
@@ -46,8 +75,12 @@
     "id": "L-103",
     "name": "Kabir Malhotra",
     "mobile": "9922001144",
+    "parentMobile": "9922001145",
     "course": "Class 10 Foundation",
+    "program": "1 Year",
+    "level": "class10",
     "branch": "Mumbai West",
+    "preferredBranch": "Delhi South",
     "source": "Flyer Campaign",
     "counsellor": "Amit Verma",
     "status": "Interested",
@@ -65,6 +98,71 @@
         "type": "Call #1",
         "outcome": "Parent agreed to proceed. Requested discount.",
         "nextDate": "21 Jul"
+      }
+    ]
+  },
+  {
+    "id": "L-104",
+    "name": "Ananya Sharma",
+    "mobile": "9823456789",
+    "parentMobile": "9823456790",
+    "course": "JEE Prep Course",
+    "program": "2 Year",
+    "level": "year1",
+    "branch": "Mumbai West",
+    "preferredBranch": "Mumbai West",
+    "source": "Walk-in",
+    "counsellor": "Priya Sen",
+    "status": "Fee Discussion",
+    "nextFollowUp": "2026-07-24",
+    "remarks": "Attending demo on Saturday with father.",
+    "followups": [
+      {
+        "date": "20 Jul",
+        "type": "Walk-in",
+        "outcome": "Branch visit. Scheduled trial physics lecture.",
+        "nextDate": "24 Jul"
+      }
+    ],
+    "feeConfig": {
+      "enrollType": "Custom Combo",
+      "course": "JEE Prep Course",
+      "program": "2 Year",
+      "level": "year1",
+      "feeSelectedStandard": "",
+      "feeSelectedBundle": "b4",
+      "feeSelectedSubjects": [],
+      "totalFee": 110000,
+      "discount": 0,
+      "netFee": 110000,
+      "downpayment": 20000,
+      "installments": 10,
+      "paymentMode": "",
+      "installmentAmount": 9000
+    },
+    "demoScheduledOn": ""
+  },
+  {
+    "id": "L-105",
+    "name": "Rohan Deshmukh",
+    "mobile": "9877112233",
+    "parentMobile": "9877112200",
+    "course": "JEE Prep Course",
+    "program": "2 Year",
+    "level": "year1",
+    "branch": "Mumbai West",
+    "preferredBranch": "Mumbai West",
+    "source": "Website",
+    "counsellor": "Amit Verma",
+    "status": "Converted",
+    "nextFollowUp": "2026-08-10",
+    "remarks": "Converted to registered student.",
+    "followups": [
+      {
+        "date": "05 Aug",
+        "type": "Call #1",
+        "outcome": "Confirmed seat.",
+        "nextDate": "10 Aug"
       }
     ]
   }

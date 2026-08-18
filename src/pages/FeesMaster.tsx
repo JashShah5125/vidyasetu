@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
 
 export const FeesMaster: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, addToast } = useApp();
   const isReadOnly = false;
   const [activeMainTab, setActiveMainTab] = useState<'full-course' | 'custom-bundles' | 'subject-wise'>('full-course');
   const [view, setView] = useState<'list' | 'form'>('list');
@@ -61,7 +61,7 @@ export const FeesMaster: React.FC = () => {
 
   const handleSaveBundle = () => {
     if (!bundleForm.name || !bundleForm.fee) {
-      alert("Please enter bundle name and fee.");
+      addToast("Please enter bundle name and fee.", "error");
       return;
     }
 
@@ -136,7 +136,7 @@ export const FeesMaster: React.FC = () => {
 
   const handleSaveSubject = () => {
     if (!subjectForm.fee) {
-      alert("Please enter a fee amount.");
+      addToast("Please enter a fee amount.", "error");
       return;
     }
     setSubjectsData(prev => prev.map(s => 
@@ -203,7 +203,7 @@ export const FeesMaster: React.FC = () => {
       filename = 'custom_bundles_fees.csv';
     } else if (activeMainTab === 'subject-wise') {
       if (filteredSubjects.length === 0) {
-        alert('No subject-wise details available to export. Please select filters first.');
+        addToast('No subject-wise details available to export. Please select filters first.', 'info');
         return;
       }
       headers = ['Subject Name', 'Subject Code', 'Type', 'Fee Amount (INR)'];
@@ -251,7 +251,7 @@ export const FeesMaster: React.FC = () => {
 
   const handleSave = () => {
     if (!selectedCourse || !selectedProgram || totalFees === '' || downPayment === '' || months === '') {
-      alert("Please fill in all fields before saving.");
+      addToast("Please fill in all fields before saving.", "error");
       return;
     }
     

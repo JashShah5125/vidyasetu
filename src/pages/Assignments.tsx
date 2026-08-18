@@ -19,7 +19,7 @@ export interface AssignmentItem {
 }
 
 export const Assignments: React.FC = () => {
-  const { batches, branches, courses, exams, setExams, currentUser, students } = useApp();
+  const { batches, branches, courses, exams, setExams, currentUser, students, addToast } = useApp();
   
   // Navigation Tabs state
   const [activeTab, setActiveTab] = useState<'assignments' | 'exams'>('assignments');
@@ -350,7 +350,7 @@ export const Assignments: React.FC = () => {
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          alert(`Downloading attached document: ${selectedAssignment.attachmentName}`);
+                          addToast(`Downloading attached document: ${selectedAssignment.attachmentName}`, 'info');
                         }}
                       >
                         Download

@@ -21,7 +21,7 @@ const statusColors: Record<TenantSubscription['status'], string> = {
 };
 
 export const TenantSubscriptions: React.FC = () => {
-  const { plans, tenants, tenantSubscriptions, addTenantSubscription, updateTenantSubscription, deleteTenantSubscription } = useApp();
+  const { plans, tenants, tenantSubscriptions, addTenantSubscription, updateTenantSubscription, deleteTenantSubscription, addToast } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<TenantSubscription | null>(null);
@@ -160,11 +160,8 @@ export const TenantSubscriptions: React.FC = () => {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Cancel subscription for "${name}"? The tenant will lose access upon expiry.`)) {
-      deleteTenantSubscription(id);
-      setSuccessMsg(`Subscription for "${name}" cancelled.`);
-      setTimeout(() => setSuccessMsg(''), 4000);
-    }
+    deleteTenantSubscription(id);
+    addToast(`Subscription for "${name}" cancelled.`, 'info');
   };
 
   // ─── Effective limits display ────────────────────────────────────────────

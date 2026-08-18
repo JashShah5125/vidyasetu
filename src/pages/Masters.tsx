@@ -21,7 +21,8 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     addBatch, 
     setCourses,
     setBatches,
-    setBranches
+    setBranches,
+    addToast
   } = useApp();
   const [subTab, setSubTab] = useState<'courses' | 'batches' | 'subjects' | 'branches'>(initialSubTab);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -65,7 +66,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
 
   const handleOpenAddModal = () => {
     if (subTab === 'subjects') {
-      alert('Adding new Subject Masters is disabled in Demo Mode.');
+      addToast('Adding new Subject Masters is disabled in Demo Mode.', 'info');
       return;
     }
     setEditingName(null);

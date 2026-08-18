@@ -4,8 +4,10 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Modal } from '../../components/ui/Modal';
 import { Trash2 } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
 export const SystemConfiguration: React.FC = () => {
+  const { addToast } = useApp();
   const [activeTab, setActiveTab] = useState<'general' | 'smtp' | 'sms' | 'payments' | 'branding' | 'security' | 'permissions'>('general');
   
   // General Constants State
@@ -113,7 +115,7 @@ export const SystemConfiguration: React.FC = () => {
 
     const newId = newRoleName.toLowerCase().replace(/[^a-z0-9]/g, '_');
     if (rolesList.find(r => r.id === newId)) {
-      alert("A role with this name already exists.");
+      addToast("A role with this name already exists.", "error");
       return;
     }
 

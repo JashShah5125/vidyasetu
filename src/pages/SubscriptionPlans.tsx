@@ -57,7 +57,7 @@ const FeatureGroup: React.FC<{
 const STEPS = ['Basic Info', 'Billing', 'Resource Limits', 'Features', 'Support', 'Branding', 'Integrations', 'Notes'];
 
 export const SubscriptionPlans: React.FC = () => {
-  const { plans, addPlan, updatePlan, deletePlan, tenants } = useApp();
+  const { plans, addPlan, updatePlan, deletePlan, tenants, addToast } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -215,11 +215,8 @@ export const SubscriptionPlans: React.FC = () => {
   };
 
   const handleDeletePlan = (id: string, planName: string) => {
-    if (window.confirm(`Delete plan "${planName}"? This does not automatically cancel active subscriptions.`)) {
-      deletePlan(id);
-      setSuccessMsg(`Plan "${planName}" deleted.`);
-      setTimeout(() => setSuccessMsg(''), 4000);
-    }
+    deletePlan(id);
+    addToast(`Plan "${planName}" deleted successfully.`, 'success');
   };
 
   const handleDuplicatePlan = (p: SubscriptionPlan) => {

@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext';
 
 export const ExpenseVoucher: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser } = useApp();
+  const { currentUser, addToast } = useApp();
   const [successMsg, setSuccessMsg] = useState('');
 
   // Form states
@@ -41,7 +41,7 @@ export const ExpenseVoucher: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !amount || !paidTo) {
-      alert('Please fill in Description, Amount, and Paid To / Received From.');
+      addToast('Please fill in Description, Amount, and Paid To / Received From.', 'error');
       return;
     }
 

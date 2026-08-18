@@ -180,9 +180,10 @@ export const TeacherAttendance: React.FC = () => {
 
   const handleCancelRegister = () => {
     if (hasUnsavedChanges) {
-      if (!window.confirm("Attendance changes have not been submitted. Discard changes?")) return;
+      addToast("Unsaved attendance changes discarded.", "info");
     }
     setActiveLecture(null);
+    setHasUnsavedChanges(false);
   };
 
   const handleSubmitAttendance = (e: React.FormEvent) => {
