@@ -11,13 +11,18 @@ export const StudentRegistration = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { leads, students, convertLeadToStudent, addToast } = useApp();
+  const { leads, students, convertLeadToStudent, approveStudentRegistration, addToast } = useApp();
   
   const lead = leads.find(l => l.id === id);
   const student = students.find(s => s.id === id || s.studentId === id);
   const prefilledFeeData = location.state?.prefilledFeeData;
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    if (location.state && typeof location.state.startStep === 'number') {
+      return location.state.startStep;
+    }
+    return 1;
+  });
 
   const [formData, setFormData] = useState({
     student: {
@@ -72,7 +77,15 @@ export const StudentRegistration = () => {
     } else if (lead) {
       setFormData(prev => ({
         ...prev,
-        student: { ...prev.student, name: lead.name, mobile: lead.mobile },
+        student: {
+          ...prev.student,
+          name: lead.name,
+          mobile: lead.mobile,
+          dob: prev.student.dob || '2010-01-01',
+          currentClass: prev.student.currentClass || (lead.level === 'class8' ? 'Class 8' : lead.level === 'class9' ? 'Class 9' : lead.level === 'class10' ? 'Class 10' : lead.level === 'year1' ? 'Class 11' : lead.level === 'year2' ? 'Class 12' : 'Class 10'),
+          board: prev.student.board || 'CBSE',
+          targetExam: prev.student.targetExam || (lead.course.toLowerCase().includes('jee') ? 'JEE Main' : lead.course.toLowerCase().includes('neet') ? 'NEET' : 'CBSE Board')
+        },
         course: { ...prev.course, course: lead.course || '', program: lead.program || '', level: lead.level || '' },
         parent: { ...prev.parent, mobile: lead.parentMobile || '' }
       }));
@@ -146,11 +159,13 @@ export const StudentRegistration = () => {
   };
 
   const handleSubmit = () => {
-    if (lead) {
+    if (student) {
+      approveStudentRegistration(student.id);
+    } else if (lead) {
       convertLeadToStudent(lead.id, formData);
     }
-    addToast('Student successfully registered!', 'success');
-    navigate('/students'); // Or wherever
+    addToast(student ? 'Admission approved successfully!' : 'Student successfully registered!', 'success');
+    navigate('/leads/admission');
   };
 
   const steps = [
@@ -370,7 +385,7 @@ export const StudentRegistration = () => {
             </Button>
           ) : (
             <Button variant="primary" onClick={handleSubmit} style={{ backgroundColor: '#10b981', color: 'white' }}>
-              Confirm & Create Student <CheckCircle size={16} className="ml-2" />
+              {student ? 'Approve & Verify Admission' : 'Confirm & Create Student'} <CheckCircle size={16} className="ml-2" />
             </Button>
           )}
         </div>

@@ -54,7 +54,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           )}
 
           {/* Dynamic content scroll workspace */}
-          <div className={`flex-1 overflow-y-auto ${isVoucherPage ? 'p-0' : 'px-4 md:px-8 py-6 md:py-8'} animate-fade-in`}>
+          <div id="main-scroll-container" className={`flex-1 overflow-y-auto ${isVoucherPage ? 'p-0' : 'px-4 md:px-8 py-6 md:py-8'} animate-fade-in`}>
             <div className={isVoucherPage ? 'w-full h-full' : 'max-w-[1600px] mx-auto space-y-6 md:space-y-8 pb-12'}>
               {children}
             </div>

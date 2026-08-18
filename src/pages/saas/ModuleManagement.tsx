@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Select } from '../../components/ui/Select';
+import { useApp } from '../../context/AppContext';
 
 interface ProductModule {
   id: string;
@@ -12,6 +13,7 @@ interface ProductModule {
 }
 
 export const ModuleManagement: React.FC = () => {
+  const { addToast } = useApp();
   const [modules, setModules] = useState<ProductModule[]>([
     { id: 'MOD-01', name: 'Core Student CRM & Registration', code: 'STUDENT_CRM', description: 'Core CRM pipeline for managing student registrations, admissions, and status updates.', state: 'Enabled', releaseVersion: 'v2.4.0', lastUpdated: '2026-06-12' },
     { id: 'MOD-02', name: 'Attendance Registers & Leaves Module', code: 'ATTENDANCE', description: 'Automated student registers, employee timesheets, leave policies, and attendance tracking.', state: 'Enabled', releaseVersion: 'v2.4.2', lastUpdated: '2026-07-01' },
@@ -23,13 +25,10 @@ export const ModuleManagement: React.FC = () => {
     { id: 'MOD-08', name: 'Internal HR & Recruitments Board', code: 'RECRUIT_DESK', description: 'Internal portal for coordinating human resources, interviews, and employee onboarding.', state: 'Hidden', releaseVersion: 'v2.0.0', lastUpdated: '2026-01-10' }
   ]);
 
-  const [toast, setToast] = useState('');
-
   const changeModuleState = (id: string, name: string, nextState: ProductModule['state']) => {
     setModules(prev => prev.map(m => {
       if (m.id === id) {
-        setToast(`Module "${name}" lifecycle state changed to: ${nextState}`);
-        setTimeout(() => setToast(''), 4000);
+        addToast(`Module "${name}" lifecycle state changed to: ${nextState}`, 'success');
         return { ...m, state: nextState };
       }
       return m;
@@ -46,11 +45,6 @@ export const ModuleManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {toast && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
-          ✓ {toast}
-        </div>
-      )}
 
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">Product Module Registry</h2>
