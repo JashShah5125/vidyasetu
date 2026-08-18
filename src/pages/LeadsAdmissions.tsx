@@ -7,10 +7,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
+import { Modal } from '../components/ui/Modal';
+import { FeeConfigurator } from '../components/FeeConfigurator';
+import courseHierarchy from '../data/courseHierarchy.json';
 import {
   Plus, ArrowLeft, Users, PhoneCall, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, ChevronRight,
-  Download, Search, FileText, Zap, X
+  Download, Search, UserCheck, FileText, Zap, X
 } from 'lucide-react';
 import type { Lead, Student } from '../data/mockData';
 
@@ -34,6 +37,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     'Contacted':            'bg-indigo-50 text-indigo-700 border-indigo-200',
     'Follow-up':            'bg-amber-50 text-amber-700 border-amber-200',
     'Demo Scheduled':       'bg-purple-50 text-purple-700 border-purple-200',
+    'Fee Discussion':       'bg-cyan-50 text-cyan-700 border-cyan-200',
     'Interested':           'bg-emerald-50 text-emerald-700 border-emerald-200',
     'Not Interested':       'bg-red-50 text-red-600 border-red-200',
     'Converted':            'bg-slate-105 text-slate-600 border-slate-300',
@@ -53,8 +57,8 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = 'pipeline' }) => {
   const {
     leads, students, courses, batches, branches,
-    addLead, updateLead, addFollowup, convertLeadToStudent,
-    approveStudentRegistration, allocateBatch, recordPayment,
+    addLead, updateLead, addFollowup,
+    allocateBatch, recordPayment,
     addToast, currentUser
   } = useApp();
 
@@ -94,14 +98,39 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setPage(1);
   }, [activeTab]);
 
-  // Modals state
+  // Modals / Details state
   const [showAddLead, setShowAddLead] = useState(false);
   const [showFollowup, setShowFollowup] = useState(false);
-  const [showLeadDetails, setShowLeadDetails] = useState(false);
-  const [showBatchModal, setShowBatchModal] = useState(false);
-
+  const [showLeadDetail, setShowLeadDetail] = useState(false);
+  const [modalTab, setModalTab] = useState<'profile' | 'course' | 'history' | 'fee'>('profile');
+  const [leadFeeData, setLeadFeeData] = useState<any>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  // Lead Details Form State
+  const [fName, setFName] = useState('');
+  const [fMobile, setFMobile] = useState('');
+  const [fParent, setFParent] = useState('');
+  const [fCourse, setFCourse] = useState('');
+  const [fProgram, setFProgram] = useState('');
+  const [fLevel, setFLevel] = useState('year1');
+  const [fBranch, setFBranch] = useState('');
+  const [fAssignedBranch, setFAssignedBranch] = useState('');
+  const [fSource, setFSource] = useState('Walk-in');
+  const [fStatus, setFStatus] = useState<Lead['status']>('New Enquiry');
+  const [fCounsellor, setFCounsellor] = useState('');
+  const [fRemarks, setFRemarks] = useState('');
+  const [fDemoScheduledOn, setFDemoScheduledOn] = useState('');
+
+  // Interaction Modal State
+  const [showAddInteractionModal, setShowAddInteractionModal] = useState(false);
+  const [interactionForm, setInteractionForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    type: 'Call',
+    status: 'Follow-up',
+    nextDate: '',
+    remarks: '',
+    demoScheduledOn: ''
+  });
 
   // Add Lead Form State
   const [leadForm, setLeadForm] = useState({
@@ -114,9 +143,136 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   });
 
   // Batch Allocation Form State
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [batchForm, setBatchForm] = useState({
-    course: '', program: '', level: 'year1', batch: '', type: 'Standard Enrollment'
+    course: '',
+    program: '',
+    level: 'year1',
+    batch: '',
+    type: 'Standard Enrollment'
   });
+
+  const availableBatchesForStudent = useMemo(() => {
+    if (!selectedStudent) return [];
+    const cName = batchForm.course || selectedStudent.course;
+    const pName = batchForm.program || selectedStudent.program;
+    const lName = batchForm.level || selectedStudent.level;
+
+    const courseData = (courseHierarchy as any[]).find(
+      c => c.courseName?.toLowerCase() === cName?.toLowerCase()
+    );
+    const progData = courseData?.programs?.find(
+      (p: any) => p.programName?.toLowerCase() === pName?.toLowerCase()
+    );
+    const lvlData = progData?.levels?.find(
+      (l: any) => (l.levelId?.toLowerCase() === lName?.toLowerCase() || l.levelName?.toLowerCase() === lName?.toLowerCase())
+    );
+
+    const hierarchyBatches: string[] = lvlData?.batches || [];
+
+    const contextBatches = batches
+      .filter(b => (!cName || b.course === cName))
+      .map(b => b.name);
+
+    const combined = Array.from(new Set([...hierarchyBatches, ...contextBatches]));
+    return combined;
+  }, [selectedStudent, batchForm.course, batchForm.program, batchForm.level, batches]);
+
+  const handleOpenBatchModal = (s: Student) => {
+    setSelectedStudent(s);
+    setBatchForm({
+      course: s.course || '',
+      program: s.program || '',
+      level: s.level || 'year1',
+      batch: s.batch || '',
+      type: 'Standard Enrollment'
+    });
+    setShowBatchModal(true);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  useEffect(() => {
+    if (showBatchModal || showLeadDetail) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [showBatchModal, showLeadDetail]);
+
+  const handleOpenLeadDetail = (l: Lead, defaultTab: 'profile' | 'course' | 'history' | 'fee' = 'profile') => {
+    setSelectedLead(l);
+    setFName(l.name);
+    setFMobile(l.mobile);
+    setFParent(l.parentMobile || '');
+    setFCourse(l.feeConfig?.course || l.course);
+    setFProgram(l.feeConfig?.program || l.program || '');
+    setFLevel(l.feeConfig?.level || l.level || 'year1');
+    setFBranch(l.preferredBranch || l.branch || '');
+    setFAssignedBranch(l.branch || '');
+    setFSource(l.source);
+    setFStatus(l.status);
+    setFCounsellor(l.counsellor || '');
+    setFRemarks(l.remarks || '');
+    setFDemoScheduledOn(l.demoScheduledOn || '');
+    setLeadFeeData(l.feeConfig || null);
+    setModalTab(defaultTab);
+    setShowLeadDetail(true);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  const handleSaveInteraction = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead || !interactionForm.remarks.trim()) {
+      addToast('Please enter interaction remarks or outcome.', 'error');
+      return;
+    }
+
+    const newFollowup = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: new Date(interactionForm.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+      type: interactionForm.type,
+      outcome: interactionForm.remarks,
+      nextDate: interactionForm.nextDate ? new Date(interactionForm.nextDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : ''
+    };
+
+    const updatedFollowups = [...(selectedLead.followups || []), newFollowup];
+    const finalNextFollowUp = interactionForm.nextDate || selectedLead.nextFollowUp;
+
+    updateLead(selectedLead.id, {
+      status: interactionForm.status as Lead['status'],
+      nextFollowUp: finalNextFollowUp,
+      demoScheduledOn: interactionForm.status === 'Demo Scheduled' ? (interactionForm.demoScheduledOn || new Date().toISOString().split('T')[0]) : selectedLead.demoScheduledOn,
+      followups: updatedFollowups
+    });
+
+    setSelectedLead({
+      ...selectedLead,
+      status: interactionForm.status as Lead['status'],
+      nextFollowUp: finalNextFollowUp,
+      demoScheduledOn: interactionForm.status === 'Demo Scheduled' ? (interactionForm.demoScheduledOn || new Date().toISOString().split('T')[0]) : selectedLead.demoScheduledOn,
+      followups: updatedFollowups
+    });
+    setFStatus(interactionForm.status as Lead['status']);
+
+    setShowAddInteractionModal(false);
+    setInteractionForm({
+      date: new Date().toISOString().split('T')[0],
+      type: 'Call',
+      status: interactionForm.status,
+      nextDate: '',
+      remarks: '',
+      demoScheduledOn: ''
+    });
+    addToast('Interaction recorded successfully!', 'success');
+  };
+
+  useEffect(() => {
+    if (location.state?.activeLeadId) {
+      const targetLead = leads.find(l => l.id === location.state.activeLeadId);
+      if (targetLead) {
+        handleOpenLeadDetail(targetLead);
+      }
+    }
+  }, [location.state?.activeLeadId, leads]);
 
   // Computed filter options
   const branchFilterOptions = useMemo(() => [
@@ -143,6 +299,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
       if (l.status === 'Converted') return false;
+      if (activeTab === 'fee' && l.status !== 'Fee Discussion') return false;
       const q = search.toLowerCase();
       const matchQ = l.name.toLowerCase().includes(q) || l.course.toLowerCase().includes(q) || l.mobile.includes(q);
       const matchSt = filterStatus === 'All' || l.status === filterStatus;
@@ -155,7 +312,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       const matchProgram = filterProgram === 'All' || (courseObj?.programs?.includes(filterProgram) ?? false);
       return matchQ && matchSt && matchSrc && matchBranch && matchCourse && matchProgram;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, courses, currentUser]);
+  }, [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, courses, currentUser, activeTab]);
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
@@ -277,233 +434,562 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     document.body.removeChild(link);
   };
 
-  // ─── Full-Screen Panels instead of Pop-up Modals ──────────────────────────────
-  if (showAddLead) {
+  // ─────────────────────────────────────────────────────────────────────────
+  //  VIEW: Lead Details Panel (Matching Screenshot)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (showLeadDetail && selectedLead) {
     return (
       <div className="space-y-6 w-full animate-fade-in">
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddLead(false)} className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-            <ArrowLeft size={20} />
+          <button onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
+            <ArrowLeft size={24} />
           </button>
           <div>
-            <h2 className="text-xl font-display font-bold text-slate-900">Log New Enquiry</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Add a new prospective student enquiry to the lead pipeline.</p>
+            <h2 className="text-2xl font-display font-bold text-slate-900">Lead Details: {selectedLead.name}</h2>
+            <p className="text-sm text-slate-500">Edit enquiry details below.</p>
           </div>
         </div>
 
-        <Card>
-          <form onSubmit={handleAddLeadSubmit} className="p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Student Name *" value={leadForm.name} onChange={e => setLeadForm(prev => ({ ...prev, name: e.target.value }))} placeholder="Enter full name" />
-              <Input label="Mobile Number *" value={leadForm.mobile} onChange={e => setLeadForm(prev => ({ ...prev, mobile: e.target.value }))} placeholder="Enter 10-digit number" />
+        <div className="w-full">
+          <form onSubmit={e => {
+            e.preventDefault();
+            updateLead(selectedLead.id, {
+              name: fName, mobile: fMobile, course: fCourse, program: fProgram, level: fLevel, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, counsellor: fCounsellor, status: fStatus, demoScheduledOn: fDemoScheduledOn, remarks: fRemarks
+            });
+            setShowLeadDetail(false);
+            setSelectedLead(null);
+            addToast('Lead updated successfully.', 'success');
+          }} className="space-y-4">
+            
+            {/* Tabs Header */}
+            <div className="flex gap-4 border-b border-slate-200 mb-6">
+              {[
+                { id: 'profile', label: 'Profile Details' },
+                { id: 'course', label: 'Course & Status' },
+                { id: 'history', label: 'Follow-up History' },
+                { id: 'fee', label: 'Fee & Admission' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setModalTab(t.id as any)}
+                  className={`pb-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer ${
+                    modalTab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Parent Mobile" value={leadForm.parentMobile} onChange={e => setLeadForm(prev => ({ ...prev, parentMobile: e.target.value }))} placeholder="Optional" />
-              <Select
-                label="Select Branch *"
-                value={leadForm.branch}
-                onChange={e => setLeadForm(prev => ({ ...prev, branch: e.target.value }))}
-                options={branches.map(b => ({ value: b.name, label: b.name }))}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select
-                label="Course Interest *"
-                value={leadForm.course}
-                onChange={e => setLeadForm(prev => ({ ...prev, course: e.target.value, program: '', level: 'year1' }))}
-                options={courses.map(c => ({ value: c.name, label: c.name }))}
-              />
-              <Select
-                label="Assign Counsellor"
-                value={leadForm.counsellor}
-                onChange={e => setLeadForm(prev => ({ ...prev, counsellor: e.target.value }))}
-                options={[{ value: 'Priya Sen', label: 'Priya Sen' }, { value: 'Amit Verma', label: 'Amit Verma' }]}
-              />
-            </div>
-            <Input label="Discovery Source" value={leadForm.source} onChange={e => setLeadForm(prev => ({ ...prev, source: e.target.value }))} placeholder="e.g. Google Ads, Referral" />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-500">Remarks / Follow-up notes</label>
-              <textarea
-                value={leadForm.remarks}
-                onChange={e => setLeadForm(prev => ({ ...prev, remarks: e.target.value }))}
-                placeholder="Parent requested fees details..."
-                className="w-full min-h-[100px] p-3 border border-slate-200 rounded-lg text-sm bg-white font-sans outline-none focus:border-blue-500"
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="ghost" onClick={() => setShowAddLead(false)} className="cursor-pointer">Cancel</Button>
-              <Button type="submit" variant="primary" className="cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>Log Enquiry</Button>
-            </div>
-          </form>
-        </Card>
-      </div>
-    );
-  }
 
-  if (showFollowup && selectedLead) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowFollowup(false)} className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-xl font-display font-bold text-slate-900">Log Follow-up Call: {selectedLead.name}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Record call discussion outcomes and schedule the next follow-up action date.</p>
-          </div>
-        </div>
-
-        <Card>
-          <form onSubmit={handleFollowupSubmit} className="p-6 space-y-4">
-            <Select
-              label="Follow-up Type"
-              value={followupForm.type}
-              onChange={e => setFollowupForm(prev => ({ ...prev, type: e.target.value }))}
-              options={[
-                { value: 'Call #1', label: 'Call #1' },
-                { value: 'Call #2', label: 'Call #2' },
-                { value: 'WhatsApp Ping', label: 'WhatsApp Ping' },
-                { value: 'Walk-in Counselling', label: 'Walk-in Counselling' }
-              ]}
-            />
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-500">Call Outcome / Discussion Details *</label>
-              <textarea
-                required
-                value={followupForm.outcome}
-                onChange={e => setFollowupForm(prev => ({ ...prev, outcome: e.target.value }))}
-                placeholder="Lead expressed interest in demo lecture..."
-                className="w-full min-h-[120px] p-3 border border-slate-200 rounded-lg text-sm bg-white font-sans outline-none focus:border-blue-500"
-              />
-            </div>
-            <Input
-              label="Schedule Next Action Date"
-              type="date"
-              value={followupForm.nextDate}
-              onChange={e => setFollowupForm(prev => ({ ...prev, nextDate: e.target.value }))}
-            />
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="ghost" onClick={() => setShowFollowup(false)} className="cursor-pointer">Cancel</Button>
-              <Button type="submit" variant="primary" className="cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>Save Log</Button>
-            </div>
-          </form>
-        </Card>
-      </div>
-    );
-  }
-
-  if (showBatchModal && selectedStudent) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowBatchModal(false)} className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-xl font-display font-bold text-slate-900">Batch Allocation: {selectedStudent.name}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Assign Course, Program, Academic Level and Target Batch details.</p>
-          </div>
-        </div>
-
-        <Card>
-          <form onSubmit={handleAllocateBatchSubmit} className="p-6 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select
-                label="Select Course *"
-                value={batchForm.course}
-                onChange={e => setBatchForm(prev => ({ ...prev, course: e.target.value, program: '', level: 'year1', batch: '' }))}
-                options={courses.map(c => ({ value: c.name, label: c.name }))}
-              />
-              <Select
-                label="Select Program *"
-                value={batchForm.program}
-                onChange={e => setBatchForm(prev => ({ ...prev, program: e.target.value, batch: '' }))}
-                options={(courses.find(c => c.name === batchForm.course)?.programs || []).map(p => ({ value: p, label: p }))}
-                disabled={!batchForm.course}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select
-                label="Academic Level *"
-                value={batchForm.level}
-                onChange={e => setBatchForm(prev => ({ ...prev, level: e.target.value, batch: '' }))}
-                options={[
-                  { value: 'year1', label: 'Year 1 / Class 11' },
-                  { value: 'year2', label: 'Year 2 / Class 12' },
-                  { value: 'class8', label: 'Class 8' },
-                  { value: 'class9', label: 'Class 9' },
-                  { value: 'class10', label: 'Class 10' }
-                ]}
-                disabled={!batchForm.program}
-              />
-              <Select
-                label="Select Target Batch *"
-                value={batchForm.batch}
-                onChange={e => setBatchForm(prev => ({ ...prev, batch: e.target.value }))}
-                options={batches
-                  .filter(b => b.course === batchForm.course && (!batchForm.program || b.program === batchForm.program))
-                  .map(b => ({ value: b.name, label: b.name }))
-                }
-                disabled={!batchForm.level}
-              />
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="ghost" onClick={() => setShowBatchModal(false)} className="cursor-pointer">Cancel</Button>
-              <Button type="submit" variant="primary" className="cursor-pointer" disabled={!batchForm.batch} style={{ backgroundColor: '#2563eb', color: 'white' }}>Confirm Batch</Button>
-            </div>
-          </form>
-        </Card>
-      </div>
-    );
-  }
-
-  if (showLeadDetails && selectedLead) {
-    return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowLeadDetails(false)} className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-xl font-display font-bold text-slate-900">Lead Profile: {selectedLead.name}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">ID: {selectedLead.id} • Counsellor: {selectedLead.counsellor}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-1">
-            <CardHeader><CardTitle>Basic Information</CardTitle></CardHeader>
-            <div className="p-6 space-y-4 text-sm">
-              <div><span className="text-xs text-slate-400 font-bold block mb-1">Mobile</span><strong className="text-slate-700 font-mono">{selectedLead.mobile}</strong></div>
-              <div><span className="text-xs text-slate-400 font-bold block mb-1">Branch</span><strong className="text-slate-700">{selectedLead.branch}</strong></div>
-              <div><span className="text-xs text-slate-400 font-bold block mb-1">Course Interest</span><strong className="text-blue-700 font-semibold">{selectedLead.course}</strong></div>
-              <div><span className="text-xs text-slate-400 font-bold block mb-1">Source</span><strong className="text-slate-700">{selectedLead.source}</strong></div>
-              <div><span className="text-xs text-slate-400 font-bold block mb-1">Next Follow-up</span><strong className="text-amber-700 font-mono">{selectedLead.nextFollowUp}</strong></div>
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs mt-4">
-                <span className="text-slate-500 uppercase font-bold block mb-1">Remarks</span>
-                <p className="text-slate-700 leading-relaxed font-medium">{selectedLead.remarks || 'No notes added yet.'}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardHeader><CardTitle>Interactions Timeline</CardTitle></CardHeader>
-            <div className="p-6">
-              <div className="border-l-2 border-slate-200 pl-6 space-y-6 ml-2">
-                {selectedLead.followups && selectedLead.followups.map((fu, idx) => (
-                  <div key={idx} className="relative">
-                    <div className="absolute -left-[29px] top-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm" />
-                    <div className="text-xs text-slate-400 font-bold uppercase">{fu.date} • {fu.type}</div>
-                    <div className="text-sm text-slate-700 font-semibold mt-1">{fu.outcome}</div>
-                    {fu.nextDate && <div className="text-[10px] text-amber-600 font-bold mt-1">Next Call Action: {fu.nextDate}</div>}
+            {/* TAB 1: Profile Details */}
+            {modalTab === 'profile' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Student & Contact Details</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input label="Student Name *" required value={fName} onChange={e => setFName(e.target.value)} />
+                    <Input label="Mobile Contact *" required value={fMobile} onChange={e => setFMobile(e.target.value)} />
                   </div>
-                ))}
-                {(!selectedLead.followups || selectedLead.followups.length === 0) && (
-                  <div className="text-slate-400 text-sm py-4 font-semibold">No follow-up calls logged yet.</div>
+                </div>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Branch Details</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
+                      { value: '', label: 'No Preference' },
+                      ...branchFilterOptions.filter(o => o.value !== 'All')
+                    ]} disabled={currentUser?.role === 'branch-admin'} />
+                    <Select label="Assigned Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
+                      { value: '', label: 'Assign Later' },
+                      ...branchFilterOptions.filter(o => o.value !== 'All')
+                    ]} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Course & Status */}
+            {modalTab === 'course' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Select label="Interested Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel('year1'); }} options={courseFilterOptions.filter(o => o.value !== 'All')} />
+                    <Select label="Program" value={fProgram} onChange={e => { setFProgram(e.target.value); }} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
+                    <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[
+                      { value: '', label: 'Select Level' },
+                      { value: 'year1', label: 'Year 1 / Class 11' },
+                      { value: 'year2', label: 'Year 2 / Class 12' },
+                      { value: 'class8', label: 'Class 8' },
+                      { value: 'class9', label: 'Class 9' },
+                      { value: 'class10', label: 'Class 10' }
+                    ]} />
+                    <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
+                      { value: 'Walk-in', label: 'Walk-in at Branch' },
+                      { value: 'Phone Call', label: 'Phone Call' },
+                      { value: 'Website', label: 'Website / Landing Page' },
+                      { value: 'Social Media', label: 'Social Media' },
+                      { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
+                      { value: 'Referral', label: 'Student Referral' },
+                      { value: 'Flyer Campaign', label: 'Offline Campaign / Event' },
+                      { value: 'Google Ads', label: 'Google Ads' }
+                    ]} />
+                    <Select label="Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value as any)} options={[
+                      { value: 'New Enquiry', label: 'New Enquiry' },
+                      { value: 'Contacted', label: 'Contacted' },
+                      { value: 'Follow-up', label: 'Follow-up' },
+                      { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                      { value: 'Fee Discussion', label: 'Fee Discussion' },
+                      { value: 'Interested', label: 'Interested' },
+                      { value: 'Not Interested', label: 'Not Interested' }
+                    ]} />
+                    <Select label="Assigned Counsellor" value={fCounsellor} onChange={e => setFCounsellor(e.target.value)} options={[
+                      { value: '', label: 'Select Counsellor' },
+                      { value: 'Priya Sen', label: 'Priya Sen' },
+                      { value: 'Amit Verma', label: 'Amit Verma' }
+                    ]} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Remarks</label>
+                    <textarea className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[60px]" value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
+                  </div>
+                </div>
+
+                {fStatus === 'Demo Scheduled' && (
+                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-4">
+                    <h4 className="text-xs font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
+                    <div className="grid grid-cols-1 gap-4">
+                      <Input label="Demo Scheduled On" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+                    </div>
+                  </div>
                 )}
               </div>
+            )}
+
+            {/* TAB 3: Follow-up History */}
+            {modalTab === 'history' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800">Follow-up & Interaction History</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">Timeline of past communications, calls, and meetings.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => {
+                        setInteractionForm({
+                          date: new Date().toISOString().split('T')[0],
+                          type: 'Call',
+                          status: selectedLead.status || 'Follow-up',
+                          nextDate: '',
+                          remarks: '',
+                          demoScheduledOn: ''
+                        });
+                        setShowAddInteractionModal(true);
+                      }}
+                      className="cursor-pointer font-semibold text-xs flex items-center gap-1.5"
+                      style={{ backgroundColor: '#2563eb', color: 'white' }}
+                    >
+                      <Plus size={14} /> Add Interaction
+                    </Button>
+                  </div>
+
+                  {selectedLead.followups && selectedLead.followups.length > 0 ? (
+                    <div className="space-y-3 pt-2">
+                      {selectedLead.followups.map((fu, idx) => (
+                        <div key={idx} className="flex flex-col sm:flex-row gap-3 text-sm bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
+                          <div className="w-24 shrink-0 font-mono text-xs font-semibold text-slate-500 pt-0.5">{fu.date}</div>
+                          <div className="flex-1 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-800">{fu.type}</span>
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{(fu as any).counsellor || selectedLead.counsellor}</span>
+                              {fu.nextDate && (
+                                <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 ml-auto">
+                                  Next Action: {fu.nextDate}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-slate-600 text-xs leading-relaxed">{fu.outcome}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-400 italic py-8 text-center bg-white border border-slate-200 rounded-xl">
+                      No follow-ups recorded yet. Click &quot;Add Interaction&quot; above to log a call or meeting.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: Fee & Admission */}
+            {modalTab === 'fee' && (
+              <div className="space-y-6 animate-fade-in pb-8">
+                <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm mb-6">
+                  <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
+                    <UserCheck className="w-5 h-5 text-blue-600" /> Pre-Registration Fee Discussion
+                  </h4>
+                  <p className="text-xs text-slate-500">Configure the fee structure with the parent. When finalized, convert this lead to a registered student. The configuration will carry over.</p>
+                </div>
+                
+                <FeeConfigurator 
+                  initialCourse={selectedLead.feeConfig?.course || selectedLead.course}
+                  initialProgram={selectedLead.feeConfig?.program || selectedLead.program}
+                  initialLevel={selectedLead.feeConfig?.level || selectedLead.level}
+                  initialState={selectedLead.feeConfig}
+                  onChange={(data) => setLeadFeeData(data)}
+                />
+
+                <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 mt-6">
+                  <Button type="button" variant="secondary" onClick={() => {
+                    if (selectedLead && leadFeeData) {
+                      updateLead(selectedLead.id, {
+                        feeConfig: leadFeeData,
+                        status: 'Fee Discussion',
+                        course: leadFeeData.course || selectedLead.course,
+                        program: leadFeeData.program || selectedLead.program,
+                        level: leadFeeData.level || selectedLead.level
+                      });
+                      setSelectedLead({
+                        ...selectedLead,
+                        feeConfig: leadFeeData,
+                        status: 'Fee Discussion',
+                        course: leadFeeData.course || selectedLead.course,
+                        program: leadFeeData.program || selectedLead.program,
+                        level: leadFeeData.level || selectedLead.level
+                      });
+                      setFStatus('Fee Discussion');
+                    }
+                    addToast('Fee configuration saved & lead moved to Fee Discussion.', 'success');
+                    setShowLeadDetail(false);
+                    setSelectedLead(null);
+                  }} style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }} className="cursor-pointer">
+                    Save Configuration
+                  </Button>
+                  <Button type="button" variant="primary" onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: leadFeeData } })} style={{ backgroundColor: '#10b981', color: 'white', padding: '0.75rem 1.5rem', fontSize: '1rem' }} className="cursor-pointer">
+                    Convert to Student <ChevronRight size={20} className="ml-2" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {modalTab !== 'fee' && (
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
+                <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button" className="cursor-pointer">Cancel</Button>
+                <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit" className="cursor-pointer">Save Changes</Button>
+              </div>
+            )}
+          </form>
+        </div>
+
+        {/* LOG INTERACTION MODAL POPUP */}
+        <Modal
+          isOpen={showAddInteractionModal}
+          onClose={() => setShowAddInteractionModal(false)}
+          title={`Log Interaction: ${selectedLead.name}`}
+          size="lg"
+        >
+          <form onSubmit={handleSaveInteraction} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Interaction Date *"
+                type="date"
+                required
+                value={interactionForm.date}
+                onChange={e => setInteractionForm(prev => ({ ...prev, date: e.target.value }))}
+              />
+              <Select
+                label="Interaction Type *"
+                value={interactionForm.type}
+                onChange={e => setInteractionForm(prev => ({ ...prev, type: e.target.value }))}
+                options={[
+                  { value: 'Call', label: 'Phone Call' },
+                  { value: 'Walk-in', label: 'Walk-in Meet' },
+                  { value: 'WhatsApp', label: 'WhatsApp' },
+                  { value: 'Email', label: 'Email' }
+                ]}
+              />
             </div>
-          </Card>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Update Lead Status To *"
+                value={interactionForm.status}
+                onChange={e => setInteractionForm(prev => ({ ...prev, status: e.target.value }))}
+                options={[
+                  { value: 'New Enquiry', label: 'New Enquiry' },
+                  { value: 'Contacted', label: 'Contacted' },
+                  { value: 'Follow-up', label: 'Follow-up' },
+                  { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                  { value: 'Fee Discussion', label: 'Fee Discussion' },
+                  { value: 'Interested', label: 'Interested' },
+                  { value: 'Not Interested', label: 'Not Interested' }
+                ]}
+              />
+              <Input
+                label="Next Follow-up Date"
+                type="date"
+                value={interactionForm.nextDate}
+                onChange={e => setInteractionForm(prev => ({ ...prev, nextDate: e.target.value }))}
+              />
+            </div>
+
+            {interactionForm.status === 'Demo Scheduled' && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <Input
+                  label="Demo Scheduled On"
+                  type="date"
+                  value={interactionForm.demoScheduledOn}
+                  onChange={e => setInteractionForm(prev => ({ ...prev, demoScheduledOn: e.target.value }))}
+                />
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Discussion Outcome / Remarks *</label>
+              <textarea
+                required
+                rows={3}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                placeholder="Discussed curriculum, parent requested discount, demo confirmed..."
+                value={interactionForm.remarks}
+                onChange={e => setInteractionForm(prev => ({ ...prev, remarks: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <Button type="button" variant="secondary" onClick={() => setShowAddInteractionModal(false)} className="cursor-pointer">
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} className="cursor-pointer">
+                Save Interaction
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  VIEW: Allocate Batch Full-Screen View (Matching Lead Details)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (showBatchModal && selectedStudent) {
+    return (
+      <div className="space-y-6 animate-fade-in pb-12">
+        {/* Header with Back button */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => { setShowBatchModal(false); setSelectedStudent(null); }}
+            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-display font-bold text-slate-900">
+                Batch Allocation: {selectedStudent.name}
+              </h2>
+              <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md">
+                {selectedStudent.studentId}
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Select and assign a batch from the course hierarchy. Timetable schedules and classroom seatings will synchronize automatically.
+            </p>
+          </div>
+        </div>
+
+        {/* 2-Column Dashboard Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* LEFT COLUMN: Student Profile, Academics & Fee Summary (7 cols) */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* 1. Student Profile Card */}
+            <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                  <Users size={15} className="text-blue-600" /> Student Profile & Contact Details
+                </span>
+                <span className="text-xs text-slate-500 font-medium">Branch: <strong className="text-slate-800">{selectedStudent.branch || 'Main Campus'}</strong></span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <span className="text-slate-400 block font-medium">Full Name</span>
+                  <span className="text-slate-900 font-bold text-sm mt-0.5 block">{selectedStudent.name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Mobile Contact</span>
+                  <span className="font-mono text-slate-800 font-semibold mt-0.5 block">{selectedStudent.mobile || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Admission Date</span>
+                  <span className="text-slate-800 font-semibold mt-0.5 block">{selectedStudent.admissionDate || '2026-08-10'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Gender / Category</span>
+                  <span className="text-slate-800 font-semibold mt-0.5 block">{selectedStudent.gender || 'Male'} ({selectedStudent.category || 'General'})</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Date of Birth</span>
+                  <span className="font-mono text-slate-800 font-semibold mt-0.5 block">{selectedStudent.dob || '2010-05-14'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Admission Status</span>
+                  <div className="mt-0.5"><StatusBadge status={selectedStudent.status} /></div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Academic Curriculum Card */}
+            <div className="p-5 bg-indigo-50/60 border border-indigo-100 rounded-2xl space-y-4 shadow-sm">
+              <span className="text-xs font-bold text-indigo-900 uppercase tracking-wide block pb-2 border-b border-indigo-100 flex items-center gap-1.5">
+                <ClipboardList size={15} className="text-indigo-600" /> Academic Stream & Curriculum
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <span className="text-indigo-600/80 block font-medium">Enrolled Course</span>
+                  <span className="text-indigo-950 font-bold text-sm mt-0.5 block">{selectedStudent.course || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-indigo-600/80 block font-medium">Program Duration</span>
+                  <span className="text-indigo-950 font-bold text-sm mt-0.5 block">{selectedStudent.program || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-indigo-600/80 block font-medium">Academic Level</span>
+                  <span className="text-indigo-950 font-bold text-sm mt-0.5 block uppercase">{selectedStudent.level || selectedStudent.currentClass || '—'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Fee & Enrollment Summary Card */}
+            <div className="p-5 bg-emerald-50/60 border border-emerald-100 rounded-2xl space-y-4 shadow-sm">
+              <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide block pb-2 border-b border-emerald-100 flex items-center gap-1.5">
+                <DollarSign size={15} className="text-emerald-600" /> Fee Structure & Payment Ledger
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div>
+                  <span className="text-emerald-700/80 block font-medium">Enrollment Type</span>
+                  <span className="text-slate-900 font-bold mt-0.5 block">{batchForm.type}</span>
+                </div>
+                <div>
+                  <span className="text-emerald-700/80 block font-medium">Total Course Fee</span>
+                  <span className="text-slate-900 font-bold text-sm mt-0.5 block">₹{(selectedStudent.feePlan?.total || 120000).toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-emerald-700/80 block font-medium">Amount Paid</span>
+                  <span className="text-emerald-700 font-bold text-sm mt-0.5 block">₹{(selectedStudent.feePlan?.paid || 0).toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-emerald-700/80 block font-medium">Outstanding Balance</span>
+                  <span className="text-red-600 font-bold text-sm mt-0.5 block">₹{(selectedStudent.feePlan?.pending || 0).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Batch Allocation & Timetable Integration (5 cols) */}
+          <div className="lg:col-span-5 space-y-5">
+            <div className="p-6 bg-white border-2 border-blue-200 rounded-2xl space-y-5 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <label className="text-sm font-bold text-blue-900 uppercase tracking-wide flex items-center gap-2">
+                  <Layers size={16} className="text-blue-600" /> Select Batch from Hierarchy *
+                </label>
+              </div>
+
+              {selectedStudent.batch ? (
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs">
+                  <span className="text-blue-700 font-medium">Currently Assigned:</span>
+                  <span className="font-mono font-bold text-blue-900 bg-white px-3 py-1.5 rounded-lg border border-blue-200 shadow-xs text-sm">
+                    {selectedStudent.batch}
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                  <Clock size={15} className="text-amber-600 shrink-0" />
+                  <span>No batch currently allocated. Please select a matching batch below.</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-700">Available Batches for {selectedStudent.course}</label>
+                <Select
+                  label=""
+                  value={batchForm.batch}
+                  onChange={e => setBatchForm(prev => ({ ...prev, batch: e.target.value }))}
+                  options={[
+                    { value: '', label: 'Choose a Batch from Course Hierarchy...' },
+                    ...availableBatchesForStudent.map(bName => ({
+                      value: bName,
+                      label: `${bName} (${selectedStudent.course || ''} - ${selectedStudent.program || ''})`
+                    }))
+                  ]}
+                />
+              </div>
+
+              {batchForm.batch && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 text-xs">
+                  <div className="font-bold text-slate-800">Allocation Summary:</div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Allocated Batch:</span>
+                    <strong className="text-blue-700 font-mono text-sm">{batchForm.batch}</strong>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Classroom Allocation:</span>
+                    <span className="text-emerald-700 font-medium">Synchronized with Timetable</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Faculty Attendance Roster:</span>
+                    <span className="text-emerald-700 font-medium">Active</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-slate-500 bg-slate-50 p-3.5 rounded-xl border border-slate-200 leading-relaxed">
+                Allocating a batch will automatically assign lecture schedules, classroom seatings, and activate the student in faculty rosters.
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => { setShowBatchModal(false); setSelectedStudent(null); }}
+                  style={{ padding: '0.75rem 1.5rem', fontSize: '0.95rem' }}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  disabled={!batchForm.batch}
+                  onClick={() => {
+                    if (selectedStudent && batchForm.batch) {
+                      allocateBatch(
+                        selectedStudent.id,
+                        batchForm.batch,
+                        selectedStudent.course || batchForm.course,
+                        selectedStudent.program || batchForm.program,
+                        selectedStudent.level || batchForm.level
+                      );
+                      addToast(`Successfully allocated batch ${batchForm.batch} to ${selectedStudent.name}!`, 'success');
+                      setShowBatchModal(false);
+                      setSelectedStudent(null);
+                    }
+                  }}
+                  style={{ backgroundColor: '#2563eb', color: 'white', padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
+                  className="cursor-pointer font-semibold shadow-sm"
+                >
+                  Confirm Batch Allocation
+                </Button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     );
@@ -593,14 +1079,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   { value: 'Contacted', label: 'Contacted' },
                   { value: 'Follow-up', label: 'Follow-up' },
                   { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                  { value: 'Fee Discussion', label: 'Fee Discussion' },
                   { value: 'Interested', label: 'Interested' },
                   { value: 'Not Interested', label: 'Not Interested' }
                 ] : activeTab === 'fee' ? [
                   { value: 'All', label: 'All Stages' },
-                  { value: 'Contacted', label: 'Contacted' },
-                  { value: 'Follow-up', label: 'Follow-up' },
-                  { value: 'Demo Scheduled', label: 'Demo Scheduled' },
-                  { value: 'Interested', label: 'Interested' }
+                  { value: 'Fee Discussion', label: 'Fee Discussion' }
                 ] : activeTab === 'admission' ? [
                   { value: 'All', label: 'All Statuses' },
                   { value: 'Registration Pending', label: 'Registration Pending' },
@@ -668,7 +1152,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               {paginatedLeads.map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{l.id}</td>
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => { setSelectedLead(l); setShowLeadDetails(true); }}>{l.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l)}>{l.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
                   <td className="px-6 py-4 text-xs text-slate-700 font-medium">{l.course}</td>
                   <td className="px-6 py-4 text-xs text-slate-500">{l.branch}</td>
@@ -676,7 +1160,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => { setSelectedLead(l); setShowFollowup(true); }} className="cursor-pointer">
+                      <Button variant="secondary" size="sm" onClick={() => handleOpenLeadDetail(l, 'history')} className="cursor-pointer">
                         <PhoneCall size={12} className="mr-1" /> Call Log
                       </Button>
                       <Button variant="primary" size="sm" onClick={() => navigate(`/leads/${l.id}/convert`)} className="cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
@@ -700,34 +1184,28 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800 flex items-center gap-2">
             <Clock size={14} className="text-blue-500" />
-            <span><strong>Phase 2 — Fee Discussion:</strong> Track and manage fees negotiations for active leads. Click Discuss Fee to initiate the conversion pricing wizard.</span>
+            <span><strong>Phase 2 — Fee Discussion:</strong> Track and manage fees negotiations for active leads.</span>
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle>Fee Discussion Queue</CardTitle>
             </CardHeader>
-            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course', 'Assigned Branch', 'Stage', 'Counsellor', 'Remarks', 'Actions']}>
-              {paginatedLeads
-                .filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status))
-                .map(l => (
-                  <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{l.id}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-800">{l.name}</td>
-                    <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
-                    <td className="px-6 py-4 text-xs text-slate-700 font-medium">{l.course}</td>
-                    <td className="px-6 py-4 text-xs text-slate-500">{l.branch}</td>
-                    <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
-                    <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
-                    <td className="px-6 py-4 text-xs text-slate-500 truncate max-w-[150px]">{l.remarks}</td>
-                    <td className="px-6 py-4">
-                      <Button variant="primary" size="sm" onClick={() => navigate(`/leads/${l.id}/convert`, { state: { startStep: 2 } })} className="cursor-pointer text-xs font-semibold" style={{ backgroundColor: '#2563eb', color: 'white' }}>
-                        <DollarSign size={12} className="mr-1" /> Discuss Fee
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              {filteredLeads.filter(l => ['Follow-up', 'Interested', 'Demo Scheduled', 'Contacted'].includes(l.status)).length === 0 && (
+            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Assigned Branch', 'Stage', 'Counsellor', 'Next Follow-up', 'Remarks']}>
+              {paginatedLeads.map(l => (
+                <tr key={l.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{l.id}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l, 'fee')}>{l.name}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
+                  <td className="px-6 py-4 text-xs text-slate-700 font-medium">{l.course}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{l.branch}</td>
+                  <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-amber-700">{l.nextFollowUp || '—'}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500 max-w-[200px] truncate">{l.remarks}</td>
+                </tr>
+              ))}
+              {filteredLeads.length === 0 && (
                 <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">No leads currently in the Fee Discussion queue.</td></tr>
               )}
             </Table>
@@ -760,7 +1238,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{s.studentId}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/leads/${s.id || s.studentId}/convert`)}>{s.name}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.mobile || '—'}</td>
                   <td className="px-6 py-4 text-xs text-slate-600 font-medium">{s.course}</td>
                   <td className="px-6 py-4">
@@ -802,7 +1280,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{s.studentId}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
+                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenBatchModal(s)}>
+                    {s.name}
+                  </td>
                   <td className="px-6 py-4 text-xs text-slate-700">{s.course}</td>
                   <td className="px-6 py-4 text-xs text-slate-500">{s.branch}</td>
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.admissionDate || '—'}</td>
@@ -815,17 +1295,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </td>
                   <td className="px-6 py-4"><StatusBadge status={s.status} /></td>
                   <td className="px-6 py-4">
-                    <Button variant="secondary" size="sm" onClick={() => {
-                      setSelectedStudent(s);
-                      setBatchForm({
-                        course: s.course || '',
-                        program: s.program || '',
-                        level: s.level || 'year1',
-                        batch: s.batch || '',
-                        type: 'Standard Enrollment'
-                      });
-                      setShowBatchModal(true);
-                    }} className="cursor-pointer text-xs">
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenBatchModal(s)} className="cursor-pointer text-xs">
                       <Layers size={12} className="mr-1" /> Allocate Batch
                     </Button>
                   </td>
