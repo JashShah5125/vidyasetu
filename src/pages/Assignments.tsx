@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, ArrowLeft, BookOpen, ClipboardList, CheckCircle2, Edit3, FileSpreadsheet } from 'lucide-react';
+import { Plus, ArrowLeft, BookOpen, ClipboardList, CheckCircle2, Edit3, FileSpreadsheet, Download } from 'lucide-react';
 import type { ExamItem } from '../data/mockData';
 
 export interface AssignmentItem {
@@ -794,9 +794,23 @@ export const Assignments: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
-                <CardTitle>Active Homeworks &amp; Worksheets</CardTitle>
-              </div>
+              <CardTitle>Active Homeworks &amp; Worksheets</CardTitle>
+              <Button variant="secondary" size="sm" onClick={() => {
+                const headers = ['Assignment Title', 'Allotted Batch', 'Subject Name', 'Due Deadline', 'Status'];
+                const rows = filteredAndSortedAssignments.map(a => [
+                  a.title, a.batch, a.subject, a.dueDate, a.status
+                ]);
+                const csvContent = "data:text/csv;charset=utf-8,"
+                  + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+                const link = document.createElement('a');
+                link.setAttribute('href', encodeURI(csvContent));
+                link.setAttribute('download', 'homeworks_worksheets.csv');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}>
+                <Download className="w-4 h-4 mr-1.5" /> Export
+              </Button>
             </CardHeader>
             <Table headers={['Assignment Title', 'Allotted Batch', 'Subject Name', 'Due Deadline', 'Status']}>
               {paginatedAssignments.map((a, idx) => (
@@ -884,9 +898,23 @@ export const Assignments: React.FC = () => {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
-                <CardTitle>Scheduled Examinations &amp; Quizzes</CardTitle>
-              </div>
+              <CardTitle>Scheduled Examinations &amp; Quizzes</CardTitle>
+              <Button variant="secondary" size="sm" onClick={() => {
+                const headers = ['Test Name', 'Batch', 'Total Marks', 'Passing Threshold', 'Class Average', 'Status'];
+                const rows = filteredAndSortedExams.map(e => [
+                  e.name, e.batch, `${e.totalMarks} Marks`, `${e.passingMarks} Marks`, e.average, e.status
+                ]);
+                const csvContent = "data:text/csv;charset=utf-8,"
+                  + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+                const link = document.createElement('a');
+                link.setAttribute('href', encodeURI(csvContent));
+                link.setAttribute('download', 'scheduled_examinations.csv');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}>
+                <Download className="w-4 h-4 mr-1.5" /> Export
+              </Button>
             </CardHeader>
             <Table headers={['Test Name', 'Batch', 'Total Marks', 'Passing Threshold', 'Class average', 'Status']}>
               {paginatedExams.map((e, idx) => (

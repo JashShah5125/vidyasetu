@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 import { useLocation } from 'react-router-dom';
 
@@ -133,21 +133,40 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     const absentDays = historyLogs.filter(l => l.status === 'Absent').length;
     const attendanceRate = totalDays > 0 ? Math.round(((presentDays + lateDays * 0.5) / totalDays) * 100) : 100;
 
+    const handleExportCSV = () => {
+      const headers = ['Date', 'Status', 'Remark'];
+      const rows = historyLogs.map(l => [l.date, l.status, l.remark || '']);
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `attendance_history_${selectedPerson.name.replace(/\s+/g, '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setSelectedPerson(null)}
-            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Attendance History Report</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Roster profile details and historical timesheets for {selectedPerson.name}.
-            </p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSelectedPerson(null)}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h2 className="text-2xl font-display font-bold text-slate-900">Attendance History Report</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Roster profile details and historical timesheets for {selectedPerson.name}.
+              </p>
+            </div>
           </div>
+          <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-2 cursor-pointer">
+            <Download size={16} /> Export CSV
+          </Button>
         </div>
 
         {/* Profile Card */}
