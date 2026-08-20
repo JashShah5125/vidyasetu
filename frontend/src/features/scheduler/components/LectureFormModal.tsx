@@ -77,7 +77,7 @@ interface LectureFormModalProps {
 export const LectureFormModal: React.FC<LectureFormModalProps> = ({
   isOpen, onClose, branchId, batchId, existingLecture, initialDate, isTemplate = false, onSave, onDelete
 }) => {
-  const { staff, branches } = useApp();
+  const { staff, branches, addToast } = useApp();
   const { rooms, lectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
   const branchName = branches.find(b => b.id === branchId || b.code === branchId)?.name || branchId;
@@ -328,14 +328,13 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
                 variant="ghost"
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                 onClick={() => {
-                  if (confirm('Are you sure you want to delete this activity?')) {
-                    if (onDelete) {
-                      onDelete(existingLecture.id);
-                    } else {
-                      cancelLecture(existingLecture.id);
-                    }
-                    onClose();
+                  if (onDelete) {
+                    onDelete(existingLecture.id);
+                  } else {
+                    cancelLecture(existingLecture.id);
                   }
+                  addToast('Activity deleted successfully.', 'success');
+                  onClose();
                 }}
               >
                 Delete

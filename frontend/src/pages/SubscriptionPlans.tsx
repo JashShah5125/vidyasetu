@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { planService } from '../services/planService';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft } from 'lucide-react';
-import type { SubscriptionPlan, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../data/mockData';
+import type { SubscriptionPlan, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../types/saas';
 import {
   DEFAULT_FEATURES, DEFAULT_SUPPORT, DEFAULT_BRANDING, DEFAULT_INTEGRATIONS
-} from '../data/mockData';
+} from '../types/saas';
 
 // ─── Helper: display -1 as "Unlimited" ─────────────────────────────────────
 const displayLimit = (val: number) => val === -1 ? 'Unlimited' : val.toLocaleString();
@@ -57,7 +58,25 @@ const FeatureGroup: React.FC<{
 const STEPS = ['Basic Info', 'Billing', 'Resource Limits', 'Features', 'Support', 'Branding', 'Integrations', 'Notes'];
 
 export const SubscriptionPlans: React.FC = () => {
-  const { plans, addPlan, updatePlan, deletePlan, tenants } = useApp();
+  const { tenants, addToast } = useApp();
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadPlans = async () => {
+    try {
+      setLoading(true);
+      const data = await planService.getPlans();
+      if (data && data.data) setPlans(data.data);
+    } catch (e) {
+      addToast('Failed to load plans', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPlans();
+  }, []);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -96,7 +115,6 @@ export const SubscriptionPlans: React.FC = () => {
   const [maxFileSize, setMaxFileSize] = useState('');
   const [maxSmsCredits, setMaxSmsCredits] = useState('');
   const [maxWhatsappMsgs, setMaxWhatsappMsgs] = useState('');
-  const [maxApiCalls, setMaxApiCalls] = useState('');
 
   // Section 4–7
   const [features, setFeatures] = useState<FeatureAccess>({ ...DEFAULT_FEATURES });
@@ -120,7 +138,7 @@ export const SubscriptionPlans: React.FC = () => {
     setSetupFee(''); setRenewalPrice(''); setAutoRenewal(false);
     setMaxInstances(''); setMaxBranches(''); setMaxStaffUsers(''); setMaxStudents('');
     setMaxParents(''); setMaxTeachers(''); setMaxStorage(''); setMaxFileSize('');
-    setMaxSmsCredits(''); setMaxWhatsappMsgs(''); setMaxApiCalls('');
+    setMaxSmsCredits(''); setMaxWhatsappMsgs('');
     setFeatures({ ...DEFAULT_FEATURES });
     setSupport({ ...DEFAULT_SUPPORT });
     setBranding({ ...DEFAULT_BRANDING });
@@ -139,8 +157,8 @@ export const SubscriptionPlans: React.FC = () => {
     setMaxStaffUsers(p.maxStaffUsers.toString()); setMaxStudents(p.maxStudents.toString());
     setMaxParents(p.maxParents.toString()); setMaxTeachers(p.maxTeachers.toString());
     setMaxStorage(p.maxStorage); setMaxFileSize(p.maxFileSize);
-    setMaxSmsCredits(p.maxSmsCredits.toString()); setMaxWhatsappMsgs(p.maxWhatsappMsgs.toString());
-    setMaxApiCalls(p.maxApiCalls.toString());
+    setMaxSmsCredits(p.maxSmsCredits.toString());
+    setMaxWhatsappMsgs(p.maxWhatsappMsgs.toString());
     setFeatures({ ...p.features }); setSupport({ ...p.support });
     setBranding({ ...p.branding }); setIntegrations({ ...p.integrations });
     setNotes(p.notes);
@@ -165,7 +183,6 @@ export const SubscriptionPlans: React.FC = () => {
       maxStorage: maxStorage || '5 GB', maxFileSize: maxFileSize || '5 MB',
       maxSmsCredits: parseInt(maxSmsCredits) || 0,
       maxWhatsappMsgs: parseInt(maxWhatsappMsgs) || 0,
-      maxApiCalls: parseInt(maxApiCalls) || 0,
       features, support, branding, integrations, notes,
       visibleTo
     };
@@ -187,7 +204,7 @@ export const SubscriptionPlans: React.FC = () => {
     setCurrentStep(0); setShowViewModal(false); setShowAddModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !code) return;
 
@@ -197,39 +214,56 @@ export const SubscriptionPlans: React.FC = () => {
       setShowAddModal(false);
       setShowUpdateExistingPrompt(true);
     } else {
-      addPlan(buildPlanFields());
-      setSuccessMsg(`Plan "${name}" created.`);
-      setShowAddModal(false);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      try {
+        await planService.createPlan(buildPlanFields());
+        setSuccessMsg(`Plan "${name}" created.`);
+        loadPlans();
+        setShowAddModal(false);
+        setTimeout(() => setSuccessMsg(''), 4000);
+      } catch (err: any) {
+        addToast(err.response?.data?.message || 'Error creating plan', 'error');
+      }
     }
   };
 
-  const handleConfirmUpdate = (propagate: boolean) => {
+  const handleConfirmUpdate = async (propagate: boolean) => {
     if (editingPlanId && pendingEditFields) {
-      updatePlan(editingPlanId, pendingEditFields);
-      setSuccessMsg(`Plan "${pendingEditFields.name}" updated.${propagate ? ' Existing subscriptions will reflect this change.' : ''}`);
+      try {
+        await planService.updatePlan(editingPlanId, pendingEditFields);
+        setSuccessMsg(`Plan "${pendingEditFields.name}" updated.${propagate ? ' Existing subscriptions will reflect this change.' : ''}`);
+        loadPlans();
+      } catch (err: any) {
+        addToast(err.response?.data?.message || 'Error updating plan', 'error');
+      }
     }
     setPendingEditFields(null);
     setShowUpdateExistingPrompt(false);
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleDeletePlan = (id: string, planName: string) => {
-    if (window.confirm(`Delete plan "${planName}"? This does not automatically cancel active subscriptions.`)) {
-      deletePlan(id);
-      setSuccessMsg(`Plan "${planName}" deleted.`);
-      setTimeout(() => setSuccessMsg(''), 4000);
+  const handleDeletePlan = async (id: string, planName: string) => {
+    try {
+      await planService.updatePlanStatus(id, 0); // Assuming 0 is inactive
+      addToast(`Plan "${planName}" deactivated successfully.`, 'success');
+      loadPlans();
+    } catch (err) {
+      addToast('Error deactivating plan', 'error');
     }
   };
 
-  const handleDuplicatePlan = (p: SubscriptionPlan) => {
+  const handleDuplicatePlan = async (p: SubscriptionPlan) => {
     const { id, ...rest } = p;
-    addPlan({
-      ...rest,
-      name: `${p.name} Copy`
-    });
-    setSuccessMsg(`Plan "${p.name}" duplicated as "${p.name} Copy".`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+    try {
+      await planService.createPlan({
+        ...rest,
+        name: `${p.name} Copy`
+      });
+      setSuccessMsg(`Plan "${p.name}" duplicated as "${p.name} Copy".`);
+      loadPlans();
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Error duplicating plan', 'error');
+    }
   };
 
   // ─── Step renderer ────────────────────────────────────────────────────────
@@ -320,7 +354,6 @@ export const SubscriptionPlans: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input label="Max SMS Credits" type="number" placeholder="-1 = Unlimited" value={maxSmsCredits} onChange={e => setMaxSmsCredits(e.target.value)} />
             <Input label="Max WhatsApp Messages" type="number" placeholder="-1 = Unlimited" value={maxWhatsappMsgs} onChange={e => setMaxWhatsappMsgs(e.target.value)} />
-            <Input label="Max API Calls" type="number" placeholder="-1 = Unlimited" value={maxApiCalls} onChange={e => setMaxApiCalls(e.target.value)} />
           </div>
         </div>
       );
@@ -353,7 +386,7 @@ export const SubscriptionPlans: React.FC = () => {
             <FeatureGroup title="Administration" features={features} onChange={(k, v) => setFeatures(f => ({ ...f, [k]: v }))}
               items={[
                 { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
-                { key: 'importExport', label: 'Import / Export' }, { key: 'apiAccess', label: 'API Access' }
+                { key: 'importExport', label: 'Import / Export' }
               ]} />
           </div>
         </div>
@@ -404,9 +437,8 @@ export const SubscriptionPlans: React.FC = () => {
               <ToggleRow label="Google Calendar" checked={integrations.googleCalendar} onChange={v => setIntegrations(i => ({ ...i, googleCalendar: v }))} />
             </div>
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Hardware & API</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Hardware</p>
               <ToggleRow label="Biometric Devices" checked={integrations.biometricDevices} onChange={v => setIntegrations(i => ({ ...i, biometricDevices: v }))} />
-              <ToggleRow label="API Access" checked={integrations.apiAccess} onChange={v => setIntegrations(i => ({ ...i, apiAccess: v }))} />
             </div>
           </div>
         </div>
@@ -562,7 +594,6 @@ export const SubscriptionPlans: React.FC = () => {
                   { label: 'File Size', val: viewingPlan.maxFileSize },
                   { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
                   { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
-                  { label: 'API Calls', val: displayLimit(viewingPlan.maxApiCalls) },
                 ].map(({ label, val }) => (
                   <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
                     <span className="text-[9px] text-slate-400 font-bold block uppercase">{label}</span>
@@ -610,7 +641,7 @@ export const SubscriptionPlans: React.FC = () => {
                     group: 'Administration',
                     items: [
                       { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
-                      { key: 'importExport', label: 'Import / Export' }, { key: 'apiAccess', label: 'API Access' },
+                      { key: 'importExport', label: 'Import / Export' },
                     ]
                   },
                 ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
@@ -696,7 +727,6 @@ export const SubscriptionPlans: React.FC = () => {
                     { key: 'googleMeet', label: 'Google Meet' },
                     { key: 'googleCalendar', label: 'Google Calendar' },
                     { key: 'whatsappBusiness', label: 'WhatsApp Business' },
-                    { key: 'apiAccess', label: 'API Access' },
                   ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
                     const on = viewingPlan.integrations[key];
                     return (
@@ -789,7 +819,7 @@ export const SubscriptionPlans: React.FC = () => {
               assignments: 'Assignments', exams: 'Exams', results: 'Results', doubts: 'Doubt Resolution',
               fees: 'Fee Management', payroll: 'Payroll', income: 'Income Tracker', expenses: 'Expense Tracker',
               notifications: 'Push Notifications', sms: 'SMS', whatsapp: 'WhatsApp', email: 'Email',
-              reports: 'Reports & Analytics', auditLogs: 'Audit Logs', importExport: 'Import / Export', apiAccess: 'API Access'
+              reports: 'Reports & Analytics', auditLogs: 'Audit Logs', importExport: 'Import / Export'
             };
             const enabledFeatures = (Object.keys(p.features) as (keyof typeof p.features)[])
               .filter(k => p.features[k])
@@ -1057,10 +1087,15 @@ export const SubscriptionPlans: React.FC = () => {
               <Button variant="secondary" onClick={() => setManagingVisibilityPlan(null)}>Cancel</Button>
               <Button 
                 variant="primary" 
-                onClick={() => {
+                onClick={async () => {
                   const visibleTo = visAll ? ['All'] : visTenants;
-                  updatePlan(managingVisibilityPlan.id, { visibleTo });
-                  setSuccessMsg(`Visibility settings updated for "${managingVisibilityPlan.name}".`);
+                  try {
+                    await planService.updatePlan(managingVisibilityPlan.id, { visibleTo });
+                    setSuccessMsg(`Visibility settings updated for "${managingVisibilityPlan.name}".`);
+                    loadPlans();
+                  } catch (err) {
+                    addToast('Failed to update visibility settings', 'error');
+                  }
                   setManagingVisibilityPlan(null);
                   setTimeout(() => setSuccessMsg(''), 4000);
                 }}

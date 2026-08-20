@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { tenantService } from '../services/tenantService';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
@@ -11,13 +12,45 @@ import { formatDate, getTenantStatus } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
-  const { tenants, addTenant, updateTenant } = useApp();
+  const { updateTenant } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchTenants = async () => {
+    try {
+      setIsLoading(true);
+      // Map frontend filters to backend expectations
+      let statusFilter = '';
+      if (filterStatus === 'Active') statusFilter = 'active';
+      else if (filterStatus === 'Suspended') statusFilter = 'suspended';
+
+      const result = await tenantService.getTenants({
+        page: currentPage,
+        limit: 10,
+        search: searchTerm,
+        status: statusFilter,
+        plan: filterPlan !== 'All' ? filterPlan : undefined
+      });
+      setTenants(result.data || []);
+      setTotalItems(result.pagination?.total || 0);
+    } catch (error) {
+      console.error('Failed to fetch tenants:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTenants();
+  }, [currentPage, searchTerm, filterStatus]);
 
   React.useEffect(() => {
     if (initialOpenCreate) {
@@ -128,7 +161,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !ownerName || !email) return;
     
@@ -139,82 +172,70 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       finalDefaultEmail = cleanAlts[defaultEmailIdx];
     }
     
-    if (editingTenantId) {
-      // Edit mode
-      updateTenant(editingTenantId, {
-        name,
-        address,
-        gstNo,
-        ownerName,
-        email,
-        mobile,
-        plan,
-        renewalDate: expiryDate,
-        startDate,
-        altEmails: cleanAlts,
-        defaultEmail: finalDefaultEmail,
-        maxBranches,
-        maxStudents,
-        maxStorage,
-        maxFileSize
-      });
-      setSuccessMsg(`Tenant "${name}" settings updated successfully!`);
-    } else {
-      // Create mode
-      addTenant(
-        name, 
-        ownerName, 
-        email, 
-        mobile, 
-        plan,
-        expiryDate,
-        address,
-        gstNo,
-        maxBranches,
-        maxStudents,
-        maxStorage,
-        maxFileSize,
-        startDate,
-        cleanAlts,
-        finalDefaultEmail
-      );
+    // Auto-generate slug from name
+    const generatedSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    // Map plan to planId (assuming plan dropdown values)
+    let planId = null;
+    if (plan === 'Growth Plan') planId = 1;
+    else if (plan === 'Pro Enterprise') planId = 2;
+    else if (plan === 'Starter Trial') planId = 3;
+
+    try {
+      if (editingTenantId) {
+        // Edit mode (Not implemented in backend yet, keeping dummy logic or you can add update API)
+        updateTenant(editingTenantId, {
+          name, address, gstNo, ownerName, email, mobile, plan,
+          renewalDate: expiryDate, startDate, altEmails: cleanAlts,
+          defaultEmail: finalDefaultEmail, maxBranches, maxStudents, maxStorage, maxFileSize
+        });
+        setSuccessMsg(`Tenant "${name}" settings updated successfully!`);
+      } else {
+        // Create mode using real backend
+        await tenantService.createTenant({
+          name,
+          legal_name: name,
+          slug: generatedSlug,
+          adminEmail: email,
+          adminPassword: defaultPassword,
+          planId
+        });
+        
+        const alternateEmailInfo = cleanAlts.length > 0 ? ` | Alt Emails: ${cleanAlts.join(', ')}` : '';
+        const gstInfo = gstNo ? ` | GSTIN: ${gstNo}` : '';
+        setSuccessMsg(`New Institute Tenant configured! Admin Email: ${email}${alternateEmailInfo} | Default Login: ${finalDefaultEmail} | Password: ${defaultPassword}${gstInfo}`);
+        
+        // Refresh list
+        fetchTenants();
+      }
       
-      const alternateEmailInfo = cleanAlts.length > 0 ? ` | Alt Emails: ${cleanAlts.join(', ')}` : '';
-      const gstInfo = gstNo ? ` | GSTIN: ${gstNo}` : '';
-      setSuccessMsg(`New Institute Tenant configured! Admin Email: ${email}${alternateEmailInfo} | Default Login: ${finalDefaultEmail} | Password: ${defaultPassword}${gstInfo}`);
+      // Reset form
+      setName('');
+      setAddress('');
+      setGstNo('');
+      setOwnerName('');
+      setEmail('');
+      setMobile('');
+      setPlan('Growth Plan');
+      setLogoUploaded(false);
+      setAltEmails([]);
+      setDefaultEmailIdx(-1);
+      setEditingTenantId(null);
+      
+      setShowAddModal(false);
+      setShowSaved(true);
+      setTimeout(() => {
+        setShowSaved(false);
+        setSuccessMsg('');
+      }, 8000);
+    } catch (error: any) {
+      console.error('Failed to create tenant:', error);
+      alert(error.response?.data?.message || 'Failed to create tenant. Please check if the slug or email already exists.');
     }
-    
-    // Reset form
-    setName('');
-    setAddress('');
-    setGstNo('');
-    setOwnerName('');
-    setEmail('');
-    setMobile('');
-    setPlan('Growth Plan');
-    setLogoUploaded(false);
-    setAltEmails([]);
-    setDefaultEmailIdx(-1);
-    setEditingTenantId(null);
-    
-    setShowAddModal(false);
-    setShowSaved(true);
-    setTimeout(() => {
-      setShowSaved(false);
-      setSuccessMsg('');
-    }, 8000);
   };
 
-  const filteredAndSortedTenants = tenants
-    .filter(t => {
-      const matchSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.id.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchPlan = filterPlan === 'All' || t.plan === filterPlan;
-      const matchStatus = filterStatus === 'All' || t.status === filterStatus;
-      return matchSearch && matchPlan && matchStatus;
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // With server-side pagination, 'tenants' is already the current page of items
+  const filteredAndSortedTenants = tenants;
 
   const handleExportCSV = () => {
     if (filteredAndSortedTenants.length === 0) return;
@@ -635,45 +656,39 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </CardHeader>
         <Table headers={['Tenant ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status']}>
           {(() => {
-            const itemsPerPage = 3;
-            const paginatedTenants = filteredAndSortedTenants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            const itemsPerPage = 10; // Match backend limit
+            const paginatedTenants = filteredAndSortedTenants;
             return (
               <>
                 {paginatedTenants.map((t, idx) => (
                   <tr 
                     key={idx} 
-                    onClick={() => navigate(`/tenants/${t.id}`)}
+                    onClick={() => navigate(`/saas-admin/tenants/${t.id}`)}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
                   >
                     <td className="px-6 py-4 font-mono font-bold text-xs">{t.id}</td>
                     <td className="px-6 py-4 font-semibold text-slate-800">{t.name}</td>
-                    <td className="px-6 py-4 text-xs font-semibold text-slate-700">{t.ownerName}</td>
+                    <td className="px-6 py-4 text-xs font-semibold text-slate-700">{t.admin_name || 'N/A'}</td>
                     <td className="px-6 py-4">
                       <div className="text-slate-800 flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold">{t.defaultEmail || t.email}</span>
-                        <span className="bg-blue-50 text-blue-600 border border-blue-150 text-[9px] font-bold px-1.5 py-0.2 rounded flex items-center shadow-sm">
-                          Login
-                        </span>
+                        <span className="font-semibold">{t.admin_email || 'N/A'}</span>
                       </div>
-                      {t.defaultEmail && t.defaultEmail !== t.email && (
-                        <div className="text-[10px] text-slate-550 mt-0.5">Primary: {t.email}</div>
-                      )}
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.mobile}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.contact_phone || 'N/A'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">{t.plan}</span></td>
-                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.startDate || '2026-04-15')}</td>
-                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.renewalDate)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">{t.plan_name || 'Standard'}</span></td>
+                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.created_at || '2026-04-15')}</td>
+                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">N/A</td>
                     <td className="px-6 py-4">
                       {(() => {
-                        const status = getTenantStatus(t);
+                        const status = t.status || 'Unknown';
                         let badgeColors = 'bg-red-50 text-red-600';
-                        if (status === 'Active') {
+                        if (status === 'active') {
                           badgeColors = 'bg-emerald-50 text-emerald-600';
-                        } else if (status === 'Pending') {
+                        } else if (status === 'suspended') {
                           badgeColors = 'bg-amber-50 text-amber-600';
                         }
                         return (
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${badgeColors}`}>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold capitalize ${badgeColors}`}>
                             {status}
                           </span>
                         );
@@ -687,9 +702,9 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </Table>
         <Pagination
           currentPage={currentPage}
-          totalPages={Math.ceil(filteredAndSortedTenants.length / 3)}
-          totalItems={filteredAndSortedTenants.length}
-          pageSize={3}
+          totalPages={Math.ceil(totalItems / 10)}
+          totalItems={totalItems}
+          pageSize={10}
           onPageChange={setCurrentPage}
         />
       </Card>    </div>

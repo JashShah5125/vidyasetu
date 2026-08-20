@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import type { Role } from '../data/mockData';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { login } = useApp();
+  const { login, isLoading, error: authError } = useAuth();
   const navigate = useNavigate();
   const [emailInput, setEmailInput] = useState('admin@apexiit.com');
   const [passwordInput, setPasswordInput] = useState('password');
@@ -15,7 +15,7 @@ export const Login: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
 
   const emailPresets: Record<Role, string> = {
-    'saas-admin': 'owner@vidyasetu.com',
+    'saas-admin': '', // Cleared as requested
     'inst-admin': 'admin@apexiit.com',
     'branch-admin': 'mumbai@apexiit.com',
     'counsellor': 'counsel@apexiit.com',
@@ -23,26 +23,45 @@ export const Login: React.FC = () => {
     'finance': 'finance@apexiit.com'
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const validateForm = (): boolean => {
+    // Basic regex for email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!emailRegex.test(emailInput)) {
+      setErrorMessage('Please enter a valid email address.');
+      return false;
+    }
+    
+    if (passwordInput.length < 6) {
+      setErrorMessage('Password must be at least 6 characters long.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    
-    if (passwordInput !== 'password') {
-      setErrorMessage('Invalid password. Demo password is "password"');
+
+    if (!validateForm()) {
       return;
     }
 
-    const success = login(emailInput);
+    const success = await login(emailInput, passwordInput);
     if (success) {
       navigate('/dashboard');
-    } else {
-      setErrorMessage('Invalid email. Please use a valid demo email ID.');
     }
   };
 
   const handlePresetSelect = (role: Role) => {
-    setEmailInput(emailPresets[role]);
-    setPasswordInput('password');
+    if (role === 'saas-admin') {
+      setEmailInput('');
+      setPasswordInput('');
+    } else {
+      setEmailInput(emailPresets[role]);
+      setPasswordInput('password');
+    }
     setErrorMessage('');
   };
 
@@ -105,9 +124,9 @@ export const Login: React.FC = () => {
             </button>
           </div>
 
-          {errorMessage && (
+          {(errorMessage || authError) && (
             <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 text-center animate-fade-in">
-              {errorMessage}
+              {errorMessage || authError}
             </div>
           )}
 
@@ -115,10 +134,10 @@ export const Login: React.FC = () => {
             type="submit"
             variant="primary" 
             fullWidth 
-            disabled={!emailInput.trim() || !passwordInput.trim()}
+            disabled={!emailInput.trim() || !passwordInput.trim() || isLoading}
             style={{ padding: '12px' }}
           >
-            Sign In
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
 
           <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100/50">

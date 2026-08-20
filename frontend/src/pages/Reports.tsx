@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
+import { Button } from '../components/ui/Button';
+import { Pagination } from '../components/ui/Pagination';
 import { 
   TrendingUp, 
   Users, 
@@ -11,7 +13,8 @@ import {
   Calendar,
   ArrowDownLeft,
   ArrowUpRight,
-  TrendingDown
+  TrendingDown,
+  Download
 } from 'lucide-react';
 import { INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useLocation } from 'react-router-dom';
@@ -296,6 +299,82 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const [vouchers, setVouchers] = useState<Voucher[]>(() => getVouchers());
   const [reportTab, setReportTab] = useState<'p&l' | 'academic'>(currentUser?.role === 'finance' ? 'p&l' : 'academic');
 
+  // SaaS Tenants list and pagination
+  const [saasCurrentPage, setSaasCurrentPage] = useState(1);
+  const saasItemsPerPage = 5;
+
+  const saasTenants = useMemo(() => [
+    { code: 'TEN-VS1', name: 'Apex IIT Academy', plan: 'Enterprise Custom', branches: '3 / 10', storage: '4.2 GB / 20 GB', users: '145 / 500', status: 'Active' },
+    { code: 'TEN-VS2', name: 'Vanguard Classes', plan: 'Growth Plan', branches: '1 / 5', storage: '1.5 GB / 10 GB', users: '42 / 100', status: 'Active' },
+    { code: 'TEN-VS3', name: 'Bright Future Tuition', plan: 'Growth Plan', branches: '2 / 5', storage: '8.0 GB / 20 GB', users: '85 / 200', status: 'Suspended' },
+    { code: 'TEN-VS4', name: 'Zenith Career Hub', plan: 'Starter', branches: '1 / 2', storage: '0.8 GB / 5 GB', users: '18 / 50', status: 'Active' },
+    { code: 'TEN-VS5', name: 'Elite Medical Prep', plan: 'Enterprise Custom', branches: '4 / 15', storage: '12.5 GB / 50 GB', users: '320 / 1000', status: 'Active' },
+    { code: 'TEN-VS6', name: 'Alpha Academy', plan: 'Growth Plan', branches: '2 / 5', storage: '3.1 GB / 10 GB', users: '58 / 100', status: 'Active' },
+    { code: 'TEN-VS7', name: 'Sigma Institute', plan: 'Starter', branches: '1 / 2', storage: '1.1 GB / 5 GB', users: '24 / 50', status: 'Active' },
+    { code: 'TEN-VS8', name: 'Horizon Coaching', plan: 'Growth Plan', branches: '3 / 5', storage: '9.2 GB / 20 GB', users: '110 / 200', status: 'Active' },
+    { code: 'TEN-VS9', name: 'Pinnacle Classes', plan: 'Starter', branches: '1 / 2', storage: '0.3 GB / 5 GB', users: '12 / 50', status: 'Suspended' },
+    { code: 'TEN-VS10', name: 'Omega Prep Hub', plan: 'Enterprise Custom', branches: '2 / 10', storage: '5.6 GB / 20 GB', users: '150 / 500', status: 'Active' }
+  ], []);
+
+  const totalSaasPages = Math.ceil(saasTenants.length / saasItemsPerPage);
+  const paginatedSaasTenants = useMemo(() => {
+    return saasTenants.slice(
+      (saasCurrentPage - 1) * saasItemsPerPage,
+      saasCurrentPage * saasItemsPerPage
+    );
+  }, [saasTenants, saasCurrentPage]);
+
+  // Reset page when tenant search / filters change
+  useEffect(() => {
+    setSaasCurrentPage(1);
+  }, [selectedTenant, timePeriod]);
+
+  const handleExportSaasTenants = () => {
+    const headers = ['Tenant Code', 'Institute Name', 'Plan Tier', 'Branch Utilization', 'Storage Load', 'Active Users', 'Billing Status'];
+    const rows = saasTenants.map(t => [
+      t.code,
+      t.name,
+      t.plan,
+      t.branches,
+      t.storage,
+      t.users,
+      t.status
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', 'saas_tenants_comparison.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPnL = () => {
+    const headers = ['Category/Item', 'Type', 'Amount (₹)'];
+    const rows = [
+      ['1. Revenue / Operating Inflows', 'HEADER', ''],
+      ['Student Tuition Fees Collections', 'Revenue', studentFeeIncome],
+      ['Manual Receipts & Donations', 'Revenue', manualReceiptIncome],
+      ['Total Revenue (A)', 'TOTAL', totalIncome],
+      ['2. Operating Expenses / Outflows', 'HEADER', ''],
+      ...Object.entries(expensesByCategory).map(([cat, amt]) => [
+        `${cat} Expenditures`, 'Expense', amt
+      ]),
+      ['Total Expenses (B)', 'TOTAL', totalExpensePnL],
+      ['Net Surplus', 'SUMMARY', netSurplus]
+    ];
+
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `profit_and_loss_${timePeriod}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
     setVouchers(getVouchers());
   }, [location.pathname]);
@@ -549,7 +628,10 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
 
           <Card className="animate-fade-in">
             <CardHeader>
-              <CardTitle>Tenant Performance Comparison Matrix</CardTitle>
+              <CardTitle>SaaS Tenant Usage &amp; Subscription Comparison Matrix</CardTitle>
+              <Button variant="secondary" size="sm" onClick={handleExportSaasTenants} className="flex items-center gap-1.5 cursor-pointer">
+                <Download size={14} /> Export CSV
+              </Button>
             </CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
@@ -557,26 +639,26 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
                     <th className="px-6 py-4">Tenant Code</th>
                     <th className="px-6 py-4">Institute Name</th>
-                    <th className="px-6 py-4 text-center">New Admissions</th>
-                    <th className="px-6 py-4 text-center">Gross Revenue</th>
-                    <th className="px-6 py-4 text-center">Avg Test Marks</th>
-                    <th className="px-6 py-4 text-center">Access Status</th>
+                    <th className="px-6 py-4 text-center">Plan Tier</th>
+                    <th className="px-6 py-4 text-center">Branch Utilization</th>
+                    <th className="px-6 py-4 text-center">Storage Load</th>
+                    <th className="px-6 py-4 text-center">Active Users</th>
+                    <th className="px-6 py-4 text-center">Billing Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                  {[
-                    { code: 'TEN-VS1', name: 'Apex IIT Academy', admissions: '12 Students', revenue: '₹1,30,000', marks: '83.8%', status: 'Active' },
-                    { code: 'TEN-VS2', name: 'Vanguard Classes', admissions: '6 Students', revenue: '₹55,000', marks: '78.5%', status: 'Active' },
-                    { code: 'TEN-VS3', name: 'Bright Future Tuition', admissions: '2 Students', revenue: '₹10,000', marks: '84.0%', status: 'Active' }
-                  ].map((row) => (
+                  {paginatedSaasTenants.map((row) => (
                     <tr key={row.code} className="hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
                       <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
-                      <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
-                      <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
-                      <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
+                      <td className="px-6 py-4 text-center font-semibold text-blue-600">{row.plan}</td>
+                      <td className="px-6 py-4 text-center font-medium text-slate-600">{row.branches}</td>
+                      <td className="px-6 py-4 text-center font-mono text-xs text-slate-500">{row.storage}</td>
+                      <td className="px-6 py-4 text-center font-medium text-slate-700">{row.users}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
                           {row.status}
                         </span>
                       </td>
@@ -584,6 +666,17 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                   ))}
                 </tbody>
               </table>
+              {saasTenants.length > saasItemsPerPage && (
+                <div className="p-4 border-t border-slate-100 bg-white">
+                  <Pagination 
+                    currentPage={saasCurrentPage}
+                    totalPages={totalSaasPages}
+                    totalItems={saasTenants.length}
+                    pageSize={saasItemsPerPage}
+                    onPageChange={setSaasCurrentPage}
+                  />
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -636,9 +729,17 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 <h3 className="font-bold text-base tracking-wide uppercase font-mono">Profit &amp; Loss Statement</h3>
                 <p className="text-[10px] text-slate-300 mt-0.5">Apex IIT Academy &bull; Period: {timePeriod.toUpperCase()}</p>
               </div>
-              <span className="text-xs font-mono font-bold bg-slate-700/60 px-3 py-1 rounded border border-slate-600 text-slate-300">
-                FY 2026-2027
-              </span>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={handleExportPnL} 
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 flex items-center gap-1.5 cursor-pointer shadow-xs px-3 py-1.5 text-xs font-medium rounded-lg transition-colors duration-150"
+                >
+                  <Download size={14} className="text-slate-300" /> Export CSV
+                </button>
+                <span className="text-xs font-mono font-bold bg-slate-700/60 px-3 py-1 rounded border border-slate-600 text-slate-300">
+                  FY 2026-2027
+                </span>
+              </div>
             </div>
 
             <div className="p-6">
@@ -687,50 +788,6 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
               </table>
             </div>
           </Card>
-
-          {/* Consolidated branch performance metric */}
-          {selectedBranch === 'All' && currentUser?.role !== 'branch-admin' && (
-            <Card className="animate-fade-in">
-              <CardHeader>
-                <CardTitle>Branch Consolidated Performance Matrix</CardTitle>
-              </CardHeader>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase tracking-wider">
-                      <th className="px-6 py-4">Branch Code</th>
-                      <th className="px-6 py-4">Branch Name</th>
-                      <th className="px-6 py-4 text-center">New Admissions</th>
-                      <th className="px-6 py-4 text-center">Gross Revenue</th>
-                      <th className="px-6 py-4 text-center">Avg Test Marks</th>
-                      <th className="px-6 py-4 text-center">Branch Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
-                    {[
-                      { code: 'MUM-WEST', name: 'Mumbai West', admissions: '8 Students', revenue: '₹95,000', marks: '85.2%', status: 'Active' },
-                      { code: 'PUN-CAMP', name: 'Pune Camp', admissions: '4 Students', revenue: '₹35,000', marks: '81.0%', status: 'Active' }
-                    ].map((row) => (
-                      <tr key={row.code} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500">{row.code}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-900">{row.name}</td>
-                        <td className="px-6 py-4 text-center font-medium">{row.admissions}</td>
-                        <td className="px-6 py-4 text-center font-bold text-slate-800">{row.revenue}</td>
-                        <td className="px-6 py-4 text-center font-medium text-slate-700">{row.marks}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                            row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-                          }`}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
         </div>
       )}
     </div>

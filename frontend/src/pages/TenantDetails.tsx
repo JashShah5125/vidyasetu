@@ -178,8 +178,9 @@ const getFallbackStudents = (tenantId: string): StudentHistoryRecord[] => [
 ];
 
 export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> = ({ tenantId, onBack }) => {
-  const { tenants, toggleTenantStatus, updateTenant, addToast } = useApp();
-  const viewingTenant = tenants.find(t => t.id === tenantId);
+  const { toggleTenantStatus, updateTenant, addToast } = useApp();
+  const [viewingTenant, setViewingTenant] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [manageTab, setManageTab] = useState<'profile' | 'billing' | 'limits' | 'status' | 'payments' | 'students'>('profile');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -198,15 +199,32 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
     gstNo: '',
   });
 
+  React.useEffect(() => {
+    const fetchTenant = async () => {
+      try {
+        setIsLoading(true);
+        // import { tenantService } from '../services/tenantService'; is needed at top
+        const { tenantService } = await import('../services/tenantService');
+        const result = await tenantService.getTenantById(tenantId);
+        setViewingTenant(result.data);
+      } catch (error) {
+        console.error('Error fetching tenant details:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTenant();
+  }, [tenantId]);
+
   const openEditView = () => {
     if (!viewingTenant) return;
     setEditForm({
       name: viewingTenant.name || '',
-      ownerName: viewingTenant.ownerName || '',
-      email: viewingTenant.email || '',
-      mobile: viewingTenant.mobile || '',
+      ownerName: viewingTenant.admin_name || '',
+      email: viewingTenant.admin_email || '',
+      mobile: viewingTenant.contact_phone || '',
       address: viewingTenant.address || '',
-      gstNo: viewingTenant.gstNo || '',
+      gstNo: viewingTenant.gst_number || '',
     });
     setShowEditView(true);
   };
@@ -448,7 +466,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">GSTIN Registration:</span>
-                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.gstNo || '27AAAAA0000A1Z5'}</span>
+                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.gst_number || '27AAAAA0000A1Z5'}</span>
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Physical Address:</span>
@@ -462,22 +480,17 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Admin Username:</span>
-                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.ownerName}</span>
+                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.admin_name || 'N/A'}</span>
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Admin Email Login:</span>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="font-semibold text-slate-800 font-mono">{viewingTenant.email}</span>
-                      {(!viewingTenant.defaultEmail || viewingTenant.defaultEmail === viewingTenant.email) && (
-                        <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-2 py-0.5 rounded shadow-sm">
-                          ★ Default Login
-                        </span>
-                      )}
+                      <span className="font-semibold text-slate-800 font-mono">{viewingTenant.admin_email || 'N/A'}</span>
                     </div>
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Mobile Contact:</span>
-                    <span className="font-semibold text-slate-800 font-mono">{viewingTenant.mobile}</span>
+                    <span className="font-semibold text-slate-800 font-mono">{viewingTenant.contact_phone || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -549,8 +562,8 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                     {[
-                      { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Settled' },
-                      { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Settled' }
+                      { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Payment Complete' },
+                      { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Payment Complete' }
                     ].map((inv) => (
                       <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-5 py-4 font-mono font-bold text-slate-800">{inv.id}</td>

@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { subscriptionService } from '../services/subscriptionService';
+import { planService } from '../services/planService';
+import api from '../services/api';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
@@ -8,8 +11,8 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Plus, Edit, Eye, Trash, AlertTriangle, ArrowLeft } from 'lucide-react';
-import type { TenantSubscription, SubscriptionPlan } from '../data/mockData';
-import { formatDate } from '../data/mockData';
+import type { TenantSubscription, SubscriptionPlan } from '../types/saas';
+import { formatDate } from '../types/saas';
 
 // ─── Status badge colors ────────────────────────────────────────────────────
 const statusColors: Record<TenantSubscription['status'], string> = {
@@ -21,7 +24,34 @@ const statusColors: Record<TenantSubscription['status'], string> = {
 };
 
 export const TenantSubscriptions: React.FC = () => {
-  const { plans, tenants, tenantSubscriptions, addTenantSubscription, updateTenantSubscription, deleteTenantSubscription } = useApp();
+  const { addToast } = useApp();
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [plansData, subsData, tenantsData] = await Promise.all([
+        planService.getPlans(),
+        subscriptionService.getSubscriptions(),
+        api.get('/admin/tenants')
+      ]);
+      if (plansData?.data) setPlans(plansData.data);
+      if (subsData?.data) setTenantSubscriptions(subsData.data);
+      if (tenantsData?.data?.data) setTenants(tenantsData.data.data);
+    } catch (e) {
+      addToast('Failed to load subscriptions', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<TenantSubscription | null>(null);
@@ -56,7 +86,6 @@ export const TenantSubscriptions: React.FC = () => {
   const [ovMaxFileSize, setOvMaxFileSize] = useState('');
   const [ovSms, setOvSms] = useState('');
   const [ovWhatsapp, setOvWhatsapp] = useState('');
-  const [ovApiCalls, setOvApiCalls] = useState('');
 
   const activePlans = plans.filter(p => p.status === 'Active');
 
@@ -83,7 +112,7 @@ export const TenantSubscriptions: React.FC = () => {
     setDiscount(''); setFinalPrice(''); setTax('18'); setInvoiceNumber('');
     setOvMaxBranches(''); setOvMaxStaff(''); setOvMaxStudents('');
     setOvMaxParents(''); setOvMaxTeachers(''); setOvMaxStorage('');
-    setOvMaxFileSize(''); setOvSms(''); setOvWhatsapp(''); setOvApiCalls('');
+    setOvMaxFileSize(''); setOvSms(''); setOvWhatsapp('');
   };
 
   const populateForm = (sub: TenantSubscription) => {
@@ -101,7 +130,6 @@ export const TenantSubscriptions: React.FC = () => {
     setOvMaxFileSize(sub.overrides.maxFileSize ?? '');
     setOvSms(sub.overrides.maxSmsCredits?.toString() ?? '');
     setOvWhatsapp(sub.overrides.maxWhatsappMsgs?.toString() ?? '');
-    setOvApiCalls(sub.overrides.maxApiCalls?.toString() ?? '');
   };
 
   const handleOpenAdd = () => {
@@ -123,35 +151,27 @@ export const TenantSubscriptions: React.FC = () => {
     if (ovMaxFileSize) ov.maxFileSize = ovMaxFileSize;
     if (ovSms) ov.maxSmsCredits = parseInt(ovSms);
     if (ovWhatsapp) ov.maxWhatsappMsgs = parseInt(ovWhatsapp);
-    if (ovApiCalls) ov.maxApiCalls = parseInt(ovApiCalls);
     return ov;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tenantId || !planId || !startDate || !expiryDate) return;
 
     const tenant = tenants.find(t => t.id === tenantId);
     const plan = plans.find(p => p.id === planId);
-    if (!tenant || !plan) return;
-
-    const payload: Omit<TenantSubscription, 'id'> = {
-      tenantId, tenantName: tenant.name,
-      planId, planName: plan.name,
-      startDate, expiryDate, billingCycle, status,
-      discount: parseFloat(discount) || 0,
-      finalPrice: parseFloat(finalPrice || autoFinalPrice()) || 0,
-      tax: parseFloat(tax) || 0,
-      invoiceNumber,
-      overrides: buildOverrides()
-    };
+    if (!plan) return;
 
     if (editingId) {
-      updateTenantSubscription(editingId, payload);
-      setSuccessMsg(`Subscription for "${tenant.name}" updated.`);
+      try {
+        await subscriptionService.changeSubscriptionPlan(editingId, planId);
+        setSuccessMsg(`Subscription updated to plan "${plan.name}".`);
+        loadData();
+      } catch (err: any) {
+        addToast(err.response?.data?.message || 'Error updating subscription', 'error');
+      }
     } else {
-      addTenantSubscription(payload);
-      setSuccessMsg(`Subscription for "${tenant.name}" created on plan "${plan.name}".`);
+      addToast('New subscriptions must be created from the Tenant Management page.', 'info');
     }
 
     setShowModal(false);
@@ -160,11 +180,7 @@ export const TenantSubscriptions: React.FC = () => {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Cancel subscription for "${name}"? The tenant will lose access upon expiry.`)) {
-      deleteTenantSubscription(id);
-      setSuccessMsg(`Subscription for "${name}" cancelled.`);
-      setTimeout(() => setSuccessMsg(''), 4000);
-    }
+    addToast('Subscriptions cannot be deleted directly. Suspend the tenant instead.', 'info');
   };
 
   // ─── Effective limits display ────────────────────────────────────────────
@@ -311,6 +327,8 @@ export const TenantSubscriptions: React.FC = () => {
               )}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Input label="Max Branches" type="number" placeholder="Plan default" value={ovMaxBranches} onChange={e => setOvMaxBranches(e.target.value)} />
+                <Input label="Overrides - SMS" type="number" placeholder="Leave empty for plan default" value={ovSms} onChange={e => setOvSms(e.target.value)} />
+                <Input label="Overrides - WhatsApp" type="number" placeholder="Leave empty for plan default" value={ovWhatsapp} onChange={e => setOvWhatsapp(e.target.value)} />
                 <Input label="Max Staff Users" type="number" placeholder="Plan default" value={ovMaxStaff} onChange={e => setOvMaxStaff(e.target.value)} />
                 <Input label="Max Students" type="number" placeholder="Plan default" value={ovMaxStudents} onChange={e => setOvMaxStudents(e.target.value)} />
                 <Input label="Max Parents" type="number" placeholder="Plan default" value={ovMaxParents} onChange={e => setOvMaxParents(e.target.value)} />

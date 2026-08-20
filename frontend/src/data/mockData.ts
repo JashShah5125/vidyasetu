@@ -44,11 +44,12 @@ export interface Lead {
   preferredBranch?: string;
   source: string;
   counsellor: string;
-  status: 'New Enquiry' | 'Contacted' | 'Follow-up' | 'Demo Scheduled' | 'Interested' | 'Not Interested';
+  status: 'New Enquiry' | 'Contacted' | 'Follow-up' | 'Demo Scheduled' | 'Fee Discussion' | 'Interested' | 'Not Interested' | 'Converted';
   demoScheduledOn?: string;
   nextFollowUp: string;
   remarks: string;
   followups: { date: string; type: string; outcome: string; nextDate: string }[];
+  feeConfig?: any;
 }
 
 export interface Parent {
@@ -82,6 +83,8 @@ export interface Student {
   
   // Legacy fields (for backward compatibility with unmigrated pages)
   course?: string;
+  program?: string;
+  level?: string;
   batch?: string;
   branch?: string;
   admissionDate?: string;
@@ -337,56 +340,10 @@ export const INITIAL_TENANTS: Tenant[] = [
 ];
 
 
-export const INITIAL_LEADS: Lead[] = [
-  {
-    id: 'L-101',
-    name: 'Aarav Mehta',
-    mobile: '9898012345',
-    course: 'JEE Prep Course',
-    branch: 'Mumbai West',
-    preferredBranch: 'Mumbai West',
-    source: 'Google Ads',
-    counsellor: 'Priya Sen',
-    status: 'New Enquiry',
-    nextFollowUp: '2026-07-22',
-    remarks: 'Interested in demo lecture.',
-    followups: []
-  },
-  {
-    id: 'L-102',
-    name: 'Sneha Patil',
-    mobile: '9767112233',
-    course: 'NEET Batch Premium',
-    branch: 'Pune Camp',
-    preferredBranch: 'Pune Camp',
-    source: 'Referral',
-    counsellor: 'Priya Sen',
-    status: 'Follow-up',
-    nextFollowUp: '2026-07-23',
-    remarks: 'Discussing fees with parents.',
-    followups: [
-      { date: '17 Jul', type: 'Call #1', outcome: 'Asked for brochure & structure', nextDate: '19 Jul' },
-      { date: '19 Jul', type: 'Call #2', outcome: 'Interested in demo class', nextDate: '21 Jul' }
-    ]
-  },
-  {
-    id: 'L-103',
-    name: 'Kabir Malhotra',
-    mobile: '9922001144',
-    course: 'Class 10 Foundation',
-    branch: 'Mumbai West',
-    preferredBranch: 'Delhi South',
-    source: 'Flyer Campaign',
-    counsellor: 'Amit Verma',
-    status: 'Interested',
-    nextFollowUp: '2026-07-21',
-    remarks: 'Ready to join. Awaiting fee confirmation.',
-    followups: [
-      { date: '15 Jul', type: 'Walk-in', outcome: 'Counselled regarding modules and structure', nextDate: '18 Jul' },
-      { date: '18 Jul', type: 'Call #1', outcome: 'Parent agreed to proceed. Requested discount.', nextDate: '21 Jul' }
-    ]
-  }
-];
+import leadsJson from './leads.json';
+import studentsJson from './students.json';
+
+export const INITIAL_LEADS: Lead[] = leadsJson as Lead[];
 
 export const INITIAL_PARENTS: Parent[] = [
   { id: 'P-101', name: 'Mr. Deshmukh', mobile: '9877112200', relation: 'Father', childrenIds: ['S-201'] },
@@ -398,15 +355,7 @@ export const INITIAL_PARENTS: Parent[] = [
   { id: 'P-107', name: 'Mr. Nair', mobile: '9554321001', relation: 'Father', childrenIds: ['S-207'] }
 ];
 
-export const INITIAL_STUDENTS: Student[] = [
-  { id: 'S-201', studentId: 'STU-MUM-2601', parentId: 'P-101', enrollmentIds: ['E-301'], name: 'Rohan Deshmukh', mobile: '9877112233', dob: '2010-05-14', gender: 'Male', address: { street: 'SV Road', city: 'Mumbai', state: 'MH', pincode: '400050' }, category: 'General', currentClass: 'Class 11', board: 'CBSE', targetExam: 'JEE', yearOfAttempt: '2028', status: 'Active Student', branch: 'Mumbai West' },
-  { id: 'S-202', studentId: 'STU-MUM-2602', parentId: 'P-102', enrollmentIds: ['E-302'], name: 'Sameer Mehta', mobile: '9877112244', dob: '2010-08-22', gender: 'Male', address: { street: 'Linking Road', city: 'Mumbai', state: 'MH', pincode: '400052' }, category: 'General', currentClass: 'Class 11', board: 'ICSE', targetExam: 'JEE', yearOfAttempt: '2028', status: 'Active Student', branch: 'Mumbai West' },
-  { id: 'S-203', studentId: 'STU-MUM-2603', parentId: 'P-103', enrollmentIds: ['E-303'], name: 'Aditya Sharma', mobile: '9877112255', dob: '2010-01-10', gender: 'Male', address: { street: 'Juhu Tara', city: 'Mumbai', state: 'MH', pincode: '400049' }, category: 'General', currentClass: 'Class 11', board: 'State Board', targetExam: 'JEE', yearOfAttempt: '2028', status: 'Active Student', branch: 'Mumbai West' },
-  { id: 'S-204', studentId: 'STU-MUM-2604', parentId: 'P-104', enrollmentIds: ['E-304'], name: 'Sneha Patil', mobile: '9877112266', dob: '2009-11-05', gender: 'Female', address: { street: 'Andheri East', city: 'Mumbai', state: 'MH', pincode: '400069' }, category: 'OBC', currentClass: 'Class 12', board: 'CBSE', targetExam: 'JEE', yearOfAttempt: '2027', status: 'Active Student', branch: 'Mumbai West' },
-  { id: 'S-205', studentId: 'STU-MUM-2605', parentId: 'P-105', enrollmentIds: ['E-305'], name: 'Kunal Sen', mobile: '9877112277', dob: '2009-12-12', gender: 'Male', address: { street: 'Bandra West', city: 'Mumbai', state: 'MH', pincode: '400050' }, category: 'General', currentClass: 'Class 12', board: 'CBSE', targetExam: 'JEE', yearOfAttempt: '2027', status: 'Active Student', branch: 'Mumbai West' },
-  { id: 'S-206', studentId: 'STU-PUN-2602', parentId: 'P-106', enrollmentIds: ['E-306'], name: 'Ishita Roy', mobile: '9554321098', dob: '2010-04-18', gender: 'Female', address: { street: 'Koregaon Park', city: 'Pune', state: 'MH', pincode: '411001' }, category: 'General', currentClass: 'Class 11', board: 'CBSE', targetExam: 'NEET', yearOfAttempt: '2028', status: 'Verification Pending', branch: 'Pune Camp' },
-  { id: 'S-207', studentId: 'STU-PUN-2603', parentId: 'P-107', enrollmentIds: ['E-307'], name: 'Priya Nair', mobile: '9554321099', dob: '2010-09-30', gender: 'Female', address: { street: 'Viman Nagar', city: 'Pune', state: 'MH', pincode: '411014' }, category: 'General', currentClass: 'Class 11', board: 'ICSE', targetExam: 'NEET', yearOfAttempt: '2028', status: 'Active Student', branch: 'Pune Camp' }
-];
+export const INITIAL_STUDENTS: Student[] = studentsJson as Student[];
 
 export const INITIAL_ENROLLMENTS: Enrollment[] = [
   { id: 'E-301', studentId: 'S-201', course: 'JEE Prep Course', program: '2 Year', level: 'Beginner', batchId: 'JEE-Morning-A1', status: 'Active' },
@@ -1124,9 +1073,9 @@ export interface ExamItem {
 }
 
 export const INITIAL_EXAMS: ExamItem[] = [
-  { id: 'EX-201', name: 'Periodic Chemistry Evaluation Test #3', type: 'Unit Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: '2026-08-05', startTime: '10:00 AM', duration: '90 mins', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 35 } },
-  { id: 'EX-202', name: 'Physics Mechanics Weekly Quiz #2', type: 'Weekly Test', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-08', startTime: '04:00 PM', duration: '60 mins', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2604': 38, 'STU-MUM-2605': 18 } },
-  { id: 'EX-203', name: 'Mathematics Mock Test 1', type: 'Mock Test', subject: 'Mathematics', batch: 'JEE-Morning-A1', examDate: '2026-08-25', startTime: '09:00 AM', duration: '180 mins', totalMarks: 300, passingMarks: 100, average: '81.4%', status: 'Scheduled' },
+  { id: 'EX-201', name: 'Periodic Chemistry Evaluation Test #3', type: 'Unit Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: '2026-08-05', startTime: '10:00 AM', duration: '90 mins', totalMarks: 100, passingMarks: 40, average: '88.5%', status: 'Marks Published', studentMarks: { 'STU-MUM-2601': 85, 'STU-MUM-2602': 92, 'STU-MUM-2603': 38, 'STU-MUM-2604': 76, 'STU-MUM-2605': 54 } },
+  { id: 'EX-202', name: 'Physics Mechanics Weekly Quiz #2', type: 'Weekly Test', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-08', startTime: '04:00 PM', duration: '60 mins', totalMarks: 50, passingMarks: 20, average: '79.2%', status: 'Marks Published', studentMarks: { 'STU-MUM-2608': 42, 'STU-MUM-2609': 35 } },
+  { id: 'EX-203', name: 'Mathematics Mock Test 1', type: 'Mock Test', subject: 'Mathematics', batch: 'JEE-Morning-A1', examDate: '2026-08-25', startTime: '09:00 AM', duration: '180 mins', totalMarks: 300, passingMarks: 100, average: '81.4%', status: 'Scheduled', studentMarks: { 'STU-MUM-2601': 240, 'STU-MUM-2602': 275, 'STU-MUM-2603': 180, 'STU-MUM-2604': 210, 'STU-MUM-2605': 195 } },
   { id: 'EX-204', name: 'Draft: Organic Chem Review', type: 'Chapter Test', subject: 'Chemistry', batch: 'JEE-Morning-A1', examDate: 'Not Set', totalMarks: 50, passingMarks: 20, average: 'TBD', status: 'Draft' },
   { id: 'EX-205', name: 'Thermodynamics Assessment', type: 'Internal Assessment', subject: 'Physics', batch: 'JEE-Evening-B1', examDate: '2026-08-10', startTime: '05:00 PM', duration: '45 mins', totalMarks: 40, passingMarks: 15, average: 'TBD', status: 'Cancelled' }
 ];
@@ -1345,4 +1294,55 @@ export const EXAM_RESULTS: ExamResult[] = [
   { id: 'E2', studentId: 'STU-MUM-2603', examName: 'Unit Test #2', subject: 'Mathematics', date: '2026-08-01', marks: 78, maxMarks: 100, grade: 'B+', status: 'Published' },
   { id: 'E3', studentId: 'STU-MUM-2603', examName: 'Weekly Quiz #5', subject: 'Physics', date: '2026-07-28', marks: 92, maxMarks: 100, grade: 'A+', status: 'Published' },
   { id: 'E4', studentId: 'STU-MUM-2601', examName: 'Periodic Test #3', subject: 'Chemistry', date: '2026-08-08', marks: 76, maxMarks: 100, grade: 'B+', status: 'Published' },
+];
+
+export interface SupportTicket {
+  id: string;
+  tenantName: string;
+  subject: string;
+  priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  status: 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+  description: string;
+  created: string;
+  replies: { sender: string; text: string; time: string }[];
+}
+
+export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
+  {
+    id: 'TKT-001',
+    tenantName: 'Apex IIT Academy',
+    subject: 'Payment gateway Razorpay checkout throwing currency mismatch error',
+    priority: 'High',
+    status: 'Open',
+    created: '2026-08-04 11:20:00',
+    description: 'During online registration checkout, customers receive a currency parameter mismatch code in console.',
+    replies: [
+      { sender: 'Apex Operator', text: 'Customers are trying to pay in INR, but API returns USD error logs.', time: '2026-08-04 11:20:00' }
+    ]
+  },
+  {
+    id: 'TKT-002',
+    tenantName: 'Bright Future Coaching',
+    subject: 'Unable to upload logo for branding',
+    priority: 'Medium',
+    status: 'In Progress',
+    created: '2026-08-03 14:00:00',
+    description: 'PNG logos bigger than 2MB are getting rejected even though file size limit override was done.',
+    replies: [
+      { sender: 'Bright Operator', text: 'Kindly look into this sizing check rule.', time: '2026-08-03 14:00:00' },
+      { sender: 'SaaS Support Staff', text: 'We have updated the server rule limits to support 5MB now.', time: '2026-08-03 17:30:00' }
+    ]
+  },
+  {
+    id: 'TKT-003',
+    tenantName: 'Zenith Career Hub',
+    subject: 'Cannot login to counsellors portal view',
+    priority: 'High',
+    status: 'Open',
+    created: '2026-08-04 08:00:00',
+    description: 'Our counsellors are getting redirected back to general logins page repeatedly.',
+    replies: [
+      { sender: 'Zenith Admin', text: 'We need this solved urgently since counselor onboarding starts today.', time: '2026-08-04 08:00:00' }
+    ]
+  }
 ];

@@ -1,0 +1,247 @@
+[
+  {
+    "id": "S-201",
+    "studentId": "STU-MUM-2601",
+    "parentId": "P-101",
+    "enrollmentIds": [
+      "E-301"
+    ],
+    "name": "Rohan Deshmukh",
+    "mobile": "9877112233",
+    "dob": "2010-05-14",
+    "gender": "Male",
+    "address": {
+      "street": "SV Road",
+      "city": "Mumbai",
+      "state": "MH",
+      "pincode": "400050"
+    },
+    "category": "General",
+    "currentClass": "Class 11",
+    "board": "CBSE",
+    "targetExam": "JEE",
+    "yearOfAttempt": "2028",
+    "status": "Active Student",
+    "branch": "Mumbai West",
+    "course": "JEE Prep Course",
+    "program": "2 Year",
+    "level": "year1",
+    "batch": "JEE-Morning-A1",
+    "admissionDate": "2026-08-10",
+    "feePlan": {
+      "total": 120000,
+      "paid": 120000,
+      "pending": 0
+    }
+  },
+  {
+    "id": "S-202",
+    "studentId": "STU-MUM-2602",
+    "parentId": "P-102",
+    "enrollmentIds": [
+      "E-302"
+    ],
+    "name": "Sameer Mehta",
+    "mobile": "9877112244",
+    "dob": "2010-08-22",
+    "gender": "Male",
+    "address": {
+      "street": "Linking Road",
+      "city": "Mumbai",
+      "state": "MH",
+      "pincode": "400052"
+    },
+    "category": "General",
+    "currentClass": "Class 11",
+    "board": "ICSE",
+    "targetExam": "JEE",
+    "yearOfAttempt": "2028",
+    "status": "Active Student",
+    "branch": "Mumbai West",
+    "course": "JEE Prep Course",
+    "program": "2 Year",
+    "level": "year1",
+    "batch": "JEE-Morning-A1",
+    "admissionDate": "2026-08-11",
+    "feePlan": {
+      "total": 120000,
+      "paid": 80000,
+      "pending": 40000
+    }
+  },
+  {
+    "id": "S-203",
+    "studentId": "STU-MUM-2603",
+    "parentId": "P-103",
+    "enrollmentIds": [
+      "E-303"
+    ],
+    "name": "Aditya Sharma",
+    "mobile": "9877112255",
+    "dob": "2010-01-10",
+    "gender": "Male",
+    "address": {
+      "street": "Juhu Tara",
+      "city": "Mumbai",
+      "state": "MH",
+      "pincode": "400049"
+    },
+    "category": "General",
+    "currentClass": "Class 11",
+    "board": "State Board",
+    "targetExam": "JEE",
+    "yearOfAttempt": "2028",
+    "status": "Active Student",
+    "branch": "Mumbai West",
+    "course": "JEE Prep Course",
+    "program": "2 Year",
+    "level": "year1",
+    "batch": "JEE-Morning-A1",
+    "admissionDate": "2026-08-12",
+    "feePlan": {
+      "total": 120000,
+      "paid": 60000,
+      "pending": 60000
+    }
+  },
+  {
+    "id": "S-204",
+    "studentId": "STU-MUM-2604",
+    "parentId": "P-104",
+    "enrollmentIds": [
+      "E-304"
+    ],
+    "name": "Sneha Patil",
+    "mobile": "9877112266",
+    "dob": "2009-11-05",
+    "gender": "Female",
+    "address": {
+      "street": "Andheri East",
+      "city": "Mumbai",
+      "state": "MH",
+      "pincode": "400069"
+    },
+    "category": "OBC",
+    "currentClass": "Class 12",
+    "board": "CBSE",
+    "targetExam": "JEE",
+    "yearOfAttempt": "2027",
+    "status": "Active Student",
+    "branch": "Mumbai West",
+    "course": "JEE Prep Course",
+    "program": "1 Year",
+    "level": "year2",
+    "batch": "JEE-Evening-B1",
+    "admissionDate": "2026-08-12",
+    "feePlan": {
+      "total": 120000,
+      "paid": 120000,
+      "pending": 0
+    }
+  },
+  {
+    "id": "S-205",
+    "studentId": "STU-MUM-2605",
+    "parentId": "P-105",
+    "enrollmentIds": [
+      "E-305"
+    ],
+    "name": "Kunal Sen",
+    "mobile": "9877112277",
+    "dob": "2009-12-12",
+    "gender": "Male",
+    "address": {
+      "street": "Bandra West",
+      "city": "Mumbai",
+      "state": "MH",
+      "pincode": "400050"
+    },
+    "category": "General",
+    "currentClass": "Class 12",
+    "board": "CBSE",
+    "targetExam": "JEE",
+    "yearOfAttempt": "2027",
+    "status": "Active Student",
+    "branch": "Mumbai West",
+    "course": "JEE Prep Course",
+    "program": "1 Year",
+    "level": "year2",
+    "batch": "JEE-Evening-B1",
+    "admissionDate": "2026-08-14",
+    "feePlan": {
+      "total": 120000,
+      "paid": 90000,
+      "pending": 30000
+    }
+  },
+  {
+    "id": "S-206",
+    "studentId": "STU-PUN-2602",
+    "parentId": "P-106",
+    "enrollmentIds": [
+      "E-306"
+    ],
+    "name": "Ishita Roy",
+    "mobile": "9554321098",
+    "dob": "2010-04-18",
+    "gender": "Female",
+    "address": {
+      "street": "Koregaon Park",
+      "city": "Pune",
+      "state": "MH",
+      "pincode": "411001"
+    },
+    "category": "General",
+    "currentClass": "Class 11",
+    "board": "CBSE",
+    "targetExam": "NEET",
+    "yearOfAttempt": "2028",
+    "status": "Verification Pending",
+    "branch": "Pune Camp",
+    "course": "NEET Batch Premium",
+    "program": "2 Year",
+    "level": "year1",
+    "batch": "",
+    "admissionDate": "2026-08-15",
+    "feePlan": {
+      "total": 150000,
+      "paid": 50000,
+      "pending": 100000
+    }
+  },
+  {
+    "id": "S-207",
+    "studentId": "STU-PUN-2603",
+    "parentId": "P-107",
+    "enrollmentIds": [
+      "E-307"
+    ],
+    "name": "Priya Nair",
+    "mobile": "9554321099",
+    "dob": "2010-09-30",
+    "gender": "Female",
+    "address": {
+      "street": "Viman Nagar",
+      "city": "Pune",
+      "state": "MH",
+      "pincode": "411014"
+    },
+    "category": "General",
+    "currentClass": "Class 11",
+    "board": "ICSE",
+    "targetExam": "NEET",
+    "yearOfAttempt": "2028",
+    "status": "Active Student",
+    "branch": "Pune Camp",
+    "course": "NEET Batch Premium",
+    "program": "2 Year",
+    "level": "year1",
+    "batch": "NEET-Regular-M1",
+    "admissionDate": "2026-08-16",
+    "feePlan": {
+      "total": 150000,
+      "paid": 150000,
+      "pending": 0
+    }
+  }
+]

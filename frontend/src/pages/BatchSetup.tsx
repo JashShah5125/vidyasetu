@@ -423,7 +423,7 @@ export const BatchSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table dense headers={['Batch Name', 'Course', 'Program', 'Level', 'Academic Year', 'Timing', 'Room', 'Actions']}>
+            <Table dense headers={['Batch Name', 'Course', 'Program', 'Level', 'Academic Year', 'Actions']}>
               {paginated.map((batch, idx) => (
                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
                   <td className="px-3 py-3 font-semibold text-slate-800">{batch.name}</td>
@@ -439,12 +439,6 @@ export const BatchSetup: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap text-center">{batch.academicYear || '—'}</td>
-                  <td className="px-3 py-3">
-                    <span className="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
-                      <Clock size={13} className="text-blue-400 shrink-0" /> {batch.timing}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-slate-600">{batch.room}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-3">
                       <button onClick={() => handleOpenEdit(idx)} className="text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors">Edit</button>

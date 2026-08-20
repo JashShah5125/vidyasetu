@@ -3,17 +3,26 @@ const userModel = require('../models/userModel');
 const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const redisClient = require('../config/redis');
 
-const MASTER_TENANT_ID = process.env.MASTER_TENANT_ID || 'vidyasetu-master-hq-id';
+const MASTER_TENANT_ID = parseInt(process.env.MASTER_TENANT_ID) || 1;
+
 
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const user = await userModel.findUserByEmail(email);
+        const users = await userModel.findUserByEmail(email);
         
-        if (!user) {
+        if (!users || users.length === 0) {
             return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
         }
+
+        if (users.length > 1) {
+            // For now, if multiple users share an email, require tenant identification.
+            // Since frontend doesn't send tenantId yet, we just block it to prevent IDOR.
+            return res.status(400).json({ status: 'error', message: 'Multiple accounts found with this email. Please contact support.' });
+        }
+
+        const user = users[0];
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
@@ -25,14 +34,12 @@ const login = async (req, res) => {
         }
 
         let isSaasAdmin = false;
-        let permissions = [];
-
+        
         if (user.tenant_id === MASTER_TENANT_ID) {
             isSaasAdmin = true;
-            permissions = ['*']; 
-        } else {
-            permissions = await userModel.getUserPermissions(user.id, user.tenant_id);
-        }
+        } 
+        
+        const permissions = await userModel.getUserPermissions(user.id, user.tenant_id);
 
         const tokenPayload = {
             userId: user.id,
@@ -46,7 +53,7 @@ const login = async (req, res) => {
         const refreshToken = generateRefreshToken(tokenPayload);
 
         // Store session in Redis with 7 days TTL (604800 seconds)
-        await redisClient.setEx(`session:${refreshToken}`, 604800, user.id);
+        await redisClient.setEx(`session:${refreshToken}`, 604800, user.id.toString());
 
         res.status(200).json({
             status: 'success',

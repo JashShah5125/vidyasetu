@@ -44,7 +44,7 @@ const emptyForm = {
 };
 
 export const ClassroomSetup: React.FC = () => {
-  const { branches, currentUser } = useApp();
+  const { branches, currentUser, addToast } = useApp();
 
   const accessibleBranches = useMemo(() => {
     if (currentUser?.role === 'branch-admin') {
@@ -173,9 +173,8 @@ export const ClassroomSetup: React.FC = () => {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (!window.confirm(`Delete classroom "${name}"? This cannot be undone.`)) return;
     setClassrooms(prev => prev.filter(c => c.id !== id));
-    flash(`Classroom "${name}" deleted.`);
+    addToast(`Classroom "${name}" deleted.`, 'success');
   };
 
   const flash = (msg: string) => {

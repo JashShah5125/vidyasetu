@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 import { useLocation } from 'react-router-dom';
 
@@ -25,10 +25,11 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   // Filters
   const [branch, setBranch] = useState(navState?.branch || (currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West'));
-  const [course, setCourse] = useState(navState?.course || 'JEE Prep Course');
-  const [batch, setBatch] = useState(navState?.batch || 'JEE-Morning-A1');
+  const [course, setCourse] = useState(navState?.course || '');
+  const [batch, setBatch] = useState(navState?.batch || '');
   const [staffFilterRole, setStaffFilterRole] = useState('All');
   const [date, setDate] = useState(navState?.date || new Date().toISOString().split('T')[0]);
+  const [filterAttendanceStatus, setFilterAttendanceStatus] = useState('All');
 
   // Selected person for history view
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
@@ -54,25 +55,79 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   // Derived unique course and batch names
   const uniqueCourses = useMemo(() => Array.from(new Set(students.map(s => s.course).filter(Boolean) as string[])), [students]);
-  const uniqueBatches = useMemo(() => Array.from(new Set(students.map(s => s.batch).filter(Boolean) as string[])), [students]);
+  // Filter batches by selected course
+  const uniqueBatches = useMemo(() => {
+    return Array.from(new Set(
+      students
+        .filter(s => !course || s.course === course)
+        .map(s => s.batch)
+        .filter(Boolean) as string[]
+    ));
+  }, [students, course]);
 
   // Filtered Lists
   const filteredStudents = students.filter(s => {
     const matchBranch = !branch || s.branch === branch;
     const matchCourse = !course || s.course === course;
     const matchBatch = !batch || s.batch === batch;
-    return matchBranch && matchCourse && matchBatch;
+    
+    const status = records[s.id];
+    const matchStatus = filterAttendanceStatus === 'All' 
+      ? true 
+      : filterAttendanceStatus === 'Unmarked' 
+        ? !status 
+        : status === filterAttendanceStatus;
+
+    return matchBranch && matchCourse && matchBatch && matchStatus;
   });
 
   const filteredStaff = staff.filter(m => {
     const matchBranch = !branch || m.branch === branch;
     const matchRole = staffFilterRole === 'All' || m.role === staffFilterRole;
-    return matchBranch && matchRole;
+    
+    const status = staffRecords[m.email];
+    const matchStatus = filterAttendanceStatus === 'All' 
+      ? true 
+      : filterAttendanceStatus === 'Unmarked' 
+        ? !status 
+        : status === filterAttendanceStatus;
+
+    return matchBranch && matchRole && matchStatus;
   });
 
   const activeList = attendanceType === 'students' ? filteredStudents : filteredStaff;
   const totalPages = Math.ceil(activeList.length / itemsPerPage);
   const paginatedItems = activeList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleExportCSV = () => {
+    const isStudent = attendanceType === 'students';
+    const headers = isStudent 
+      ? ['Student ID', 'Student Name', 'Branch', 'Course', 'Batch', 'Date', 'Status']
+      : ['Employee ID', 'Employee Name', 'Role', 'Branch', 'Email', 'Date', 'Status'];
+
+    const rows = activeList.map(person => {
+      const p = person as any;
+      if (isStudent) {
+        const id = p.id || '';
+        const status = records[id] || 'Not Marked';
+        return [p.studentId || '', p.name || '', p.branch || '', p.course || '', p.batch || '', date, status];
+      } else {
+        const emailKey = p.email || '';
+        const status = staffRecords[emailKey] || 'Not Marked';
+        return [p.employeeId || 'N/A', p.name || '', p.role || '', p.branch || '', p.email || '', date, status];
+      }
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `attendance_${attendanceType}_${date}_${filterAttendanceStatus.toLowerCase()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   React.useEffect(() => {
     setSubTab(initialTab);
@@ -133,21 +188,40 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     const absentDays = historyLogs.filter(l => l.status === 'Absent').length;
     const attendanceRate = totalDays > 0 ? Math.round(((presentDays + lateDays * 0.5) / totalDays) * 100) : 100;
 
+    const handleExportCSV = () => {
+      const headers = ['Date', 'Status', 'Remark'];
+      const rows = historyLogs.map(l => [l.date, l.status, l.remark || '']);
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `attendance_history_${selectedPerson.name.replace(/\s+/g, '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setSelectedPerson(null)}
-            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Attendance History Report</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Roster profile details and historical timesheets for {selectedPerson.name}.
-            </p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSelectedPerson(null)}
+              className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <h2 className="text-2xl font-display font-bold text-slate-900">Attendance History Report</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Roster profile details and historical timesheets for {selectedPerson.name}.
+              </p>
+            </div>
           </div>
+          <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-2 cursor-pointer">
+            <Download size={16} /> Export CSV
+          </Button>
         </div>
 
         {/* Profile Card */}
@@ -269,7 +343,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
           </div>
 
           {/* Selectors grid */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${attendanceType === 'students' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${attendanceType === 'students' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm`}>
             <Select 
               label="Branch" 
               value={branch} 
@@ -288,7 +362,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                 <Select 
                   label="Course" 
                   value={course} 
-                  onChange={(e) => setCourse(e.target.value)} 
+                  onChange={(e) => { setCourse(e.target.value); setBatch(''); }} 
                   options={[
                     { value: '', label: 'Select Course' },
                     ...uniqueCourses.map((c: string) => ({ value: c, label: c }))
@@ -325,6 +399,19 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
               value={date} 
               onChange={(e) => setDate(e.target.value)} 
             />
+
+            <Select 
+              label="Attendance Status" 
+              value={filterAttendanceStatus} 
+              onChange={(e) => setFilterAttendanceStatus(e.target.value)} 
+              options={[
+                { value: 'All', label: 'All Statuses' },
+                { value: 'Present', label: 'Present Only' },
+                { value: 'Absent', label: 'Absent Only' },
+                { value: 'Late', label: 'Late Only' },
+                { value: 'Unmarked', label: 'Not Marked Only' }
+              ]}
+            />
           </div>
 
           <Card>
@@ -332,6 +419,11 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
               <CardTitle>
                 {attendanceType === 'students' ? 'Student Attendance Sheet' : 'Teacher & Staff Attendance Sheet'}
               </CardTitle>
+              {activeList.length > 0 && (
+                <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
+                  <Download size={14} /> Export CSV
+                </Button>
+              )}
             </CardHeader>
             <div className="divide-y divide-slate-100">
               {activeList.length === 0 ? (

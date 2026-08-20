@@ -1,8 +1,12 @@
 const pool = require('../config/db');
 
-const findUserByEmail = async (email) => {
+const findUserByEmail = async (email, tenantId = null) => {
+    if (tenantId) {
+        const [rows] = await pool.query('SELECT * FROM users WHERE email = ? AND tenant_id = ?', [email, tenantId]);
+        return rows;
+    }
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    return rows[0];
+    return rows;
 };
 
 const getUserPermissions = async (userId, tenantId) => {

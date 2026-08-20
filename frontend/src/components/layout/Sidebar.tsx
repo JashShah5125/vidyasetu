@@ -164,6 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Institute Setup', label: 'Institute Profile', path: '/institute', icon: Settings },
               { name: 'Branches Manager', label: 'Branches Setup', path: '/branches', icon: Building2 },
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
               { name: 'Settings', label: 'Global Settings', path: '/settings', icon: Settings }
             ]
           }
@@ -175,9 +176,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Core Academics',
             links: [
-              { name: 'Courses', label: 'Courses Offered', path: '/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subject Syllabus', path: '/subjects', icon: BookOpen },
-              { name: 'Batch Management', label: 'Batches list', path: '/batches', icon: Layers },
+              { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subjects', path: '/subjects', icon: BookOpen },
+              { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
               { name: 'Classroom Master', label: 'Classroom Master', path: '/classrooms', icon: DoorOpen }
             ]
           },
@@ -203,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Mark Attendance', label: 'Class Attendance', path: '/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
               { name: 'Assignment and Exams', label: 'Home Assignments', path: '/assignments', icon: BookOpen },
-              { name: 'Exam Grading', label: 'Grades & Grading', path: '/exams', icon: ClipboardList }
+              { name: 'Exam Grading', label: 'Exams Evaluation', path: '/exams', icon: ClipboardList }
             ]
           },
           {
@@ -219,7 +220,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Institute Setup', label: 'Institute Details', path: '/institute', icon: Settings },
               { name: 'Branches Manager', label: 'Branch Details', path: '/branches', icon: Building2 },
-              { name: 'Settings', label: 'Personal Settings', path: '/settings', icon: Settings }
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
+              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
             ]
           }
         ];
@@ -234,7 +236,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Fee Discussion', label: 'Fee Discussion', path: '/leads/fee', icon: DollarSign },
               { name: 'Admission & Docs', label: 'Admission & Docs', path: '/leads/admission', icon: ClipboardList },
               { name: 'Batch Allocation', label: 'Batch Allocation', path: '/leads/batch', icon: Layers },
-              { name: 'Payment & Activation', label: 'Payment & Activation', path: '/leads/payment', icon: Zap }
+              { name: 'Payment & Activation', label: 'Payment & Activation', path: '/leads/payment', icon: Zap },
+              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
             ]
           }
         ];
@@ -256,6 +259,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Notifications', label: 'Notifications', path: '/teacher-notifications', icon: Bell, badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined },
               { name: 'Doubt Chats', label: 'Student Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
+            ]
+          },
+          {
+            title: 'Settings',
+            links: [
+              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
             ]
           }
         ];
@@ -282,6 +291,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
+          },
+          {
+            title: 'Settings',
+            links: [
+              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
+            ]
           }
         ];
 
@@ -304,8 +319,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     label: string;
     badge?: number;
   }) => {
+    const isCounsellor = currentUser?.role === 'counsellor';
     const isActive = path === '/leads'
-      ? location.pathname === '/leads' || location.pathname === '/leads/pipeline'
+      ? (isCounsellor
+          ? (location.pathname === '/leads' || location.pathname === '/leads/pipeline')
+          : location.pathname.startsWith('/leads')
+        )
       : path === '/fees'
         ? location.pathname === '/fees' || location.pathname.startsWith('/fees/')
         : location.pathname.startsWith(path);

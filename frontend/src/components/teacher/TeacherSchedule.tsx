@@ -200,10 +200,6 @@ export const TeacherSchedule: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Academic Schedule</h2>
           <p className="text-sm text-slate-500 mt-1">View your assigned lectures, classes, academic activities and schedule changes.</p>
         </div>
-        <Button variant="secondary" onClick={() => setCurrentDate(new Date())}>
-          <CalendarIcon size={16} className="mr-2" />
-          Today
-        </Button>
       </div>
 
       {/* CONTEXT FILTERS */}

@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "migrate": "node src/scripts/migrate.js",
+    "seed": "node src/scripts/seedMasterTenant.js",
+    "setup": "node src/scripts/migrate.js && node src/scripts/seedMasterTenant.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

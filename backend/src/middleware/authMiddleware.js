@@ -13,6 +13,7 @@ const requireAuth = (req, res, next) => {
         req.user = decoded;
         next();
     } catch (error) {
+        console.error('JWT Verify Error:', error.message);
         return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
     }
 };
@@ -30,12 +31,12 @@ const requirePermission = (action) => {
             return res.status(401).json({ status: 'error', message: 'Unauthorized' });
         }
         
-        // SaaS Admin bypass
+        // SaaS Admins bypass permission checks for now
         if (req.user.isSaasAdmin) {
             return next();
         }
-
-        if (!req.user.permissions.includes(action)) {
+        
+        if (!req.user.permissions || !req.user.permissions.includes(action)) {
             return res.status(403).json({ status: 'error', message: `Forbidden. Missing permission: ${action}` });
         }
         

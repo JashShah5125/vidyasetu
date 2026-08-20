@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext';
 
 export const ExpenseVoucher: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser } = useApp();
+  const { currentUser, addToast } = useApp();
   const [successMsg, setSuccessMsg] = useState('');
 
   // Form states
@@ -41,7 +41,7 @@ export const ExpenseVoucher: React.FC = () => {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !amount || !paidTo) {
-      alert('Please fill in Description, Amount, and Paid To / Received From.');
+      addToast('Please fill in Description, Amount, and Paid To / Received From.', 'error');
       return;
     }
 
@@ -110,7 +110,6 @@ export const ExpenseVoucher: React.FC = () => {
             <FileText size={20} className="text-blue-100" />
             <span className="font-semibold text-sm uppercase tracking-wider font-mono">Accounting Entry Form</span>
           </div>
-          <span className="text-xs font-bold font-mono opacity-80">Voucher Entry Mode</span>
         </div>
 
         <form onSubmit={handleSave} className="p-6 space-y-6">

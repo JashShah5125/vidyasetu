@@ -6,11 +6,12 @@ import { Select } from '../components/ui/Select';
 import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useFeeConfig, type FeePlan } from '../context/FeeConfigContext';
 import { Modal } from '../components/ui/Modal';
-import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert } from 'lucide-react';
+import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert, Download } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { Pagination } from '../components/ui/Pagination';
 
 export const FeesMaster: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser, addToast } = useApp();
   const isReadOnly = false;
   const [activeMainTab, setActiveMainTab] = useState<'full-course' | 'custom-bundles' | 'subject-wise'>('full-course');
   const [view, setView] = useState<'list' | 'form'>('list');
@@ -60,7 +61,7 @@ export const FeesMaster: React.FC = () => {
 
   const handleSaveBundle = () => {
     if (!bundleForm.name || !bundleForm.fee) {
-      alert("Please enter bundle name and fee.");
+      addToast("Please enter bundle name and fee.", "error");
       return;
     }
 
@@ -135,7 +136,7 @@ export const FeesMaster: React.FC = () => {
 
   const handleSaveSubject = () => {
     if (!subjectForm.fee) {
-      alert("Please enter a fee amount.");
+      addToast("Please enter a fee amount.", "error");
       return;
     }
     setSubjectsData(prev => prev.map(s => 
@@ -146,6 +147,86 @@ export const FeesMaster: React.FC = () => {
     setSuccessMsg('Subject fee updated successfully!');
     setIsSubjectModalOpen(false);
     setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  // ─── Pagination & Export State ──────────────────────────────────────────────
+  const ITEMS_PER_PAGE = 5;
+  const [fullCoursePage, setFullCoursePage] = useState(1);
+  const [bundlesPage, setBundlesPage] = useState(1);
+  const [subjectsPage, setSubjectsPage] = useState(1);
+
+  // Reset page count on filter changes
+  React.useEffect(() => {
+    setSubjectsPage(1);
+  }, [subjectFilterCourse, subjectFilterProgram, subjectFilterLevel]);
+
+  const paginatedPlans = useMemo(() => {
+    const startIndex = (fullCoursePage - 1) * ITEMS_PER_PAGE;
+    return plans.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [plans, fullCoursePage]);
+
+  const paginatedBundles = useMemo(() => {
+    const startIndex = (bundlesPage - 1) * ITEMS_PER_PAGE;
+    return customBundles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [customBundles, bundlesPage]);
+
+  const paginatedSubjects = useMemo(() => {
+    const startIndex = (subjectsPage - 1) * ITEMS_PER_PAGE;
+    return filteredSubjects.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredSubjects, subjectsPage]);
+
+  const handleExportCSV = () => {
+    let headers: string[] = [];
+    let rows: any[][] = [];
+    let filename = '';
+
+    if (activeMainTab === 'full-course') {
+      headers = ['Course', 'Program', 'Total Fees (INR)', 'Down Payment (INR)', 'Months', 'Installment (INR/mo)'];
+      rows = plans.map(p => [
+        p.course,
+        p.program,
+        p.totalFees,
+        p.downPayment,
+        p.months,
+        p.installment
+      ]);
+      filename = 'full_course_fees.csv';
+    } else if (activeMainTab === 'custom-bundles') {
+      headers = ['Bundle Name', 'Course', 'Program', 'Level', 'Fee Amount (INR)'];
+      rows = customBundles.map(b => [
+        b.name,
+        b.courseName,
+        b.programDetails,
+        b.levelDetails,
+        b.fee
+      ]);
+      filename = 'custom_bundles_fees.csv';
+    } else if (activeMainTab === 'subject-wise') {
+      if (filteredSubjects.length === 0) {
+        addToast('No subject-wise details available to export. Please select filters first.', 'info');
+        return;
+      }
+      headers = ['Subject Name', 'Subject Code', 'Type', 'Fee Amount (INR)'];
+      rows = filteredSubjects.map(s => [
+        s.name,
+        s.code,
+        s.type,
+        s.fee
+      ]);
+      filename = `subject_wise_fees_${subjectFilterCourse}_${subjectFilterProgram}_${subjectFilterLevel}.csv`;
+    }
+
+    if (rows.length === 0) return;
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Handle course change to reset dependent fields
@@ -170,7 +251,7 @@ export const FeesMaster: React.FC = () => {
 
   const handleSave = () => {
     if (!selectedCourse || !selectedProgram || totalFees === '' || downPayment === '' || months === '') {
-      alert("Please fill in all fields before saving.");
+      addToast("Please fill in all fields before saving.", "error");
       return;
     }
     
@@ -225,21 +306,28 @@ export const FeesMaster: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Fees Master</h2>
           <p className="text-sm text-slate-500 mt-1">Configure full package payments and standard installment plans.</p>
         </div>
-        {activeMainTab === 'full-course' && view === 'list' && !isReadOnly && (
-          <Button variant="primary" onClick={() => { setEditingPlan(null); setSelectedCourse(''); setSelectedProgram(''); setTotalFees(''); setDownPayment(''); setMonths(''); setView('form'); }} className="flex items-center gap-2">
-            <Plus size={16} /> Configure New Plan
-          </Button>
-        )}
-        {activeMainTab === 'custom-bundles' && !isReadOnly && (
-          <Button variant="primary" onClick={() => handleOpenBundleModal()} className="flex items-center gap-2">
-            <Plus size={16} /> Create Bundle Plan
-          </Button>
-        )}
-        {activeMainTab === 'full-course' && view === 'form' && (
-          <Button variant="secondary" onClick={() => setView('list')} className="flex items-center gap-2">
-            <ArrowLeft size={16} /> Back to List
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {view === 'list' && (activeMainTab !== 'subject-wise' || filteredSubjects.length > 0) && (
+            <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-2 cursor-pointer">
+              <Download size={16} /> Export CSV
+            </Button>
+          )}
+          {activeMainTab === 'full-course' && view === 'list' && !isReadOnly && (
+            <Button variant="primary" onClick={() => { setEditingPlan(null); setSelectedCourse(''); setSelectedProgram(''); setTotalFees(''); setDownPayment(''); setMonths(''); setView('form'); }} className="flex items-center gap-2 cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+              <Plus size={16} /> Configure New Plan
+            </Button>
+          )}
+          {activeMainTab === 'custom-bundles' && !isReadOnly && (
+            <Button variant="primary" onClick={() => handleOpenBundleModal()} className="flex items-center gap-2 cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+              <Plus size={16} /> Create Bundle Plan
+            </Button>
+          )}
+          {activeMainTab === 'full-course' && view === 'form' && (
+            <Button variant="secondary" onClick={() => setView('list')} className="flex items-center gap-2 cursor-pointer">
+              <ArrowLeft size={16} /> Back to List
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="border-b border-slate-200">
@@ -289,12 +377,12 @@ export const FeesMaster: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {plans.length === 0 ? (
+                {paginatedPlans.length === 0 ? (
                   <tr>
                     <td colSpan={isReadOnly ? 5 : 6} className="px-6 py-8 text-center text-slate-500 italic">No plans configured yet.</td>
                   </tr>
                 ) : (
-                  plans.map((plan) => (
+                  paginatedPlans.map((plan) => (
                     <tr key={plan.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-slate-800">{plan.course}</td>
                       <td className="px-6 py-4 text-slate-600">{plan.program}</td>
@@ -317,6 +405,17 @@ export const FeesMaster: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {plans.length > ITEMS_PER_PAGE && (
+            <div className="p-4 border-t border-slate-100 bg-white rounded-b-2xl">
+              <Pagination
+                currentPage={fullCoursePage}
+                totalPages={Math.ceil(plans.length / ITEMS_PER_PAGE)}
+                totalItems={plans.length}
+                pageSize={ITEMS_PER_PAGE}
+                onPageChange={setFullCoursePage}
+              />
+            </div>
+          )}
         </Card>
       )}
 
@@ -443,7 +542,7 @@ export const FeesMaster: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {customBundles.map((bundle, idx) => (
+                {paginatedBundles.map((bundle, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-semibold text-slate-800">{bundle.name}</td>
                     <td className="px-6 py-4 text-slate-600">{bundle.courseName}</td>
@@ -462,6 +561,17 @@ export const FeesMaster: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {customBundles.length > ITEMS_PER_PAGE && (
+            <div className="p-4 border-t border-slate-100 bg-white rounded-b-2xl">
+              <Pagination
+                currentPage={bundlesPage}
+                totalPages={Math.ceil(customBundles.length / ITEMS_PER_PAGE)}
+                totalItems={customBundles.length}
+                pageSize={ITEMS_PER_PAGE}
+                onPageChange={setBundlesPage}
+              />
+            </div>
+          )}
         </Card>
       )}
 
@@ -522,12 +632,12 @@ export const FeesMaster: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {filteredSubjects.length === 0 ? (
+                    {paginatedSubjects.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="px-6 py-8 text-center text-slate-500 italic">No subjects configured for this selection.</td>
                       </tr>
                     ) : (
-                      filteredSubjects.map((subject, idx) => (
+                      paginatedSubjects.map((subject, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-6 py-4 font-semibold text-slate-800">{subject.name}</td>
                           <td className="px-6 py-4 text-slate-500 font-mono text-xs">{subject.code}</td>
@@ -550,6 +660,17 @@ export const FeesMaster: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              {filteredSubjects.length > ITEMS_PER_PAGE && (
+                <div className="p-4 border-t border-slate-100 bg-white rounded-b-2xl">
+                  <Pagination
+                    currentPage={subjectsPage}
+                    totalPages={Math.ceil(filteredSubjects.length / ITEMS_PER_PAGE)}
+                    totalItems={filteredSubjects.length}
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageChange={setSubjectsPage}
+                  />
+                </div>
+              )}
             </Card>
           )}
           

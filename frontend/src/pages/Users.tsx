@@ -12,7 +12,7 @@ import { Plus, ArrowLeft } from 'lucide-react';
 import type { Staff } from '../data/mockData';
 
 export const Users: React.FC = () => {
-  const { staff, addStaff, setStaff, currentUser } = useApp();
+  const { staff, addStaff, setStaff, currentUser, addToast } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
@@ -136,7 +136,7 @@ export const Users: React.FC = () => {
     setEmail('');
     setShowAddModal(false);
     setEditingEmail(null);
-    alert(editingEmail ? 'Staff details updated successfully!' : 'New staff profile created successfully!');
+    addToast(editingEmail ? 'Staff details updated successfully!' : 'New staff profile created successfully!', 'success');
   };
 
   if (showAddModal) {

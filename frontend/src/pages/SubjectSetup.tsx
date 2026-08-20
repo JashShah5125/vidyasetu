@@ -237,12 +237,37 @@ export const SubjectSetup: React.FC = () => {
     setAssignedSubjectsMap(prev => {
       const levelSubjects = prev[activeKey] || [];
       if (editingSubjectId) {
-        return {
-          ...prev,
-          [activeKey]: levelSubjects.map(s => 
-            s.id === editingSubjectId ? { ...s, name: subjectForm.name, code: subjectForm.code, type: subjectForm.type, teacherIds: subjectForm.teacherIds } : s
-          )
-        };
+        let originalKey = '';
+        for (const k in prev) {
+          if (prev[k].some(s => s.id === editingSubjectId)) {
+            originalKey = k;
+            break;
+          }
+        }
+        
+        if (originalKey && originalKey !== activeKey) {
+          const oldList = prev[originalKey] || [];
+          const subjectToMove = oldList.find(s => s.id === editingSubjectId);
+          const updatedSubject = {
+            ...subjectToMove,
+            name: subjectForm.name,
+            code: subjectForm.code,
+            type: subjectForm.type,
+            teacherIds: subjectForm.teacherIds
+          };
+          return {
+            ...prev,
+            [originalKey]: oldList.filter(s => s.id !== editingSubjectId),
+            [activeKey]: [...(prev[activeKey] || []), updatedSubject]
+          };
+        } else {
+          return {
+            ...prev,
+            [activeKey]: levelSubjects.map(s => 
+              s.id === editingSubjectId ? { ...s, name: subjectForm.name, code: subjectForm.code, type: subjectForm.type, teacherIds: subjectForm.teacherIds } : s
+            )
+          };
+        }
       } else {
         const newSubject = { id: `subj-${Date.now()}`, name: subjectForm.name, code: subjectForm.code, type: subjectForm.type, teacherIds: subjectForm.teacherIds };
         return {
@@ -356,36 +381,34 @@ export const SubjectSetup: React.FC = () => {
         </div>
 
         <div className="w-full space-y-4">
-          {!editingSubjectId && (
-            <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
-              <Select
-                label="Assign to Course"
-                options={[{ value: '', label: 'Select a course...' }, ...myCourses.map(c => ({ value: c.code, label: c.name }))]}
-                value={subjectForm.formCourse}
-                onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
-              />
-              <Select
-                label="Assign to Program"
-                options={[{ value: '', label: 'Select a program...' }, ...(myCourses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
-                value={subjectForm.formProgram}
-                onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
-                disabled={!subjectForm.formCourse}
-              />
-              <Select
-                label="Assign to Level"
-                options={[
-                  { value: '', label: 'Select a level...' },
-                  ...(subjectForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
-                    subjectForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
-                    subjectForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
-                ]}
-                value={subjectForm.formLevel}
-                onChange={e => setSubjectForm(prev => ({ ...prev, formLevel: e.target.value }))}
-                disabled={!subjectForm.formProgram}
-              />
-            </div>
-          )}
+          <div className="grid grid-cols-1 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Assignment Context</h4>
+            <Select
+              label="Assign to Course"
+              options={[{ value: '', label: 'Select a course...' }, ...myCourses.map(c => ({ value: c.code, label: c.name }))]}
+              value={subjectForm.formCourse}
+              onChange={e => setSubjectForm(prev => ({ ...prev, formCourse: e.target.value, formProgram: '', formLevel: '' }))}
+            />
+            <Select
+              label="Assign to Program"
+              options={[{ value: '', label: 'Select a program...' }, ...(myCourses.find(c => c.code === subjectForm.formCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]}
+              value={subjectForm.formProgram}
+              onChange={e => setSubjectForm(prev => ({ ...prev, formProgram: e.target.value, formLevel: '' }))}
+              disabled={!subjectForm.formCourse}
+            />
+            <Select
+              label="Assign to Level"
+              options={[
+                { value: '', label: 'Select a level...' },
+                ...(subjectForm.formProgram.toLowerCase().includes('2 year') ? [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }] : 
+                  subjectForm.formProgram.toLowerCase().includes('8th std') ? [{ value: 'class8', label: 'Class 8' }] : 
+                  subjectForm.formProgram ? [{ value: 'year1', label: 'Year 1' }] : [])
+              ]}
+              value={subjectForm.formLevel}
+              onChange={e => setSubjectForm(prev => ({ ...prev, formLevel: e.target.value }))}
+              disabled={!subjectForm.formProgram}
+            />
+          </div>
 
           <Input 
             label="Subject Name" 

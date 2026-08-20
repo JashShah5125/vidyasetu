@@ -11,13 +11,18 @@ export const StudentRegistration = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { leads, students, convertLeadToStudent, addToast } = useApp();
+  const { leads, students, parents, convertLeadToStudent, approveStudentRegistration, addToast } = useApp();
   
   const lead = leads.find(l => l.id === id);
   const student = students.find(s => s.id === id || s.studentId === id);
   const prefilledFeeData = location.state?.prefilledFeeData;
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    if (location.state && typeof location.state.startStep === 'number') {
+      return location.state.startStep;
+    }
+    return 1;
+  });
 
   const [formData, setFormData] = useState({
     student: {
@@ -40,12 +45,20 @@ export const StudentRegistration = () => {
       level: ''
     },
     fee: {
+      enrollType: 'Standard',
+      course: '',
+      program: '',
+      level: '',
+      feeSelectedStandard: '',
+      feeSelectedBundle: '',
+      feeSelectedSubjects: [] as string[],
       totalFee: 0,
       discount: 0,
       netFee: 0,
       downpayment: 0,
       installments: 1,
-      installmentAmount: 0
+      installmentAmount: 0,
+      paymentMode: ''
     },
     parent: {
       name: '',
@@ -61,23 +74,110 @@ export const StudentRegistration = () => {
 
   useEffect(() => {
     if (student) {
+      const parentObj = parents.find(p => p.id === student.parentId);
+      setFormData({
+        student: {
+          name: student.name || '',
+          mobile: student.mobile || '',
+          dob: student.dob || '2010-05-14',
+          gender: student.gender || 'Male',
+          email: student.email || `${student.name.toLowerCase().replace(/\s+/g, '')}@example.com`,
+          address: {
+            street: student.address?.street || '',
+            city: student.address?.city || '',
+            state: student.address?.state || '',
+            pincode: student.address?.pincode || ''
+          },
+          category: student.category || 'General',
+          schoolName: student.schoolName || 'National Public School',
+          currentClass: student.currentClass || 'Class 11',
+          board: student.board || 'CBSE',
+          targetExam: student.targetExam || 'JEE',
+          yearOfAttempt: student.yearOfAttempt || '2028'
+        },
+        course: {
+          course: student.course || 'JEE Prep Course',
+          program: student.program || '2 Year',
+          level: student.level || 'year1'
+        },
+        fee: {
+          enrollType: 'Standard',
+          course: student.course || 'JEE Prep Course',
+          program: student.program || '2 Year',
+          level: student.level || 'year1',
+          feeSelectedStandard: 'FP-01',
+          feeSelectedBundle: '',
+          feeSelectedSubjects: [],
+          totalFee: student.feePlan?.total || 120000,
+          discount: 0,
+          netFee: student.feePlan?.total || 120000,
+          downpayment: student.feePlan?.paid || 30000,
+          installments: 10,
+          installmentAmount: 9000,
+          paymentMode: 'Online'
+        },
+        parent: {
+          name: parentObj?.name || 'Mr. ' + (student.name.split(' ')[1] || student.name),
+          mobile: parentObj?.mobile || student.mobile || '9877112200',
+          email: parentObj?.email || 'parent@example.com',
+          relation: parentObj?.relation || 'Father',
+          occupation: 'Business'
+        },
+        documents: [
+          { type: 'Student Photo', fileName: `${student.name.toLowerCase().replace(/\s+/g, '_')}_photo.jpg`, fileSize: '1.2 MB' },
+          { type: 'ID Proof (Aadhar)', fileName: 'aadhar_card.pdf', fileSize: '2.4 MB' },
+          { type: 'Previous Marksheet', fileName: 'class10_marksheet.pdf', fileSize: '1.8 MB' }
+        ]
+      });
+      setFeeComplete(true);
+    } else if (lead) {
+      const feeCfg = prefilledFeeData || lead.feeConfig;
       setFormData(prev => ({
         ...prev,
-        student: { ...prev.student, name: student.name, mobile: student.mobile, dob: student.dob || '', gender: student.gender || '', category: student.category || 'General', currentClass: student.currentClass || '', board: student.board || '', targetExam: student.targetExam || '', yearOfAttempt: student.yearOfAttempt || '' }
+        student: {
+          ...prev.student,
+          name: lead.name,
+          mobile: lead.mobile,
+          dob: prev.student.dob || '2010-01-01',
+          gender: 'Male',
+          currentClass: prev.student.currentClass || (lead.level === 'class8' ? 'Class 8' : lead.level === 'class9' ? 'Class 9' : lead.level === 'class10' ? 'Class 10' : lead.level === 'year1' ? 'Class 11' : lead.level === 'year2' ? 'Class 12' : 'Class 11'),
+          board: prev.student.board || 'CBSE',
+          targetExam: prev.student.targetExam || (lead.course.toLowerCase().includes('jee') ? 'JEE' : lead.course.toLowerCase().includes('neet') ? 'NEET' : 'Boards'),
+          yearOfAttempt: '2028'
+        },
+        course: {
+          course: feeCfg?.course || lead.course || '',
+          program: feeCfg?.program || lead.program || '',
+          level: feeCfg?.level || lead.level || 'year1'
+        },
+        fee: feeCfg ? {
+          enrollType: feeCfg.enrollType || 'Standard',
+          course: feeCfg.course || lead.course || '',
+          program: feeCfg.program || lead.program || '',
+          level: feeCfg.level || lead.level || 'year1',
+          feeSelectedStandard: feeCfg.feeSelectedStandard || '',
+          feeSelectedBundle: feeCfg.feeSelectedBundle || '',
+          feeSelectedSubjects: feeCfg.feeSelectedSubjects || [],
+          totalFee: feeCfg.totalFee || feeCfg.netFee || 0,
+          discount: feeCfg.discount || 0,
+          netFee: feeCfg.netFee || feeCfg.totalFee || 0,
+          downpayment: feeCfg.downpayment || 0,
+          installments: feeCfg.installments || 1,
+          installmentAmount: feeCfg.installmentAmount || 0,
+          paymentMode: feeCfg.paymentMode || ''
+        } : prev.fee,
+        parent: {
+          ...prev.parent,
+          name: 'Parent of ' + lead.name,
+          mobile: lead.parentMobile || lead.mobile || '',
+          relation: 'Father'
+        }
       }));
-      if (student.status === 'Documents Submitted' || student.status === 'Verification Pending' || student.status === 'Active Student') {
-        setCurrentStep(4);
+      if (feeCfg) {
         setFeeComplete(true);
       }
-    } else if (lead) {
-      setFormData(prev => ({
-        ...prev,
-        student: { ...prev.student, name: lead.name, mobile: lead.mobile },
-        course: { ...prev.course, course: lead.course || '', program: lead.program || '', level: lead.level || '' },
-        parent: { ...prev.parent, mobile: lead.parentMobile || '' }
-      }));
     }
-  }, [lead, student]);
+  }, [lead, student, parents, prefilledFeeData]);
 
   if (!lead && !student) {
     return <div className="p-8 text-center text-red-500">Record not found.</div>;
@@ -146,11 +246,13 @@ export const StudentRegistration = () => {
   };
 
   const handleSubmit = () => {
-    if (lead) {
+    if (student) {
+      approveStudentRegistration(student.id);
+    } else if (lead) {
       convertLeadToStudent(lead.id, formData);
     }
-    addToast('Student successfully registered!', 'success');
-    navigate('/students'); // Or wherever
+    addToast(student ? 'Admission approved successfully!' : 'Student successfully registered!', 'success');
+    navigate('/leads/admission');
   };
 
   const steps = [
@@ -182,7 +284,11 @@ export const StudentRegistration = () => {
       <div className="flex items-center justify-between mb-8 px-4 sm:px-8">
         {steps.map((step, idx) => (
           <React.Fragment key={step.num}>
-            <div className={`flex flex-col items-center gap-2 ${currentStep >= step.num ? 'text-blue-600' : 'text-slate-400'}`}>
+            <button
+              type="button"
+              onClick={() => setCurrentStep(step.num)}
+              className={`flex flex-col items-center gap-2 cursor-pointer transition-transform hover:scale-105 ${currentStep >= step.num ? 'text-blue-600' : 'text-slate-400'}`}
+            >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
                 currentStep > step.num ? 'bg-blue-600 text-white' : 
                 currentStep === step.num ? 'bg-blue-100 border-2 border-blue-600 text-blue-700' : 
@@ -191,7 +297,7 @@ export const StudentRegistration = () => {
                 {currentStep > step.num ? <CheckCircle size={16} /> : step.num}
               </div>
               <span className="text-xs font-semibold hidden sm:block">{step.label}</span>
-            </div>
+            </button>
             {idx < steps.length - 1 && (
               <div className={`flex-1 h-0.5 mx-2 sm:mx-4 ${currentStep > step.num ? 'bg-blue-600' : 'bg-slate-200'}`} />
             )}
@@ -370,7 +476,7 @@ export const StudentRegistration = () => {
             </Button>
           ) : (
             <Button variant="primary" onClick={handleSubmit} style={{ backgroundColor: '#10b981', color: 'white' }}>
-              Confirm & Create Student <CheckCircle size={16} className="ml-2" />
+              {student ? 'Approve & Verify Admission' : 'Confirm & Create Student'} <CheckCircle size={16} className="ml-2" />
             </Button>
           )}
         </div>

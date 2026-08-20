@@ -180,9 +180,10 @@ export const TeacherAttendance: React.FC = () => {
 
   const handleCancelRegister = () => {
     if (hasUnsavedChanges) {
-      if (!window.confirm("Attendance changes have not been submitted. Discard changes?")) return;
+      addToast("Unsaved attendance changes discarded.", "info");
     }
     setActiveLecture(null);
+    setHasUnsavedChanges(false);
   };
 
   const handleSubmitAttendance = (e: React.FormEvent) => {
@@ -398,14 +399,14 @@ export const TeacherAttendance: React.FC = () => {
               <div className="px-4 font-bold text-slate-700 text-sm">{currentDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
               <Button variant="secondary" className="px-2" onClick={handleNextDay}><ChevronRight size={16}/></Button>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-end gap-2">
               <Select 
                 label="Subject" 
                 options={[{ value: 'All', label: 'All Subjects' }, ...uniqueSubjects.map(s => ({ value: s, label: s }))]}
                 value={filterSubject} 
                 onChange={(e) => setFilterSubject(e.target.value)}
+                wrapperClassName="min-w-[160px]"
               />
-              <Button variant="secondary" onClick={handleToday}>Today</Button>
             </div>
           </div>
 

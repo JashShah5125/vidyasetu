@@ -4,7 +4,7 @@ import { useApp } from '../../../context/AppContext';
 import { useScheduler } from '../context/SchedulerContext';
 import { Select } from '../../../components/ui/Select';
 import { Button } from '../../../components/ui/Button';
-import { Plus, Edit, ChevronLeft, ChevronRight, Calendar, User, MapPin, Copy, Sparkles, MessageSquare, BookmarkCheck } from 'lucide-react';
+import { Plus, Edit, ChevronLeft, ChevronRight, Calendar, User, MapPin, Copy, Sparkles, MessageSquare, BookmarkCheck, Download } from 'lucide-react';
 import courseHierarchy from '../../../data/courseHierarchy.json';
 import teachersList from '../../../data/teachers.json';
 import { TimetableGrid } from './TimetableGrid';
@@ -50,7 +50,10 @@ export const LectureScheduler = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filters State (derived from URL Search Params)
-  const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch : '';
+  const initialBranchName = currentUser?.role === 'branch-admin' ? currentUser.branch : '';
+  const initialBranch = initialBranchName 
+    ? (branches.find(b => b.name === initialBranchName || b.code === initialBranchName)?.code || '') 
+    : '';
   const branch = searchParams.get('branch') || initialBranch || '';
   const course = searchParams.get('course') || '';
   const program = searchParams.get('program') || '';
@@ -288,6 +291,55 @@ export const LectureScheduler = () => {
     addToast(`Default timetable loaded for week of ${new Date(editorContext.weekStartDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. Click "Publish" to save.`, 'info');
   };
 
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const handleExportTimetable = (lecturesForExport: typeof batchLectures, weekStart: string, label: string) => {
+    // Filter lectures to only the selected week
+    const start = parseLocalDate(weekStart);
+    const end = parseLocalDate(weekStart);
+    end.setDate(end.getDate() + 6);
+    const startStr = formatLocalDate(start);
+    const endStr = formatLocalDate(end);
+
+    const weekLectures = lecturesForExport
+      .filter(l => l.date >= startStr && l.date <= endStr && l.status !== 'CANCELLED')
+      .sort((a, b) => `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`));
+
+    if (weekLectures.length === 0) {
+      addToast('No lectures found for this week to export.', 'warning');
+      return;
+    }
+
+    const headers = ['Day', 'Date', 'Start Time', 'End Time', 'Subject', 'Teacher', 'Room', 'Type', 'Status'];
+    const rows = weekLectures.map(l => {
+      const d = parseLocalDate(l.date);
+      const dayName = DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1];
+      return [
+        dayName,
+        l.date,
+        l.startTime,
+        l.endTime,
+        l.subjectId,
+        getTeacherName(l.teacherId),
+        l.roomId || 'Unassigned',
+        l.lectureType || 'Regular',
+        l.publishStatus || 'Published'
+      ];
+    });
+
+    const weekLabel = `${start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}_to_${end.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `timetable_${label.replace(/\s+/g, '_')}_${weekLabel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    addToast('Timetable exported successfully!', 'success');
+  };
+
   return (
     <div className="space-y-6">
 
@@ -520,6 +572,9 @@ export const LectureScheduler = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button variant="secondary" onClick={() => handleExportTimetable(batchLectures, selectedWeekStart, batch || 'batch')} className="cursor-pointer">
+                        <Download className="w-4 h-4 mr-2" /> Export
+                      </Button>
                       <Button variant="primary" onClick={() => {
                         setEditorContext({
                           branchId: branch, courseId: course, programId: program, levelId: level, batchId: batch,
@@ -571,6 +626,11 @@ export const LectureScheduler = () => {
                       }}><ChevronRight className="w-4 h-4" /></Button>
                     </div>
                   </div>
+                  {selectedTeacher && (
+                    <Button variant="secondary" onClick={() => handleExportTimetable(teacherLectures, selectedWeekStart, getTeacherName(selectedTeacher))} className="cursor-pointer">
+                      <Download className="w-4 h-4 mr-2" /> Export
+                    </Button>
+                  )}
                 </div>
 
                 {/* Dropdown Filter */}
@@ -614,6 +674,11 @@ export const LectureScheduler = () => {
                       }}><ChevronRight className="w-4 h-4" /></Button>
                     </div>
                   </div>
+                  {selectedRoom && (
+                    <Button variant="secondary" onClick={() => handleExportTimetable(roomLectures, selectedWeekStart, selectedRoom)} className="cursor-pointer">
+                      <Download className="w-4 h-4 mr-2" /> Export
+                    </Button>
+                  )}
                 </div>
 
                 {/* Dropdown Filter */}

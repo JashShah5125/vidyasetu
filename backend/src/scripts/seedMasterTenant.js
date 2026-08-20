@@ -1,9 +1,10 @@
-require('dotenv').config({ path: __dirname + '/../../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
-
-const MASTER_TENANT_ID = process.env.MASTER_TENANT_ID || 'vidyasetu-master-hq-id';
+const MASTER_TENANT_ID = process.env.MASTER_TENANT_ID || 1;
 
 const seedMasterTenant = async () => {
     try {
@@ -20,18 +21,34 @@ const seedMasterTenant = async () => {
         // 2. Create SaaS Admin User
         const adminEmail = 'admin@vidyasetu.com';
         const passwordHash = await bcrypt.hash('password123', 10);
-        const adminId = uuidv4();
 
         const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
         
         if (existing.length === 0) {
             await pool.query(`
-                INSERT INTO users (id, tenant_id, name, email, password_hash, user_type, status)
-                VALUES (?, ?, 'Super Admin', ?, ?, 'saas_admin', 'active')
-            `, [adminId, MASTER_TENANT_ID, adminEmail, passwordHash]);
+                INSERT INTO users (tenant_id, name, email, password_hash, user_type, status)
+                VALUES (?, 'Super Admin', ?, ?, 'saas_admin', 'active')
+            `, [MASTER_TENANT_ID, adminEmail, passwordHash]);
             console.log('SaaS Admin user created: admin@vidyasetu.com / password123');
         } else {
             console.log('SaaS Admin user already exists.');
+        }
+
+        // 3. Run all seed SQL files from migrations/seeds
+        const fs = require('fs');
+        const seedsDir = path.resolve(__dirname, '../../../migrations/seeds');
+        if (fs.existsSync(seedsDir)) {
+            const files = fs.readdirSync(seedsDir).filter(f => f.endsWith('.sql')).sort();
+            for (const file of files) {
+                console.log(`Running seed file: ${file}`);
+                const sql = fs.readFileSync(path.join(seedsDir, file), 'utf8');
+                if (sql.trim()) {
+                    await pool.query(sql);
+                }
+            }
+            console.log('Seed files executed.');
+        } else {
+            console.log(`No seed directory found at ${seedsDir}`);
         }
 
         console.log('Seeding completed successfully!');

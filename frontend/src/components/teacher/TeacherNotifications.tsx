@@ -10,7 +10,7 @@ import teachersList from '../../data/teachers.json';
 import courseHierarchy from '../../data/courseHierarchy.json';
 
 export const TeacherNotifications: React.FC = () => {
-  const { notifications, markNotificationRead, sendNotification, currentUser, batches, students } = useApp();
+  const { notifications, markNotificationRead, sendNotification, currentUser, batches, students, addToast } = useApp();
 
   // Find logged-in teacher from teachers.json
   const currentTeacher = useMemo(() => {
@@ -160,7 +160,7 @@ export const TeacherNotifications: React.FC = () => {
 
   const handleSend = () => {
     if (!composeTitle || !composeMessage || selectedRecipients.length === 0) {
-      alert("Please fill in all fields and select at least one recipient.");
+      addToast("Please fill in all fields and select at least one recipient.", "error");
       return;
     }
 

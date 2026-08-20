@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { planService } from '../services/planService';
+import { tenantService } from '../services/tenantService';
+import { subscriptionService } from '../services/subscriptionService';
 import type {
   Role,
   UserProfile,
@@ -19,7 +22,8 @@ import type {
   TenantSubscription,
   ExamItem,
   AppNotification,
-  AssignmentItem
+  AssignmentItem,
+  SupportTicket
 } from '../data/mockData';
 import {
   INITIAL_TENANTS,
@@ -35,11 +39,10 @@ import {
   INITIAL_STAFF,
   INITIAL_DOUBTS,
   INITIAL_AUDIT_LOGS,
-  INITIAL_PLANS,
-  INITIAL_TENANT_SUBSCRIPTIONS,
   INITIAL_EXAMS,
   INITIAL_NOTIFICATIONS,
-  TEACHER_INITIAL_ASSIGNMENTS
+  TEACHER_INITIAL_ASSIGNMENTS,
+  INITIAL_SUPPORT_TICKETS
 } from '../data/mockData';
 
 export interface ToastMessage {
@@ -50,7 +53,6 @@ export interface ToastMessage {
 
 interface AppContextType {
   currentUser: UserProfile | null;
-  setCurrentUser: (user: UserProfile | null) => void;
   tenants: Tenant[];
   leads: Lead[];
   students: Student[];
@@ -73,8 +75,7 @@ interface AppContextType {
   notifications: AppNotification[];
   markNotificationRead: (id: string) => void;
   sendNotification: (notification: AppNotification) => void;
-  login: (email: string) => boolean;
-  logout: () => void;
+  logout: () => void | Promise<void>;
   addTenant: (
     name: string, 
     ownerName: string, 
@@ -108,6 +109,7 @@ interface AppContextType {
   updateAttendance: (studentId: string, status: 'Present' | 'Absent' | 'Late') => void;
   updateExamMarks: (studentId: string, testScore: string) => void;
   approveStudentRegistration: (studentId: string) => void;
+  allocateBatch: (studentId: string, batchName: string, courseName: string, programName: string, levelName: string) => void;
   addCourse: (course: Course) => void;
   updateCourse: (idOrCode: string, course: Partial<Course>) => void;
   addBatch: (batch: Batch) => void;
@@ -123,43 +125,135 @@ interface AppContextType {
   setStaff: React.Dispatch<React.SetStateAction<Staff[]>>;
   toasts: ToastMessage[];
   addToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning') => void;
+  tickets: SupportTicket[];
+  addSupportTicket: (subject: string, description: string, priority: 'Low' | 'Medium' | 'High' | 'Critical', tenantName: string) => void;
+  replyToSupportTicket: (ticketId: string, replyText: string, senderName: string) => void;
+  resolveSupportTicket: (ticketId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+import { useAuth } from './AuthContext';
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('vs_current_user');
-    return saved ? JSON.parse(saved) : null;
+  const { currentUser, logout } = useAuth();
+  
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    const saved = localStorage.getItem('vs_leads');
+    return saved ? JSON.parse(saved) : INITIAL_LEADS;
   });
+  const [students, setStudents] = useState<Student[]>(() => {
+    const saved = localStorage.getItem('vs_students');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.length < INITIAL_STUDENTS.length) {
+        return INITIAL_STUDENTS;
+      }
+      return parsed;
+    }
+    return INITIAL_STUDENTS;
+  });
+  const [parents, setParents] = useState<Parent[]>(() => {
+    const saved = localStorage.getItem('vs_parents');
+    return saved ? JSON.parse(saved) : INITIAL_PARENTS;
+  });
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(() => {
+    const saved = localStorage.getItem('vs_enrollments');
+    return saved ? JSON.parse(saved) : INITIAL_ENROLLMENTS;
+  });
+  const [feeRecords, setFeeRecords] = useState<FeeRecord[]>(() => {
+    const saved = localStorage.getItem('vs_fee_records');
+    return saved ? JSON.parse(saved) : INITIAL_FEE_RECORDS;
+  });
+  const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('vs_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('vs_current_user');
-    }
-  }, [currentUser]);
+    localStorage.setItem('vs_leads', JSON.stringify(leads));
+    fetch('/api/save-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(leads)
+    }).catch(() => {});
+  }, [leads]);
 
-  const [tenants, setTenants] = useState<Tenant[]>(INITIAL_TENANTS);
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
-  const [parents, setParents] = useState<Parent[]>(INITIAL_PARENTS);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(INITIAL_ENROLLMENTS);
-  const [feeRecords, setFeeRecords] = useState<FeeRecord[]>(INITIAL_FEE_RECORDS);
-  const [documents, setDocuments] = useState<Document[]>(INITIAL_DOCUMENTS);
+  useEffect(() => {
+    localStorage.setItem('vs_students', JSON.stringify(students));
+    fetch('/api/save-students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(students)
+    }).catch(() => {});
+  }, [students]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_parents', JSON.stringify(parents));
+  }, [parents]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_enrollments', JSON.stringify(enrollments));
+  }, [enrollments]);
+
+  useEffect(() => {
+    localStorage.setItem('vs_fee_records', JSON.stringify(feeRecords));
+  }, [feeRecords]);
+
+  // Fetch SaaS Data
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await planService.getPlans();
+        if (res && res.data) {
+          setPlans(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch plans:', err);
+      }
+    };
+
+    const fetchTenants = async () => {
+      if (currentUser?.role === 'saas-admin') {
+        try {
+          // Pass limit=1000 or similar if backend requires it to get all
+          const res = await tenantService.getTenants({ limit: 1000 });
+          if (res && res.data) {
+            setTenants(res.data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch tenants:', err);
+        }
+      }
+    };
+    const fetchSubscriptions = async () => {
+      if (currentUser?.role === 'saas-admin') {
+        try {
+          const res = await subscriptionService.getSubscriptions();
+          if (res && res.data) {
+            setTenantSubscriptions(res.data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch subscriptions:', err);
+        }
+      }
+    };
+    
+    fetchPlans();
+    fetchTenants();
+    fetchSubscriptions();
+  }, [currentUser]);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
   const [staff, setStaff] = useState<Staff[]>(INITIAL_STAFF);
   const [doubts, setDoubts] = useState<Doubt[]>(INITIAL_DOUBTS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
-  const [plans, setPlans] = useState<SubscriptionPlan[]>(INITIAL_PLANS);
-  const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>(INITIAL_TENANT_SUBSCRIPTIONS);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>([]);
   const [exams, setExams] = useState<ExamItem[]>(INITIAL_EXAMS);
   const [assignments, setAssignments] = useState<AssignmentItem[]>(TEACHER_INITIAL_ASSIGNMENTS);
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_SUPPORT_TICKETS);
 
   const logAction = (action: string, details: string) => {
     const actorName = currentUser ? currentUser.name : 'System';
@@ -185,64 +279,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       institute: currentUser ? currentUser.tenantName : 'System'
     };
     setAuditLogs(prev => [newLog, ...prev]);
-  };
-
-  const login = (emailInput: string) => {
-    let name = '';
-    let email = emailInput.trim().toLowerCase();
-    let tenantName = 'Apex IIT Academy';
-    let tenantId = 'VS-001';
-    let role: Role = 'inst-admin';
-    let branch = 'Mumbai West';
-
-    const matchedTenant = tenants.find(t => {
-      const defEmail = (t.defaultEmail || t.email || '').trim().toLowerCase();
-      return defEmail === email;
-    });
-
-    if (email === 'owner@vidyasetu.com') {
-      role = 'saas-admin';
-      name = 'Alexander Vance';
-      tenantName = 'Vidya Setu Platform';
-      tenantId = 'SYSTEM';
-      branch = '';
-    } else if (matchedTenant) {
-      role = 'inst-admin';
-      name = matchedTenant.ownerName;
-      tenantName = matchedTenant.name;
-      tenantId = matchedTenant.id;
-    } else if (email === 'mumbai@apexiit.com') {
-      role = 'branch-admin';
-      name = 'Mrs. Seema Deshpande';
-    } else if (email === 'counsel@apexiit.com') {
-      role = 'counsellor';
-      name = 'Priya Sen';
-    } else if (email === 'kelkar@apexiit.com') {
-      role = 'teacher';
-      name = 'Prof. Arvind Kelkar';
-    } else if (email === 'finance@apexiit.com') {
-      role = 'finance';
-      name = 'Nitin Joshi';
-    } else {
-      return false;
-    }
-
-    const profile: UserProfile = {
-      name,
-      email,
-      role,
-      branch: role === 'saas-admin' ? undefined : branch,
-      tenantId,
-      tenantName
-    };
-    setCurrentUser(profile);
-    logAction('USER_LOGIN', `Logged in as ${roleLabels[role]}`);
-    return true;
-  };
-
-  const logout = () => {
-    logAction('USER_LOGOUT', 'Logged out');
-    setCurrentUser(null);
   };
 
   const addTenant = (
@@ -492,10 +528,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Link Entities
     setParents(prev => prev.map(p => p.id === parent.id ? { ...p, childrenIds: [student.id] } : p));
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, enrollmentIds: [enrollment.id] } : s));
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, enrollmentIds: [enrollment.id], status: 'Verification Pending' } : s));
 
     // Update Lead Status
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Interested' } : l));
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: 'Converted' } : l));
     
     logAction('CONVERT_LEAD', `Converted lead ${leadItem.name} via Registration Stepper`);
   };
@@ -513,6 +549,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return s;
     }));
+  };
+
+  const allocateBatch = (studentId: string, batchName: string, courseName: string, programName: string, levelName: string) => {
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          batch: batchName,
+          course: courseName,
+          program: programName,
+          level: levelName
+        };
+      }
+      return s;
+    }));
+
+    const student = students.find(s => s.id === studentId);
+    if (student && student.enrollmentIds && student.enrollmentIds.length > 0) {
+      setEnrollments(prev => prev.map(e => {
+        if (student.enrollmentIds.includes(e.id)) {
+          return {
+            ...e,
+            batchId: batchName,
+            course: courseName,
+            program: programName,
+            level: levelName
+          };
+        }
+        return e;
+      }));
+    }
+
+    logAction('ALLOCATE_BATCH', `Allocated batch ${batchName} to student ${student?.name || studentId}`);
   };
 
   const addCourse = (course: Course) => {
@@ -557,15 +626,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const student = students.find(s => s.id === studentId);
     if (!student) return null;
 
+    const studentEnrollments = enrollments.filter(e => student.enrollmentIds?.includes(e.id));
+    const mainEnrollment = studentEnrollments.find(e => e.status === 'Active') || studentEnrollments[0];
+    const feeRec = mainEnrollment ? feeRecords.find(f => f.enrollmentId === mainEnrollment.id) : null;
+    const studentFeePlan = student.feePlan || (feeRec ? {
+      total: feeRec.netFee,
+      paid: feeRec.downpayment,
+      pending: feeRec.netFee - feeRec.downpayment
+    } : { total: 120000, paid: 0, pending: 120000 });
+
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
-        const newPaid = s.feePlan.paid + Number(amount);
+        const baseFeePlan = s.feePlan || studentFeePlan;
+        const newPaid = baseFeePlan.paid + Number(amount);
         return {
           ...s,
+          status: 'Active Student',
           feePlan: {
-            ...s.feePlan,
+            ...baseFeePlan,
             paid: newPaid,
-            pending: Math.max(0, s.feePlan.total - newPaid)
+            pending: Math.max(0, baseFeePlan.total - newPaid)
           }
         };
       }
@@ -582,7 +662,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       course: student.course,
       amount: Number(amount),
       mode,
-      balance: Math.max(0, student.feePlan.total - (student.feePlan.paid + Number(amount)))
+      balance: Math.max(0, studentFeePlan.total - (studentFeePlan.paid + Number(amount)))
     };
   };
 
@@ -678,12 +758,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Notification sent successfully!');
   };
 
+  const addSupportTicket = (subject: string, description: string, priority: 'Low' | 'Medium' | 'High' | 'Critical', tenantName: string) => {
+    const newTicket: SupportTicket = {
+      id: `TKT-${Math.floor(100 + Math.random() * 900)}`,
+      tenantName,
+      subject,
+      priority,
+      status: 'Open',
+      created: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      replies: [
+        {
+          sender: currentUser?.name || 'Operator',
+          text: description,
+          time: new Date().toISOString().replace('T', ' ').substring(0, 19)
+        }
+      ],
+      description
+    };
+    setTickets(prev => [newTicket, ...prev]);
+    logAction('RAISE_TICKET', `Raised ticket regarding: ${subject}`);
+    addToast('Support ticket raised successfully!', 'success');
+  };
+
+  const replyToSupportTicket = (ticketId: string, replyText: string, senderName: string) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        const isStaff = currentUser?.role === 'saas-admin';
+        return {
+          ...t,
+          status: isStaff ? 'In Progress' : t.status,
+          replies: [
+            ...t.replies,
+            {
+              sender: senderName,
+              text: replyText,
+              time: new Date().toISOString().replace('T', ' ').substring(0, 19)
+            }
+          ]
+        };
+      }
+      return t;
+    }));
+    logAction('REPLY_TICKET', `Replied to ticket: ${ticketId}`);
+    addToast('Response sent.');
+  };
+
+  const resolveSupportTicket = (ticketId: string) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        return { ...t, status: 'Resolved' };
+      }
+      return t;
+    }));
+    logAction('RESOLVE_TICKET', `Resolved ticket: ${ticketId}`);
+    addToast(`Ticket resolved successfully!`, 'success');
+  };
+
   const enrichedStudents = useMemo(() => {
     return students.map(s => {
-      if (!s.enrollmentIds || s.enrollmentIds.length === 0) return s;
+      const baseFeePlan = s.feePlan || { total: 0, paid: 0, pending: 0 };
+      if (!s.enrollmentIds || s.enrollmentIds.length === 0) {
+        return {
+          ...s,
+          feePlan: baseFeePlan
+        };
+      }
       const studentEnrollments = enrollments.filter(e => s.enrollmentIds.includes(e.id));
       const mainEnrollment = studentEnrollments.find(e => e.status === 'Active') || studentEnrollments[0];
-      if (!mainEnrollment) return s;
+      if (!mainEnrollment) {
+        return {
+          ...s,
+          feePlan: baseFeePlan
+        };
+      }
       
       const feeRec = feeRecords.find(f => f.enrollmentId === mainEnrollment.id);
       
@@ -697,7 +844,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           total: feeRec.netFee,
           paid: feeRec.downpayment,
           pending: feeRec.netFee - feeRec.downpayment
-        } : s.feePlan
+        } : baseFeePlan
       };
     });
   }, [students, enrollments, feeRecords]);
@@ -705,7 +852,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       currentUser,
-      setCurrentUser,
+      logout,
       tenants,
       leads,
       students: enrichedStudents,
@@ -725,8 +872,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignments,
       setExams,
       setAssignments,
-      login,
-      logout,
       addTenant,
       updateTenant,
       toggleTenantStatus,
@@ -744,6 +889,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateAttendance,
       updateExamMarks,
       approveStudentRegistration,
+      allocateBatch,
       addCourse,
       updateCourse,
       addBatch,
@@ -761,7 +907,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToast,
       notifications,
       markNotificationRead,
-      sendNotification
+      sendNotification,
+      tickets,
+      addSupportTicket,
+      replyToSupportTicket,
+      resolveSupportTicket
     }}>
       {children}
     </AppContext.Provider>
@@ -776,11 +926,4 @@ export const useApp = () => {
   return context;
 };
 
-const roleLabels: Record<Role, string> = {
-  'saas-admin': 'SaaS Super Admin',
-  'inst-admin': 'Institute Admin',
-  'branch-admin': 'Branch Admin',
-  'counsellor': 'Counsellor / Admissions',
-  'teacher': 'Teacher / Faculty',
-  'finance': 'Finance Staff'
-};
+

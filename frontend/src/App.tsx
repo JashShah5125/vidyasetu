@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { FeeConfigProvider } from './context/FeeConfigContext';
 import { SchedulerProvider } from './features/scheduler/context/SchedulerContext';
 import { Layout } from './components/layout/Layout';
@@ -283,7 +284,7 @@ const TenantDetailsWrapper = () => {
 };
 
 const ContentRouter = () => {
-  const { currentUser } = useApp();
+  const { currentUser } = useAuth();
   const isTeacher = currentUser?.role === 'teacher';
 
   return (
@@ -351,7 +352,7 @@ const ContentRouter = () => {
 };
 
 const MainContent: React.FC = () => {
-  const { currentUser } = useApp();
+  const { currentUser } = useAuth();
 
   if (!currentUser) {
     return (
@@ -373,7 +374,33 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      const scrollContainers = document.querySelectorAll('.overflow-y-auto');
+      scrollContainers.forEach(container => {
+        if (container.closest('aside') || container.closest('.bg-slate-900')) {
+          return;
+        }
+        container.scrollTop = 0;
+      });
+      const mainContainer = document.getElementById('main-scroll-container');
+      if (mainContainer) {
+        mainContainer.scrollTop = 0;
+      }
+      const mainTags = document.getElementsByTagName('main');
+      for (let i = 0; i < mainTags.length; i++) {
+        mainTags[i].scrollTop = 0;
+      }
+    };
+
+    resetScroll();
+    const animId = requestAnimationFrame(resetScroll);
+    const timeoutId = setTimeout(resetScroll, 50);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      clearTimeout(timeoutId);
+    };
   }, [pathname]);
 
   useEffect(() => {
@@ -579,14 +606,16 @@ const ScrollToTop = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <FeeConfigProvider>
-        <SchedulerProvider>
-          <ScrollToTop />
-          <MainContent />
-        </SchedulerProvider>
-      </FeeConfigProvider>
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <FeeConfigProvider>
+          <SchedulerProvider>
+            <ScrollToTop />
+            <MainContent />
+          </SchedulerProvider>
+        </FeeConfigProvider>
+      </AppProvider>
+    </AuthProvider>
   );
 }
 
