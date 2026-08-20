@@ -110,7 +110,6 @@ export const ExpenseVoucher: React.FC = () => {
             <FileText size={20} className="text-blue-100" />
             <span className="font-semibold text-sm uppercase tracking-wider font-mono">Accounting Entry Form</span>
           </div>
-          <span className="text-xs font-bold font-mono opacity-80">Voucher Entry Mode</span>
         </div>
 
         <form onSubmit={handleSave} className="p-6 space-y-6">

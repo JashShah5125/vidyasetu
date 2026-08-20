@@ -23,7 +23,10 @@ export const BranchDetail: React.FC = () => {
   const { branches, setBranches, courses, addToast, currentUser } = useApp();
   
   const isNew = id === 'new';
-  const isReadOnly = currentUser?.role === 'branch-admin';
+  const existingBranch = branches.find(b => b.id === id || b.code === id);
+  const isReadOnly = currentUser?.role === 'branch-admin'
+    ? (existingBranch ? existingBranch.name !== currentUser.branch : true)
+    : false;
 
   useEffect(() => {
     if (currentUser?.role === 'branch-admin' && isNew) {
@@ -31,8 +34,6 @@ export const BranchDetail: React.FC = () => {
       navigate('/branches');
     }
   }, [currentUser, isNew, navigate, addToast]);
-
-  const existingBranch = branches.find(b => b.id === id || b.code === id);
 
   const [activeTab, setActiveTab] = useState<'general' | 'admin' | 'courses' | 'operations'>('general');
 

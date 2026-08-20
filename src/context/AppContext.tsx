@@ -155,7 +155,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem('vs_students');
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.length < INITIAL_STUDENTS.length) {
+        return INITIAL_STUDENTS;
+      }
+      return parsed;
+    }
+    return INITIAL_STUDENTS;
   });
   const [parents, setParents] = useState<Parent[]>(() => {
     const saved = localStorage.getItem('vs_parents');

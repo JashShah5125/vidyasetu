@@ -9,6 +9,7 @@ import type { Voucher } from '../utils/expenseService';
 import { Search, Download, Printer, Filter, Calendar, FileText, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { Pagination } from '../components/ui/Pagination';
 
 export const ExpenseLedger: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +28,10 @@ export const ExpenseLedger: React.FC = () => {
   const [category, setCategory] = useState('All');
   const [paymentMethod, setPaymentMethod] = useState('All');
   const [status, setStatus] = useState('All');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const branchScopedVouchers = useMemo(() => {
     const userBranch = currentUser?.branch || 'Mumbai West';
@@ -69,6 +74,16 @@ export const ExpenseLedger: React.FC = () => {
     });
   }, [branchScopedVouchers, search, startDate, endDate, category, paymentMethod, status]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, startDate, endDate, category, paymentMethod, status]);
+
+  const totalPages = Math.ceil(filteredVouchers.length / itemsPerPage);
+  const paginatedVouchers = useMemo(() => {
+    return filteredVouchers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredVouchers, currentPage]);
+
   // Compute total sum of debits (outflows) and credits (inflows) in filtered list
   const totalDebit = useMemo(() => {
     return filteredVouchers
@@ -86,81 +101,81 @@ export const ExpenseLedger: React.FC = () => {
     window.print();
   };
 
-const handleExportCSV = () => {
-  const headers = [
-    'Voucher ID',
-    'Date',
-    'Type',
-    'Category',
-    'Description',
-    'Amount',
-    'Direction',
-    'Paid To / From',
-    'Payment Method',
-    'Ref No',
-    'Status'
-  ];
+  const handleExportCSV = () => {
+    const headers = [
+      'Voucher ID',
+      'Date',
+      'Type',
+      'Category',
+      'Description',
+      'Amount',
+      'Direction',
+      'Paid To / From',
+      'Payment Method',
+      'Ref No',
+      'Status'
+    ];
 
-  const rows = filteredVouchers.map(v => [
-    v.id,
-    v.date,
-    v.type,
-    v.category,
-    v.description,
-    v.amount,
-    v.direction,
-    v.paidTo,
-    v.paymentMethod,
-    v.referenceNo,
-    v.status
-  ]);
+    const rows = filteredVouchers.map(v => [
+      v.id,
+      v.date,
+      v.type,
+      v.category,
+      v.description,
+      v.amount,
+      v.direction,
+      v.paidTo,
+      v.paymentMethod,
+      v.referenceNo,
+      v.status
+    ]);
 
-  // Calculate totals
-  const totalDebit = filteredVouchers
-    .filter(v => v.direction === 'Debit')
-    .reduce((acc, v) => acc + v.amount, 0);
+    // Calculate totals
+    const totalDebitVal = filteredVouchers
+      .filter(v => v.direction === 'Debit')
+      .reduce((acc, v) => acc + v.amount, 0);
 
-  const totalCredit = filteredVouchers
-    .filter(v => v.direction === 'Credit')
-    .reduce((acc, v) => acc + v.amount, 0);
+    const totalCreditVal = filteredVouchers
+      .filter(v => v.direction === 'Credit')
+      .reduce((acc, v) => acc + v.amount, 0);
 
-  // Net = Credit - Debit
-  const net = totalCredit - totalDebit;
+    // Net = Credit - Debit
+    const net = totalCreditVal - totalDebitVal;
 
-  // Add summary rows
-  const summaryRows = [
-    [],
-    ['SUMMARY'],
-    ['Total Debit', totalDebit],
-    ['Total Credit', totalCredit],
-    ['Net', net]
-  ];
+    // Add summary rows
+    const summaryRows = [
+      [],
+      ['SUMMARY'],
+      ['Total Debit', totalDebitVal],
+      ['Total Credit', totalCreditVal],
+      ['Net', net]
+    ];
 
-  const csvContent =
-    "data:text/csv;charset=utf-8," +
-    [
-      headers.join(','),
-      ...rows.map(row =>
-        row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
-      ),
-      ...summaryRows.map(row =>
-        row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
-      )
-    ].join('\n');
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [
+        headers.join(','),
+        ...rows.map(row =>
+          row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
+        ),
+        ...summaryRows.map(row =>
+          row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
+        )
+      ].join('\n');
 
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
 
-  link.setAttribute("href", encodedUri);
-  link.setAttribute(
-    "download",
-    `VidyaSetu_Ledger_Export_${new Date().toISOString().split('T')[0]}.csv`
-  );
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `VidyaSetu_Ledger_Export_${new Date().toISOString().split('T')[0]}.csv`
+    );
 
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in print:p-0">
@@ -253,19 +268,19 @@ const handleExportCSV = () => {
             General Ledger Registry Logs
           </CardTitle>
           <span className="text-xs font-mono font-bold text-slate-500 print:hidden">
-            Showing {filteredVouchers.length} vouchers
+            Showing {filteredVouchers.length === 0 ? 0 : `${(currentPage - 1) * itemsPerPage + 1} - ${Math.min(currentPage * itemsPerPage, filteredVouchers.length)}`} of {filteredVouchers.length} vouchers
           </span>
         </CardHeader>
 
         <Table headers={['Date', 'Voucher ID', 'Category', 'Description', 'Paid To / From', 'Method', 'Debit (Outflow)', 'Credit (Inflow)', 'Status']}>
-          {filteredVouchers.length === 0 ? (
+          {paginatedVouchers.length === 0 ? (
             <tr>
               <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-medium">
                 No matching voucher entries found in the ledger.
               </td>
             </tr>
           ) : (
-            filteredVouchers.map((v, idx) => (
+            paginatedVouchers.map((v, idx) => (
               <tr key={idx} className="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
                 <td className="px-6 py-4 text-xs font-semibold text-slate-600 font-mono whitespace-nowrap">{v.date}</td>
                 <td className="px-6 py-4 text-xs font-bold text-blue-600 font-mono tracking-tight">{v.id}</td>
@@ -295,18 +310,27 @@ const handleExportCSV = () => {
           )}
         </Table>
 
-        <div className="bg-slate-100/50 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs font-semibold text-slate-500 border-t border-slate-200">
-          <div>
-            Showing <span className="text-slate-800 font-bold">{filteredVouchers.length}</span> ledger vouchers
+        {filteredVouchers.length > itemsPerPage && (
+          <div className="p-4 border-t border-slate-100 bg-white">
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredVouchers.length}
+              pageSize={itemsPerPage}
+              onPageChange={setCurrentPage}
+            />
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
-              <span>Total Outflow: <strong className="text-red-700 font-mono">₹{totalDebit.toLocaleString()}</strong></span>
+        )}
+
+        <div className="bg-slate-100/50 px-6 py-4 flex justify-end gap-6 text-sm font-semibold border-t border-slate-200">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              <span>Total Outflow: <strong className="text-red-700 font-mono text-base md:text-lg">₹{totalDebit.toLocaleString()}</strong></span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
-              <span>Total Inflow: <strong className="text-emerald-700 font-mono">₹{totalCredit.toLocaleString()}</strong></span>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+              <span>Total Inflow: <strong className="text-emerald-700 font-mono text-base md:text-lg">₹{totalCredit.toLocaleString()}</strong></span>
             </div>
           </div>
         </div>

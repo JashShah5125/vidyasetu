@@ -29,6 +29,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   const [batch, setBatch] = useState(navState?.batch || '');
   const [staffFilterRole, setStaffFilterRole] = useState('All');
   const [date, setDate] = useState(navState?.date || new Date().toISOString().split('T')[0]);
+  const [filterAttendanceStatus, setFilterAttendanceStatus] = useState('All');
 
   // Selected person for history view
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
@@ -69,18 +70,64 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     const matchBranch = !branch || s.branch === branch;
     const matchCourse = !course || s.course === course;
     const matchBatch = !batch || s.batch === batch;
-    return matchBranch && matchCourse && matchBatch;
+    
+    const status = records[s.id];
+    const matchStatus = filterAttendanceStatus === 'All' 
+      ? true 
+      : filterAttendanceStatus === 'Unmarked' 
+        ? !status 
+        : status === filterAttendanceStatus;
+
+    return matchBranch && matchCourse && matchBatch && matchStatus;
   });
 
   const filteredStaff = staff.filter(m => {
     const matchBranch = !branch || m.branch === branch;
     const matchRole = staffFilterRole === 'All' || m.role === staffFilterRole;
-    return matchBranch && matchRole;
+    
+    const status = staffRecords[m.email];
+    const matchStatus = filterAttendanceStatus === 'All' 
+      ? true 
+      : filterAttendanceStatus === 'Unmarked' 
+        ? !status 
+        : status === filterAttendanceStatus;
+
+    return matchBranch && matchRole && matchStatus;
   });
 
   const activeList = attendanceType === 'students' ? filteredStudents : filteredStaff;
   const totalPages = Math.ceil(activeList.length / itemsPerPage);
   const paginatedItems = activeList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleExportCSV = () => {
+    const isStudent = attendanceType === 'students';
+    const headers = isStudent 
+      ? ['Student ID', 'Student Name', 'Branch', 'Course', 'Batch', 'Date', 'Status']
+      : ['Employee ID', 'Employee Name', 'Role', 'Branch', 'Email', 'Date', 'Status'];
+
+    const rows = activeList.map(person => {
+      const p = person as any;
+      if (isStudent) {
+        const id = p.id || '';
+        const status = records[id] || 'Not Marked';
+        return [p.studentId || '', p.name || '', p.branch || '', p.course || '', p.batch || '', date, status];
+      } else {
+        const emailKey = p.email || '';
+        const status = staffRecords[emailKey] || 'Not Marked';
+        return [p.employeeId || 'N/A', p.name || '', p.role || '', p.branch || '', p.email || '', date, status];
+      }
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `attendance_${attendanceType}_${date}_${filterAttendanceStatus.toLowerCase()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   React.useEffect(() => {
     setSubTab(initialTab);
@@ -296,7 +343,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
           </div>
 
           {/* Selectors grid */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${attendanceType === 'students' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${attendanceType === 'students' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm`}>
             <Select 
               label="Branch" 
               value={branch} 
@@ -352,6 +399,19 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
               value={date} 
               onChange={(e) => setDate(e.target.value)} 
             />
+
+            <Select 
+              label="Attendance Status" 
+              value={filterAttendanceStatus} 
+              onChange={(e) => setFilterAttendanceStatus(e.target.value)} 
+              options={[
+                { value: 'All', label: 'All Statuses' },
+                { value: 'Present', label: 'Present Only' },
+                { value: 'Absent', label: 'Absent Only' },
+                { value: 'Late', label: 'Late Only' },
+                { value: 'Unmarked', label: 'Not Marked Only' }
+              ]}
+            />
           </div>
 
           <Card>
@@ -359,6 +419,11 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
               <CardTitle>
                 {attendanceType === 'students' ? 'Student Attendance Sheet' : 'Teacher & Staff Attendance Sheet'}
               </CardTitle>
+              {activeList.length > 0 && (
+                <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
+                  <Download size={14} /> Export CSV
+                </Button>
+              )}
             </CardHeader>
             <div className="divide-y divide-slate-100">
               {activeList.length === 0 ? (
