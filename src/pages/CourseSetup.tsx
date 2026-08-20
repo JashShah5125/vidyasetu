@@ -73,13 +73,15 @@ export const CourseSetup: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => navigate('/courses/new')}
-            style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-          >
-            <Plus size={16} className="mr-2" /> Add New Course
-          </Button>
+          {currentUser?.role !== 'branch-admin' && (
+            <Button
+              variant="primary"
+              onClick={() => navigate('/courses/new')}
+              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+            >
+              <Plus size={16} className="mr-2" /> Add New Course
+            </Button>
+          )}
         </div>
       </div>
 

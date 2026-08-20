@@ -50,7 +50,10 @@ export const LectureScheduler = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filters State (derived from URL Search Params)
-  const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch : '';
+  const initialBranchName = currentUser?.role === 'branch-admin' ? currentUser.branch : '';
+  const initialBranch = initialBranchName 
+    ? (branches.find(b => b.name === initialBranchName || b.code === initialBranchName)?.code || '') 
+    : '';
   const branch = searchParams.get('branch') || initialBranch || '';
   const course = searchParams.get('course') || '';
   const program = searchParams.get('program') || '';
