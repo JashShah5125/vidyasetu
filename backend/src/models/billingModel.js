@@ -56,14 +56,16 @@ const getInvoices = async (limit = 10, offset = 0, search = '', status = '') => 
 const getBillingSummary = async () => {
     const query = `
         SELECT 
-            SUM(CASE WHEN ts.status = 'active' AND ts.billing_cycle = 'monthly' THEN sp.price_monthly
-                     WHEN ts.status = 'active' AND ts.billing_cycle = 'annual' THEN sp.price_annual / 12
+            SUM(CASE WHEN ts.status = 'active' THEN 
+                        (CASE WHEN pb.billing_type = 'Monthly' THEN pb.price
+                              WHEN pb.billing_type = 'Yearly' THEN pb.price / 12
+                              ELSE pb.price END)
                      ELSE 0 END) as mrr,
             SUM(CASE WHEN i.status IN ('unpaid', 'overdue') THEN i.total_amount ELSE 0 END) as outstanding,
             SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END) as total_paid
         FROM tenants t
-        LEFT JOIN tenant_subscriptions ts ON t.id = ts.tenant_id
-        LEFT JOIN subscription_plans sp ON ts.plan_id = sp.id
+        LEFT JOIN tenant_subscriptions ts ON t.id = ts.tenant_id AND ts.status = 'active'
+        LEFT JOIN plan_billing pb ON ts.plan_id = pb.plan_id
         LEFT JOIN saas_invoices i ON t.id = i.tenant_id
         WHERE t.tenant_type = 'customer'
     `;

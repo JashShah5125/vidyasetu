@@ -93,7 +93,7 @@ const refresh = async (req, res) => {
 
         // Check if the token exists in Redis
         const userId = await redisClient.get(`session:${refreshToken}`);
-        if (!userId || userId !== decoded.userId) {
+        if (!userId || String(userId) !== String(decoded.userId)) {
             return res.status(401).json({ status: 'error', message: 'Session expired or invalid' });
         }
 

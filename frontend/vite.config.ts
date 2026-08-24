@@ -65,7 +65,7 @@ export default defineConfig({
       ignored: ['**/src/data/leads.json', '**/src/data/students.json', '**/server/db.json']
     },
     proxy: {
-      '/api/auth': {
+      '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true
       }

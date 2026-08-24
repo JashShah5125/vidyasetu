@@ -24,8 +24,8 @@ const createTenantWithAdmin = async (tenantData) => {
 
         // 2. Create Tenant Profile
         await connection.query(
-            'INSERT INTO tenant_profiles (tenant_id, legal_name, contact_email) VALUES (?, ?, ?)',
-            [tenantId, legal_name || name, adminEmail]
+            'INSERT INTO tenant_profiles (tenant_id, owner_name, owner_email, owner_mobile) VALUES (?, ?, ?, ?)',
+            [tenantId, legal_name || name, adminEmail, '']
         );
 
         // 3. Create Admin User

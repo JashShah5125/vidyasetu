@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { planService } from '../services/planService';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft } from 'lucide-react';
+import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft, Check, Trash2 } from 'lucide-react';
 import type { SubscriptionPlan, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../types/saas';
 import {
   DEFAULT_FEATURES, DEFAULT_SUPPORT, DEFAULT_BRANDING, DEFAULT_INTEGRATIONS
@@ -32,11 +33,13 @@ const ToggleRow: React.FC<{
   </div>
 );
 
-// ─── Section heading ────────────────────────────────────────────────────────
 const SectionHead: React.FC<{ n: string; title: string }> = ({ n, title }) => (
-  <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 select-none mb-4">
-    <span className="opacity-60">{n}.</span> {title}
-  </h4>
+  <div className="mb-8 border-b border-slate-100 pb-4">
+    <h4 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm">{n}</span>
+      {title}
+    </h4>
+  </div>
 );
 
 // ─── Feature group ──────────────────────────────────────────────────────────
@@ -61,11 +64,20 @@ export const SubscriptionPlans: React.FC = () => {
   const { tenants, addToast } = useApp();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('Active');
 
-  const loadPlans = async () => {
+  const loadPlans = async (filter: string = statusFilter) => {
     try {
       setLoading(true);
-      const data = await planService.getPlans();
+      
+      let statusesToFetch: string[] = [];
+      if (filter === 'All') {
+        statusesToFetch = ['Active', 'Inactive', 'Deleted'];
+      } else {
+        statusesToFetch = [filter];
+      }
+
+      const data = await planService.getPlans(statusesToFetch);
       if (data && data.data) setPlans(data.data);
     } catch (e) {
       addToast('Failed to load plans', 'error');
@@ -75,8 +87,8 @@ export const SubscriptionPlans: React.FC = () => {
   };
 
   useEffect(() => {
-    loadPlans();
-  }, []);
+    loadPlans(statusFilter);
+  }, [statusFilter]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -86,8 +98,6 @@ export const SubscriptionPlans: React.FC = () => {
   const [managingVisibilityPlan, setManagingVisibilityPlan] = useState<SubscriptionPlan | null>(null);
   const [visAll, setVisAll] = useState(true);
   const [visTenants, setVisTenants] = useState<string[]>([]);
-  const [instituteFilter, setInstituteFilter] = useState('all');
-
   // Section 1
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -124,12 +134,39 @@ export const SubscriptionPlans: React.FC = () => {
 
   // Section 8
   const [notes, setNotes] = useState('');
+  
+  const topRef = React.useRef<HTMLDivElement>(null);
+
 
   // View
+  const [searchParams, setSearchParams] = useSearchParams();
   const [viewingPlan, setViewingPlan] = useState<SubscriptionPlan | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+
+  useEffect(() => {
+    if (showAddModal || showViewModal) {
+      setTimeout(() => {
+        topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  }, [showAddModal, showViewModal]);
+  const [activeViewTab, setActiveViewTab] = useState<'overview' | 'features' | 'config' | 'notes'>('overview');
   const [successMsg, setSuccessMsg] = useState('');
   const [expandedPlans, setExpandedPlans] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const viewId = searchParams.get('view');
+    if (viewId && plans.length > 0) {
+      const plan = plans.find(p => p.id === parseInt(viewId));
+      if (plan) {
+        setViewingPlan(plan);
+        setShowViewModal(true);
+      }
+    } else {
+      setShowViewModal(false);
+      setViewingPlan(null);
+    }
+  }, [searchParams, plans]);
 
   const resetForm = () => {
     setCurrentStep(0);
@@ -243,11 +280,11 @@ export const SubscriptionPlans: React.FC = () => {
 
   const handleDeletePlan = async (id: string, planName: string) => {
     try {
-      await planService.updatePlanStatus(id, 0); // Assuming 0 is inactive
-      addToast(`Plan "${planName}" deactivated successfully.`, 'success');
+      await planService.deletePlan(id);
+      addToast(`Plan "${planName}" deleted successfully.`, 'success');
       loadPlans();
     } catch (err) {
-      addToast('Error deactivating plan', 'error');
+      addToast('Error deleting plan', 'error');
     }
   };
 
@@ -461,55 +498,100 @@ export const SubscriptionPlans: React.FC = () => {
   // ─── Render ────────────────────────────────────────────────────────────────
   if (showAddModal) {
     return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
+      <div ref={topRef} className="space-y-8 w-full animate-fade-in pb-12">
+        {/* Header */}
+        <div className="flex items-center gap-5 mb-2">
           <button
             onClick={() => setShowAddModal(false)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer animate-fade-in"
+            className="flex items-center justify-center h-12 w-12 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all shadow-sm cursor-pointer hover:-translate-x-1"
           >
-            <ArrowLeft size={26} />
+            <ArrowLeft size={24} strokeWidth={2.5} />
           </button>
           <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
               {editingPlanId ? `Edit Plan: ${name}` : 'Create New Plan'}
             </h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-base text-slate-500 font-medium mt-1">
               Configure parameters, allowed features, support tier, branding, and billing terms.
             </p>
           </div>
         </div>
 
-        <div className="w-full">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-0">
-            {/* Step indicator */}
-            <div className="flex gap-1 flex-wrap mb-6">
-              {STEPS.map((s, i) => (
-                <button key={i} type="button" onClick={() => setCurrentStep(i)}
-                  className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full transition-all ${currentStep === i
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : i < currentStep ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                  {i + 1}. {s}
-                </button>
-              ))}
+        <div className="w-full relative">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-10">
+            
+            {/* Elegant Horizontal Stepper */}
+            <div className="relative flex justify-between items-center px-4">
+              {/* Background Line */}
+              <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-slate-100 z-0 rounded-full"></div>
+              {/* Progress Line */}
+              <div 
+                className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-indigo-600 z-0 rounded-full transition-all duration-500 ease-in-out"
+                style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }}
+              ></div>
+              
+              {/* Steps */}
+              {STEPS.map((s, i) => {
+                const isActive = currentStep === i;
+                const isCompleted = i < currentStep;
+                
+                return (
+                  <div key={i} className="relative z-10 flex flex-col items-center group cursor-pointer" onClick={() => setCurrentStep(i)}>
+                    <div 
+                      className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 font-bold text-sm outline-none
+                        ${isActive 
+                          ? 'bg-indigo-600 text-white shadow-[0_0_0_4px_rgba(79,70,229,0.15)] ring-2 ring-white scale-110' 
+                          : isCompleted 
+                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 ring-2 ring-white' 
+                            : 'bg-white border-[3px] border-slate-100 text-slate-400 group-hover:border-slate-300 group-hover:text-slate-500 ring-2 ring-white'
+                        }`}
+                    >
+                      {isCompleted ? <Check size={18} strokeWidth={3} /> : (i + 1)}
+                    </div>
+                    <span className={`absolute -bottom-8 text-[11px] font-bold uppercase tracking-wider transition-colors whitespace-nowrap
+                      ${isActive ? 'text-indigo-700' : isCompleted ? 'text-slate-600' : 'text-slate-400'}`}>
+                      {s}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="min-h-[340px]">
-              {renderStep()}
+            {/* Elevated Form Card */}
+            <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 p-8 md:p-10 min-h-[400px] transition-all duration-300">
+              <div className="animate-fade-in">
+                {renderStep()}
+              </div>
             </div>
 
-            {/* Navigation */}
-            <div className="flex justify-between items-center pt-5 mt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => currentStep > 0 ? setCurrentStep(c => c - 1) : setShowAddModal(false)}>
-                {currentStep > 0 ? <><ChevronLeft size={14} /> Back</> : 'Cancel'}
-              </Button>
+            {/* Navigation Buttons */}
+            <div className="flex justify-between items-center">
+              <button 
+                type="button" 
+                className={`px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 flex items-center gap-2
+                  ${currentStep > 0 
+                    ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-white border border-slate-200 shadow-sm' 
+                    : 'text-slate-400 bg-transparent hover:bg-slate-50'}`}
+                onClick={() => currentStep > 0 ? setCurrentStep(c => c - 1) : setShowAddModal(false)}
+              >
+                {currentStep > 0 ? <><ChevronLeft size={18} /> Back</> : 'Cancel'}
+              </button>
+              
               {currentStep < STEPS.length - 1 ? (
-                <Button type="button" variant="primary" onClick={() => setCurrentStep(c => c + 1)} style={{ gap: '4px' }}>
-                  Next <ChevronRight size={14} />
-                </Button>
+                <button 
+                  type="button" 
+                  className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all duration-200 flex items-center gap-2 hover:-translate-y-[1px]"
+                  onClick={() => setCurrentStep(c => c + 1)}
+                >
+                  Next Step <ChevronRight size={18} />
+                </button>
               ) : (
-                <Button type="submit" variant="primary">
-                  {editingPlanId ? 'Save Changes' : 'Create Plan'}
-                </Button>
+                <button 
+                  type="submit" 
+                  className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all duration-200 flex items-center gap-2 hover:-translate-y-[1px]"
+                >
+                  {editingPlanId ? 'Save Changes' : 'Create Plan'} <Check size={18} />
+                </button>
               )}
             </div>
           </form>
@@ -520,246 +602,290 @@ export const SubscriptionPlans: React.FC = () => {
 
   if (showViewModal && viewingPlan) {
     return (
-      <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
+      <div ref={topRef} className="space-y-6 w-full animate-fade-in">
+        <div className="relative pl-[72px] mb-2">
           <button 
-            onClick={() => { setShowViewModal(false); setViewingPlan(null); }}
-            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+            onClick={() => {
+              searchParams.delete('view');
+              setSearchParams(searchParams);
+            }}
+            className="absolute left-0 top-1.5 p-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={22} />
           </button>
           <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Plan Details</h2>
-            <p className="text-sm text-slate-500 mt-1">Review system resources, limits, and module configurations for {viewingPlan.name}</p>
+            <h2 className="text-4xl font-display font-extrabold text-slate-900 tracking-tight">Plan Details</h2>
+            <p className="text-base text-slate-500 mt-2">Review system resources, limits, and module configurations for <strong>{viewingPlan.name}</strong></p>
           </div>
         </div>
 
-        <div className="space-y-6 flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
             {/* ── Hero header ── */}
-            <div className={`flex flex-col sm:flex-row sm:items-center gap-4 p-5 rounded-2xl ${viewingPlan.status === 'Active' ? 'bg-gradient-to-r from-blue-600 to-blue-700' : 'bg-gradient-to-r from-slate-600 to-slate-700'} text-white`}>
-              <div className="w-14 h-14 rounded-2xl bg-white/20 font-extrabold flex items-center justify-center text-xl uppercase flex-shrink-0">
-                {viewingPlan.name.substring(0, 2)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-xl font-extrabold">{viewingPlan.name}</h3>
-                  <span className="text-xs font-bold font-mono bg-white/20 px-2 py-0.5 rounded">{viewingPlan.code}</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${viewingPlan.status === 'Active' ? 'bg-white/20 text-white' : 'bg-white/10 text-white/70'}`}>{viewingPlan.status}</span>
+            <div className="pl-[72px] pr-8 py-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-3xl font-extrabold text-slate-900">{viewingPlan.name}</h3>
+                  <span className="text-sm font-bold font-mono bg-slate-100 text-slate-600 px-2.5 py-1 rounded">{viewingPlan.code}</span>
+                  <span className={`text-sm font-bold px-3 py-1 rounded-full ${viewingPlan.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>{viewingPlan.status}</span>
                 </div>
-                <p className="text-sm opacity-75 mt-1">{viewingPlan.description}</p>
+                <p className="text-base text-slate-500">{viewingPlan.description}</p>
               </div>
-              <div className="text-left sm:text-right flex-shrink-0">
-                <div className="text-3xl font-extrabold">
+              <div className="flex flex-col items-start md:items-end gap-1">
+                <div className="text-4xl font-extrabold text-slate-900">
                   {viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${viewingPlan.price.toLocaleString()}`}
+                  <span className="text-lg text-slate-500 font-semibold ml-1">/ {viewingPlan.billingType.toLowerCase()}</span>
                 </div>
-                <div className="text-xs opacity-75 mt-0.5">
-                  per {viewingPlan.billingType.toLowerCase()} · Order #{viewingPlan.displayOrder}
+                <div className="flex items-center gap-3 mt-3">
+                  <button 
+                    onClick={async () => {
+                      if (window.confirm('Are you sure you want to delete this plan? Historical data will be preserved, but it will be removed from the active catalog.')) {
+                        try {
+                          await planService.deletePlan(viewingPlan.id.toString());
+                          setSuccessMsg('Plan soft deleted successfully');
+                          setTimeout(() => setSuccessMsg(''), 3000);
+                          searchParams.delete('view'); 
+                          setSearchParams(searchParams); 
+                          loadPlans();
+                        } catch (err) {
+                          alert('Failed to delete plan');
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg transition-colors shadow-sm"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                  <Button variant="secondary" onClick={() => { 
+                    searchParams.delete('view'); 
+                    setSearchParams(searchParams); 
+                  }}>Back to Plans</Button>
+                  <Button variant="primary" style={{ gap: '6px' }} onClick={() => { 
+                    searchParams.delete('view'); 
+                    setSearchParams(searchParams); 
+                    handleOpenEditModal(viewingPlan); 
+                  }}>
+                    <Edit size={14} /> Edit Plan
+                  </Button>
                 </div>
               </div>
             </div>
 
-            {/* ── Section 02: Billing ── */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">02 · Billing</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: 'Billing Type', val: viewingPlan.billingType },
-                  { label: 'Price', val: viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency} ${viewingPlan.price.toLocaleString()}` },
-                  { label: 'Trial Days', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
-                  { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
-                  { label: 'Renewal Price', val: viewingPlan.renewalPrice > 0 ? `${viewingPlan.currency} ${viewingPlan.renewalPrice.toLocaleString()}` : '—' },
-                  { label: 'Currency', val: viewingPlan.currency },
-                  { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
-                ].map(({ label, val }) => (
-                  <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                    <span className="text-[10px] text-slate-400 font-bold block uppercase">{label}</span>
-                    <span className="text-sm font-semibold text-slate-800 block mt-0.5">{val}</span>
-                  </div>
-                ))}
-              </div>
+            {/* ── Tabs Navigation ── */}
+            <div className="flex items-center gap-10 pl-[72px] pr-8 border-b border-slate-100 bg-slate-50/50">
+              {[
+                { id: 'overview', label: 'Overview' },
+                { id: 'features', label: 'Feature Access' },
+                { id: 'config', label: 'Configuration' },
+                ...(viewingPlan.notes ? [{ id: 'notes', label: 'Internal Notes' }] : [])
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveViewTab(tab.id as any)}
+                  className={`py-5 text-[17px] font-bold border-b-2 transition-colors ${activeViewTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            {/* ── Section 03: Resource Limits ── */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">03 · Resource Limits</p>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {[
-                  { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
-                  { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
-                  { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
-                  { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },
-                  { label: 'Parents', val: displayLimit(viewingPlan.maxParents) },
-                  { label: 'Teachers', val: displayLimit(viewingPlan.maxTeachers) },
-                  { label: 'Storage', val: viewingPlan.maxStorage },
-                  { label: 'File Size', val: viewingPlan.maxFileSize },
-                  { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
-                  { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
-                ].map(({ label, val }) => (
-                  <div key={label} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase">{label}</span>
-                    <span className={`text-sm font-bold block mt-0.5 ${val === 'Unlimited' ? 'text-emerald-600' : 'text-slate-800'}`}>{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* ── Tab Content ── */}
+            <div className="pl-[72px] pr-8 py-8">
+              {/* Overview Tab */}
+              {activeViewTab === 'overview' && (
+                <div className="space-y-10 animate-fade-in">
+                  {/* Billing Details */}
+                  <section>
+                    <h4 className="text-lg font-bold text-slate-900 mb-4">Billing & Terms</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
+                        { label: 'Renewal Price', val: viewingPlan.renewalPrice > 0 ? `${viewingPlan.currency} ${viewingPlan.renewalPrice.toLocaleString()}` : '—' },
+                        { label: 'Trial Period', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
+                        { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
+                      ].map(({ label, val }) => (
+                        <div key={label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-4 py-3">
+                          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</div>
+                          <div className="text-lg font-bold text-slate-800">{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
 
-            {/* ── Section 04: Feature Access (grouped) ── */}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">04 · Feature Access</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {([
-                  {
-                    group: 'Core ERP',
-                    items: [
-                      { key: 'admissions', label: 'Admissions' }, { key: 'studentManagement', label: 'Student Management' },
-                      { key: 'parentPortal', label: 'Parent Portal' }, { key: 'teacherPortal', label: 'Teacher Portal' },
-                      { key: 'attendance', label: 'Attendance' }, { key: 'timetable', label: 'Timetable' },
-                    ]
-                  },
-                  {
-                    group: 'Academic',
-                    items: [
-                      { key: 'assignments', label: 'Assignments' }, { key: 'exams', label: 'Exams' },
-                      { key: 'results', label: 'Results' }, { key: 'doubts', label: 'Doubts & Q&A' },
-                    ]
-                  },
-                  {
-                    group: 'Finance',
-                    items: [
-                      { key: 'fees', label: 'Fees' }, { key: 'payroll', label: 'Payroll' },
-                      { key: 'income', label: 'Income Tracker' }, { key: 'expenses', label: 'Expense Tracker' },
-                    ]
-                  },
-                  {
-                    group: 'Communication',
-                    items: [
-                      { key: 'notifications', label: 'Push Notifications' }, { key: 'sms', label: 'SMS' },
-                      { key: 'whatsapp', label: 'WhatsApp' }, { key: 'email', label: 'Email' },
-                    ]
-                  },
-                  {
-                    group: 'Administration',
-                    items: [
-                      { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
-                      { key: 'importExport', label: 'Import / Export' },
-                    ]
-                  },
-                ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
-                  <div key={group} className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{group}</p>
-                    <div className="space-y-1">
-                      {items.map(({ key, label }) => {
-                        const on = viewingPlan.features[key];
+                  {/* Resource Limits */}
+                  <section>
+                    <h4 className="text-lg font-bold text-slate-900 mb-4">Resource Limits</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                      {[
+                        { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
+                        { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
+                        { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
+                        { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },
+                        { label: 'Parents', val: displayLimit(viewingPlan.maxParents) },
+                        { label: 'Teachers', val: displayLimit(viewingPlan.maxTeachers) },
+                        { label: 'Storage', val: viewingPlan.maxStorage },
+                        { label: 'File Size', val: viewingPlan.maxFileSize },
+                        { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
+                        { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
+                      ].map(({ label, val }) => (
+                        <div key={label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-3.5 py-2.5">
+                          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+                          <div className={`text-2xl font-black ${val === 'Unlimited' ? 'text-emerald-600' : 'text-slate-800'}`}>{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {/* Features Tab */}
+              {activeViewTab === 'features' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 animate-fade-in">
+                  {([
+                    {
+                      group: 'Core ERP',
+                      items: [
+                        { key: 'admissions', label: 'Admissions' }, { key: 'studentManagement', label: 'Student Management' },
+                        { key: 'parentPortal', label: 'Parent Portal' }, { key: 'teacherPortal', label: 'Teacher Portal' },
+                        { key: 'attendance', label: 'Attendance' }, { key: 'timetable', label: 'Timetable' },
+                      ]
+                    },
+                    {
+                      group: 'Academic',
+                      items: [
+                        { key: 'assignments', label: 'Assignments' }, { key: 'exams', label: 'Exams' },
+                        { key: 'results', label: 'Results' }, { key: 'doubts', label: 'Doubts & Q&A' },
+                      ]
+                    },
+                    {
+                      group: 'Finance',
+                      items: [
+                        { key: 'fees', label: 'Fees' }, { key: 'payroll', label: 'Payroll' },
+                        { key: 'income', label: 'Income Tracker' }, { key: 'expenses', label: 'Expense Tracker' },
+                      ]
+                    },
+                    {
+                      group: 'Communication',
+                      items: [
+                        { key: 'notifications', label: 'Push Notifications' }, { key: 'sms', label: 'SMS' },
+                        { key: 'whatsapp', label: 'WhatsApp' }, { key: 'email', label: 'Email' },
+                      ]
+                    },
+                    {
+                      group: 'Administration',
+                      items: [
+                        { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
+                        { key: 'importExport', label: 'Import / Export' },
+                      ]
+                    },
+                  ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
+                    <div key={group}>
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">{group}</h4>
+                      <div className="space-y-4">
+                        {items.map(({ key, label }) => {
+                          const on = viewingPlan.features[key];
+                          return (
+                            <div key={key} className="flex items-center gap-3">
+                              {on ? (
+                                <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" />
+                              ) : (
+                                <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />
+                              )}
+                              <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>
+                                {label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Configuration Tab */}
+              {activeViewTab === 'config' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-fade-in">
+                  {/* Support */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Support</h4>
+                    <div className="space-y-4">
+                      {([
+                        { key: 'emailSupport', label: 'Email Support' },
+                        { key: 'chatSupport', label: 'Chat Support' },
+                        { key: 'phoneSupport', label: 'Phone Support' },
+                        { key: 'dedicatedAccountManager', label: 'Dedicated Account Manager' },
+                        { key: 'onboardingAssistance', label: 'Onboarding Assistance' },
+                      ] as { key: keyof SupportConfig; label: string }[]).map(({ key, label }) => {
+                        const on = viewingPlan.support[key];
                         return (
-                          <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                            <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                              {on ? '✓' : '✗'}
-                            </span>
-                            {label}
+                          <div key={key} className="flex items-center gap-3">
+                            {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
+                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* ── Sections 05–07 in 3 columns ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Branding */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Branding</h4>
+                    <div className="space-y-4">
+                      {([
+                        { key: 'whiteLabel', label: 'White Label' },
+                        { key: 'customDomain', label: 'Custom Domain' },
+                        { key: 'customLogo', label: 'Custom Logo' },
+                        { key: 'customEmailTemplates', label: 'Custom Email Templates' },
+                      ] as { key: keyof BrandingConfig; label: string }[]).map(({ key, label }) => {
+                        const on = viewingPlan.branding[key];
+                        return (
+                          <div key={key} className="flex items-center gap-3">
+                            {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
+                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              {/* Section 05: Support */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">05 · Support</p>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
-                  {([
-                    { key: 'emailSupport', label: 'Email Support' },
-                    { key: 'chatSupport', label: 'Chat Support' },
-                    { key: 'phoneSupport', label: 'Phone Support' },
-                    { key: 'dedicatedAccountManager', label: 'Dedicated Account Manager' },
-                    { key: 'onboardingAssistance', label: 'Onboarding Assistance' },
-                  ] as { key: keyof SupportConfig; label: string }[]).map(({ key, label }) => {
-                    const on = viewingPlan.support[key];
-                    return (
-                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                          {on ? '✓' : '✗'}
-                        </span>
-                        {label}
-                      </div>
-                    );
-                  })}
+                  {/* Integrations */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Integrations</h4>
+                    <div className="space-y-4">
+                      {([
+                        { key: 'razorpay', label: 'Razorpay' },
+                        { key: 'cashfree', label: 'Cashfree' },
+                        { key: 'biometricDevices', label: 'Biometric Devices' },
+                        { key: 'zoom', label: 'Zoom' },
+                        { key: 'googleMeet', label: 'Google Meet' },
+                        { key: 'googleCalendar', label: 'Google Calendar' },
+                        { key: 'whatsappBusiness', label: 'WhatsApp Business' },
+                      ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
+                        const on = viewingPlan.integrations[key];
+                        return (
+                          <div key={key} className="flex items-center gap-3">
+                            {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
+                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Section 06: Branding */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">06 · Branding</p>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
-                  {([
-                    { key: 'whiteLabel', label: 'White Label' },
-                    { key: 'customDomain', label: 'Custom Domain' },
-                    { key: 'customLogo', label: 'Custom Logo' },
-                    { key: 'customEmailTemplates', label: 'Custom Email Templates' },
-                  ] as { key: keyof BrandingConfig; label: string }[]).map(({ key, label }) => {
-                    const on = viewingPlan.branding[key];
-                    return (
-                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                          {on ? '✓' : '✗'}
-                        </span>
-                        {label}
-                      </div>
-                    );
-                  })}
+              {/* Notes Tab */}
+              {activeViewTab === 'notes' && viewingPlan.notes && (
+                <div className="max-w-3xl animate-fade-in">
+                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Internal Notes</h4>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-base text-amber-900 leading-relaxed shadow-sm">
+                    {viewingPlan.notes}
+                  </div>
                 </div>
-              </div>
-
-              {/* Section 07: Integrations */}
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">07 · Integrations</p>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
-                  {([
-                    { key: 'razorpay', label: 'Razorpay' },
-                    { key: 'cashfree', label: 'Cashfree' },
-                    { key: 'biometricDevices', label: 'Biometric Devices' },
-                    { key: 'zoom', label: 'Zoom' },
-                    { key: 'googleMeet', label: 'Google Meet' },
-                    { key: 'googleCalendar', label: 'Google Calendar' },
-                    { key: 'whatsappBusiness', label: 'WhatsApp Business' },
-                  ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
-                    const on = viewingPlan.integrations[key];
-                    return (
-                      <div key={key} className={`flex items-center gap-2 text-xs rounded px-1.5 py-1 ${on ? 'text-emerald-700 bg-emerald-50' : 'text-slate-400'}`}>
-                        <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${on ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                          {on ? '✓' : '✗'}
-                        </span>
-                        {label}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Section 08: Notes ── */}
-            {viewingPlan.notes && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">08 · Internal Notes</p>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 leading-relaxed">
-                  {viewingPlan.notes}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="secondary" onClick={() => { setShowViewModal(false); setViewingPlan(null); }}>Back to Plans</Button>
-              <Button variant="primary" style={{ gap: '6px' }} onClick={() => { setShowViewModal(false); handleOpenEditModal(viewingPlan); }}>
-                <Edit size={14} /> Edit Plan
-              </Button>
+              )}
             </div>
         </div>
-      </div>
+        </div>
     );
   }
 
@@ -769,29 +895,29 @@ export const SubscriptionPlans: React.FC = () => {
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">✓ {successMsg}</div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Plan Master</h2>
-          <p className="text-sm text-slate-500 mt-1">Define plan templates — features, limits, billing. Tenants are assigned plans via <strong>Tenant Subscriptions</strong>.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Institute Filter:</span>
-            <select
-              className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg px-2.5 py-1 outline-none focus:border-blue-500 transition cursor-pointer"
-              value={instituteFilter}
-              onChange={(e) => setInstituteFilter(e.target.value)}
-            >
-              <option value="all">All Institutes</option>
-              {tenants.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+      <div className="flex flex-col gap-2 mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="text-4xl font-display font-extrabold text-slate-900 tracking-tight">Plan Master</h2>
+          <div className="flex items-center gap-4 mt-2 sm:mt-0 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status Filter:</span>
+              <select
+                className="bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-lg pl-3.5 pr-2 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition cursor-pointer shadow-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Deleted">Deleted</option>
+                <option value="All">All</option>
+              </select>
+            </div>
+            <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={handleOpenAddModal}>
+              <Plus size={18} /> Create Plan
+            </Button>
           </div>
-          <Button size="sm" variant="primary" style={{ gap: '4px' }} onClick={handleOpenAddModal}>
-            <Plus size={14} /> Create Plan
-          </Button>
         </div>
+        <p className="text-base text-slate-500">Define plan templates — features, limits, billing. Tenants are assigned plans via <strong>Tenant Subscriptions</strong>.</p>
       </div>
 
       {/* ── Plan Cards Grid ── */}
@@ -799,19 +925,12 @@ export const SubscriptionPlans: React.FC = () => {
         {plans
           .slice()
           .sort((a, b) => a.displayOrder - b.displayOrder)
-          .filter(p => {
-            if (instituteFilter === 'all') return true;
-            const isAllVisible = !p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0;
-            if (isAllVisible) return true;
-            return p.visibleTo ? p.visibleTo.includes(instituteFilter) : false;
-          })
           .map((p) => {
             const isActive = p.status === 'Active';
             const isFree = p.price === 0;
             const currencySymbol = p.currency === 'INR' ? '₹' : p.currency === 'USD' ? '$' : '€';
-            const billingLabel = p.billingType === 'Monthly' ? '/mo' : p.billingType === 'Quarterly' ? '/qtr' : p.billingType === 'Yearly' ? '/yr' : ' lifetime';
 
-            // Collect enabled feature labels for the bullet list
+            // Collect enabled feature labels dynamically from the database record
             const featureLabels: Record<string, string> = {
               admissions: 'Admissions', studentManagement: 'Student Management',
               parentPortal: 'Parent Portal', teacherPortal: 'Teacher Portal',
@@ -826,159 +945,119 @@ export const SubscriptionPlans: React.FC = () => {
               .map(k => featureLabels[k])
               .filter(Boolean);
 
+            const activeModulesText = enabledFeatures.length > 0 
+              ? `Includes ${enabledFeatures.slice(0, 4).join(', ')}${enabledFeatures.length > 4 ? '...' : ''}`
+              : 'No modules enabled';
+
             return (
               <div
                 key={p.id}
-                className={`relative flex flex-col bg-white rounded-2xl border-2 shadow-sm transition-all duration-200 hover:shadow-lg ${
-                  isActive
-                    ? 'border-blue-500 shadow-blue-100'
-                    : 'border-slate-200'
-                }`}
+                className="flex flex-col bg-white rounded-[32px] border border-slate-200 shadow-sm transition-all duration-200 hover:shadow-md overflow-hidden p-3"
               >
-                {/* Status badge */}
-                <div className="absolute top-4 right-4">
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    isActive
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {p.status}
-                  </span>
-                </div>
-
-                {/* Card body */}
-                <div className="flex flex-col flex-1 p-6 gap-4">
-                  {/* Plan name + code & Visibility toggle */}
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 pr-16">{p.name}</h3>
-                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                      <span className="text-[10px] font-bold font-mono text-slate-400 uppercase tracking-widest">{p.code}</span>
-                      <span className="w-1 h-1 rounded-full bg-slate-350" />
-                      <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-650`}>
-                        Visibility: {(!p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0) ? 'All' : `${p.visibleTo.length} Inst.`}
-                      </span>
-                      <button
-                        onClick={() => handleOpenVisibilityModal(p)}
-                        className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded transition-all cursor-pointer select-none"
-                      >
-                        👁 Manage
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Price */}
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-end gap-0.5">
-                      {isFree ? (
-                        <span className="text-4xl font-extrabold text-slate-900">Free</span>
-                      ) : (
-                        <>
-                          <span className="text-4xl font-extrabold text-slate-900">
-                            {currencySymbol}
-                            {p.billingType === 'Yearly'
-                              ? Math.round(p.price / 12).toLocaleString()
-                              : p.price.toLocaleString()
-                            }
-                          </span>
-                          <span className="text-slate-400 text-sm font-medium mb-1">/mo</span>
-                        </>
-                      )}
-                    </div>
-                    {!isFree && (
-                      <span className="text-xs text-slate-400 font-semibold italic mt-0.5">
-                        {p.billingType === 'Yearly' 
-                          ? `${currencySymbol}${p.price.toLocaleString()}/year` 
-                          : `${currencySymbol}${(p.price * 12).toLocaleString()}/year`
-                        }
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Badges row */}
-                  <div className="flex flex-wrap gap-2">
-                    {p.trialDays > 0 && (
-                      <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        {p.trialDays} Day Trial
-                      </span>
-                    )}
-                    {p.setupFee > 0 && (
-                      <span className="text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full" title="One-time onboarding and setup fee">
-                        {currencySymbol}{p.setupFee.toLocaleString()} Setup (One-time)
-                      </span>
-                    )}
-                    {p.autoRenewal && (
-                      <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">Auto Renew</span>
-                    )}
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-sm text-slate-500 leading-relaxed">{p.description}</p>
-
-                  {/* Feature bullets */}
-                  <ul className="flex-1 space-y-1.5 mt-1">
-                    {(() => {
-                      const isExpanded = expandedPlans[p.id];
-                      const featuresToShow = isExpanded ? enabledFeatures : enabledFeatures.slice(0, 6);
-                      return (
-                        <>
-                          {featuresToShow.map(f => (
-                            <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
-                              {f}
-                            </li>
-                          ))}
-                          {enabledFeatures.length > 6 && (
-                            <li className="pl-3.5 mt-1">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedPlans(prev => ({ ...prev, [p.id]: !isExpanded }))}
-                                className="text-xs text-blue-600 hover:text-blue-800 font-bold transition cursor-pointer select-none underline decoration-dotted"
-                              >
-                                {isExpanded 
-                                  ? 'Show less features' 
-                                  : `+${enabledFeatures.length - 6} more features…`
-                                }
-                              </button>
-                            </li>
-                          )}
-                          {enabledFeatures.length === 0 && (
-                            <li className="text-xs text-slate-400 italic">No features enabled yet</li>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </ul>
-                </div>
-
-                {/* Action buttons */}
-                <div className="px-6 pb-6 pt-0 flex flex-col gap-2 mt-auto">
-                  <div className="h-px bg-slate-100 mb-2" />
-                  <button
-                    onClick={() => handleOpenEditModal(p)}
-                    className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-150 ${
+                {/* Upper Section Container (Design A/B inspired) */}
+                <div className={`relative flex flex-col p-6 rounded-[24px] gap-4 ${
+                  isActive 
+                    ? 'bg-gradient-to-tr from-blue-50 via-blue-50/50 to-indigo-50/50 border border-blue-200/60' 
+                    : 'bg-slate-50 border border-slate-100'
+                }`}>
+                  {/* Status Badge */}
+                  <div className="absolute top-4 right-4">
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                       isActive
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {p.status}
+                    </span>
+                  </div>
+
+                  {/* Plan Name & Tagline */}
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-900 leading-tight">
+                      {p.name}
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-1.5 leading-relaxed min-h-[36px]">
+                      {p.description}
+                    </p>
+                  </div>
+
+                  {/* Price display */}
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-extrabold text-slate-900 tracking-tight">
+                        {isFree ? '₹0' : `${currencySymbol}${p.price.toLocaleString()}`}
+                      </span>
+                      <span className="text-slate-500 text-sm font-semibold">
+                        /{p.billingType === 'Yearly' ? 'year' : 'month'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-medium">
+                      {isFree ? '14-day evaluation trial' : `Billed ${p.billingType.toLowerCase()}`}
+                    </span>
+                  </div>
+
+                  {/* CTA Button: View Details */}
+                  <button
+                    onClick={() => { 
+                      setActiveViewTab('overview');
+                      setSearchParams({ view: p.id.toString() }); 
+                    }}
+                    className="w-full py-2.5 rounded-full text-[15px] font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer text-center select-none shadow-sm hover:shadow"
                   >
-                    Edit Plan
+                    View Details
                   </button>
-                  <div className="flex gap-1.5">
+                </div>
+
+                {/* Lower Section (Capabilities, Visibility, Actions) */}
+                <div className="flex flex-col flex-1 px-5 pt-5 pb-3 gap-5">
+                  {/* Highlights list */}
+                  <ul className="space-y-3 flex-1">
+                    {[
+                      p.maxBranches === -1 ? 'Unlimited active branches' : `Up to ${p.maxBranches} active branch${p.maxBranches > 1 ? 'es' : ''}`,
+                      p.maxStudents === -1 ? 'Unlimited student capacity' : `Up to ${p.maxStudents.toLocaleString()} enrolled students`,
+                      p.maxStorage === '-1' ? 'Unlimited cloud storage' : `${p.maxStorage} storage capacity`,
+                      activeModulesText
+                    ].map((h, idx) => (
+                      <li key={idx} className="flex items-start gap-3 text-sm text-slate-700 font-medium leading-tight">
+                        {/* Circle outline check icon */}
+                        <div className="rounded-full border border-slate-300 p-1 mt-0.5 shrink-0 bg-white">
+                          <Check size={12} className="text-slate-600 stroke-[3]" />
+                        </div>
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Visibility info row */}
+                  <div className="flex items-center justify-between text-sm pt-4 border-t border-slate-100">
+                    <span className="font-semibold text-slate-500">
+                      Visibility: {(!p.visibleTo || p.visibleTo.includes('All') || p.visibleTo.length === 0) ? 'All Institutes' : `${p.visibleTo.length} Inst.`}
+                    </span>
                     <button
-                      onClick={() => { setViewingPlan(p); setShowViewModal(true); }}
-                      className="flex-1 py-2 rounded-xl text-[10px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                      onClick={() => handleOpenVisibilityModal(p)}
+                      className="font-bold px-4 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full border border-blue-200 shadow-sm transition-all cursor-pointer text-sm"
                     >
-                      View
+                      👁 Manage
+                    </button>
+                  </div>
+
+                  {/* Utility actions (Edit, Duplicate, Delete) */}
+                  <div className="flex gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      onClick={() => handleOpenEditModal(p)}
+                      className="flex-1 py-2 rounded-full text-sm font-bold border border-slate-350 text-slate-800 hover:bg-slate-50 transition-colors cursor-pointer text-center"
+                    >
+                      Edit
                     </button>
                     <button
                       onClick={() => handleDuplicatePlan(p)}
-                      className="flex-1 py-2 rounded-xl text-[10px] font-bold border border-blue-100 text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="flex-1 py-2 rounded-full text-sm font-bold border border-blue-200 text-blue-700 hover:bg-blue-50/50 bg-blue-50/20 transition-colors cursor-pointer text-center"
                     >
                       Duplicate
                     </button>
                     <button
                       onClick={() => handleDeletePlan(p.id, p.name)}
-                      className="flex-1 py-2 rounded-xl text-[10px] font-bold border border-red-100 text-red-500 hover:bg-red-50 transition-colors"
+                      className="flex-1 py-2 rounded-full text-sm font-bold border border-red-200 text-red-600 hover:bg-red-50/50 bg-red-50/20 transition-colors cursor-pointer text-center"
                     >
                       Delete
                     </button>
@@ -1090,7 +1169,7 @@ export const SubscriptionPlans: React.FC = () => {
                 onClick={async () => {
                   const visibleTo = visAll ? ['All'] : visTenants;
                   try {
-                    await planService.updatePlan(managingVisibilityPlan.id, { visibleTo });
+                    await planService.updatePlanVisibility(managingVisibilityPlan.id, visibleTo);
                     setSuccessMsg(`Visibility settings updated for "${managingVisibilityPlan.name}".`);
                     loadPlans();
                   } catch (err) {

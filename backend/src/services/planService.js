@@ -1,7 +1,7 @@
 const planModel = require('../models/planModel');
 
-const getPlans = async () => {
-    return await planModel.getPlans();
+const getPlans = async (statuses) => {
+    return await planModel.getPlans(statuses);
 };
 
 const getPlanById = async (id) => {
@@ -16,13 +16,31 @@ const createPlan = async (planData) => {
     return await planModel.createPlan(planData);
 };
 
+const updatePlan = async (id, planData) => {
+    return await planModel.updatePlan(id, planData);
+};
+
 const updatePlanStatus = async (id, status) => {
     return await planModel.updatePlanStatus(id, status);
+};
+
+const deletePlan = async (id) => {
+    return await planModel.deletePlan(id);
+};
+
+const updatePlanVisibility = async (id, visibleTo) => {
+    if (!Array.isArray(visibleTo)) {
+        throw new Error("visibleTo must be an array of tenant IDs");
+    }
+    return await planModel.updatePlanVisibility(id, visibleTo);
 };
 
 module.exports = {
     getPlans,
     getPlanById,
     createPlan,
-    updatePlanStatus
+    updatePlan,
+    updatePlanStatus,
+    updatePlanVisibility,
+    deletePlan
 };

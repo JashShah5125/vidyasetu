@@ -2,7 +2,7 @@ const pool = require('../config/db');
 
 const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan = '') => {
     let query = `
-        SELECT t.*, tp.legal_name, tp.contact_email, tp.contact_phone,
+        SELECT t.*, tp.owner_name as legal_name, tp.owner_email as contact_email, tp.owner_mobile as contact_phone,
                u.name as admin_name, u.email as admin_email,
                (SELECT COUNT(*) FROM branches b WHERE b.tenant_id = t.id) as branch_count,
                (SELECT COUNT(*) FROM users u2 WHERE u2.tenant_id = t.id) as user_count,
@@ -74,7 +74,7 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
 
 const getTenantById = async (id) => {
     const query = `
-        SELECT t.*, tp.legal_name, tp.contact_email, tp.contact_phone, tp.address_line1, tp.city, tp.state, tp.country, tp.postal_code,
+        SELECT t.*, tp.owner_name as legal_name, tp.owner_email as contact_email, tp.owner_mobile as contact_phone, tp.address_line1, tp.city, tp.state, tp.country, tp.pincode as postal_code,
                u.name as admin_name, u.email as admin_email
         FROM tenants t
         LEFT JOIN tenant_profiles tp ON t.id = tp.tenant_id

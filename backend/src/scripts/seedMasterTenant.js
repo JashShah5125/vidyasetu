@@ -20,7 +20,7 @@ const seedMasterTenant = async () => {
 
         // 2. Create SaaS Admin User
         const adminEmail = 'admin@vidyasetu.com';
-        const passwordHash = await bcrypt.hash('password123', 10);
+        const passwordHash = await bcrypt.hash('admin123', 10);
 
         const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
         
@@ -29,9 +29,12 @@ const seedMasterTenant = async () => {
                 INSERT INTO users (tenant_id, name, email, password_hash, user_type, status)
                 VALUES (?, 'Super Admin', ?, ?, 'saas_admin', 'active')
             `, [MASTER_TENANT_ID, adminEmail, passwordHash]);
-            console.log('SaaS Admin user created: admin@vidyasetu.com / password123');
+            console.log('SaaS Admin user created: admin@vidyasetu.com / admin123');
         } else {
-            console.log('SaaS Admin user already exists.');
+            await pool.query(`
+                UPDATE users SET password_hash = ? WHERE email = ?
+            `, [passwordHash, adminEmail]);
+            console.log('SaaS Admin password updated: admin@vidyasetu.com / admin123');
         }
 
         // 3. Run all seed SQL files from migrations/seeds

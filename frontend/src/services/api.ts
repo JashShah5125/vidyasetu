@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// The base URL relies on the Vite proxy configured in vite.config.ts
+// The base URL relies on the Vite proxy configured in vite.config.ts, or an environment variable in production
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: (import.meta.env.VITE_API_URL as string) || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,8 +37,8 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           // Send refresh token to get a new access token
-          const { data } = await axios.post('/api/auth/refresh', { refreshToken });
-          
+          const baseURL = (import.meta.env.VITE_API_URL as string) || '/api';
+          const { data } = await axios.post(`${baseURL}/auth/refresh`, { refreshToken });
           if (data?.data?.token) {
             localStorage.setItem('vs_token', data.data.token);
             originalRequest.headers.Authorization = `Bearer ${data.data.token}`;

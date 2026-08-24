@@ -2,10 +2,13 @@ const pool = require('../config/db');
 
 const getSubscriptions = async (limit = 10, offset = 0, search = '', status = '') => {
     let query = `
-        SELECT ts.*, t.name as tenant_name, sp.name as plan_name, sp.price_monthly, sp.price_annual
+        SELECT ts.*, t.name as tenant_name, sp.name as plan_name,
+               (CASE WHEN pb.billing_type = 'Monthly' THEN pb.price ELSE pb.price / 12 END) as price_monthly,
+               (CASE WHEN pb.billing_type = 'Yearly' THEN pb.price ELSE pb.price * 12 END) as price_annual
         FROM tenant_subscriptions ts
         JOIN tenants t ON ts.tenant_id = t.id
         JOIN subscription_plans sp ON ts.plan_id = sp.id
+        LEFT JOIN plan_billing pb ON sp.id = pb.plan_id
         WHERE 1=1
     `;
     const params = [];

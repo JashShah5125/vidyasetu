@@ -10,6 +10,9 @@ router.use(requireSaasAdmin);
 router.get('/', requirePermission('plan.view'), planController.getPlans);
 router.get('/:id', requirePermission('plan.view'), planController.getPlanById);
 router.post('/', requirePermission('plan.manage'), planController.createPlan);
+router.put('/:id', requirePermission('plan.manage'), planController.updatePlan);
+router.put('/:id/visibility', requirePermission('plan.manage'), planController.updatePlanVisibility);
 router.patch('/:id/status', requirePermission('plan.manage'), planController.updatePlanStatus);
+router.delete('/:id', requirePermission('plan.manage'), planController.deletePlan);
 
 module.exports = router;

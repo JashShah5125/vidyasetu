@@ -170,20 +170,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem('vs_leads', JSON.stringify(leads));
-    fetch('/api/save-leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(leads)
-    }).catch(() => {});
   }, [leads]);
 
   useEffect(() => {
     localStorage.setItem('vs_students', JSON.stringify(students));
-    fetch('/api/save-students', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(students)
-    }).catch(() => {});
   }, [students]);
 
   useEffect(() => {
@@ -200,6 +190,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Fetch SaaS Data
   useEffect(() => {
+    if (!currentUser) {
+      setPlans([]);
+      setTenants([]);
+      setTenantSubscriptions([]);
+      return;
+    }
+
     const fetchPlans = async () => {
       try {
         const res = await planService.getPlans();
