@@ -13,9 +13,10 @@ import courseHierarchy from '../data/courseHierarchy.json';
 import {
   Plus, ArrowLeft, Users, PhoneCall, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, ChevronRight,
-  Download, Search, UserCheck, FileText, Zap, X
+  Download, Search, UserCheck, FileText, Zap, X, Upload
 } from 'lucide-react';
 import type { Lead, Student } from '../data/mockData';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface LeadsAdmissionsProps {
   initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
@@ -56,7 +57,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 
 export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = 'pipeline' }) => {
   const {
-    leads, students, courses, batches, branches,
+    leads, setLeads, students, courses, batches, branches,
     addLead, updateLead, addFollowup,
     allocateBatch, recordPayment,
     addToast, currentUser
@@ -65,6 +66,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Tab routing sync
   const tabRouteMap: Record<TabId, string> = {
@@ -1003,7 +1005,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <h2 className="text-2xl font-display font-bold text-slate-900">Leads & Admissions</h2>
           <p className="text-sm text-slate-500 mt-1">Full pipeline lifecycle from initial enquiry to fee activation.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 cursor-pointer font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
             <Download size={14} /> Export CSV
           </Button>
@@ -1379,6 +1384,35 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Leads"
+        description="Select a CSV spreadsheet to import multiple leads at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'Mobile', 'Course', 'Branch', 'Source', 'Counsellor', 'Remarks']}
+        sampleRows={[
+          ['Amit Patel', '9812456390', 'JEE Prep Course', 'Mumbai West', 'Walk-in', 'Admin', 'Interested in JEE classes'],
+          ['Renu Verma', '9123049856', 'NEET Batch Premium', 'Pune Camp', 'Website Enquiry', 'Admin', 'Wants to schedule demo']
+        ]}
+        onImport={(importedRows) => {
+          const newLeads = importedRows.map((row, rIdx) => {
+            return {
+              id: `LD-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Lead',
+              mobile: row['Mobile'] || '9999999999',
+              course: row['Course'] || 'JEE Prep Course',
+              branch: row['Branch'] || 'Mumbai West',
+              source: row['Source'] || 'Walk-in',
+              counsellor: row['Counsellor'] || 'Admin',
+              status: 'New Enquiry' as const,
+              nextFollowUp: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
+              remarks: row['Remarks'] || '',
+              followups: []
+            };
+          });
+          setLeads(prev => [...newLeads, ...prev]);
+        }}
+      />
     </div>
   );
 };

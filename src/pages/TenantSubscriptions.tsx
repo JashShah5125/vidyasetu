@@ -7,9 +7,10 @@ import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Edit, Eye, Trash, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Plus, Edit, Eye, Trash, AlertTriangle, ArrowLeft, Upload } from 'lucide-react';
 import type { TenantSubscription, SubscriptionPlan } from '../data/mockData';
 import { formatDate } from '../data/mockData';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 // ─── Status badge colors ────────────────────────────────────────────────────
 const statusColors: Record<TenantSubscription['status'], string> = {
@@ -28,6 +29,7 @@ export const TenantSubscriptions: React.FC = () => {
   const [showView, setShowView] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('All');
   const [filterStatus, setFilterStatus] = useState('Active');
@@ -491,7 +493,12 @@ export const TenantSubscriptions: React.FC = () => {
             ]} 
           />
         </div>
-        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        </div>
       </div>
 
       <Card>
@@ -591,7 +598,43 @@ export const TenantSubscriptions: React.FC = () => {
         />
       </Card>
 
-
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Tenant Subscriptions"
+        description="Select a CSV spreadsheet to import multiple tenant subscriptions at once. Columns must match the template below exactly."
+        sampleHeaders={['TenantName', 'PlanName', 'BillingCycle', 'Price', 'Status', 'PaymentStatus']}
+        sampleRows={[
+          ['Apex IIT Academy', 'Enterprise Custom', 'Annually', '120000', 'Active', 'Paid'],
+          ['Vanguard Classes', 'Growth Plan', 'Monthly', '8500', 'Active', 'Paid']
+        ]}
+        onImport={(importedRows) => {
+          const mapped = importedRows.map((row, rIdx) => {
+            const tenantObj = tenants.find(t => t.name === row['TenantName']) || tenants[0];
+            const planObj = plans.find(p => p.name === row['PlanName']) || plans[0];
+            const price = parseFloat(row['Price']) || 120000;
+            return {
+              tenantId: tenantObj?.id || 'TEN-VS1',
+              tenantName: row['TenantName'] || 'Apex IIT Academy',
+              planId: planObj?.id || 'P-01',
+              planName: row['PlanName'] || 'Growth Plan',
+              billingCycle: (row['BillingCycle'] === 'Monthly' ? 'Monthly' : row['BillingCycle'] === 'Quarterly' ? 'Quarterly' : row['BillingCycle'] === 'Yearly' ? 'Yearly' : 'Lifetime') as any,
+              startDate: new Date().toISOString().split('T')[0],
+              expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+              status: (row['Status'] || 'Active') as any,
+              discount: 0,
+              finalPrice: price,
+              tax: Math.round(price * 0.18),
+              invoiceNumber: `INV-${Math.floor(100000 + Math.random() * 900000)}`,
+              overrides: {}
+            };
+          });
+          mapped.forEach(sub => {
+            addTenantSubscription(sub);
+          });
+          addToast('Tenant subscriptions imported successfully.', 'success');
+        }}
+      />
     </div>
   );
 };

@@ -7,11 +7,12 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { ArrowLeft, FileText, CheckCircle, Clock, Zap } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle, Clock, Zap, Upload } from 'lucide-react';
 import type { Student } from '../data/mockData';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const Students: React.FC = () => {
-  const { students: allStudents, parents, enrollments, feeRecords, documents, addToast, currentUser } = useApp();
+  const { students: allStudents, parents, enrollments, feeRecords, documents, setDocuments, setStudents, addToast, currentUser } = useApp();
   const students = useMemo(() => {
     return currentUser?.role === 'branch-admin'
       ? allStudents.filter(s => s.branch === currentUser.branch)
@@ -22,6 +23,10 @@ export const Students: React.FC = () => {
   const [filterBatch, setFilterBatch] = useState('All');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [profileTab, setProfileTab] = useState<'overview' | 'parents' | 'fees' | 'results' | 'documents'>('overview');
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docType, setDocType] = useState('Govt ID (Aadhaar / Passport)');
+  const [docFileName, setDocFileName] = useState('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const studentParent = useMemo(() => {
     if (!selectedStudent) return null;
@@ -382,7 +387,17 @@ export const Students: React.FC = () => {
             )}
 
             {profileTab === 'documents' && (
-              <div className="space-y-4">
+              <div className="space-y-4 animate-fade-in">
+                <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-xs">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Admission Documents Directory</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">Manage govt identities, school transcripts and proof files.</p>
+                  </div>
+                  <Button variant="primary" size="sm" onClick={() => setIsDocModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+                    Upload Document
+                  </Button>
+                </div>
+
                 <Card className="border border-slate-200 shadow-sm overflow-hidden">
                   <Table headers={['Document Category / Type', 'Uploaded Filename', 'Size', 'Status Verify', 'Date Uploaded', 'Actions']}>
                     {studentDocuments.length > 0 ? (
@@ -458,6 +473,70 @@ export const Students: React.FC = () => {
                     )}
                   </Table>
                 </Card>
+
+                {/* Upload Modal */}
+                {isDocModalOpen && (
+                  <Modal
+                    isOpen={isDocModalOpen}
+                    onClose={() => setIsDocModalOpen(false)}
+                    title="Upload Academic Document Proof"
+                    footer={
+                      <div className="flex gap-2">
+                        <Button variant="secondary" onClick={() => setIsDocModalOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          variant="primary" 
+                          disabled={!docFileName.trim()}
+                          onClick={() => {
+                            if (!selectedStudent) return;
+                            const newDoc = {
+                              id: `DOC-${Math.floor(10000 + Math.random() * 90000)}`,
+                              studentId: selectedStudent.id,
+                              type: docType,
+                              fileName: docFileName.trim(),
+                              fileSize: `${(Math.random() * 2 + 0.5).toFixed(1)} MB`,
+                              uploadedAt: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
+                              status: 'Verified' as const
+                            };
+                            setDocuments(prev => [newDoc, ...prev]);
+                            addToast('Document uploaded and auto-verified successfully!', 'success');
+                            setIsDocModalOpen(false);
+                            setDocFileName('');
+                          }}
+                          className="flex items-center gap-1 font-bold"
+                        >
+                          Upload File
+                        </Button>
+                      </div>
+                    }
+                  >
+                    <div className="space-y-4">
+                      <Select
+                        label="Document Category / Type"
+                        options={[
+                          { value: 'Govt ID (Aadhaar / Passport)', label: 'Govt ID (Aadhaar / Passport)' },
+                          { value: 'Prior Class Marksheet', label: 'Prior Class Marksheet' },
+                          { value: 'Transfer Certificate', label: 'Transfer Certificate' },
+                          { value: 'Income Certificate / Proof', label: 'Income Certificate / Proof' },
+                          { value: 'Address Proof', label: 'Address Proof' },
+                          { value: 'Passport Photo', label: 'Passport Photo' }
+                        ]}
+                        value={docType}
+                        onChange={(e) => setDocType(e.target.value)}
+                      />
+                      <Input
+                        label="Document Filename / Name"
+                        placeholder="e.g. aadhaar_card.pdf"
+                        value={docFileName}
+                        onChange={(e) => setDocFileName(e.target.value)}
+                      />
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-500 leading-relaxed">
+                        Select category, type the document file name, and click Upload. The file will be cataloged and auto-linked to this student.
+                      </div>
+                    </div>
+                  </Modal>
+                )}
               </div>
             )}
           </div>
@@ -479,9 +558,14 @@ export const Students: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Student Profile Directory</h2>
           <p className="text-sm text-slate-500 mt-1">Review active student academic rosters, search details, and view payment ledgers.</p>
         </div>
-        <Button variant="secondary" onClick={handleExportCSV}>
-          Export CSV
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV}>
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
@@ -539,6 +623,47 @@ export const Students: React.FC = () => {
           onPageChange={setCurrentPage}
         />
       </Card>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Student Roster"
+        description="Select a CSV spreadsheet to import multiple student profiles at once. Columns must match the template below exactly."
+        sampleHeaders={['Student ID', 'Name', 'Mobile', 'Email', 'Course', 'Batch', 'Branch']}
+        sampleRows={[
+          ['STU-MUM-4501', 'Aarav Sharma', '9812457812', 'aarav.sharma@gmail.com', 'JEE Prep Course', 'JEE-Morning-A', 'Mumbai West'],
+          ['STU-PUN-3312', 'Divya Rao', '9645123078', 'divya.rao@outlook.com', 'NEET Batch Premium', 'NEET-Regular-B', 'Pune Camp']
+        ]}
+        onImport={(importedRows) => {
+          const newStudents = importedRows.map((row, rIdx) => {
+            const studentId = row['Student ID'] || `STU-GEN-${Math.floor(10000 + Math.random() * 90000)}`;
+            return {
+              id: `S-IMP-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              studentId: studentId,
+              parentId: `P-${Math.floor(10000 + Math.random() * 90000)}`,
+              enrollmentIds: [],
+              name: row['Name'] || 'Imported Student',
+              mobile: row['Mobile'] || '9999999999',
+              dob: '2010-01-01',
+              gender: 'Male',
+              email: row['Email'] || '',
+              address: { street: '', city: 'Mumbai', state: 'Maharashtra', pincode: '400001' },
+              category: 'General',
+              schoolName: '',
+              currentClass: '10',
+              board: 'CBSE',
+              targetExam: 'JEE',
+              yearOfAttempt: '2028',
+              status: 'Active Student' as const,
+              course: row['Course'] || 'JEE Prep Course',
+              batch: row['Batch'] || 'JEE-Morning-A',
+              branch: row['Branch'] || 'Mumbai West',
+              admissionDate: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+            };
+          });
+          setStudents(prev => [...newStudents, ...prev]);
+        }}
+      />
     </div>
   );
 };

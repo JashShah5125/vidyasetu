@@ -8,6 +8,7 @@ import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Plus, Upload, Trash, ArrowLeft } from 'lucide-react';
 import { formatDate, getTenantStatus } from '../data/mockData';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { useNavigate } from 'react-router-dom';
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
@@ -18,6 +19,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPlan, setFilterPlan] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   React.useEffect(() => {
     if (initialOpenCreate) {
@@ -626,7 +628,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             ]} 
           />
         </div>
-        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        </div>
       </div>
 
       <Card>
@@ -692,6 +699,31 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           pageSize={3}
           onPageChange={setCurrentPage}
         />
-      </Card>    </div>
+      </Card>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import platform Tenants"
+        description="Select a CSV spreadsheet to import multiple tenant institutes at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'OwnerName', 'Email', 'Mobile', 'PlanTier', 'RenewalDate', 'Status']}
+        sampleRows={[
+          ['Elite Medical Academy', 'Rajesh Goel', 'rajesh@elitemedical.com', '9812457812', 'Enterprise Plan', '2027-08-01', 'Active'],
+          ['Bright Future Classes', 'Asha Roy', 'asha@brightfuture.com', '9677221102', 'Starter Plan', '2026-12-31', 'Active']
+        ]}
+        onImport={(importedRows) => {
+          importedRows.forEach((row, rIdx) => {
+            addTenant(
+              row['Name'] || 'Imported Academy',
+              row['OwnerName'] || 'Owner',
+              row['Email'] || `tenant-${Math.floor(1000 + Math.random() * 9000)}@vidyasetu.com`,
+              row['Mobile'] || '9999999999',
+              row['PlanTier'] || 'Starter Plan',
+              row['RenewalDate'] || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0]
+            );
+          });
+        }}
+      />
+    </div>
   );
 };

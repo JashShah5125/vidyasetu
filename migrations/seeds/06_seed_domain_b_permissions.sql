@@ -1,0 +1,2 @@
+-- Domain B permissions are now included in 02_seed_saas_admin_permissions.sql
+-- This file is intentionally empty to avoid duplicate inserts.

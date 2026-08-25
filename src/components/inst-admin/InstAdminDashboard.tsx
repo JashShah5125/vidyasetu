@@ -547,25 +547,68 @@ export const InstAdminDashboard: React.FC = () => {
               <span className="text-xs text-slate-400 font-semibold uppercase">{filteredLeads.length} {filteredLeads.length === 1 ? 'Total Lead' : 'Total Leads'}</span>
             </div>
             
-            <div className="space-y-3.5 mt-4">
-              {leadStages.map((stage) => {
-                const totalLeadsCount = filteredLeads.length || 1;
-                const widthPercent = Math.round((stage.count / totalLeadsCount) * 100);
+            <div className="flex flex-col sm:flex-row items-center gap-6 mt-5">
+              {/* Pie Chart Circle */}
+              {(() => {
+                const total = leadStages.reduce((sum, s) => sum + s.count, 0) || 1;
+                let currentPercent = 0;
+                const conicSlices = leadStages.map((stage) => {
+                  const start = currentPercent;
+                  const percent = (stage.count / total) * 100;
+                  currentPercent += percent;
+                  const colorMap: Record<string, string> = {
+                    'bg-blue-500': '#3b82f6',
+                    'bg-indigo-500': '#6366f1',
+                    'bg-amber-500': '#f59e0b',
+                    'bg-rose-500': '#f43f5e',
+                    'bg-emerald-500': '#10b981'
+                  };
+                  const colorHex = colorMap[stage.color] || '#cbd5e1';
+                  return `${colorHex} ${start}% ${currentPercent}%`;
+                });
+                const conicGradientValue = conicSlices.join(', ');
+
                 return (
-                  <div key={stage.name} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-                      <span>{stage.name}</span>
-                      <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{stage.count}</span>
-                    </div>
-                    <div className="w-full bg-slate-50 h-2.5 rounded-full overflow-hidden border border-slate-100">
-                      <div 
-                        className={`h-full ${stage.color} rounded-full transition-all duration-500`}
-                        style={{ width: `${widthPercent}%` }}
-                      />
+                  <div 
+                    className="w-36 h-36 rounded-full border border-slate-150 shadow-inner flex-shrink-0 relative"
+                    style={{ background: `conic-gradient(${conicGradientValue})` }}
+                  >
+                    <div className="absolute inset-8 bg-white rounded-full flex items-center justify-center shadow-xs">
+                      <div className="text-center">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Leads</div>
+                        <div className="text-lg font-black text-slate-800">{total}</div>
+                      </div>
                     </div>
                   </div>
                 );
-              })}
+              })()}
+
+              {/* Pie Chart Legend */}
+              <div className="flex-1 space-y-2.5 w-full">
+                {leadStages.map((stage) => {
+                  const totalLeadsCount = filteredLeads.length || 1;
+                  const pct = Math.round((stage.count / totalLeadsCount) * 100);
+                  const dotColorMap: Record<string, string> = {
+                    'bg-blue-500': 'bg-blue-500',
+                    'bg-indigo-500': 'bg-indigo-500',
+                    'bg-amber-500': 'bg-amber-500',
+                    'bg-rose-500': 'bg-rose-500',
+                    'bg-emerald-500': 'bg-emerald-500'
+                  };
+                  const dotClass = dotColorMap[stage.color] || 'bg-slate-350';
+                  return (
+                    <div key={stage.name} className="flex items-center justify-between text-xs font-semibold text-slate-650">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${dotClass} shadow-3xs`} />
+                        <span>{stage.name}</span>
+                      </div>
+                      <span className="bg-slate-50 border border-slate-150 px-1.5 py-0.5 rounded text-[10px] text-slate-600 font-bold">
+                        {stage.count} ({pct}%)
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

@@ -5,7 +5,8 @@ import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { DoorOpen, Plus, Search, Download, ArrowLeft, Edit2, Trash2 } from 'lucide-react';
+import { DoorOpen, Plus, Search, Download, ArrowLeft, Edit2, Trash2, Upload } from 'lucide-react';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export interface Classroom {
   id: string;
@@ -92,6 +93,7 @@ export const ClassroomSetup: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -410,7 +412,10 @@ export const ClassroomSetup: React.FC = () => {
             options={[{ value: 'All', label: 'All Statuses' }, ...STATUS_OPTIONS.map(s => ({ value: s, label: s }))]}
           />
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="h-[38px] flex items-center gap-1 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} style={{ gap: '6px' }} className="h-[38px]">
             <Download size={14} /> Export CSV
           </Button>
@@ -513,6 +518,35 @@ export const ClassroomSetup: React.FC = () => {
           onPageSizeChange={s => { setPageSize(s); setCurrentPage(1); }}
         />
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Classrooms"
+        description="Select a CSV spreadsheet to import multiple classrooms at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'RoomNumber', 'Capacity', 'Type', 'Status', 'BranchName']}
+        sampleRows={[
+          ['Room 201', '201', '60', 'Classroom', 'Active', 'Mumbai West'],
+          ['Chemistry Lab B', 'L-02', '35', 'Lab', 'Active', 'Pune Camp']
+        ]}
+        onImport={(importedRows) => {
+          const newRooms = importedRows.map((row, rIdx) => {
+            const bName = row['BranchName'] || 'Mumbai West';
+            const bId = branches.find(b => b.name === bName || b.code === bName)?.id || bName;
+            return {
+              id: `CR-IMP-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              branchId: bId,
+              branchName: bName,
+              name: row['Name'] || 'Imported Room',
+              roomNumber: row['RoomNumber'] || '101',
+              capacity: parseInt(row['Capacity'], 10) || 50,
+              type: (row['Type'] || 'Classroom') as Classroom['type'],
+              status: (row['Status'] || 'Active') as Classroom['status']
+            };
+          });
+          setClassrooms(prev => [...newRooms, ...prev]);
+        }}
+      />
     </div>
   );
 };

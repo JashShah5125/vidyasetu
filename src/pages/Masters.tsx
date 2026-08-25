@@ -6,7 +6,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Edit2, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Edit2, Trash2, ArrowLeft, Upload } from 'lucide-react';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface MastersProps {
   initialSubTab?: 'courses' | 'batches' | 'subjects' | 'branches';
@@ -27,6 +28,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
   const [subTab, setSubTab] = useState<'courses' | 'batches' | 'subjects' | 'branches'>(initialSubTab);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [branchesPage, setBranchesPage] = useState(1);
   const [coursesPage, setCoursesPage] = useState(1);
@@ -277,7 +279,10 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
           <h2 className="text-2xl font-display font-bold text-slate-900">Masters Configuration</h2>
           <p className="text-sm text-slate-500 mt-1">Configure active branches, course details, timetable sessions, and subjects master.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
           <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
             <Plus size={16} /> Add Master Record
@@ -464,6 +469,67 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
             </Card>
           );
         })()
-      )}    </div>
+      )}
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title={`Bulk Import Master: ${subTab}`}
+        description={`Select a CSV spreadsheet to import multiple master records for ${subTab} at once. Columns must match the template below exactly.`}
+        sampleHeaders={
+          subTab === 'branches' ? ['Name', 'Code', 'Admin', 'Capacity', 'Status'] :
+          subTab === 'courses' ? ['Name', 'Code', 'Description'] :
+          subTab === 'batches' ? ['Name', 'Branch', 'Course', 'Program', 'Level', 'AcademicYear', 'Timing', 'Room'] :
+          ['Name', 'Code', 'Type']
+        }
+        sampleRows={
+          subTab === 'branches' ? [['Mumbai South', 'MUM-SOUTH', 'Alok Mehta', '150', 'Active']] :
+          subTab === 'courses' ? [['NEET Foundation', 'NEET-FOUND', 'NEET Pre-foundation for class X']] :
+          subTab === 'batches' ? [['JEE-Morning-B', 'Mumbai West', 'JEE Prep Course', '2 Year', 'Class XI', '2026-2027', '08:00 AM - 11:00 AM', 'Room 102']] :
+          [['Electromagnetic Induction', 'PHY-104', 'Core']]
+        }
+        onImport={(importedRows) => {
+          if (subTab === 'branches') {
+            const mapped = importedRows.map((row, rIdx) => ({
+              id: `BRN-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Branch',
+              code: row['Code'] || `B-${Math.floor(100 + Math.random() * 900)}`,
+              admin: row['Admin'] || 'Admin',
+              capacity: parseInt(row['Capacity'], 10) || 100,
+              status: (row['Status'] || 'Active') as any
+            }));
+            setBranches(prev => [...mapped, ...prev]);
+            addToast('Branches master list updated.', 'success');
+          } else if (subTab === 'courses') {
+            const mapped = importedRows.map((row, rIdx) => ({
+              id: `CRS-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Course',
+              code: row['Code'] || `C-${Math.floor(100 + Math.random() * 900)}`,
+              description: row['Description'] || '',
+              branches: ['Mumbai West'],
+              programs: []
+            }));
+            setCourses(prev => [...mapped, ...prev]);
+            addToast('Courses master list updated.', 'success');
+          } else if (subTab === 'batches') {
+            const mapped = importedRows.map((row, rIdx) => ({
+              id: `BAT-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Batch',
+              branch: row['Branch'] || 'Mumbai West',
+              course: row['Course'] || 'JEE Prep Course',
+              program: row['Program'] || '2 Year',
+              level: row['Level'] || 'Class XI',
+              academicYear: row['AcademicYear'] || '2026-2027',
+              timing: row['Timing'] || '08:00 AM - 11:00 AM',
+              room: row['Room'] || 'Room 101'
+            }));
+            setBatches(prev => [...mapped, ...prev]);
+            addToast('Batches master list updated.', 'success');
+          } else {
+            addToast('Bulk import for this sub-tab is managed under Subject Setup.', 'info');
+          }
+        }}
+      />
+    </div>
   );
 };

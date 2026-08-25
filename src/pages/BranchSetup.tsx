@@ -4,12 +4,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
-import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown } from 'lucide-react';
+import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const BranchSetup: React.FC = () => {
-  const { branches, courses, currentUser } = useApp();
+  const { branches, courses, currentUser, setBranches } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
@@ -18,6 +19,7 @@ export const BranchSetup: React.FC = () => {
   const [filterCourse, setFilterCourse] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
@@ -84,7 +86,10 @@ export const BranchSetup: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Branch Management</h2>
           <p className="text-sm text-slate-500 mt-1">Manage and configure all physical centers and branches for your institute.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
@@ -196,6 +201,33 @@ export const BranchSetup: React.FC = () => {
           </>
         )}
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Branches"
+        description="Select a CSV spreadsheet to import multiple branch centers at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'Code', 'Admin', 'AdminEmail', 'AdminMobile', 'Capacity', 'Status']}
+        sampleRows={[
+          ['Mumbai South', 'MUM-SOUTH', 'Alok Mehta', 'alok@apexiit.com', '9812739401', '150', 'Active'],
+          ['Nashik Center', 'NSK-MAIN', 'Sanjay Dube', 'sanjay@apexiit.com', '9320149582', '200', 'Active']
+        ]}
+        onImport={(importedRows) => {
+          const newBranches = importedRows.map((row, rIdx) => {
+            return {
+              id: `BRN-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Branch',
+              code: row['Code'] || `B-${Math.floor(100 + Math.random() * 900)}`,
+              admin: row['Admin'] || 'Admin',
+              adminEmail: row['AdminEmail'] || '',
+              adminMobile: row['AdminMobile'] || '',
+              capacity: parseInt(row['Capacity'], 10) || 100,
+              status: (row['Status'] || 'Active') as any
+            };
+          });
+          setBranches(prev => [...newBranches, ...prev]);
+        }}
+      />
     </div>
   );
 };

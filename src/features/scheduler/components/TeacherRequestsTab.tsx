@@ -198,7 +198,7 @@ export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
       </div>
 
       {/* Requests Table */}
-      <Table headers={['Request ID', 'Teacher', 'Type', 'Batch', 'Subject', 'Date & Time', 'Proposed Change', 'Reason', 'Status', 'Actions']}>
+      <Table headers={['Teacher / Batch', 'Type / ID', 'Lecture Details', 'Proposed Change & Reason', 'Status', 'Actions']}>
         {filteredRequests.length > 0 ? (
           filteredRequests.map(req => {
             const isPending = req.status === 'Pending Approval';
@@ -207,15 +207,13 @@ export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
 
             return (
               <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-bold text-slate-700 whitespace-nowrap text-xs">
-                  {req.id}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-3">
                   <div className="font-semibold text-slate-900 text-xs">{req.teacherName || getTeacherName(req.teacherId) || 'Faculty'}</div>
-                  {req.teacherId && <div className="text-[10px] text-slate-400">{req.teacherId}</div>}
+                  <div className="text-[10px] text-blue-600 font-bold mt-0.5">{req.batchId}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                <td className="px-4 py-3">
+                  <div className="text-[10px] font-mono text-slate-400">#{req.id}</div>
+                  <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border mt-0.5 ${
                     req.type === 'ROOM_CHANGE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                     req.type === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                     req.type === 'SUBSTITUTE' ? 'bg-purple-50 text-purple-700 border-purple-200' :
@@ -225,55 +223,46 @@ export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
                     {req.type.replace('_', ' ')}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap font-bold text-blue-700 text-xs">
-                  {req.batchId}
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-slate-800 text-xs">{req.subject}</div>
+                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">{req.dateTime || req.date}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap font-semibold text-slate-800 text-xs">
-                  {req.subject}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-600">
-                  {req.dateTime || req.date}
-                </td>
-                <td className="px-6 py-4 text-xs font-semibold">
+                <td className="px-4 py-3 max-w-[200px]">
                   {req.newValue ? (
-                    <span className="text-slate-900 flex items-center gap-1">
-                      <ArrowRight size={12} className="text-blue-500 flex-shrink-0" />
-                      {req.newValue}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">—</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-xs text-slate-600 max-w-xs">
-                  {req.message ? (
-                    <div className="truncate" title={req.message}>
-                      {req.message}
+                    <div className="text-xs font-semibold text-slate-900 flex items-center gap-1">
+                      <ArrowRight size={11} className="text-blue-500 flex-shrink-0" />
+                      <span>{req.newValue}</span>
                     </div>
                   ) : (
                     <span className="text-slate-400">—</span>
                   )}
+                  {req.message && (
+                    <div className="text-[10px] text-slate-450 mt-1 truncate" title={req.message}>
+                      {req.message}
+                    </div>
+                  )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                     isPending ? 'bg-amber-100 text-amber-800 border border-amber-200' :
                     isApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
                     'bg-rose-100 text-rose-800 border border-rose-200'
                   }`}>
-                    {isPending && <Clock size={11} />}
-                    {isApproved && <CheckCircle size={11} />}
-                    {isRejected && <XCircle size={11} />}
+                    {isPending && <Clock size={10} />}
+                    {isApproved && <CheckCircle size={10} />}
+                    {isRejected && <XCircle size={10} />}
                     {isPending ? 'Pending' : isApproved ? 'Approved' : 'Rejected'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right">
-                  <div className="flex items-center gap-2">
+                <td className="px-4 py-3 whitespace-nowrap text-right">
+                  <div className="flex items-center gap-1.5 justify-end">
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => setSelectedRequest(req)}
-                      className="px-2.5 py-1 text-xs"
+                      className="px-2 py-1 text-[11px] h-7"
                     >
-                      <Eye size={13} className="mr-1" /> View
+                      <Eye size={12} className="mr-0.5" /> View
                     </Button>
                     {isPending && (
                       <>
@@ -281,9 +270,9 @@ export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
                           variant="primary"
                           size="sm"
                           onClick={() => onSolveRequest(req)}
-                          className="px-2.5 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                          className="px-2 py-1 text-[11px] bg-emerald-600 hover:bg-emerald-700 border-emerald-600 h-7"
                         >
-                          <Sparkles size={13} className="mr-1" /> Solve
+                          <Sparkles size={12} className="mr-0.5" /> Solve
                         </Button>
                         <Button
                           variant="secondary"
@@ -292,9 +281,9 @@ export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
                             setRejectingRequest(req);
                             setRejectReason('');
                           }}
-                          className="px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 border-rose-200"
+                          className="px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50 border-rose-200 h-7"
                         >
-                          <X size={13} className="mr-1" /> Reject
+                          <X size={12} className="mr-0.5" /> Reject
                         </Button>
                       </>
                     )}
@@ -305,7 +294,7 @@ export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
           })
         ) : (
           <tr>
-            <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
+            <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
               <MessageSquare className="mx-auto text-slate-300 mb-3" size={32} />
               <div className="font-semibold text-slate-700">No requests found</div>
               <div className="text-xs text-slate-400 mt-1">No teacher schedule modification requests match the current filter.</div>

@@ -4,16 +4,17 @@ import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Upload } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 import { useLocation } from 'react-router-dom';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface AttendanceProps {
   initialTab?: 'sheet' | 'timetable';
 }
 
 export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) => {
-  const { students, staff, updateAttendance, currentUser } = useApp();
+  const { students, staff, updateAttendance, currentUser, addToast } = useApp();
   const [subTab, setSubTab] = useState<'sheet' | 'timetable'>(initialTab);
   const [savedType, setSavedType] = useState<'student' | 'staff' | null>(null);
   
@@ -51,6 +52,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   });
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const itemsPerPage = 5;
 
   // Derived unique course and batch names
@@ -420,9 +422,14 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                 {attendanceType === 'students' ? 'Student Attendance Sheet' : 'Teacher & Staff Attendance Sheet'}
               </CardTitle>
               {activeList.length > 0 && (
-                <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
-                  <Download size={14} /> Export CSV
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 cursor-pointer font-bold">
+                    <Upload size={13} /> Bulk Import
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
+                    <Download size={14} /> Export CSV
+                  </Button>
+                </div>
               )}
             </CardHeader>
             <div className="divide-y divide-slate-100">
@@ -543,6 +550,48 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
           </div>
         </Card>
       )}
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title={attendanceType === 'students' ? 'Bulk Import Student Attendance' : 'Bulk Import Staff Attendance'}
+        description="Select a CSV spreadsheet to import attendance marks at once. Columns must match the template below exactly."
+        sampleHeaders={attendanceType === 'students' ? ['StudentId', 'Status'] : ['Email', 'Status']}
+        sampleRows={
+          attendanceType === 'students'
+            ? [
+                ['S-201', 'Present'],
+                ['S-204', 'Late'],
+                ['S-206', 'Absent']
+              ]
+            : [
+                ['priya.counsel@apexiit.com', 'Present'],
+                ['arvind.chem@apexiit.com', 'Absent']
+              ]
+        }
+        onImport={(importedRows) => {
+          const updatedRecords = { ...records };
+          const updatedStaffRecords = { ...staffRecords };
+          importedRows.forEach((row) => {
+            const id = attendanceType === 'students' ? (row['StudentId'] || row['ID']) : (row['Email'] || row['ID']);
+            const status = (row['Status'] || 'Present') as 'Present' | 'Absent' | 'Late';
+            if (id) {
+              if (attendanceType === 'students') {
+                updatedRecords[id] = status;
+              } else {
+                updatedStaffRecords[id] = status;
+              }
+            }
+          });
+          if (attendanceType === 'students') {
+            setRecords(updatedRecords);
+            addToast('Student attendance records updated.', 'success');
+          } else {
+            setStaffRecords(updatedStaffRecords);
+            addToast('Staff attendance records updated.', 'success');
+          }
+        }}
+      />
     </div>
   );
 };
