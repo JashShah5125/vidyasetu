@@ -8,8 +8,9 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Modal } from '../components/ui/Modal';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { Plus, ArrowLeft, Upload } from 'lucide-react';
 import type { Staff } from '../data/mockData';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff, currentUser, addToast } = useApp();
@@ -18,6 +19,7 @@ export const Users: React.FC = () => {
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [staffProfileTab, setStaffProfileTab] = useState<'overview' | 'employment' | 'salary' | 'access'>('overview');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
@@ -597,11 +599,14 @@ export const Users: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">User &amp; Staff Directory</h2>
           <p className="text-sm text-slate-500 mt-1">Manage personnel profile records, assign security role boundaries, and allocate active branch hubs.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV}>
             Export CSV
           </Button>
-          <Button variant="primary" style={{ gap: '6px' }} onClick={() => navigate('/staff/new')}>
+          <Button variant="primary" style={{ gap: '6.5px' }} onClick={() => navigate('/staff/new')}>
             <Plus size={16} /> Add Staff
           </Button>
         </div>
@@ -696,6 +701,40 @@ export const Users: React.FC = () => {
           onPageChange={setCurrentPage}
         />
       </Card>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Staff Directory"
+        description="Select a CSV spreadsheet to import multiple staff profiles at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'Email', 'Role', 'Mobile', 'Branch']}
+        sampleRows={[
+          ['Rajesh Kadam', 'rajesh@apexiit.com', 'teacher', '9811223344', 'Mumbai West'],
+          ['Meera Sen', 'meera@apexiit.com', 'counsellor', '9677889900', 'Pune Camp']
+        ]}
+        onImport={(importedRows) => {
+          const newStaff = importedRows.map((row, rIdx) => {
+            const fullName = row['Name'] || 'Imported Personnel';
+            const parts = fullName.trim().split(/\s+/);
+            const firstName = parts[0] || 'Imported';
+            const lastName = parts.slice(1).join(' ') || 'Personnel';
+            return {
+              id: `STF-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              firstName,
+              lastName,
+              name: fullName,
+              email: row['Email'] || `staff-${Math.floor(1000 + Math.random() * 9000)}@vidyasetu.com`,
+              role: row['Role'] || 'teacher',
+              mobile: row['Mobile'] || '9999999999',
+              branch: row['Branch'] || 'Mumbai West',
+              designation: row['Role'] === 'teacher' ? 'Senior Lecturer' : 'Admissions Manager',
+              status: 'Active' as const,
+              joiningDate: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+            } as any;
+          });
+          setStaff(prev => [...newStaff, ...prev] as any[]);
+        }}
+      />
     </div>
   );
 };

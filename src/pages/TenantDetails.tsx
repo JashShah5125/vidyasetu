@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Pencil, Check, X, Upload } from 'lucide-react';
 import { formatDate, getTenantStatus } from '../data/mockData';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface StudentHistoryRecord {
   id: string;
@@ -186,6 +187,9 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
   const [studentsPage, setStudentsPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [customStudents, setCustomStudents] = useState<Record<string, StudentHistoryRecord[]>>({});
 
   // Edit view state
   const [showEditView, setShowEditView] = useState(false);
@@ -533,12 +537,16 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           )}
 
           {manageTab === 'payments' && (
-            <div className="space-y-6">
-              <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Payment &amp; Invoice History</h5>
-              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Payment &amp; Invoice History</h5>
+                <span className="text-xs text-slate-400 font-medium">Click any invoice to view itemization & details</span>
+              </div>
+              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm bg-white">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-xs tracking-wider">
+                      <th className="px-5 py-4 w-10"></th>
                       <th className="px-5 py-4">Invoice ID</th>
                       <th className="px-5 py-4">Billing Cycle</th>
                       <th className="px-5 py-4">Paid Date</th>
@@ -547,24 +555,97 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                       <th className="px-5 py-4">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
                     {[
-                      { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Payment Complete' },
-                      { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Payment Complete' }
-                    ].map((inv) => (
-                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-4 font-mono font-bold text-slate-800">{inv.id}</td>
-                        <td className="px-5 py-4 font-semibold">{inv.plan}</td>
-                        <td className="px-5 py-4 font-mono text-slate-500 whitespace-nowrap">{inv.date}</td>
-                        <td className="px-5 py-4 font-bold text-emerald-700">{inv.amt}</td>
-                        <td className="px-5 py-4 font-mono text-slate-400">{inv.ref}</td>
-                        <td className="px-5 py-4">
-                          <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            {inv.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                      { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', base: 15000, tax: 2700, ref: 'pay_RZP98425102', status: 'Payment Complete', method: 'Visa Credit Card (xxxx-4242)' },
+                      { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', base: 15000, tax: 2700, ref: 'pay_RZP88125412', status: 'Payment Complete', method: 'Razorpay UPI (apex@upi)' },
+                      { id: 'INV-2025-104', plan: 'Quarterly Starter Trial', date: '15-10-2025', amt: '₹5,000 + GST', base: 5000, tax: 900, ref: 'pay_RZP75412093', status: 'Payment Complete', method: 'Net Banking HDFC' }
+                    ].map((inv) => {
+                      const isExpanded = expandedInvoiceId === inv.id;
+                      return (
+                        <React.Fragment key={inv.id}>
+                          <tr 
+                            onClick={() => setExpandedInvoiceId(isExpanded ? null : inv.id)}
+                            className="hover:bg-slate-50 transition-colors cursor-pointer border-b border-slate-100"
+                          >
+                            <td className="px-5 py-4 text-slate-450 text-center font-bold">
+                              {isExpanded ? '▼' : '▶'}
+                            </td>
+                            <td className="px-5 py-4 font-mono font-bold text-blue-600">{inv.id}</td>
+                            <td className="px-5 py-4 font-semibold">{inv.plan}</td>
+                            <td className="px-5 py-4 font-mono text-slate-500 whitespace-nowrap">{inv.date}</td>
+                            <td className="px-5 py-4 font-bold text-emerald-700">{inv.amt}</td>
+                            <td className="px-5 py-4 font-mono text-slate-450">{inv.ref}</td>
+                            <td className="px-5 py-4">
+                              <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-3xs">
+                                {inv.status}
+                              </span>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="bg-slate-50/50">
+                              <td colSpan={7} className="px-8 py-5 border-b border-slate-200">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-600">
+                                  {/* Column 1: Billing Breakdown */}
+                                  <div className="space-y-2">
+                                    <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] mb-2 border-b border-slate-250 pb-1">Billing Itemization</div>
+                                    <div className="flex justify-between">
+                                      <span>Subscription Base Fee:</span>
+                                      <span className="font-semibold text-slate-800">₹{inv.base.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>GST Tax (18%):</span>
+                                      <span className="font-semibold text-slate-850">+ ₹{inv.tax.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-900 font-bold border-t border-dashed border-slate-200 pt-1.5 mt-1 text-sm">
+                                      <span>Total Amount:</span>
+                                      <span className="text-emerald-700">₹{(inv.base + inv.tax).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Column 2: Payment Parameters */}
+                                  <div className="space-y-2">
+                                    <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] mb-2 border-b border-slate-250 pb-1">Payment Method & Reference</div>
+                                    <div className="flex justify-between">
+                                      <span>Payment Gateway:</span>
+                                      <span className="font-semibold text-slate-800">Razorpay POS</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Paid Via:</span>
+                                      <span className="font-semibold text-slate-800">{inv.method}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span>Transaction ID:</span>
+                                      <span className="font-mono font-semibold text-blue-700">{inv.ref}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Column 3: Billing Contact details & download button */}
+                                  <div className="space-y-2">
+                                    <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] mb-2 border-b border-slate-250 pb-1">Recipient Account</div>
+                                    <div>
+                                      <span className="font-bold text-slate-800 block">{viewingTenant.name}</span>
+                                      <span className="text-[11px] text-slate-450 block mt-0.5 font-mono">GSTIN: {viewingTenant.gstNo || '27AAAAA0000A1Z5'}</span>
+                                      <span className="text-[11px] text-slate-550 block font-mono">{viewingTenant.email}</span>
+                                    </div>
+                                    <div className="pt-2">
+                                      <Button 
+                                        variant="secondary" 
+                                        size="sm"
+                                        onClick={() => addToast(`Building PDF Invoice download for ${inv.id}... Saved to local downloads folder.`, 'success')}
+                                        className="w-full text-xs font-semibold py-1.5 h-8 hover:bg-slate-100 flex items-center justify-center gap-1.5"
+                                      >
+                                        Download Invoice PDF
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -575,7 +656,10 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
             <div className="space-y-6">
               {!selectedStudentId ? (
                 (() => {
-                    const studentList = mockStudentsData[viewingTenant.id] || getFallbackStudents(viewingTenant.id);
+                    const studentList = [
+                      ...(customStudents[viewingTenant.id] || []),
+                      ...(mockStudentsData[viewingTenant.id] || getFallbackStudents(viewingTenant.id))
+                    ];
                     const uniqueCourses = Array.from(new Set(studentList.map(s => s.course)));
                     
                     const filteredAndSortedList = studentList
@@ -636,6 +720,9 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                           <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registered Students Directory</h5>
                           <div className="flex gap-2 items-center">
                             <span className="text-xs text-slate-500 font-medium mr-2">Total Registered: {filteredAndSortedList.length}</span>
+                            <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1 font-bold">
+                              <Upload size={13} /> Bulk Import
+                            </Button>
                             <Button variant="secondary" size="sm" onClick={handleExportCSV}>Export CSV</Button>
                           </div>
                         </div>
@@ -937,6 +1024,46 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           )}
         </div>
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Registered Students"
+        description="Select a CSV spreadsheet to import multiple student profiles under this tenant at once. Columns must match the template below exactly."
+        sampleHeaders={['StudentId', 'Name', 'Email', 'Mobile', 'Course', 'Batch', 'Branch', 'Status']}
+        sampleRows={[
+          ['STU-TEN-004', 'Karan Johar', 'karan@gmail.com', '9812457812', 'JEE Prep Course', 'JEE-Morning-A', 'Mumbai West', 'Active'],
+          ['STU-TEN-005', 'Nisha Sen', 'nisha@gmail.com', '9123049876', 'NEET Batch Premium', 'NEET-Regular-B', 'Pune Camp', 'Active']
+        ]}
+        onImport={(importedRows) => {
+          if (!viewingTenant) return;
+          const mapped = importedRows.map((row, rIdx) => {
+            return {
+              id: `S-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              studentId: row['StudentId'] || `STU-${Math.floor(100 + Math.random() * 900)}`,
+              name: row['Name'] || 'Imported Student',
+              email: row['Email'] || '',
+              mobile: row['Mobile'] || '',
+              parentMobile: '',
+              course: row['Course'] || 'JEE Prep Course',
+              batch: row['Batch'] || 'JEE-Morning-A',
+              branch: row['Branch'] || 'Mumbai West',
+              status: row['Status'] || 'Active',
+              admissionDate: new Date().toISOString().split('T')[0],
+              feePlan: { total: 0, paid: 0, pending: 0 },
+              receipts: [],
+              attendanceRate: '100.0%',
+              loginLogs: [],
+              assignments: []
+            };
+          });
+          setCustomStudents(prev => ({
+            ...prev,
+            [viewingTenant.id]: [...(prev[viewingTenant.id] || []), ...mapped]
+          }));
+          addToast('Registered student roster updated successfully.', 'success');
+        }}
+      />
     </div>
   );
 };

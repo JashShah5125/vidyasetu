@@ -55,11 +55,14 @@ interface AppContextType {
   setCurrentUser: (user: UserProfile | null) => void;
   tenants: Tenant[];
   leads: Lead[];
+  setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
   students: Student[];
+  setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
   parents: Parent[];
   enrollments: Enrollment[];
   feeRecords: FeeRecord[];
   documents: Document[];
+  setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
   courses: Course[];
   batches: Batch[];
   branches: Branch[];
@@ -879,11 +882,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser,
       tenants,
       leads,
+      setLeads,
       students: enrichedStudents,
+      setStudents,
       parents,
       enrollments,
       feeRecords,
       documents,
+      setDocuments,
       courses,
       batches,
       branches,

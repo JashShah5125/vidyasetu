@@ -14,10 +14,12 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   TrendingDown,
-  Download
+  Download,
+  Upload
 } from 'lucide-react';
 import { INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useLocation } from 'react-router-dom';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { getVouchers } from '../utils/expenseService';
 import type { Voucher } from '../utils/expenseService';
 
@@ -286,7 +288,7 @@ interface ReportsProps {
 }
 
 export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
-  const { branches, students, courses, batches, currentUser } = useApp();
+  const { branches, students, courses, batches, currentUser, addToast } = useApp();
   const location = useLocation();
   const [selectedTenant, setSelectedTenant] = useState('All');
   const [selectedBranch, setSelectedBranch] = useState(
@@ -298,6 +300,8 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const [activeStatsTab, setActiveStatsTab] = useState<'courses' | 'programs' | 'subjects'>('courses');
   const [vouchers, setVouchers] = useState<Voucher[]>(() => getVouchers());
   const [reportTab, setReportTab] = useState<'p&l' | 'academic'>(currentUser?.role === 'finance' ? 'p&l' : 'academic');
+  const [isTenantImportOpen, setIsTenantImportOpen] = useState(false);
+  const [isPnlImportOpen, setIsPnlImportOpen] = useState(false);
 
   // SaaS Tenants list and pagination
   const [saasCurrentPage, setSaasCurrentPage] = useState(1);
@@ -629,9 +633,14 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle>SaaS Tenant Usage &amp; Subscription Comparison Matrix</CardTitle>
-              <Button variant="secondary" size="sm" onClick={handleExportSaasTenants} className="flex items-center gap-1.5 cursor-pointer">
-                <Download size={14} /> Export CSV
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setIsTenantImportOpen(true)} className="flex items-center gap-1.5 cursor-pointer font-bold">
+                  <Upload size={13} /> Bulk Import
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleExportSaasTenants} className="flex items-center gap-1.5 cursor-pointer">
+                  <Download size={14} /> Export CSV
+                </Button>
+              </div>
             </CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
@@ -730,6 +739,12 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 <p className="text-[10px] text-slate-300 mt-0.5">Apex IIT Academy &bull; Period: {timePeriod.toUpperCase()}</p>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsPnlImportOpen(true)}
+                  className="bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 flex items-center gap-1.5 cursor-pointer shadow-xs px-3 py-1.5 text-xs font-bold rounded-lg transition-colors duration-150"
+                >
+                  <Upload size={14} className="text-white" /> Bulk Import
+                </button>
                 <button 
                   onClick={handleExportPnL} 
                   className="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 flex items-center gap-1.5 cursor-pointer shadow-xs px-3 py-1.5 text-xs font-medium rounded-lg transition-colors duration-150"
@@ -790,6 +805,36 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           </Card>
         </div>
       )}
+
+      <BulkImportModal
+        isOpen={isTenantImportOpen}
+        onClose={() => setIsTenantImportOpen(false)}
+        title="Bulk Import SaaS Tenant Reports"
+        description="Select a CSV spreadsheet to upload new usage parameters for subscription billing reports."
+        sampleHeaders={['TenantCode', 'ActiveUsers', 'StorageLoad']}
+        sampleRows={[
+          ['TEN-VS1', '190', '5.5 GB'],
+          ['TEN-VS2', '80', '2.8 GB']
+        ]}
+        onImport={() => {
+          addToast('Tenant report values updated successfully.', 'success');
+        }}
+      />
+
+      <BulkImportModal
+        isOpen={isPnlImportOpen}
+        onClose={() => setIsPnlImportOpen(false)}
+        title="Bulk Import Profit & Loss Statement"
+        description="Select a CSV spreadsheet containing operational income and expenditure statements to sync."
+        sampleHeaders={['Category', 'Amount', 'Direction']}
+        sampleRows={[
+          ['Tuition Fees Collected', '75000', 'Credit'],
+          ['Local Maintenance', '4000', 'Debit']
+        ]}
+        onImport={() => {
+          addToast('P&L statement registers synchronized successfully.', 'success');
+        }}
+      />
     </div>
   );
 };

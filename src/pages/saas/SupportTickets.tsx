@@ -4,8 +4,9 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
-import { ArrowLeft, Ticket, FileText, Download, Plus, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Ticket, FileText, Download, Plus, MessageSquare, Upload } from 'lucide-react';
 import type { SupportTicket } from '../../data/mockData';
+import { BulkImportModal } from '../../components/ui/BulkImportModal';
 
 export const SupportTickets: React.FC = () => {
   const {
@@ -22,6 +23,7 @@ export const SupportTickets: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Active Ticket Selection
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -234,9 +236,14 @@ export const SupportTickets: React.FC = () => {
             ]} 
           />
         </div>
-        <Button variant="secondary" onClick={handleExportCSV} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer">
-          <Download size={14} className="mr-1.5" /> Export CSV
-        </Button>
+        <div className="flex gap-2 w-full md:w-auto">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer font-bold flex items-center justify-center">
+            <Upload size={14} className="mr-1.5" /> Bulk Import
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer">
+            <Download size={14} className="mr-1.5" /> Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -351,6 +358,28 @@ export const SupportTickets: React.FC = () => {
           )}
         </div>
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Support Tickets"
+        description="Select a CSV spreadsheet to import multiple support tickets at once. Columns must match the template below exactly."
+        sampleHeaders={['Subject', 'Description', 'Priority', 'Status']}
+        sampleRows={[
+          ['Unable to download reports', 'The export CSV button does not trigger downloads on Safari', 'High', 'Open'],
+          ['Payment gateway failure', 'UPI transactions showing pending indefinitely', 'Critical', 'Open']
+        ]}
+        onImport={(importedRows) => {
+          importedRows.forEach((row, rIdx) => {
+            addSupportTicket(
+              row['Subject'] || 'Imported Support Request',
+              row['Description'] || 'No details provided.',
+              (row['Priority'] || 'Medium') as any,
+              currentUser?.name || 'Apex IIT Academy'
+            );
+          });
+        }}
+      />
     </div>
   );
 };

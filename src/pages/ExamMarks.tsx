@@ -6,11 +6,12 @@ import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { Pagination } from '../components/ui/Pagination';
-import { Check, ClipboardList, PenTool, Plus, ArrowLeft } from 'lucide-react';
+import { Check, ClipboardList, PenTool, Plus, ArrowLeft, Upload } from 'lucide-react';
 import type { ExamItem } from '../data/mockData';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const ExamMarks: React.FC = () => {
-  const { branches, courses, batches, students, exams, setExams, currentUser } = useApp();
+  const { branches, courses, batches, students, exams, setExams, currentUser, addToast } = useApp();
 
   // Active sub-tab: 'registry' (Test Registry) or 'grade' (Grade Students score card entry)
   const [activeTab, setActiveTab] = useState<'registry' | 'grade'>('registry');
@@ -34,6 +35,7 @@ export const ExamMarks: React.FC = () => {
   // Local student marks state for editing
   const [localMarks, setLocalMarks] = useState<{ [studentId: string]: string }>({});
   const [isSaved, setIsSaved] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   // Scheduling test direct drawer/modal inside this module
@@ -457,9 +459,14 @@ export const ExamMarks: React.FC = () => {
                   Total Marks: {activeExam.totalMarks} | Passing Threshold: {activeExam.passingMarks} | Batch: {activeExam.batch}
                 </div>
               </div>
-              <Button onClick={handleExportCSV} variant="secondary" size="sm">
-                Export CSV
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => setIsImportModalOpen(true)} variant="secondary" size="sm" className="flex items-center gap-1 font-bold">
+                  <Upload size={14} /> Bulk Import
+                </Button>
+                <Button onClick={handleExportCSV} variant="secondary" size="sm">
+                  Export CSV
+                </Button>
+              </div>
             </CardHeader>
             
             {targetStudents.length === 0 ? (
@@ -552,6 +559,32 @@ export const ExamMarks: React.FC = () => {
           </Card>
         )}
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Exam Evaluation Scores"
+        description="Select a CSV spreadsheet to import student marks. Columns must match the template below exactly."
+        sampleHeaders={['Student ID', 'Marks Obtained']}
+        sampleRows={[
+          ['S-201', '85'],
+          ['S-202', '62'],
+          ['S-204', '38']
+        ]}
+        onImport={(importedRows) => {
+          const updated = { ...localMarks };
+          importedRows.forEach((row) => {
+            const studentId = row['Student ID'] || row['StudentId'];
+            const score = row['Marks Obtained'] || row['Score'] || '0';
+            if (studentId) {
+              updated[studentId] = String(score);
+            }
+          });
+          setLocalMarks(updated);
+          setIsSaved(false);
+          addToast('Marks loaded. Click Save Evaluation Sheet to commit.', 'success');
+        }}
+      />
     </div>
   );
 };

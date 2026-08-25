@@ -3,7 +3,8 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { Pagination } from '../../components/ui/Pagination';
-import { Download } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
+import { BulkImportModal } from '../../components/ui/BulkImportModal';
 
 interface Invoice {
   id: string;
@@ -15,19 +16,22 @@ interface Invoice {
   status: 'Paid' | 'Unpaid' | 'Overdue' | 'Refunded';
 }
 
+const INITIAL_INVOICES: Invoice[] = [
+  { id: 'INV-2026-001', tenantName: 'Apex IIT Academy', amount: 162000, tax: 29160, date: '2026-01-15', dueDate: '2026-02-15', status: 'Paid' },
+  { id: 'INV-2026-002', tenantName: 'Bright Future Coaching', amount: 15000, tax: 2700, date: '2026-07-01', dueDate: '2026-07-15', status: 'Paid' },
+  { id: 'INV-2026-003', tenantName: 'Vanguard Global', amount: 300000, tax: 54000, date: '2026-08-01', dueDate: '2026-08-15', status: 'Unpaid' },
+  { id: 'INV-2026-004', tenantName: 'Zenith Career Hub', amount: 45000, tax: 8100, date: '2026-06-10', dueDate: '2026-07-10', status: 'Overdue' },
+  { id: 'INV-2026-005', tenantName: 'Elite Medical Prep', amount: 120000, tax: 21600, date: '2026-08-05', dueDate: '2026-09-05', status: 'Paid' },
+  { id: 'INV-2026-006', tenantName: 'Apex IIT Academy', amount: 162000, tax: 29160, date: '2026-02-15', dueDate: '2026-03-15', status: 'Paid' },
+  { id: 'INV-2026-007', tenantName: 'Bright Future Coaching', amount: 15000, tax: 2700, date: '2026-08-01', dueDate: '2026-08-15', status: 'Unpaid' },
+  { id: 'INV-2026-008', tenantName: 'Alpha Academy', amount: 80000, tax: 14400, date: '2026-07-18', dueDate: '2026-08-18', status: 'Paid' },
+  { id: 'INV-2026-009', tenantName: 'Sigma Institute', amount: 50000, tax: 9000, date: '2026-07-22', dueDate: '2026-08-22', status: 'Refunded' },
+  { id: 'INV-2026-010', tenantName: 'Vanguard Global', amount: 300000, tax: 54000, date: '2026-07-01', dueDate: '2026-07-15', status: 'Paid' }
+];
+
 export const BillingRevenue: React.FC = () => {
-  const invoices: Invoice[] = [
-    { id: 'INV-2026-001', tenantName: 'Apex IIT Academy', amount: 162000, tax: 29160, date: '2026-01-15', dueDate: '2026-02-15', status: 'Paid' },
-    { id: 'INV-2026-002', tenantName: 'Bright Future Coaching', amount: 15000, tax: 2700, date: '2026-07-01', dueDate: '2026-07-15', status: 'Paid' },
-    { id: 'INV-2026-003', tenantName: 'Vanguard Global', amount: 300000, tax: 54000, date: '2026-08-01', dueDate: '2026-08-15', status: 'Unpaid' },
-    { id: 'INV-2026-004', tenantName: 'Zenith Career Hub', amount: 45000, tax: 8100, date: '2026-06-10', dueDate: '2026-07-10', status: 'Overdue' },
-    { id: 'INV-2026-005', tenantName: 'Elite Medical Prep', amount: 120000, tax: 21600, date: '2026-08-05', dueDate: '2026-09-05', status: 'Paid' },
-    { id: 'INV-2026-006', tenantName: 'Apex IIT Academy', amount: 162000, tax: 29160, date: '2026-02-15', dueDate: '2026-03-15', status: 'Paid' },
-    { id: 'INV-2026-007', tenantName: 'Bright Future Coaching', amount: 15000, tax: 2700, date: '2026-08-01', dueDate: '2026-08-15', status: 'Unpaid' },
-    { id: 'INV-2026-008', tenantName: 'Alpha Academy', amount: 80000, tax: 14400, date: '2026-07-18', dueDate: '2026-08-18', status: 'Paid' },
-    { id: 'INV-2026-009', tenantName: 'Sigma Institute', amount: 50000, tax: 9000, date: '2026-07-22', dueDate: '2026-08-22', status: 'Refunded' },
-    { id: 'INV-2026-010', tenantName: 'Vanguard Global', amount: 300000, tax: 54000, date: '2026-07-01', dueDate: '2026-07-15', status: 'Paid' }
-  ];
+  const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const outstandingAmount = invoices
     .filter(inv => inv.status === 'Unpaid' || inv.status === 'Overdue')
@@ -166,9 +170,14 @@ export const BillingRevenue: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
           <h3 className="font-bold text-slate-800 text-sm">Invoice Management Desk</h3>
-          <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
-            <Download size={14} /> Export CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 cursor-pointer font-bold">
+              <Upload size={13} /> Bulk Import
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
+              <Download size={14} /> Export CSV
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -225,6 +234,32 @@ export const BillingRevenue: React.FC = () => {
           )}
         </div>
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import SaaS Invoices"
+        description="Select a CSV spreadsheet to import platform invoice records. Columns must match the template below exactly."
+        sampleHeaders={['InvoiceId', 'TenantName', 'Amount', 'Tax', 'Date', 'DueDate', 'Status']}
+        sampleRows={[
+          ['INV-2026-011', 'Elite Medical Prep', '120000', '21600', '2026-08-10', '2026-09-10', 'Paid'],
+          ['INV-2026-012', 'Bright Future Coaching', '15000', '2700', '2026-08-12', '2026-09-12', 'Unpaid']
+        ]}
+        onImport={(importedRows) => {
+          const mapped = importedRows.map((row, rIdx) => {
+            return {
+              id: row['InvoiceId'] || `INV-IMP-${Math.floor(1000 + Math.random() * 9000)}-${rIdx}`,
+              tenantName: row['TenantName'] || 'Apex IIT Academy',
+              amount: parseFloat(row['Amount']) || 0,
+              tax: parseFloat(row['Tax']) || 0,
+              date: row['Date'] || new Date().toISOString().split('T')[0],
+              dueDate: row['DueDate'] || new Date().toISOString().split('T')[0],
+              status: (row['Status'] || 'Paid') as any
+            };
+          });
+          setInvoices(prev => [...mapped, ...prev]);
+        }}
+      />
     </div>
   );
 };

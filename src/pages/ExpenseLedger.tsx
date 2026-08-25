@@ -4,12 +4,13 @@ import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { getVouchers } from '../utils/expenseService';
+import { getVouchers, saveVoucher } from '../utils/expenseService';
 import type { Voucher } from '../utils/expenseService';
-import { Search, Download, Printer, Filter, Calendar, FileText, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Search, Download, Printer, Filter, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Upload } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const ExpenseLedger: React.FC = () => {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export const ExpenseLedger: React.FC = () => {
   const [category, setCategory] = useState('All');
   const [paymentMethod, setPaymentMethod] = useState('All');
   const [status, setStatus] = useState('All');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -189,7 +191,10 @@ export const ExpenseLedger: React.FC = () => {
             Browse and filter debit and credit vouchers. Export registers to spreadsheets.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button size="sm" variant="secondary" onClick={handlePrint} style={{ gap: '6px' }}>
             <Printer size={15} /> Print Ledger
           </Button>
@@ -335,6 +340,39 @@ export const ExpenseLedger: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Ledger Vouchers"
+        description="Select a CSV spreadsheet to import multiple ledger vouchers at once. Columns must match the template below exactly."
+        sampleHeaders={['Date', 'Type', 'Category', 'Description', 'Amount', 'PaymentMethod', 'PaidTo', 'ReferenceNo', 'Status', 'Direction', 'Branch']}
+        sampleRows={[
+          ['2026-08-15', 'Expense', 'Electricity', 'AirCon service bill', '4500', 'UPI', 'CoolAir Corp', 'UPI-98124', 'Paid', 'Debit', 'Mumbai West'],
+          ['2026-08-16', 'Receipt', 'Fees', 'Lumpsum enrollment fees cash', '25000', 'Cash', 'Kunal Sen', 'CASH-991', 'Paid', 'Credit', 'Pune Camp']
+        ]}
+        onImport={(importedRows) => {
+          const updated = [...vouchers];
+          importedRows.forEach((row) => {
+            const voucherData = {
+              date: row['Date'] || new Date().toISOString().split('T')[0],
+              type: (row['Type'] || 'Expense') as any,
+              category: (row['Category'] || 'Other') as any,
+              description: row['Description'] || 'Bulk imported transaction',
+              amount: parseFloat(row['Amount']) || 0,
+              paymentMethod: (row['PaymentMethod'] || 'UPI') as any,
+              paidTo: row['PaidTo'] || 'Vendor',
+              referenceNo: row['ReferenceNo'] || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
+              status: (row['Status'] || 'Paid') as any,
+              direction: (row['Direction'] || 'Debit') as any,
+              branch: row['Branch'] || 'Mumbai West'
+            };
+            const saved = saveVoucher(voucherData);
+            updated.push(saved);
+          });
+          setVouchers(updated);
+        }}
+      />
     </div>
   );
 };

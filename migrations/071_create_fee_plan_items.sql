@@ -1,0 +1,8 @@
+CREATE TABLE fee_plan_items (
+    id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    fee_plan_id VARCHAR(36) NOT NULL REFERENCES fee_plans(id) ON DELETE CASCADE,
+    fee_head_id VARCHAR(36) NOT NULL REFERENCES fee_heads(id) ON DELETE RESTRICT,
+    amount DECIMAL(10,2) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

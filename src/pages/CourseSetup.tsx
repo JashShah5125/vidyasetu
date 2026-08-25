@@ -5,17 +5,19 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { BookOpen, Plus, Search, ArrowRight, Download, ShieldAlert } from 'lucide-react';
+import { BookOpen, Plus, Search, ArrowRight, Download, ShieldAlert, Upload } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const CourseSetup: React.FC = () => {
-  const { courses, branches, currentUser } = useApp();
+  const { courses, branches, currentUser, setCourses } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const branchOptions = useMemo(() => {
     if (currentUser?.role === 'branch-admin') {
@@ -69,7 +71,10 @@ export const CourseSetup: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Courses</h2>
           <p className="text-sm text-slate-500 mt-1">Configure academic catalog — courses, programs, and levels.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
@@ -185,6 +190,34 @@ export const CourseSetup: React.FC = () => {
           </>
         )}
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Courses"
+        description="Select a CSV spreadsheet to import multiple academic courses at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'Code', 'Description', 'Branches']}
+        sampleRows={[
+          ['NEET Foundation', 'NEET-FOUND', 'NEET Pre-foundation for class X', 'Mumbai West, Pune Camp'],
+          ['JEE Advanced Crash', 'JEE-CRASH', 'JEE Advanced crash practice program', 'Mumbai West']
+        ]}
+        onImport={(importedRows) => {
+          const newCourses = importedRows.map((row, rIdx) => {
+            const branchesMapped = row['Branches'] 
+              ? row['Branches'].split(',').map((b: string) => b.trim()) 
+              : ['Mumbai West'];
+            return {
+              id: `CRS-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Course',
+              code: row['Code'] || `C-${Math.floor(100 + Math.random() * 900)}`,
+              description: row['Description'] || '',
+              branches: branchesMapped,
+              programs: []
+            };
+          });
+          setCourses(prev => [...newCourses, ...prev]);
+        }}
+      />
     </div>
   );
 };

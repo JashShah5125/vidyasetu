@@ -45,7 +45,7 @@ const formatLocalDate = (d: Date): string => {
 
 export const LectureScheduler = () => {
   const { currentUser, branches, batches, addToast } = useApp();
-  const { lectures, rooms, syncLectures } = useScheduler();
+  const { lectures, rooms, syncLectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -575,23 +575,24 @@ export const LectureScheduler = () => {
                       <Button variant="secondary" onClick={() => handleExportTimetable(batchLectures, selectedWeekStart, batch || 'batch')} className="cursor-pointer">
                         <Download className="w-4 h-4 mr-2" /> Export
                       </Button>
-                      <Button variant="primary" onClick={() => {
-                        setEditorContext({
-                          branchId: branch, courseId: course, programId: program, levelId: level, batchId: batch,
-                          weekStartDate: selectedWeekStart
-                        });
-                      }}>
-                        <Edit className="w-4 h-4 mr-2" /> Edit
-                      </Button>
                     </div>
                   </div>
 
                   <TimetableGrid
                     lectures={batchLectures}
                     viewMode="week"
-                    onEditLecture={() => { }} // Disabled in view mode
+                    onEditLecture={(l) => {
+                      if (l.id) {
+                        setEditingLecture(l);
+                        setInitialDate(undefined);
+                      } else {
+                        setEditingLecture(undefined);
+                        setInitialDate(l.date);
+                      }
+                      setIsFormOpen(true);
+                    }}
                     selectedWeekStart={selectedWeekStart}
-                    readOnly={true}
+                    readOnly={false}
                   />
                 </>
               ) : (
@@ -773,11 +774,30 @@ export const LectureScheduler = () => {
                 const tempId = `TEMP-${Math.floor(10000 + Math.random() * 90000)}`;
                 setLocalLectures(prev => [...prev, { ...lectureData, id: tempId } as Lecture]);
               }
+            } else {
+              if (lectureData.id) {
+                updateLecture(lectureData.id, lectureData);
+                addToast('Lecture updated successfully.', 'success');
+              } else {
+                addLectures([{
+                  ...lectureData,
+                  batchId: batch,
+                  branchId: branch || 'MUM-WEST',
+                  publishStatus: 'PUBLISHED',
+                  status: 'SCHEDULED'
+                } as any]);
+                addToast('Lecture scheduled successfully.', 'success');
+              }
+              setIsFormOpen(false);
             }
           }}
           onDelete={(id) => {
             if (editorContext) {
               setLocalLectures(prev => prev.filter(l => l.id !== id));
+            } else {
+              cancelLecture(id);
+              addToast('Lecture slot cancelled and removed.', 'info');
+              setIsFormOpen(false);
             }
           }}
         />
