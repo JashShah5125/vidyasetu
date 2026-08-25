@@ -5,6 +5,27 @@ const redisClient = require('../config/redis');
 
 const MASTER_TENANT_ID = parseInt(process.env.MASTER_TENANT_ID) || 1;
 
+const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword || newPassword.length < 8) {
+            return res.status(400).json({ status: 'error', message: 'Current password and a new password of at least 8 characters are required' });
+        }
+
+        const user = await userModel.findUserById(req.user.userId);
+        if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {
+            return res.status(401).json({ status: 'error', message: 'Current password is incorrect' });
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await userModel.updatePassword(req.user.userId, passwordHash);
+        res.status(200).json({ status: 'success', message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ status: 'error', message: 'Unable to change password' });
+    }
+};
+
 
 const login = async (req, res) => {
     try {
@@ -68,6 +89,7 @@ const login = async (req, res) => {
                     userType: user.user_type,
                     tenantId: user.tenant_id,
                     isSaasAdmin,
+                    mustChangePassword: Boolean(user.must_change_password),
                     permissions
                 }
             }
@@ -140,6 +162,7 @@ const logout = async (req, res) => {
 
 module.exports = {
     login,
+    changePassword,
     refresh,
     logout
 };

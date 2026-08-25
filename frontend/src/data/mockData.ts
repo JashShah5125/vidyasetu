@@ -8,6 +8,7 @@ export interface UserProfile {
   branch?: string;
   tenantId?: string;
   tenantName?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface Tenant {

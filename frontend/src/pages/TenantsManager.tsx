@@ -159,9 +159,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const handleOpenAddModal = () => {
     setEditingTenantId(null);
     
-    // Auto generate a secure default password
-    const generatedPass = 'VS-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    setDefaultPassword(generatedPass);
+    setDefaultPassword('Generated securely after submission');
     
     setName('');
     setAddress('');
@@ -221,10 +219,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     setPincode(t.pincode || '');
     setTimezone(t.timezone || 'Asia/Kolkata');
     setBillingCycle(t.billing_cycle || 'annual');
-    setOwnerName(t.legal_name || t.admin_name || '');
-    setEmail(t.email || '');
-    setMobile(t.mobile || '');
-    setPlan(t.planId ? String(t.planId) : (availablePlans.length > 0 ? availablePlans[0].id.toString() : ''));
+    setOwnerName(t.owner_name || t.legal_name || t.admin_name || '');
+    setEmail(t.primary_email || t.contact_email || t.admin_email || '');
+    setMobile(t.owner_mobile || t.contact_phone || '');
+    setPlan(t.plan_id ? String(t.plan_id) : (t.planId ? String(t.planId) : (availablePlans.length > 0 ? availablePlans[0].id.toString() : '')));
     setStartDate(t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
     setLogoUploaded(!!t.logo_url);
     setLogoFile(null);
@@ -310,10 +308,13 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     
     const cleanAlts = altEmails.filter(Boolean);
     
-    let finalDefaultEmail = email;
-    if (defaultEmailIdx >= 0 && defaultEmailIdx < cleanAlts.length) {
-      finalDefaultEmail = cleanAlts[defaultEmailIdx];
-    }
+    const currentPrimaryEmail = email.trim();
+    const selectedAlternateEmail = defaultEmailIdx >= 0 ? altEmails[defaultEmailIdx]?.trim() : '';
+    const finalDefaultEmail = selectedAlternateEmail || currentPrimaryEmail;
+    const alternateEmailsForSave = Array.from(new Set([
+      ...cleanAlts.filter(value => value !== finalDefaultEmail),
+      ...(finalDefaultEmail !== currentPrimaryEmail ? [currentPrimaryEmail] : [])
+    ]));
     
     // Auto-generate slug from name
     const generatedSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -358,12 +359,9 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     try {
         const formData = new FormData();
         formData.append('name', name);
-        formData.append('legal_name', name);
+        formData.append('legal_name', ownerName);
         formData.append('slug', finalSlug);
-        formData.append('adminEmail', email);
-        if (!editingTenantId) {
-            formData.append('adminPassword', defaultPassword);
-        }
+        formData.append('adminEmail', finalDefaultEmail);
         if (planId) formData.append('planId', String(planId));
         if (address) formData.append('address', address);
         if (city) formData.append('city', city);
@@ -379,7 +377,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         } else if (!logoPreview && editingTenantId) {
             formData.append('removeLogo', 'true');
         }
-        if (cleanAlts.length > 0) formData.append('alternate_emails', JSON.stringify(cleanAlts));
+        formData.append('alternate_emails', JSON.stringify(alternateEmailsForSave));
 
         if (discount) formData.append('discount', discount);
         if (finalPrice) formData.append('finalPrice', finalPrice);
@@ -411,8 +409,11 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           setSuccessMsg(`Tenant "${name}" settings updated successfully!`);
         } else {
           // Create mode using real backend
-          await tenantService.createTenant(formData, onProgress);
-          setSuccessMsg(`Tenant "${name}" created successfully!`);
+          const result = await tenantService.createTenant(formData, onProgress);
+          const emailStatus = result?.data?.welcomeEmailSent
+            ? ' Welcome email sent.'
+            : ' Tenant created, but the welcome email could not be sent.';
+          setSuccessMsg(`Tenant "${name}" created successfully.${emailStatus}`);
         }
         
         setIsUploading(false);
@@ -699,7 +700,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input 
-                  label="Admin Username / Name" 
+                  label="Owner / Primary Admin Name" 
                   required 
                   placeholder="Dr. Ramesh Kumar (or admin_apex)" 
                   value={ownerName} 
@@ -802,26 +803,14 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   onChange={(e) => setMobile(e.target.value)} 
                 />
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Default Password (Auto Generated)</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Temporary Password (Sent by Email)</label>
                   <div className="flex gap-2">
                     <input 
                       type="text" 
                       readOnly
                       className="flex-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg px-3 py-2 text-base font-semibold select-all outline-none"
-                      value={defaultPassword}
+                      value={editingTenantId ? defaultPassword : 'Generated securely after submission'}
                     />
-                    {!editingTenantId && (
-                      <Button 
-                        type="button" 
-                        variant="secondary" 
-                        onClick={() => {
-                          const newPass = 'VS-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                          setDefaultPassword(newPass);
-                        }}
-                      >
-                        Regen
-                      </Button>
-                    )}
                   </div>
                 </div>
               </div>

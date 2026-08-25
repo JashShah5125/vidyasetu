@@ -3,27 +3,6 @@ const pool = require('../config/db');
 const formatPlan = (row) => {
     if (!row) return null;
     
-    const billing_options = [];
-    const pushBilling = (type, price) => {
-        if ((price !== null && price !== undefined && Number(price) > 0) || (Number(price) === 0 && type === 'Monthly')) {
-             billing_options.push({
-                 id: row.id,
-                 billing_type: type,
-                 price: Number(price),
-                 currency: row.currency,
-                 trial_days: row.trial_days,
-                 setup_fee: Number(row.setup_fee),
-                 auto_renewal: row.auto_renewal
-             });
-        }
-    };
-    
-    pushBilling('Monthly', row.monthly_price);
-    pushBilling('Quarterly', row.quarterly_price);
-    pushBilling('Half-Yearly', row.half_yearly_price);
-    pushBilling('Yearly', row.yearly_price);
-    pushBilling('Lifetime', row.lifetime_price);
-
     return {
         id: row.id,
         name: row.name,
@@ -39,7 +18,15 @@ const formatPlan = (row) => {
         created_by: row.created_by,
         updated_by: row.updated_by,
 
-        billing_options,
+        monthly_price: Number(row.monthly_price) || 0,
+        quarterly_price: Number(row.quarterly_price) || 0,
+        half_yearly_price: Number(row.half_yearly_price) || 0,
+        yearly_price: Number(row.yearly_price) || 0,
+        lifetime_price: Number(row.lifetime_price) || 0,
+        currency: row.currency,
+        trial_days: Number(row.trial_days) || 0,
+        setup_fee: Number(row.setup_fee) || 0,
+        auto_renewal: row.auto_renewal,
 
         max_instances: row.max_instances,
         max_branches: row.max_branches,
@@ -153,11 +140,7 @@ const createPlan = async (planData) => {
     try {
         await connection.beginTransaction();
 
-        const getPrice = (type) => {
-            const b = (planData.billing_options || []).find(x => x.billing_type === type);
-            return b ? b.price : 0.00;
-        };
-        const baseB = (planData.billing_options || [])[0] || {};
+        const billing = planData.billing || {};
         
         const rl = planData.resource_limits || {};
         const fa = planData.features || {};
@@ -177,8 +160,8 @@ const createPlan = async (planData) => {
         `;
         const valuesSp = [
             planData.name, planData.code, planData.description, planData.status || 'Active', planData.display_order || 0, planData.notes,
-            getPrice('Monthly'), getPrice('Quarterly'), getPrice('Half-Yearly'), getPrice('Yearly'), getPrice('Lifetime'),
-            baseB.currency || 'INR', baseB.trial_days || 0, baseB.setup_fee || 0.00, baseB.auto_renewal || 0,
+            billing.monthly_price || 0, billing.quarterly_price || 0, billing.half_yearly_price || 0, billing.yearly_price || 0, billing.lifetime_price || 0,
+            billing.currency || 'INR', billing.trial_days || 0, billing.setup_fee || 0.00, billing.auto_renewal || 0,
             JSON.stringify(visibleTo)
         ];
 
@@ -235,11 +218,7 @@ const updatePlan = async (id, planData) => {
     try {
         await connection.beginTransaction();
 
-        const getPrice = (type) => {
-            const b = (planData.billing_options || []).find(x => x.billing_type === type);
-            return b ? b.price : 0.00;
-        };
-        const baseB = (planData.billing_options || [])[0] || {};
+        const billing = planData.billing || {};
         
         const rl = planData.resource_limits || {};
         const fa = planData.features || {};
@@ -259,8 +238,8 @@ const updatePlan = async (id, planData) => {
         `;
         const valuesSp = [
             planData.name, planData.code, planData.description, planData.status || 'Active', planData.display_order || 0, planData.notes,
-            getPrice('Monthly'), getPrice('Quarterly'), getPrice('Half-Yearly'), getPrice('Yearly'), getPrice('Lifetime'),
-            baseB.currency || 'INR', baseB.trial_days || 0, baseB.setup_fee || 0.00, baseB.auto_renewal || 0,
+            billing.monthly_price || 0, billing.quarterly_price || 0, billing.half_yearly_price || 0, billing.yearly_price || 0, billing.lifetime_price || 0,
+            billing.currency || 'INR', billing.trial_days || 0, billing.setup_fee || 0.00, billing.auto_renewal || 0,
             JSON.stringify(visibleTo),
             id
         ];

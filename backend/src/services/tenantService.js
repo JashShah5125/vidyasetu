@@ -1,14 +1,24 @@
 const pool = require('../config/db');
 const tenantModel = require('../models/tenantModel');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { sendTenantWelcomeEmail } = require('./mailService');
+
+const generateTemporaryPassword = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const bytes = crypto.randomBytes(12);
+    const suffix = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+    return `VS-${suffix}`;
+};
 
 const createTenantWithAdmin = async (tenantData) => {
     const { 
-        name, legal_name, slug, adminEmail, adminPassword, planId, address, city, state, pincode, panNo, 
+        name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, 
         timezone, billingCycle, logoUrl, alternateEmails,
         discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
         maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
     } = tenantData;
+    const temporaryPassword = generateTemporaryPassword();
     
     // Check if slug exists
     const slugExists = await tenantModel.checkSlugExists(slug);
@@ -56,10 +66,10 @@ const createTenantWithAdmin = async (tenantData) => {
         const tenantId = tenantResult.insertId;
 
         // 3. Create Admin User
-        const passwordHash = await bcrypt.hash(adminPassword, 10);
+        const passwordHash = await bcrypt.hash(temporaryPassword, 10);
         const [userResult] = await connection.query(
-            'INSERT INTO users (tenant_id, name, email, password_hash, user_type, status) VALUES (?, ?, ?, ?, ?, ?)',
-            [tenantId, 'Tenant Admin', adminEmail, passwordHash, 'staff', 'active']
+            'INSERT INTO users (tenant_id, name, email, password_hash, user_type, status, must_change_password, password_generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+            [tenantId, legal_name || 'Tenant Admin', adminEmail, passwordHash, 'staff', 'active', 1]
         );
         const adminUserId = userResult.insertId;
 
@@ -99,7 +109,20 @@ const createTenantWithAdmin = async (tenantData) => {
         );
 
         await connection.commit();
-        return { tenantId, adminUserId, logoUrl };
+        let welcomeEmailSent = false;
+        try {
+            await sendTenantWelcomeEmail({
+                recipientEmail: adminEmail,
+                ownerName: legal_name || name,
+                instituteName: name,
+                temporaryPassword
+            });
+            welcomeEmailSent = true;
+        } catch (emailError) {
+            console.error('Tenant created but welcome email failed:', emailError.message);
+        }
+
+        return { tenantId, adminUserId, logoUrl, welcomeEmailSent };
     } catch (error) {
         await connection.rollback();
         throw error;

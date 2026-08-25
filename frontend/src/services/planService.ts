@@ -9,18 +9,20 @@ import type { SubscriptionPlan } from '../types/saas';
 
 const mapPlanToFrontend = (row: any): SubscriptionPlan => {
   return {
-    id: row.id,
+    id: String(row.id),
     name: row.name || 'Unnamed Plan',
     code: row.code || '',
     description: row.description || '',
     status: row.status || 'Active',
     displayOrder: parseInt(row.display_order) || 0,
-    billingType: row.billing_type || 'Monthly',
-    price: parseFloat(row.price) || 0,
+    monthlyPrice: parseFloat(row.monthly_price) || 0,
+    quarterlyPrice: parseFloat(row.quarterly_price) || 0,
+    halfYearlyPrice: parseFloat(row.half_yearly_price) || 0,
+    yearlyPrice: parseFloat(row.yearly_price) || 0,
+    lifetimePrice: parseFloat(row.lifetime_price) || 0,
     currency: row.currency || 'INR',
     trialDays: parseInt(row.trial_days) || 0,
     setupFee: parseFloat(row.setup_fee) || 0,
-    renewalPrice: parseFloat(row.renewal_price) || 0,
     autoRenewal: row.auto_renewal === 1 || !!row.auto_renewal,
     maxInstances: parseInt(row.max_instances) || -1,
     maxBranches: parseInt(row.max_branches) || -1,
@@ -92,12 +94,14 @@ const mapPlanToBackend = (plan: any) => {
     display_order: parseInt(plan.displayOrder) || 0,
     notes: plan.notes,
     billing: {
-      billing_type: plan.billingType,
-      price: parseFloat(plan.price) || 0,
+      monthly_price: parseFloat(plan.monthlyPrice) || 0,
+      quarterly_price: parseFloat(plan.quarterlyPrice) || 0,
+      half_yearly_price: parseFloat(plan.halfYearlyPrice) || 0,
+      yearly_price: parseFloat(plan.yearlyPrice) || 0,
+      lifetime_price: parseFloat(plan.lifetimePrice) || 0,
       currency: plan.currency,
       trial_days: parseInt(plan.trialDays) || 0,
       setup_fee: parseFloat(plan.setupFee) || 0,
-      renewal_price: parseFloat(plan.renewalPrice) || 0,
       auto_renewal: plan.autoRenewal ? 1 : 0
     },
     resource_limits: {

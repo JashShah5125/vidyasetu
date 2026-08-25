@@ -20,12 +20,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Try to load user from local storage initially
     const savedUser = localStorage.getItem('vs_current_user');
-    if (savedUser) {
+    const accessToken = localStorage.getItem('vs_token');
+    if (savedUser && accessToken) {
       try {
         setCurrentUser(JSON.parse(savedUser));
       } catch (e) {
         localStorage.removeItem('vs_current_user');
       }
+    } else if (savedUser) {
+      // Do not restore an authenticated UI state when its access token is gone.
+      localStorage.removeItem('vs_current_user');
+      localStorage.removeItem('vs_refresh_token');
     }
     setIsLoading(false);
 
@@ -62,7 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: (user.isSaasAdmin ? 'saas-admin' : user.userType || 'inst-admin') as Role,
           tenantId: user.tenantId,
           tenantName: user.tenantId === 'SYSTEM' ? 'Vidya Setu Platform' : 'Institute Name', // Could be fetched from backend
-          branch: user.branch || ''
+          branch: user.branch || '',
+          mustChangePassword: Boolean(user.mustChangePassword)
         };
 
         setCurrentUser(profile);

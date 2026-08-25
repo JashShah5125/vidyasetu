@@ -5,6 +5,7 @@ import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
 import { formatDate, getTenantStatus } from '../data/mockData';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { tenantService } from '../services/tenantService';
 
 interface StudentHistoryRecord {
   id: string;
@@ -203,8 +204,6 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
     const fetchTenant = async () => {
       try {
         setIsLoading(true);
-        // import { tenantService } from '../services/tenantService'; is needed at top
-        const { tenantService } = await import('../services/tenantService');
         const result = await tenantService.getTenantById(tenantId);
         setViewingTenant(result.data);
       } catch (error) {
@@ -220,31 +219,47 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
     if (!viewingTenant) return;
     setEditForm({
       name: viewingTenant.name || '',
-      ownerName: viewingTenant.legal_name || viewingTenant.admin_name || '',
-      email: viewingTenant.contact_email || viewingTenant.admin_email || '',
+      ownerName: viewingTenant.owner_name || viewingTenant.legal_name || viewingTenant.admin_name || '',
+      email: viewingTenant.primary_email || viewingTenant.contact_email || viewingTenant.admin_email || '',
       mobile: viewingTenant.contact_phone || '',
-      address: viewingTenant.address || '',
+      address: viewingTenant.address_line1 || viewingTenant.address || '',
       gstNo: viewingTenant.gst_number || '',
     });
     setShowEditView(true);
   };
 
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!viewingTenant) return;
     if (!editForm.name.trim() || !editForm.ownerName.trim() || !editForm.email.trim()) {
       addToast('Name, Owner Name, and Email are required.', 'error');
       return;
     }
-    updateTenant(viewingTenant.id, {
-      name: editForm.name.trim(),
-      ownerName: editForm.ownerName.trim(),
-      email: editForm.email.trim(),
-      mobile: editForm.mobile.trim(),
-      address: editForm.address.trim(),
-      gstNo: editForm.gstNo.trim(),
-    });
-    addToast('Tenant details updated successfully!', 'success');
-    setShowEditView(false);
+    try {
+      const formData = new FormData();
+      formData.append('name', editForm.name.trim());
+      formData.append('legal_name', editForm.ownerName.trim());
+      formData.append('adminEmail', editForm.email.trim());
+      formData.append('address', editForm.address.trim());
+      formData.append('gstNo', editForm.gstNo.trim());
+      if (editForm.mobile.trim()) formData.append('mobile', editForm.mobile.trim());
+
+      await tenantService.updateTenant(viewingTenant.id, formData);
+      const result = await tenantService.getTenantById(viewingTenant.id);
+      setViewingTenant(result.data);
+      updateTenant(viewingTenant.id, {
+        name: editForm.name.trim(),
+        ownerName: editForm.ownerName.trim(),
+        email: editForm.email.trim(),
+        mobile: editForm.mobile.trim(),
+        address: editForm.address.trim(),
+        gstNo: editForm.gstNo.trim(),
+      });
+      addToast('Tenant details updated successfully!', 'success');
+      setShowEditView(false);
+    } catch (error) {
+      console.error('Error updating tenant details:', error);
+      addToast('Unable to update tenant details.', 'error');
+    }
   };
 
   // Full-screen edit view
@@ -470,7 +485,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Physical Address:</span>
-                    <span className="font-semibold text-slate-800 block">{viewingTenant.address || '401, Western Express Highway, Mumbai'}</span>
+                    <span className="font-semibold text-slate-800 block">{viewingTenant.address_line1 || viewingTenant.address || '401, Western Express Highway, Mumbai'}</span>
                   </div>
                 </div>
               </div>
@@ -480,12 +495,12 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Admin Username:</span>
-                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.legal_name || viewingTenant.admin_name || 'N/A'}</span>
+                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.owner_name || viewingTenant.legal_name || viewingTenant.admin_name || 'N/A'}</span>
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Admin Email Login:</span>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="font-semibold text-slate-800">{viewingTenant.contact_email || viewingTenant.admin_email || 'N/A'}</span>
+                      <span className="font-semibold text-slate-800">{viewingTenant.primary_email || viewingTenant.contact_email || viewingTenant.admin_email || 'N/A'}</span>
                     </div>
                   </div>
                   <div>

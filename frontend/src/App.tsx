@@ -9,6 +9,7 @@ import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
 import { Pagination } from './components/ui/Pagination';
 import { Login } from './pages/Login';
+import { ChangePassword } from './pages/ChangePassword';
 import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
 import { InstituteUpgradePlan } from './pages/InstituteUpgradePlan';
@@ -290,6 +291,7 @@ const ContentRouter = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : <Dashboard />} />
       <Route path="/tenants" element={<TenantsManager initialOpenCreate={false} />} />
       <Route path="/tenants/create" element={<TenantsManager initialOpenCreate={true} />} />

@@ -42,14 +42,14 @@ const createTenant = async (req, res) => {
     try {
         // Validate request body
         const { 
-            name, legal_name, slug, adminEmail, adminPassword, planId, address, city, state, pincode, 
+            name, legal_name, slug, adminEmail, planId, address, city, state, pincode, 
             panNo, gstNo, mobile, timezone, billingCycle, alternate_emails,
             discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
             maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
         } = req.body;
         
-        if (!name || !slug || !adminEmail || !adminPassword) {
-            return res.status(400).json({ status: 'error', message: 'Missing required fields (name, slug, email, password)' });
+        if (!name || !slug || !adminEmail) {
+            return res.status(400).json({ status: 'error', message: 'Missing required fields (name, slug, email)' });
         }
 
         // Data Validation Regex
@@ -92,7 +92,7 @@ const createTenant = async (req, res) => {
         const parseNum = (val) => val === undefined || val === '' || val === 'null' ? undefined : Number(val);
         
         const result = await tenantService.createTenantWithAdmin({
-            name, legal_name, slug, adminEmail, adminPassword, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, logoUrl, alternateEmails: parsedAltEmails,
+            name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, logoUrl, alternateEmails: parsedAltEmails,
             discount: parseNum(discount),
             finalPrice: parseNum(finalPrice),
             tax: parseNum(tax),

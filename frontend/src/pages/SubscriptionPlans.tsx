@@ -7,10 +7,11 @@ import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft, Check, Trash2 } from 'lucide-react';
-import type { SubscriptionPlan, BillingOption, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../types/saas';
+import type { SubscriptionPlan, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../types/saas';
 import {
   DEFAULT_FEATURES, DEFAULT_SUPPORT, DEFAULT_BRANDING, DEFAULT_INTEGRATIONS
 } from '../types/saas';
+import { getPrimaryPlanPrice } from '../types/saas';
 
 // ─── Helper: display -1 as "Unlimited" ─────────────────────────────────────
 const displayLimit = (val: number) => val === -1 ? 'Unlimited' : val.toLocaleString();
@@ -106,15 +107,15 @@ export const SubscriptionPlans: React.FC = () => {
   const [displayOrder, setDisplayOrder] = useState('');
 
   // Section 2
-  const [billingOptions, setBillingOptions] = useState<BillingOption[]>([{
-    billingType: 'Monthly',
-    price: 0,
-    currency: 'INR',
-    trialDays: 0,
-    setupFee: 0,
-    renewalPrice: 0,
-    autoRenewal: false
-  }]);
+  const [monthlyPrice, setMonthlyPrice] = useState('0');
+  const [quarterlyPrice, setQuarterlyPrice] = useState('0');
+  const [halfYearlyPrice, setHalfYearlyPrice] = useState('0');
+  const [yearlyPrice, setYearlyPrice] = useState('0');
+  const [lifetimePrice, setLifetimePrice] = useState('0');
+  const [currency, setCurrency] = useState('INR');
+  const [trialDays, setTrialDays] = useState('0');
+  const [setupFee, setSetupFee] = useState('0');
+  const [autoRenewal, setAutoRenewal] = useState(false);
 
   // Section 3
   const [maxInstances, setMaxInstances] = useState('');
@@ -142,7 +143,7 @@ export const SubscriptionPlans: React.FC = () => {
 
   // View
   const [searchParams, setSearchParams] = useSearchParams();
-  const [viewingPlan, setViewingPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedViewingPlan, setViewingPlan] = useState<SubscriptionPlan | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
 
   useEffect(() => {
@@ -173,12 +174,11 @@ export const SubscriptionPlans: React.FC = () => {
   const resetForm = () => {
     setCurrentStep(0);
     setName(''); setCode(''); setDescription(''); setStatus('Active'); setDisplayOrder('');
-    setBillingType('Monthly');
-    setPrice('0');
+    setMonthlyPrice('0'); setQuarterlyPrice('0'); setHalfYearlyPrice('0');
+    setYearlyPrice('0'); setLifetimePrice('0');
     setCurrency('INR');
     setTrialDays('0');
     setSetupFee('0');
-    setRenewalPrice('0');
     setAutoRenewal(false);
     setMaxInstances(''); setMaxBranches(''); setMaxStaffUsers(''); setMaxStudents('');
     setMaxParents(''); setMaxTeachers(''); setMaxStorage(''); setMaxFileSize('');
@@ -193,12 +193,14 @@ export const SubscriptionPlans: React.FC = () => {
   const populateForm = (p: SubscriptionPlan) => {
     setName(p.name); setCode(p.code); setDescription(p.description);
     setStatus(p.status); setDisplayOrder(p.displayOrder.toString());
-    setBillingType(p.billingType || 'Monthly');
-    setPrice((p.price || 0).toString());
+    setMonthlyPrice((p.monthlyPrice || 0).toString());
+    setQuarterlyPrice((p.quarterlyPrice || 0).toString());
+    setHalfYearlyPrice((p.halfYearlyPrice || 0).toString());
+    setYearlyPrice((p.yearlyPrice || 0).toString());
+    setLifetimePrice((p.lifetimePrice || 0).toString());
     setCurrency(p.currency || 'INR');
     setTrialDays((p.trialDays || 0).toString());
     setSetupFee((p.setupFee || 0).toString());
-    setRenewalPrice((p.renewalPrice || 0).toString());
     setAutoRenewal(p.autoRenewal || false);
     setMaxInstances(p.maxInstances.toString()); setMaxBranches(p.maxBranches.toString());
     setMaxStaffUsers(p.maxStaffUsers.toString()); setMaxStudents(p.maxStudents.toString());
@@ -218,12 +220,14 @@ export const SubscriptionPlans: React.FC = () => {
     return {
       name, code: code.toUpperCase().replace(/\s+/g, '-'), description, status,
       displayOrder: parseInt(displayOrder) || 1,
-      billingType: billingType as any,
-      price: parseFloat(price) || 0,
+      monthlyPrice: parseFloat(monthlyPrice) || 0,
+      quarterlyPrice: parseFloat(quarterlyPrice) || 0,
+      halfYearlyPrice: parseFloat(halfYearlyPrice) || 0,
+      yearlyPrice: parseFloat(yearlyPrice) || 0,
+      lifetimePrice: parseFloat(lifetimePrice) || 0,
       currency,
       trialDays: parseInt(trialDays) || 0,
       setupFee: parseFloat(setupFee) || 0,
-      renewalPrice: parseFloat(renewalPrice) || 0,
       autoRenewal,
       maxInstances: parseInt(maxInstances) || 1,
       maxBranches: parseInt(maxBranches) || 0,
@@ -345,85 +349,18 @@ export const SubscriptionPlans: React.FC = () => {
         <div className="space-y-4">
           <SectionHead n="02" title="Billing Options" />
           
-          {billingOptions.map((opt, index) => (
-            <div key={index} className="p-4 border border-slate-200 rounded-xl space-y-4 bg-slate-50 relative">
-              {billingOptions.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setBillingOptions(opts => opts.filter((_, i) => i !== index))}
-                  className="absolute top-2 right-2 text-slate-400 hover:text-red-500"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Select label="Billing Type" value={opt.billingType} onChange={e => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].billingType = e.target.value as any;
-                  setBillingOptions(newOpts);
-                }}
-                  options={[
-                    { value: 'Monthly', label: 'Monthly' }, { value: 'Quarterly', label: 'Quarterly' },
-                    { value: 'Half-Yearly', label: 'Half-Yearly' }, { value: 'Yearly', label: 'Yearly' }, 
-                    { value: 'Lifetime', label: 'Lifetime' }
-                  ]} />
-                <Input label="Price" type="number" placeholder="e.g. 25000" value={opt.price.toString()} onChange={e => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].price = parseFloat(e.target.value) || 0;
-                  setBillingOptions(newOpts);
-                }} />
-                <Select label="Currency" value={opt.currency} onChange={e => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].currency = e.target.value;
-                  setBillingOptions(newOpts);
-                }}
-                  options={[{ value: 'INR', label: 'INR (₹)' }, { value: 'USD', label: 'USD ($)' }, { value: 'EUR', label: 'EUR (€)' }]} />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Trial Days" type="number" placeholder="e.g. 15" value={opt.trialDays.toString()} onChange={e => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].trialDays = parseInt(e.target.value) || 0;
-                  setBillingOptions(newOpts);
-                }} />
-                <Input label="Setup Fee" type="number" placeholder="e.g. 4999" value={opt.setupFee.toString()} onChange={e => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].setupFee = parseFloat(e.target.value) || 0;
-                  setBillingOptions(newOpts);
-                }} />
-                <Input label="Renewal Price" type="number" placeholder="e.g. 25000" value={opt.renewalPrice.toString()} onChange={e => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].renewalPrice = parseFloat(e.target.value) || 0;
-                  setBillingOptions(newOpts);
-                }} />
-              </div>
-              
-              <div className="flex items-center gap-2.5 pt-2">
-                <button type="button" onClick={() => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].autoRenewal = !newOpts[index].autoRenewal;
-                  setBillingOptions(newOpts);
-                }}
-                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${opt.autoRenewal ? 'bg-blue-600' : 'bg-slate-200'}`}>
-                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${opt.autoRenewal ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest select-none cursor-pointer" onClick={() => {
-                  const newOpts = [...billingOptions];
-                  newOpts[index].autoRenewal = !newOpts[index].autoRenewal;
-                  setBillingOptions(newOpts);
-                }}>
-                  Auto Renewal Allowed
-                </span>
-              </div>
-            </div>
-          ))}
-
-          <Button type="button" variant="secondary" onClick={() => setBillingOptions([...billingOptions, {
-            billingType: 'Monthly', price: 0, currency: 'INR', trialDays: 0, setupFee: 0, renewalPrice: 0, autoRenewal: false
-          }])} className="w-full justify-center">
-            <Plus size={16} className="mr-2" /> Add Billing Option
-          </Button>
+          <p className="text-sm text-slate-500">Set the price for every supported billing cycle. Enter 0 for a free or unavailable cycle.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input label="Monthly Price" type="number" min="0" placeholder="e.g. 2500" value={monthlyPrice} onChange={e => setMonthlyPrice(e.target.value)} />
+            <Input label="Quarterly Price" type="number" min="0" placeholder="e.g. 7000" value={quarterlyPrice} onChange={e => setQuarterlyPrice(e.target.value)} />
+            <Input label="Half-Yearly Price" type="number" min="0" placeholder="e.g. 13000" value={halfYearlyPrice} onChange={e => setHalfYearlyPrice(e.target.value)} />
+            <Input label="Yearly Price" type="number" min="0" placeholder="e.g. 25000" value={yearlyPrice} onChange={e => setYearlyPrice(e.target.value)} />
+            <Input label="Lifetime Price" type="number" min="0" placeholder="e.g. 100000" value={lifetimePrice} onChange={e => setLifetimePrice(e.target.value)} />
+            <Select label="Currency" value={currency} onChange={e => setCurrency(e.target.value)} options={[{ value: 'INR', label: 'INR' }, { value: 'USD', label: 'USD' }, { value: 'EUR', label: 'EUR' }]} />
+            <Input label="Trial Days" type="number" min="0" placeholder="e.g. 15" value={trialDays} onChange={e => setTrialDays(e.target.value)} />
+            <Input label="Setup Fee" type="number" min="0" placeholder="e.g. 4999" value={setupFee} onChange={e => setSetupFee(e.target.value)} />
+          </div>
+          <ToggleRow label="Auto Renewal Allowed" checked={autoRenewal} onChange={setAutoRenewal} />
 
           <p className="text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mt-4">
             💡 Use <strong>-1</strong> in Resource Limits to denote Unlimited quantities.
@@ -671,7 +608,9 @@ export const SubscriptionPlans: React.FC = () => {
     );
   }
 
-  if (showViewModal && viewingPlan) {
+  if (showViewModal && selectedViewingPlan) {
+    const viewingPlan = selectedViewingPlan;
+    const primaryBilling = getPrimaryPlanPrice(viewingPlan);
     return (
       <div ref={topRef} className="space-y-6 w-full animate-fade-in">
         <div className="relative pl-[72px] mb-2">
@@ -703,8 +642,8 @@ export const SubscriptionPlans: React.FC = () => {
               </div>
               <div className="flex flex-col items-start md:items-end gap-1">
                 <div className="text-4xl font-extrabold text-slate-900">
-                  {viewingPlan.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${viewingPlan.price.toLocaleString()}`}
-                  <span className="text-lg text-slate-500 font-semibold ml-1">/ {viewingPlan.billingType.toLowerCase()}</span>
+                  {primaryBilling.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${primaryBilling.price.toLocaleString()}`}
+                  <span className="text-lg text-slate-500 font-semibold ml-1">/ {primaryBilling.billingCycle.toLowerCase()}</span>
                 </div>
                 <div className="flex items-center gap-3 mt-3">
                   <button 
@@ -769,8 +708,12 @@ export const SubscriptionPlans: React.FC = () => {
                     <h4 className="text-lg font-bold text-slate-900 mb-4">Billing & Terms</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {[
+                        { label: 'Monthly', val: `${viewingPlan.currency} ${viewingPlan.monthlyPrice.toLocaleString()}` },
+                        { label: 'Quarterly', val: `${viewingPlan.currency} ${viewingPlan.quarterlyPrice.toLocaleString()}` },
+                        { label: 'Half-Yearly', val: `${viewingPlan.currency} ${viewingPlan.halfYearlyPrice.toLocaleString()}` },
+                        { label: 'Yearly', val: `${viewingPlan.currency} ${viewingPlan.yearlyPrice.toLocaleString()}` },
+                        { label: 'Lifetime', val: `${viewingPlan.currency} ${viewingPlan.lifetimePrice.toLocaleString()}` },
                         { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
-                        { label: 'Renewal Price', val: viewingPlan.renewalPrice > 0 ? `${viewingPlan.currency} ${viewingPlan.renewalPrice.toLocaleString()}` : '—' },
                         { label: 'Trial Period', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
                         { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
                       ].map(({ label, val }) => (
@@ -998,8 +941,8 @@ export const SubscriptionPlans: React.FC = () => {
           .sort((a, b) => a.displayOrder - b.displayOrder)
           .map((p) => {
             const isActive = p.status === 'Active';
-            const defaultBilling = p.billingOptions && p.billingOptions.length > 0 ? p.billingOptions[0] : null;
-            const isFree = defaultBilling ? defaultBilling.price === 0 : true;
+            const defaultBilling = getPrimaryPlanPrice(p);
+            const isFree = defaultBilling.price === 0;
             const currencySymbol = defaultBilling && defaultBilling.currency === 'INR' ? '₹' : defaultBilling?.currency === 'USD' ? '$' : '€';
 
             // Collect enabled feature labels dynamically from the database record
@@ -1060,12 +1003,11 @@ export const SubscriptionPlans: React.FC = () => {
                         {isFree ? '₹0' : `${currencySymbol}${defaultBilling?.price.toLocaleString()}`}
                       </span>
                       <span className="text-slate-500 text-sm font-semibold">
-                        /{defaultBilling?.billingType === 'Yearly' ? 'year' : 'month'}
+                        /{defaultBilling.billingCycle === 'Yearly' ? 'year' : 'month'}
                       </span>
                     </div>
                     <span className="text-xs text-slate-400 font-medium">
-                      {isFree ? '14-day evaluation trial' : `Billed ${defaultBilling?.billingType.toLowerCase()}`}
-                      {p.billingOptions && p.billingOptions.length > 1 && ` (+${p.billingOptions.length - 1} more options)`}
+                      {isFree ? '14-day evaluation trial' : `Billed ${defaultBilling.billingCycle.toLowerCase()}`}
                     </span>
                   </div>
 

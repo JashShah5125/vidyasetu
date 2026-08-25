@@ -110,6 +110,7 @@ const updateTenant = async (id, data) => {
         state: 'state',
         pincode: 'pincode',
         panNo: 'pan_number',
+        gstNo: 'gst_number',
         timezone: 'timezone',
         billingCycle: 'billing_cycle',
         alternateEmails: 'alternate_emails',
@@ -173,6 +174,13 @@ const updateTenant = async (id, data) => {
                 [data.adminEmail, id]
             );
         }
+    }
+
+    if (data.legal_name !== undefined) {
+        await pool.query(
+            'UPDATE users u JOIN tenants t ON u.id = t.primary_admin_user_id SET u.name = ?, u.updated_at = CURRENT_TIMESTAMP WHERE t.id = ?',
+            [data.legal_name, id]
+        );
     }
 
     return result.affectedRows > 0;

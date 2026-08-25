@@ -11,12 +11,11 @@ const getSubscriptions = async (limit = 10, offset = 0, search = '', status = ''
         SELECT t.id, t.id as tenant_id, t.name as tenant_name, t.plan_id, t.subscription_status as status,
                t.billing_cycle, t.start_date, t.end_date, t.renewal_date, t.created_at, t.updated_at,
                sp.name as plan_name,
-               (CASE WHEN pb.billing_type = 'Monthly' THEN pb.price ELSE pb.price / 12 END) as price_monthly,
-               (CASE WHEN pb.billing_type = 'Yearly' THEN pb.price ELSE pb.price * 12 END) as price_annual,
+               sp.monthly_price as price_monthly,
+               sp.yearly_price as price_annual,
                ${subscriptionCols}
         FROM tenants t
         JOIN subscription_plans sp ON t.plan_id = sp.id
-        LEFT JOIN plan_billing pb ON sp.id = pb.plan_id
         WHERE t.tenant_type = 'customer'
     `;
     const params = [];
@@ -67,6 +66,8 @@ const getSubscriptionById = async (id) => {
         SELECT t.id, t.id as tenant_id, t.name as tenant_name, t.plan_id, t.subscription_status as status,
                t.billing_cycle, t.start_date, t.end_date, t.renewal_date, t.created_at, t.updated_at,
                sp.name as plan_name,
+               sp.monthly_price as price_monthly,
+               sp.yearly_price as price_annual,
                ${subscriptionCols}
         FROM tenants t
         JOIN subscription_plans sp ON t.plan_id = sp.id

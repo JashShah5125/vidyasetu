@@ -9,6 +9,11 @@ const findUserByEmail = async (email, tenantId = null) => {
     return rows;
 };
 
+const findUserById = async (userId) => {
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [userId]);
+    return rows[0];
+};
+
 const getUserPermissions = async (userId, tenantId) => {
     // We only call this for normal users, NOT the SaaS admin.
     const query = `
@@ -22,7 +27,17 @@ const getUserPermissions = async (userId, tenantId) => {
     return rows.map(row => row.code);
 };
 
+const updatePassword = async (userId, passwordHash) => {
+    const [result] = await pool.query(
+        'UPDATE users SET password_hash = ?, must_change_password = 0, password_generated_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [passwordHash, userId]
+    );
+    return result.affectedRows > 0;
+};
+
 module.exports = {
     findUserByEmail,
-    getUserPermissions
+    findUserById,
+    getUserPermissions,
+    updatePassword
 };

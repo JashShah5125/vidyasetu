@@ -50,7 +50,8 @@ export const Login: React.FC = () => {
 
     const success = await login(emailInput, passwordInput);
     if (success) {
-      navigate('/dashboard');
+      const savedUser = JSON.parse(localStorage.getItem('vs_current_user') || '{}');
+      navigate(savedUser.mustChangePassword ? '/change-password' : '/dashboard');
     }
   };
 

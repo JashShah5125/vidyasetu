@@ -48,17 +48,6 @@ export interface IntegrationConfig {
   biometricDevices: boolean;
 }
 
-export interface BillingOption {
-  id?: number;
-  billingType: 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Yearly' | 'Lifetime';
-  price: number;
-  currency: string;
-  trialDays: number;
-  setupFee: number;
-  renewalPrice: number;
-  autoRenewal: boolean;
-}
-
 export interface SubscriptionPlan {
   id: string;
   name: string;
@@ -92,6 +81,20 @@ export interface SubscriptionPlan {
   notes: string;
   visibleTo?: string[];
 }
+
+export type BillingCycle = 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Yearly' | 'Lifetime';
+
+export const getPrimaryPlanPrice = (plan: SubscriptionPlan): { billingCycle: BillingCycle; price: number; currency: string } => {
+  const prices: { billingCycle: BillingCycle; price: number; currency: string }[] = [
+    { billingCycle: 'Monthly', price: plan.monthlyPrice, currency: plan.currency },
+    { billingCycle: 'Quarterly', price: plan.quarterlyPrice, currency: plan.currency },
+    { billingCycle: 'Half-Yearly', price: plan.halfYearlyPrice, currency: plan.currency },
+    { billingCycle: 'Yearly', price: plan.yearlyPrice, currency: plan.currency },
+    { billingCycle: 'Lifetime', price: plan.lifetimePrice, currency: plan.currency }
+  ];
+
+  return prices.find(option => option.price > 0) || prices[0];
+};
 
 export interface TenantSubscription {
   id: string;
