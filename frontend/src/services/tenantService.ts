@@ -19,8 +19,19 @@ export const tenantService = {
     return data;
   },
 
-  createTenant: async (tenantData: any) => {
-    const { data } = await api.post('/admin/tenants', tenantData);
+  createTenant: async (tenantData: any, onUploadProgress?: (progressEvent: any) => void) => {
+    const { data } = await api.post('/admin/tenants', tenantData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress
+    });
+    return data;
+  },
+
+  updateTenant: async (id: string, tenantData: any, onUploadProgress?: (progressEvent: any) => void) => {
+    const { data } = await api.put(`/admin/tenants/${id}`, tenantData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress
+    });
     return data;
   },
 

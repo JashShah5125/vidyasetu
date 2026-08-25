@@ -11,7 +11,7 @@ CREATE TABLE subscription_plans (
     name VARCHAR(100) NOT NULL,
     code VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
-    status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active',
+    status ENUM('Active', 'Inactive', 'Deleted') NOT NULL DEFAULT 'Active',
     display_order INT NOT NULL DEFAULT 0,
     notes TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

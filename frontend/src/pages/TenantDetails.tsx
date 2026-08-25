@@ -220,8 +220,8 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
     if (!viewingTenant) return;
     setEditForm({
       name: viewingTenant.name || '',
-      ownerName: viewingTenant.admin_name || '',
-      email: viewingTenant.admin_email || '',
+      ownerName: viewingTenant.legal_name || viewingTenant.admin_name || '',
+      email: viewingTenant.contact_email || viewingTenant.admin_email || '',
       mobile: viewingTenant.contact_phone || '',
       address: viewingTenant.address || '',
       gstNo: viewingTenant.gst_number || '',
@@ -258,7 +258,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
               <ArrowLeft size={26} />
             </Button>
             <div>
-              <h2 className="text-2xl font-display font-bold text-slate-900">Edit Tenant Details</h2>
+              <h2 className="text-2xl font-bold text-slate-900">Edit Tenant Details</h2>
               <p className="text-sm text-slate-500 mt-1">Update profile information for <span className="font-semibold text-slate-700">{viewingTenant.name}</span></p>
             </div>
           </div>
@@ -281,7 +281,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
             </div>
             <div>
               <div className="text-lg font-bold text-slate-900">{viewingTenant.name}</div>
-              <div className="text-sm font-mono text-slate-500 mt-0.5">Tenant ID: {viewingTenant.id}</div>
+              <div className="text-sm text-slate-500 mt-0.5">Tenant ID: {viewingTenant.id}</div>
             </div>
           </div>
 
@@ -391,7 +391,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
             <ArrowLeft size={26} />
           </Button>
           <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Tenant Details</h2>
+            <h2 className="text-2xl font-bold text-slate-900">Tenant Details</h2>
             <p className="text-sm text-slate-500 mt-1">Manage profile, limits, and billing for this workspace.</p>
           </div>
         </div>
@@ -409,7 +409,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-lg font-bold text-slate-900 truncate">{viewingTenant.name}</h4>
-            <div className="text-sm text-slate-500 font-mono mt-1">Tenant ID: {viewingTenant.id}</div>
+            <div className="text-sm text-slate-500 mt-1">Tenant ID: {viewingTenant.id}</div>
           </div>
           <div className="flex items-center gap-3 select-none flex-shrink-0">
             {(() => {
@@ -480,17 +480,17 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                 <div className="space-y-4">
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Admin Username:</span>
-                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.admin_name || 'N/A'}</span>
+                    <span className="font-semibold text-slate-800 text-base">{viewingTenant.legal_name || viewingTenant.admin_name || 'N/A'}</span>
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Admin Email Login:</span>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="font-semibold text-slate-800 font-mono">{viewingTenant.admin_email || 'N/A'}</span>
+                      <span className="font-semibold text-slate-800">{viewingTenant.contact_email || viewingTenant.admin_email || 'N/A'}</span>
                     </div>
                   </div>
                   <div>
                     <span className="text-sm text-slate-500 font-semibold block mb-1">Mobile Contact:</span>
-                    <span className="font-semibold text-slate-800 font-mono">{viewingTenant.contact_phone || 'N/A'}</span>
+                    <span className="font-semibold text-slate-800">{viewingTenant.contact_phone || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -566,11 +566,11 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                       { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Payment Complete' }
                     ].map((inv) => (
                       <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-4 font-mono font-bold text-slate-800">{inv.id}</td>
+                        <td className="px-5 py-4 font-bold text-slate-800">{inv.id}</td>
                         <td className="px-5 py-4 font-semibold">{inv.plan}</td>
-                        <td className="px-5 py-4 font-mono text-slate-500 whitespace-nowrap">{inv.date}</td>
+                        <td className="px-5 py-4 text-slate-500 whitespace-nowrap">{inv.date}</td>
                         <td className="px-5 py-4 font-bold text-emerald-700">{inv.amt}</td>
-                        <td className="px-5 py-4 font-mono text-slate-400">{inv.ref}</td>
+                        <td className="px-5 py-4 text-slate-400">{inv.ref}</td>
                         <td className="px-5 py-4">
                           <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             {inv.status}
@@ -686,13 +686,13 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                             <tbody className="divide-y divide-slate-100 text-slate-700">
                               {paginatedStudents.map((student) => (
                                 <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                                  <td className="px-5 py-4 font-mono font-bold text-slate-800">{student.studentId}</td>
+                                  <td className="px-5 py-4 font-bold text-slate-800">{student.studentId}</td>
                                   <td className="px-5 py-4 font-semibold text-slate-900">{student.name}</td>
                                   <td className="px-5 py-4">
                                     <div className="font-medium text-slate-800">{student.course}</div>
-                                    <div className="text-xs text-slate-400 font-mono">{student.batch}</div>
+                                    <div className="text-xs text-slate-400">{student.batch}</div>
                                   </td>
-                                  <td className="px-5 py-4 font-mono text-slate-500">{student.admissionDate}</td>
+                                  <td className="px-5 py-4 text-slate-500">{student.admissionDate}</td>
                                   <td className="px-5 py-4">
                                     <div className="text-xs space-y-0.5">
                                       <div><span className="text-slate-400">Total:</span> <span className="font-bold text-slate-800">₹{student.feePlan.total.toLocaleString()}</span></div>
@@ -784,7 +784,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                           </button>
                           <div>
                             <h5 className="text-base font-bold text-slate-800">Student Profile &amp; Logs</h5>
-                            <p className="text-xs text-slate-500 font-mono mt-0.5">{student.name} ({student.studentId})</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{student.name} ({student.studentId})</p>
                           </div>
                         </div>
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -799,7 +799,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Course &amp; Academic Group</span>
                           <span className="font-bold text-slate-800 text-sm block">{student.course}</span>
-                          <span className="text-xs text-slate-500 font-mono block">Batch ID: {student.batch}</span>
+                          <span className="text-xs text-slate-500 block">Batch ID: {student.batch}</span>
                           <span className="text-xs text-slate-500 block">Branch: {student.branch}</span>
                         </div>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
@@ -835,8 +835,8 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                               <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                                 {student.receipts.map((rcpt) => (
                                   <tr key={rcpt.id}>
-                                    <td className="px-4 py-2.5 font-mono font-bold text-slate-600">{rcpt.id}</td>
-                                    <td className="px-4 py-2.5 font-mono whitespace-nowrap">{rcpt.date}</td>
+                                    <td className="px-4 py-2.5 font-bold text-slate-600">{rcpt.id}</td>
+                                    <td className="px-4 py-2.5 whitespace-nowrap">{rcpt.date}</td>
                                     <td className="px-4 py-2.5 font-bold text-slate-800">₹{rcpt.amount.toLocaleString()}</td>
                                     <td className="px-4 py-2.5 text-slate-500">{rcpt.mode}</td>
                                     <td className="px-4 py-2.5">
@@ -866,7 +866,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                                 <div key={i} className="p-3 flex justify-between items-center">
                                   <div>
                                     <span className="font-semibold text-slate-800 block">{asgn.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">{asgn.date}</span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5 block">{asgn.date}</span>
                                   </div>
                                   <span className="font-bold text-slate-900 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
                                     {asgn.score}
@@ -890,7 +890,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                                 <div key={i} className="p-3 flex justify-between items-center">
                                   <div>
                                     <span className="text-slate-500 block">{log.device}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">{log.date} at {log.time}</span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5 block">{log.date} at {log.time}</span>
                                   </div>
                                   <span className="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase">
                                     Authorized

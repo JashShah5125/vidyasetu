@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { tenantService } from '../services/tenantService';
+import { planService } from '../services/planService';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Upload, Trash, ArrowLeft } from 'lucide-react';
+import { Plus, Upload, Trash, ArrowLeft, X, Image as ImageIcon } from 'lucide-react';
 import { formatDate, getTenantStatus } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,6 +22,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [filterStatus, setFilterStatus] = useState('All');
   
   const [tenants, setTenants] = useState<any[]>([]);
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,7 +52,19 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   useEffect(() => {
     fetchTenants();
-  }, [currentPage, searchTerm, filterStatus]);
+  }, [currentPage, searchTerm, filterStatus, filterPlan]);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await planService.getPlans(['Active']);
+        setAvailablePlans(res.data || []);
+      } catch (e) {
+        console.error('Failed to fetch plans', e);
+      }
+    };
+    fetchPlans();
+  }, []);
 
   React.useEffect(() => {
     if (initialOpenCreate) {
@@ -66,20 +80,42 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   // Forms states
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [panNo, setPanNo] = useState('');
+  const [timezone, setTimezone] = useState('Asia/Kolkata');
+  const [billingCycle, setBillingCycle] = useState('annual');
+  const [customSlug, setCustomSlug] = useState('');
   const [gstNo, setGstNo] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
-  const [plan, setPlan] = useState('Growth Plan');
+  const [plan, setPlan] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [defaultPassword, setDefaultPassword] = useState('');
   const [logoUploaded, setLogoUploaded] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState(false);
   
-  // Resource limit states
-  const [maxBranches, setMaxBranches] = useState('5');
-  const [maxStudents, setMaxStudents] = useState('1000');
-  const [maxStorage, setMaxStorage] = useState('20 GB');
-  const [maxFileSize, setMaxFileSize] = useState('20 MB');
+  // Commercial states
+  const [discount, setDiscount] = useState('');
+  const [finalPrice, setFinalPrice] = useState('');
+  const [tax, setTax] = useState('18');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+
+  // Override limit states
+  const [ovMaxBranches, setOvMaxBranches] = useState('');
+  const [ovMaxStaffUsers, setOvMaxStaffUsers] = useState('');
+  const [ovMaxStudents, setOvMaxStudents] = useState('');
+  const [ovMaxParents, setOvMaxParents] = useState('');
+  const [ovMaxTeachers, setOvMaxTeachers] = useState('');
+  const [ovMaxStorage, setOvMaxStorage] = useState('');
+  const [ovMaxFileSize, setOvMaxFileSize] = useState('');
+  const [ovMaxSmsCredits, setOvMaxSmsCredits] = useState('');
+  const [ovMaxWhatsappMsgs, setOvMaxWhatsappMsgs] = useState('');
 
   // Alternate email lists states
   const [altEmails, setAltEmails] = useState<string[]>([]);
@@ -89,6 +125,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   const [showSaved, setShowSaved] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Calculate Expiry date automatically based on Plan Duration
   const calculateExpiryDate = (startStr: string, selectedPlan: string) => {
@@ -108,6 +145,17 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   const expiryDate = calculateExpiryDate(startDate, plan);
 
+  const autoFinalPrice = () => {
+    let base = 0;
+    if (plan === 'Growth Plan') {
+      base = billingCycle === 'annual' ? 15000 * 12 : 15000;
+    } else if (plan === 'Pro Enterprise') {
+      base = billingCycle === 'annual' ? 30000 * 12 : 30000;
+    }
+    const d = parseFloat(discount) || 0;
+    return Math.round(base - (base * d / 100)).toString();
+  };
+
   const handleOpenAddModal = () => {
     setEditingTenantId(null);
     
@@ -117,23 +165,104 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     
     setName('');
     setAddress('');
+    setCity('');
+    setState('');
+    setPincode('');
+    setPanNo('');
+    setTimezone('Asia/Kolkata');
+    setBillingCycle('annual');
+    setCustomSlug('');
     setGstNo('');
     setOwnerName('');
     setEmail('');
     setMobile('');
-    setPlan('Growth Plan');
+    setPlan(availablePlans.length > 0 ? availablePlans[0].id.toString() : '');
     setStartDate(new Date().toISOString().split('T')[0]);
     setLogoUploaded(false);
+    setLogoFile(null);
+    setLogoPreview(null);
+    setUploadProgress(0);
+    setIsUploading(false);
     setAltEmails([]);
     setDefaultEmailIdx(-1);
-    
-    // Resource limits defaults
-    setMaxBranches('5');
-    setMaxStudents('1000');
-    setMaxStorage('20 GB');
-    setMaxFileSize('20 MB');
+
+    setDiscount('');
+    setFinalPrice('');
+    setTax('18');
+    setInvoiceNumber('');
+    setOvMaxBranches('');
+    setOvMaxStaffUsers('');
+    setOvMaxStudents('');
+    setOvMaxParents('');
+    setOvMaxTeachers('');
+    setOvMaxStorage('');
+    setOvMaxFileSize('');
+    setOvMaxSmsCredits('');
+    setOvMaxWhatsappMsgs('');
+
+    setShowSaved(false);
+    setErrorMsg('');
     
     setShowAddModal(true);
+    setTimeout(() => {
+      document.getElementById('tenant-form-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
+  const handleEditTenant = (t: any) => {
+    setEditingTenantId(t.id);
+    setName(t.name || '');
+    setCustomSlug(t.slug || '');
+    setGstNo(t.gst_number || '');
+    setPanNo(t.pan_number || '');
+    setAddress(t.address_line1 || '');
+    setCity(t.city || '');
+    setState(t.state || '');
+    setPincode(t.pincode || '');
+    setTimezone(t.timezone || 'Asia/Kolkata');
+    setBillingCycle(t.billing_cycle || 'annual');
+    setOwnerName(t.legal_name || t.admin_name || '');
+    setEmail(t.email || '');
+    setMobile(t.mobile || '');
+    setPlan(t.planId ? String(t.planId) : (availablePlans.length > 0 ? availablePlans[0].id.toString() : ''));
+    setStartDate(t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
+    setLogoUploaded(!!t.logo_url);
+    setLogoFile(null);
+    setLogoPreview(t.logo_url || null);
+    setDefaultPassword('********'); // Placeholder for edit mode
+
+    // Parse alternate emails if any
+    if (t.alternate_emails) {
+      try {
+        const alts = typeof t.alternate_emails === 'string' ? JSON.parse(t.alternate_emails) : t.alternate_emails;
+        setAltEmails(Array.isArray(alts) ? alts : []);
+      } catch (e) {
+        setAltEmails([]);
+      }
+    } else {
+      setAltEmails([]);
+    }
+    
+    setDefaultEmailIdx(-1);
+    
+    setDiscount(t.subscription_discount !== null ? String(t.subscription_discount) : '');
+    setFinalPrice(t.subscription_final_price !== null ? String(t.subscription_final_price) : '');
+    setTax(t.subscription_tax !== null ? String(t.subscription_tax) : '18');
+    setInvoiceNumber(t.subscription_invoice_number || '');
+    setOvMaxBranches(t.override_max_branches !== null ? String(t.override_max_branches) : '');
+    setOvMaxStaffUsers(t.override_max_staff_users !== null ? String(t.override_max_staff_users) : '');
+    setOvMaxStudents(t.override_max_students !== null ? String(t.override_max_students) : '');
+    setOvMaxParents(t.override_max_parents !== null ? String(t.override_max_parents) : '');
+    setOvMaxTeachers(t.override_max_teachers !== null ? String(t.override_max_teachers) : '');
+    setOvMaxStorage(t.override_max_storage || '');
+    setOvMaxFileSize(t.override_max_file_size || '');
+    setOvMaxSmsCredits(t.override_max_sms_credits !== null ? String(t.override_max_sms_credits) : '');
+    setOvMaxWhatsappMsgs(t.override_max_whatsapp_msgs !== null ? String(t.override_max_whatsapp_msgs) : '');
+    
+    setShowAddModal(true);
+    setTimeout(() => {
+      document.getElementById('tenant-form-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   };
 
 
@@ -157,7 +286,21 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/svg+xml'];
+      if (!validTypes.includes(file.type)) {
+        alert("Invalid file format! Only JPG, PNG, and SVG are allowed.");
+        e.target.value = '';
+        return;
+      }
+      if (file.size > 500 * 1024) {
+        alert("File size exceeds 500KB. Please upload a smaller image.");
+        e.target.value = ''; // Reset the input
+        return;
+      }
       setLogoUploaded(true);
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
     }
   };
 
@@ -174,50 +317,124 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     
     // Auto-generate slug from name
     const generatedSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const finalSlug = customSlug.trim() || generatedSlug;
 
-    // Map plan to planId (assuming plan dropdown values)
-    let planId = null;
-    if (plan === 'Growth Plan') planId = 1;
-    else if (plan === 'Pro Enterprise') planId = 2;
-    else if (plan === 'Starter Trial') planId = 3;
+    // Data Validation Regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const mobileRegex = /^[0-9]{10}$/;
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    const pincodeRegex = /^[0-9]{6}$/;
+    const slugRegex = /^[a-z0-9-]+$/;
+
+    if (!slugRegex.test(finalSlug)) {
+        alert("Invalid format: Custom URL Subdomain can only contain lowercase letters, numbers, and hyphens.");
+        return;
+    }
+    if (!emailRegex.test(email)) {
+        alert("Invalid format: Admin Email is incorrectly formatted.");
+        return;
+    }
+    if (mobile && !mobileRegex.test(mobile)) {
+        alert("Invalid format: Mobile Number must be exactly 10 digits.");
+        return;
+    }
+    if (panNo && !panRegex.test(panNo.toUpperCase())) {
+        alert("Invalid format: PAN Number must be 10 alphanumeric characters (e.g., ABCDE1234F).");
+        return;
+    }
+    if (gstNo && !gstRegex.test(gstNo.toUpperCase())) {
+        alert("Invalid format: GSTIN is incorrectly formatted.");
+        return;
+    }
+    if (pincode && !pincodeRegex.test(pincode)) {
+        alert("Invalid format: Pincode must be exactly 6 digits.");
+        return;
+    }
+
+    // Map plan to planId
+    let planId = plan;
 
     try {
-      if (editingTenantId) {
-        // Edit mode (Not implemented in backend yet, keeping dummy logic or you can add update API)
-        updateTenant(editingTenantId, {
-          name, address, gstNo, ownerName, email, mobile, plan,
-          renewalDate: expiryDate, startDate, altEmails: cleanAlts,
-          defaultEmail: finalDefaultEmail, maxBranches, maxStudents, maxStorage, maxFileSize
-        });
-        setSuccessMsg(`Tenant "${name}" settings updated successfully!`);
-      } else {
-        // Create mode using real backend
-        await tenantService.createTenant({
-          name,
-          legal_name: name,
-          slug: generatedSlug,
-          adminEmail: email,
-          adminPassword: defaultPassword,
-          planId
-        });
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('legal_name', name);
+        formData.append('slug', finalSlug);
+        formData.append('adminEmail', email);
+        if (!editingTenantId) {
+            formData.append('adminPassword', defaultPassword);
+        }
+        if (planId) formData.append('planId', String(planId));
+        if (address) formData.append('address', address);
+        if (city) formData.append('city', city);
+        if (state) formData.append('state', state);
+        if (pincode) formData.append('pincode', pincode);
+        if (panNo) formData.append('panNo', panNo);
+        if (gstNo) formData.append('gstNo', gstNo);
+        if (mobile) formData.append('mobile', mobile);
+        if (timezone) formData.append('timezone', timezone);
+        if (billingCycle) formData.append('billingCycle', billingCycle);
+        if (logoFile) {
+            formData.append('logo', logoFile);
+        } else if (!logoPreview && editingTenantId) {
+            formData.append('removeLogo', 'true');
+        }
+        if (cleanAlts.length > 0) formData.append('alternate_emails', JSON.stringify(cleanAlts));
+
+        if (discount) formData.append('discount', discount);
+        if (finalPrice) formData.append('finalPrice', finalPrice);
+        if (tax) formData.append('tax', tax);
+        if (invoiceNumber) formData.append('invoiceNumber', invoiceNumber);
+        if (ovMaxBranches) formData.append('maxBranches', ovMaxBranches);
+        if (ovMaxStaffUsers) formData.append('maxStaffUsers', ovMaxStaffUsers);
+        if (ovMaxStudents) formData.append('maxStudents', ovMaxStudents);
+        if (ovMaxParents) formData.append('maxParents', ovMaxParents);
+        if (ovMaxTeachers) formData.append('maxTeachers', ovMaxTeachers);
+        if (ovMaxStorage) formData.append('maxStorage', ovMaxStorage);
+        if (ovMaxFileSize) formData.append('maxFileSize', ovMaxFileSize);
+        if (ovMaxSmsCredits) formData.append('maxSmsCredits', ovMaxSmsCredits);
+        if (ovMaxWhatsappMsgs) formData.append('maxWhatsappMsgs', ovMaxWhatsappMsgs);
+
+        setIsUploading(true);
+        setUploadProgress(0);
+
+        const onProgress = (progressEvent: any) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        };
+
+        if (editingTenantId) {
+          // Edit mode using real backend
+          await tenantService.updateTenant(editingTenantId.toString(), formData, onProgress);
+          setSuccessMsg(`Tenant "${name}" settings updated successfully!`);
+        } else {
+          // Create mode using real backend
+          await tenantService.createTenant(formData, onProgress);
+          setSuccessMsg(`Tenant "${name}" created successfully!`);
+        }
         
-        const alternateEmailInfo = cleanAlts.length > 0 ? ` | Alt Emails: ${cleanAlts.join(', ')}` : '';
-        const gstInfo = gstNo ? ` | GSTIN: ${gstNo}` : '';
-        setSuccessMsg(`New Institute Tenant configured! Admin Email: ${email}${alternateEmailInfo} | Default Login: ${finalDefaultEmail} | Password: ${defaultPassword}${gstInfo}`);
-        
-        // Refresh list
+        setIsUploading(false);
         fetchTenants();
-      }
       
       // Reset form
       setName('');
       setAddress('');
+      setCity('');
+      setState('');
+      setPincode('');
+      setPanNo('');
+      setTimezone('Asia/Kolkata');
+      setBillingCycle('annual');
+      setCustomSlug('');
       setGstNo('');
       setOwnerName('');
       setEmail('');
       setMobile('');
-      setPlan('Growth Plan');
+      setPlan(availablePlans.length > 0 ? availablePlans[0].id.toString() : '');
       setLogoUploaded(false);
+      setLogoFile(null);
       setAltEmails([]);
       setDefaultEmailIdx(-1);
       setEditingTenantId(null);
@@ -229,8 +446,9 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         setSuccessMsg('');
       }, 8000);
     } catch (error: any) {
-      console.error('Failed to create tenant:', error);
-      alert(error.response?.data?.message || 'Failed to create tenant. Please check if the slug or email already exists.');
+      console.error('Failed to save tenant:', error);
+      setErrorMsg(error.response?.data?.message || 'Failed to save tenant. Please check your inputs and try again.');
+      setIsUploading(false);
     }
   };
 
@@ -286,7 +504,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   if (showAddModal) {
     return (
-      <div className="space-y-6 w-full animate-fade-in">
+      <div id="tenant-form-top" className="space-y-6 w-full animate-fade-in">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowAddModal(false)}
@@ -295,21 +513,27 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             <ArrowLeft size={26} />
           </button>
           <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
               {editingTenantId ? `Edit Tenant Settings: ${name}` : "Register Institute Tenant"}
             </h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-base text-slate-500 mt-1">
               Configure profile fields, admin account logins, alternative emails, and system limits.
             </p>
           </div>
         </div>
 
         <div className="w-full">
+          {errorMsg && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-800 shadow-sm animate-fade-in flex items-start gap-2">
+              <span className="text-red-500 font-bold mt-0.5">!</span>
+              <div>{errorMsg}</div>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {/* Section 1: Institute Information */}
             <div className="space-y-4">
-              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center gap-1.5 select-none">
+              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center gap-1.5 select-none">
                 <span>01.</span> Institute Profile & Branding
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -321,58 +545,156 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   onChange={(e) => setName(e.target.value)} 
                 />
                 <Input 
-                  label="GSTIN Number" 
-                  placeholder="e.g. 27AAAAA0000A1Z5" 
-                  value={gstNo} 
-                  onChange={(e) => setGstNo(e.target.value)} 
+                  label="Custom URL Subdomain (Optional)" 
+                  placeholder="e.g. apex-academy" 
+                  value={customSlug} 
+                  onChange={(e) => setCustomSlug(e.target.value)} 
                 />
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                <Input 
-                  label="Institute Physical Address" 
-                  placeholder="e.g. 401, Western Express Highway, Mumbai" 
-                  value={address} 
-                  onChange={(e) => setAddress(e.target.value)} 
-                />
+
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch mt-6">
                 
-                <div className="flex flex-col gap-1.5 w-full">
+                {/* Left Column: Logo Upload */}
+                <div className="flex flex-col gap-1.5 w-full md:w-3/4 mx-auto lg:w-full">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Brand Logo File</label>
-                  <input 
-                    type="file" 
-                    id="logo-file-input" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleLogoChange} 
-                  />
-                  <label 
-                    htmlFor="logo-file-input"
-                    className={`border-2 border-dashed rounded-xl p-3 flex items-center justify-center gap-3 cursor-pointer transition-colors bg-slate-50/50 ${
-                      logoUploaded ? 'border-emerald-300 bg-emerald-50/10' : 'border-slate-200 hover:border-blue-500'
-                    }`}
-                    style={{ height: '38px' }}
-                  >
-                    {logoUploaded ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px] shadow-sm animate-fade-in">
-                          {name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'VS'}
+                  <div className="flex flex-col gap-1.5 w-full bg-white p-6 rounded-2xl border border-slate-100 shadow-sm justify-start items-center">
+                    <div className="text-center mb-4 mt-2 w-full">
+                       <h3 className="text-lg font-bold text-slate-900">{logoPreview ? (isUploading ? 'Uploading...' : 'File Uploaded') : 'File Upload'}</h3>
+                       <p className="text-xs text-slate-500 font-semibold">{logoPreview ? (isUploading ? 'It may take a while. Please wait.' : 'Ready to submit') : 'Select and upload your file.'}</p>
+                    </div>
+                    <input 
+                      type="file" 
+                      id="logo-file-input" 
+                      accept=".jpg,.jpeg,.png,.svg" 
+                      className="hidden" 
+                      onChange={handleLogoChange} 
+                    />
+                    {logoPreview ? (
+                        <div className="flex flex-col items-center w-full mb-2">
+                           <div className="w-full aspect-square max-w-[280px] flex flex-col relative bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                               {!isUploading && (
+                                 <button type="button" onClick={(e) => { e.preventDefault(); setLogoFile(null); setLogoPreview(null); setLogoUploaded(false); }} className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-slate-500 hover:text-red-500 hover:bg-white shadow-sm transition-colors z-10">
+                                    <X size={14} />
+                                 </button>
+                               )}
+                               <div className="w-full flex-1 bg-[#F8F9FA] flex flex-col items-center justify-center p-4">
+                                   <img src={logoPreview} alt="preview" className="max-w-full max-h-[160px] object-contain drop-shadow-sm mb-4" />
+                                   
+                                   {/* Progress inside the square boundary */}
+                                   <div className="w-full flex flex-col gap-2 mt-auto">
+                                       <div className="flex justify-between items-center w-full">
+                                          <div className="flex flex-col overflow-hidden pr-2 text-left">
+                                            <span className="text-xs font-bold text-slate-700 truncate">
+                                              {logoFile?.name || (logoPreview ? logoPreview.split('/').pop() : 'logo.png')}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-medium">
+                                              {logoFile ? (logoFile.size / 1024 / 1024).toFixed(2) + ' MB' : 'Uploaded File'}
+                                            </span>
+                                          </div>
+                                       </div>
+                                       <div className="flex flex-col gap-1 w-full">
+                                         <div className="w-full bg-slate-200 rounded-full h-1.5">
+                                           <div className={`h-1.5 rounded-full transition-all duration-300 ${isUploading ? 'bg-blue-600' : 'bg-emerald-500'}`} style={{ width: `${isUploading ? uploadProgress : 100}%` }}></div>
+                                         </div>
+                                         <div className="flex justify-between items-center text-[9px] font-bold">
+                                           <span className={isUploading ? 'text-slate-500' : 'text-emerald-600'}>
+                                             {isUploading ? `${uploadProgress}% done` : '✓ Done'}
+                                           </span>
+                                           {isUploading && (
+                                             <span className="text-slate-400">Uploading...</span>
+                                           )}
+                                         </div>
+                                       </div>
+                                   </div>
+                               </div>
+                           </div>
+                           
+                           {isUploading && (
+                             <div className="mt-4 flex justify-center w-full max-w-[280px]">
+                               <button type="button" className="px-6 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors w-full">Cancel</button>
+                             </div>
+                           )}
                         </div>
-                        <span className="text-xs font-bold text-emerald-800 truncate">✓ Brand logo attached successfully</span>
-                      </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <Upload size={14} className="text-slate-400 animate-pulse" />
-                        <span className="text-xs font-semibold text-slate-700">Click to upload logo (JPG/PNG up to 2MB)</span>
-                      </div>
+                       <label htmlFor="logo-file-input" className="flex flex-col items-center justify-center aspect-square w-full max-w-[280px] p-8 gap-5 bg-[#F8F9FA] border-[2px] border-dashed border-[#D1D5DB] rounded-2xl cursor-pointer hover:border-blue-500 transition-colors mb-2">
+                          <ImageIcon size={32} className="text-slate-400" />
+                          <div className="flex flex-col items-center gap-1">
+                             <span className="text-[14px] font-bold text-slate-600 text-center">Drag files to upload</span>
+                             <span className="text-[11px] font-semibold text-slate-400 text-center">or</span>
+                          </div>
+                          <div className="bg-blue-600 text-white text-[13px] font-bold py-2.5 px-8 rounded-lg shadow-sm hover:bg-blue-700 transition-colors w-full text-center mt-2">
+                            Browse file
+                          </div>
+                       </label>
                     )}
-                  </label>
+                  </div>
+                </div>
+
+                {/* Right Column: Location & Settings */}
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 gap-4 items-start">
+                    <Input 
+                      label="Address Line 1" 
+                      placeholder="e.g. 401, Western Express Highway, Mumbai" 
+                      value={address} 
+                      onChange={(e) => setAddress(e.target.value)} 
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input 
+                      label="GSTIN Number" 
+                      placeholder="e.g. 27AAAAA0000A1Z5" 
+                      value={gstNo} 
+                      onChange={(e) => setGstNo(e.target.value)} 
+                    />
+                    <Input 
+                      label="PAN Number" 
+                      placeholder="e.g. ABCDE1234F" 
+                      value={panNo} 
+                      onChange={(e) => setPanNo(e.target.value)} 
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input 
+                      label="City" 
+                      placeholder="e.g. Mumbai" 
+                      value={city} 
+                      onChange={(e) => setCity(e.target.value)} 
+                    />
+                    <Input 
+                      label="State" 
+                      placeholder="e.g. Maharashtra" 
+                      value={state} 
+                      onChange={(e) => setState(e.target.value)} 
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input 
+                      label="Pincode" 
+                      placeholder="e.g. 400001" 
+                      value={pincode} 
+                      onChange={(e) => setPincode(e.target.value)} 
+                    />
+                    <Select
+                      label="Timezone"
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      options={[
+                        { value: 'Asia/Kolkata', label: 'India (IST)' },
+                        { value: 'Asia/Dubai', label: 'Dubai (GST)' },
+                        { value: 'Europe/London', label: 'London (GMT)' },
+                        { value: 'America/New_York', label: 'New York (EST)' }
+                      ]}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Section 2: Institute Admin Credentials */}
             <div className="space-y-4 pt-1">
-              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
                 <span>02.</span> Institute Admin Credentials
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -404,7 +726,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                     type="email"
                     required
                     placeholder="ramesh@apex.com"
-                    className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+                    className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-base text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -453,7 +775,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                             type="email"
                             required
                             placeholder={`alternate-${idx + 1}@apex.com`}
-                            className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+                            className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-base text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
                             value={emailVal}
                             onChange={(e) => handleUpdateAltEmail(idx, e.target.value)}
                           />
@@ -485,7 +807,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                     <input 
                       type="text" 
                       readOnly
-                      className="flex-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg px-3 py-2 text-sm font-mono select-all outline-none"
+                      className="flex-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg px-3 py-2 text-base font-semibold select-all outline-none"
                       value={defaultPassword}
                     />
                     {!editingTenantId && (
@@ -507,19 +829,27 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
             {/* Section 3: Subscription Plan */}
             <div className="space-y-4 pt-1">
-              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
                 <span>03.</span> Subscription Plan
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select 
                   label="Subscription Tier" 
                   value={plan} 
                   onChange={(e) => setPlan(e.target.value)} 
+                  options={availablePlans.map((p) => ({ value: p.id.toString(), label: p.name }))}
+                />
+                <Select
+                  label="Billing Cycle"
+                  value={billingCycle}
+                  onChange={(e) => setBillingCycle(e.target.value)}
                   options={[
-                    { value: 'Growth Plan', label: 'Growth Plan (Rs. 15,000/mo)' },
-                    { value: 'Pro Enterprise', label: 'Pro Enterprise (Rs. 30,000/mo)' },
-                    { value: 'Starter Trial', label: 'Starter Trial (Free)' }
-                  ]} 
+                    { value: 'Monthly', label: 'Monthly' },
+                    { value: 'Quarterly', label: 'Quarterly' },
+                    { value: 'Half-Yearly', label: 'Half-Yearly' },
+                    { value: 'Yearly', label: 'Yearly' },
+                    { value: 'Lifetime', label: 'Lifetime' }
+                  ]}
                 />
                 <Input 
                   label="Start Date" 
@@ -535,58 +865,51 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   <input 
                     type="date" 
                     readOnly 
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-lg px-3 py-2 text-sm font-semibold select-none cursor-not-allowed outline-none"
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-600 rounded-lg px-3 py-2 text-base font-semibold select-none cursor-not-allowed outline-none"
                     value={expiryDate} 
                   />
                 </div>
               </div>
             </div>
 
-            {/* Section 4: Resource Limits */}
+            {/* Section 03: Commercial */}
             <div className="space-y-4 pt-1">
-              <h4 className="text-xs font-bold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
-                <span>04.</span> Resource Limits
+              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                <span>03.</span> Commercial
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input 
-                  label="Maximum Branches" 
-                  type="number" 
-                  required 
-                  value={maxBranches} 
-                  onChange={(e) => setMaxBranches(e.target.value)} 
-                />
-                <Input 
-                  label="Maximum Students Capacity" 
-                  type="number" 
-                  required 
-                  value={maxStudents} 
-                  onChange={(e) => setMaxStudents(e.target.value)} 
-                />
+                <div>
+                  <Input label="Discount %" type="number" min={0} max={100} placeholder="e.g. 10"
+                    value={discount} onChange={e => { setDiscount(e.target.value); setFinalPrice(autoFinalPrice()); }} />
+                </div>
+                <div>
+                  <Input label="Final Price" type="number" placeholder="Auto-calculated or override"
+                    value={finalPrice || autoFinalPrice()} onChange={e => setFinalPrice(e.target.value)} />
+                </div>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select 
-                  label="Allocated Cloud Storage" 
-                  value={maxStorage} 
-                  onChange={(e) => setMaxStorage(e.target.value)} 
-                  options={[
-                    { value: '5 GB', label: '5 GB (Starter)' },
-                    { value: '20 GB', label: '20 GB (Standard)' },
-                    { value: '100 GB', label: '100 GB (Enterprise)' },
-                    { value: '500 GB', label: '500 GB (Enterprise Plus)' }
-                  ]} 
-                />
-                <Select 
-                  label="Maximum File Upload Size" 
-                  value={maxFileSize} 
-                  onChange={(e) => setMaxFileSize(e.target.value)} 
-                  options={[
-                    { value: '5 MB', label: '5 MB (Basic docs)' },
-                    { value: '20 MB', label: '20 MB (Standard attachments)' },
-                    { value: '50 MB', label: '50 MB (High Quality PDFs)' },
-                    { value: '200 MB', label: '200 MB (Lecture recordings)' }
-                  ]} 
-                />
+                <Input label="Tax %" type="number" placeholder="e.g. 18" value={tax} onChange={e => setTax(e.target.value)} />
+                <Input label="Invoice Number" placeholder="e.g. INV-2026-042" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Section 04: Override Limits */}
+            <div className="space-y-4 pt-1">
+              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
+                <span>04.</span> Override Limits <span className="text-slate-400 font-normal normal-case tracking-normal text-xs ml-2">(leave blank to use plan defaults)</span>
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Input label="Max Branches" type="number" placeholder="Plan default" value={ovMaxBranches} onChange={e => setOvMaxBranches(e.target.value)} />
+                <Input label="Max Staff Users" type="number" placeholder="Plan default" value={ovMaxStaffUsers} onChange={e => setOvMaxStaffUsers(e.target.value)} />
+                <Input label="Max Students" type="number" placeholder="Plan default" value={ovMaxStudents} onChange={e => setOvMaxStudents(e.target.value)} />
+                <Input label="Max Parents" type="number" placeholder="Plan default" value={ovMaxParents} onChange={e => setOvMaxParents(e.target.value)} />
+                <Input label="Max Teachers" type="number" placeholder="Plan default" value={ovMaxTeachers} onChange={e => setOvMaxTeachers(e.target.value)} />
+                <Select label="Max Storage" value={ovMaxStorage} onChange={e => setOvMaxStorage(e.target.value)}
+                  options={[{ value: '', label: 'Plan default' }, { value: '5 GB', label: '5 GB' }, { value: '20 GB', label: '20 GB' }, { value: '100 GB', label: '100 GB' }, { value: '500 GB', label: '500 GB' }]} />
+                <Select label="Max File Size" value={ovMaxFileSize} onChange={e => setOvMaxFileSize(e.target.value)}
+                  options={[{ value: '', label: 'Plan default' }, { value: '5 MB', label: '5 MB' }, { value: '20 MB', label: '20 MB' }, { value: '50 MB', label: '50 MB' }, { value: '200 MB', label: '200 MB' }]} />
+                <Input label="Max SMS Credits" type="number" placeholder="Plan default" value={ovMaxSmsCredits} onChange={e => setOvMaxSmsCredits(e.target.value)} />
+                <Input label="Max WhatsApp Msgs" type="number" placeholder="Plan default" value={ovMaxWhatsappMsgs} onChange={e => setOvMaxWhatsappMsgs(e.target.value)} />
               </div>
             </div>
 
@@ -609,11 +932,11 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Tenant Institutes Directory</h2>
-          <p className="text-sm text-slate-500 mt-1">Provision new coaching center workspaces, set allowed limits, and manage billing statuses.</p>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Tenant Institutes Directory</h2>
+          <p className="text-base text-slate-500 mt-2">Provision new coaching center workspaces, set allowed limits, and manage billing statuses.</p>
         </div>
-        <Button variant="primary" style={{ gap: '6px' }} onClick={handleOpenAddModal}>
-          <Plus size={16} /> Create Tenant
+        <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={handleOpenAddModal}>
+          <Plus size={18} /> Create Tenant
         </Button>
       </div>
 
@@ -626,15 +949,13 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             wrapperClassName="sm:col-span-2"
           />
           <Select 
-            label="Plan Tier" 
-            value={filterPlan} 
-            onChange={(e) => setFilterPlan(e.target.value)} 
+            label="Plan" 
+            value={filterPlan}
+            onChange={(e) => setFilterPlan(e.target.value)}
             options={[
               { value: 'All', label: 'All Plans' },
-              { value: 'Basic Plan', label: 'Basic Plan' },
-              { value: 'Growth Plan', label: 'Growth Plan' },
-              { value: 'Enterprise Plan', label: 'Enterprise Plan' }
-            ]} 
+              ...availablePlans.map((p) => ({ value: p.id.toString(), label: p.name }))
+            ]}
           />
           <Select 
             label="Status" 
@@ -654,7 +975,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         <CardHeader>
           <CardTitle>Platform Tenant Registry</CardTitle>
         </CardHeader>
-        <Table headers={['Tenant ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status']}>
+        <Table dense headers={['ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status']}>
           {(() => {
             const itemsPerPage = 10; // Match backend limit
             const paginatedTenants = filteredAndSortedTenants;
@@ -663,22 +984,22 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 {paginatedTenants.map((t, idx) => (
                   <tr 
                     key={idx} 
-                    onClick={() => navigate(`/saas-admin/tenants/${t.id}`)}
+                    onClick={() => handleEditTenant(t)}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
                   >
-                    <td className="px-6 py-4 font-mono font-bold text-xs">{t.id}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-800">{t.name}</td>
-                    <td className="px-6 py-4 text-xs font-semibold text-slate-700">{t.admin_name || 'N/A'}</td>
-                    <td className="px-6 py-4">
-                      <div className="text-slate-800 flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold">{t.admin_email || 'N/A'}</span>
+                    <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{t.id}</td>
+                    <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[200px]">{t.name}</td>
+                    <td className="px-3 py-3 text-sm font-semibold text-slate-800">{t.legal_name || t.admin_name || 'N/A'}</td>
+                    <td className="px-3 py-3 min-w-[200px]">
+                      <div className="text-slate-800 flex items-center gap-1.5 flex-wrap text-sm">
+                        <span className="font-semibold break-all">{t.contact_email || t.admin_email || 'N/A'}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.contact_phone || 'N/A'}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{t.contact_phone || 'N/A'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">{t.plan_name || 'Standard'}</span></td>
-                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{formatDate(t.created_at || '2026-04-15')}</td>
-                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">N/A</td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3 whitespace-nowrap"><span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-sm font-medium">{t.plan_name || 'Standard'}</span></td>
+                    <td className="px-3 py-3 text-sm whitespace-nowrap">{formatDate(t.created_at || '2026-04-15')}</td>
+                    <td className="px-3 py-3 text-sm whitespace-nowrap">N/A</td>
+                    <td className="px-3 py-3 whitespace-nowrap">
                       {(() => {
                         const status = t.status || 'Unknown';
                         let badgeColors = 'bg-red-50 text-red-600';

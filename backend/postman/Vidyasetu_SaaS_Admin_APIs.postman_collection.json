@@ -20,7 +20,19 @@
 									"if (jsonData && jsonData.data && jsonData.data.token) {",
 									"    pm.collectionVariables.set(\"token\", jsonData.data.token);",
 									"    console.log(\"Token automatically set in collection variables!\");",
-									"}"
+									"}",
+									"",
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
 								],
 								"type": "text/javascript"
 							}
@@ -81,7 +93,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Create Plan",
@@ -115,7 +148,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Get Plan By ID",
@@ -141,7 +195,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Update Plan",
@@ -176,7 +251,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Delete Plan",
@@ -202,7 +298,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Update Plan Status",
@@ -238,7 +355,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		},
@@ -286,7 +424,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Get Subscription By ID",
@@ -312,7 +471,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Update Subscription Plan",
@@ -348,7 +528,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		},
@@ -397,7 +598,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Get Billing Summary",
@@ -423,7 +645,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		},
@@ -463,7 +706,28 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Create Tenant",
@@ -474,16 +738,47 @@
 								"key": "Authorization",
 								"value": "Bearer {{token}}",
 								"type": "text"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text"
 							}
 						],
 						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Acme Institute\",\n    \"domain\": \"acme\",\n    \"tenant_type\": \"customer\"\n}"
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Test Logo Institute",
+									"type": "text"
+								},
+								{
+									"key": "legal_name",
+									"value": "Test Logo Pvt Ltd",
+									"type": "text"
+								},
+								{
+									"key": "slug",
+									"value": "test-logo-inst",
+									"type": "text"
+								},
+								{
+									"key": "adminEmail",
+									"value": "admin@testlogo.com",
+									"type": "text"
+								},
+								{
+									"key": "adminPassword",
+									"value": "securePass123",
+									"type": "text"
+								},
+								{
+									"key": "planId",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "logo",
+									"type": "file",
+									"src": "logo.png"
+								}
+							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/admin/tenants",
@@ -497,7 +792,106 @@
 							]
 						}
 					},
-					"response": []
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});",
+									"",
+									"pm.test(\"Database should be filled with logo URL\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data.logoUrl).to.include(\"/uploads/tenants/logo/\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Tenant",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Updated Institute Name",
+									"type": "text"
+								},
+								{
+									"key": "legal_name",
+									"value": "Updated Institute Pvt Ltd",
+									"type": "text"
+								},
+								{
+									"key": "slug",
+									"value": "updated-inst",
+									"type": "text"
+								},
+								{
+									"key": "adminEmail",
+									"value": "newadmin@updated.com",
+									"type": "text"
+								},
+								{
+									"key": "mobile",
+									"value": "9876543210",
+									"type": "text"
+								},
+								{
+									"key": "logo",
+									"type": "file",
+									"src": "logo.png"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+									"});"
+								]
+							}
+						}
+					]
 				}
 			]
 		}

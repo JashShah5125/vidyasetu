@@ -20,7 +20,7 @@ export const Table: React.FC<TableProps> = ({ headers, children, className = '',
                 {headers.map((h, i) => (
                   <th
                     key={i}
-                    className={`${paddingClass} text-xs font-bold text-slate-500 uppercase tracking-wider select-none whitespace-nowrap ${
+                    className={`${dense ? 'px-3 py-3' : 'px-6 py-3.5'} text-xs font-bold text-slate-500 uppercase tracking-wider select-none whitespace-nowrap ${
                       h.toLowerCase() === 'academic year' ? 'text-center' : 'text-left'
                     }`}
                   >

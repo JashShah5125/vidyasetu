@@ -3,7 +3,12 @@ const tenantModel = require('../models/tenantModel');
 const bcrypt = require('bcryptjs');
 
 const createTenantWithAdmin = async (tenantData) => {
-    const { name, legal_name, slug, adminEmail, adminPassword, planId } = tenantData;
+    const { 
+        name, legal_name, slug, adminEmail, adminPassword, planId, address, city, state, pincode, panNo, 
+        timezone, billingCycle, logoUrl, alternateEmails,
+        discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
+        maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
+    } = tenantData;
     
     // Check if slug exists
     const slugExists = await tenantModel.checkSlugExists(slug);
@@ -11,22 +16,44 @@ const createTenantWithAdmin = async (tenantData) => {
         throw new Error('Tenant slug already exists');
     }
 
+    // Generate unique internal code
+    const code = 'T-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // 1. Create Tenant
+        // 1. Create Tenant (including profile and subscription)
         const [tenantResult] = await connection.query(
-            'INSERT INTO tenants (name, slug, tenant_type, status) VALUES (?, ?, ?, ?)',
-            [name, slug, 'customer', 'active']
+            `INSERT INTO tenants (
+                name, slug, code, tenant_type, status, owner_name, primary_email, owner_mobile, plan_id, 
+                subscription_status, address_line1, city, state, pincode, pan_number, timezone, billing_cycle, 
+                logo_url, alternate_emails, subscription_discount, subscription_final_price, subscription_tax, 
+                subscription_invoice_number, override_max_branches, override_max_staff_users, override_max_students, 
+                override_max_parents, override_max_teachers, override_max_storage, override_max_file_size, 
+                override_max_sms_credits, override_max_whatsapp_msgs
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                name, slug, code, 'customer', 'active', legal_name || name, adminEmail, '', planId || null, 
+                'active', address || null, city || null, state || null, pincode || null, panNo || null, 
+                timezone || 'Asia/Kolkata', billingCycle || 'annual', logoUrl || null, 
+                alternateEmails ? JSON.stringify(alternateEmails) : null,
+                discount !== undefined ? discount : null, 
+                finalPrice !== undefined ? finalPrice : null, 
+                tax !== undefined ? tax : null, 
+                invoiceNumber || null, 
+                maxBranches !== undefined ? maxBranches : null, 
+                maxStaffUsers !== undefined ? maxStaffUsers : null, 
+                maxStudents !== undefined ? maxStudents : null, 
+                maxParents !== undefined ? maxParents : null, 
+                maxTeachers !== undefined ? maxTeachers : null, 
+                maxStorage || null, 
+                maxFileSize || null, 
+                maxSmsCredits !== undefined ? maxSmsCredits : null, 
+                maxWhatsappMsgs !== undefined ? maxWhatsappMsgs : null
+            ]
         );
         const tenantId = tenantResult.insertId;
-
-        // 2. Create Tenant Profile
-        await connection.query(
-            'INSERT INTO tenant_profiles (tenant_id, owner_name, owner_email, owner_mobile) VALUES (?, ?, ?, ?)',
-            [tenantId, legal_name || name, adminEmail, '']
-        );
 
         // 3. Create Admin User
         const passwordHash = await bcrypt.hash(adminPassword, 10);
@@ -63,22 +90,16 @@ const createTenantWithAdmin = async (tenantData) => {
             [adminUserId, roleId, tenantId]
         );
 
-        // 6. Assign Subscription Plan
-        if (planId) {
-            await connection.query(
-                'INSERT INTO tenant_subscriptions (tenant_id, plan_id, status) VALUES (?, ?, ?)',
-                [tenantId, planId, 'active']
-            );
-        }
+        // 6. Subscription is now handled in Step 1
 
         // 7. Audit Log
         await connection.query(
-            'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (UUID(), ?, ?, ?, ?, ?, ?)',
             [tenantId, adminUserId, 'CREATE', 'tenant', tenantId, '127.0.0.1'] // Placeholder IP
         );
 
         await connection.commit();
-        return { tenantId, adminUserId };
+        return { tenantId, adminUserId, logoUrl };
     } catch (error) {
         await connection.rollback();
         throw error;
@@ -99,9 +120,35 @@ const updateTenantStatus = async (id, status) => {
     return await tenantModel.updateTenantStatus(id, status);
 };
 
+const updateTenant = async (id, tenantData) => {
+    // If slug is being updated, verify it doesn't exist for a DIFFERENT tenant
+    if (tenantData.slug) {
+        const existingTenant = await tenantModel.getTenantById(id);
+        if (existingTenant.slug !== tenantData.slug) {
+            const slugExists = await tenantModel.checkSlugExists(tenantData.slug);
+            if (slugExists) {
+                throw new Error('Tenant slug already exists');
+            }
+        }
+    }
+    
+    try {
+        // Add audit log (optional but good practice)
+        await pool.query(
+            'INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (UUID(), ?, ?, ?, ?, ?, ?)',
+            [id, null, 'UPDATE', 'tenant', id, '127.0.0.1']
+        );
+    } catch (auditError) {
+        console.error('Audit log failed, proceeding anyway:', auditError.message);
+    }
+
+    return await tenantModel.updateTenant(id, tenantData);
+};
+
 module.exports = {
     createTenantWithAdmin,
     getTenants,
     getTenantById,
-    updateTenantStatus
+    updateTenantStatus,
+    updateTenant
 };

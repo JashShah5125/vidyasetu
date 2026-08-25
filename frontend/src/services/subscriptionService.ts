@@ -16,11 +16,22 @@ const mapSubscriptionToFrontend = (row: any): TenantSubscription => {
       : 'Monthly',
     startDate: row.start_date ? row.start_date.substring(0, 10) : '2026-01-01',
     expiryDate: row.end_date ? row.end_date.substring(0, 10) : '2027-01-01',
-    discount: 0,
-    finalPrice: row.billing_cycle === 'annual' ? parseFloat(row.price_annual) : parseFloat(row.price_monthly) || 0,
-    tax: 0,
-    invoiceNumber: '',
-    overrides: {}
+    discount: row.subscription_discount ? parseFloat(row.subscription_discount) : 0,
+    finalPrice: row.subscription_final_price !== null ? parseFloat(row.subscription_final_price) : 
+      (row.billing_cycle === 'annual' ? parseFloat(row.price_annual) : parseFloat(row.price_monthly) || 0),
+    tax: row.subscription_tax !== null ? parseFloat(row.subscription_tax) : 18,
+    invoiceNumber: row.subscription_invoice_number || '',
+    overrides: {
+      maxBranches: row.override_max_branches,
+      maxStaffUsers: row.override_max_staff_users,
+      maxStudents: row.override_max_students,
+      maxParents: row.override_max_parents,
+      maxTeachers: row.override_max_teachers,
+      maxStorage: row.override_max_storage,
+      maxFileSize: row.override_max_file_size,
+      maxSmsCredits: row.override_max_sms_credits,
+      maxWhatsappMsgs: row.override_max_whatsapp_msgs
+    }
   };
 };
 
@@ -42,6 +53,11 @@ export const subscriptionService = {
 
   changeSubscriptionPlan: async (id: string, planId: string) => {
     const { data } = await api.patch(`/admin/subscriptions/${id}/plan`, { planId });
+    return data;
+  },
+
+  updateSubscription: async (id: string, payload: any) => {
+    const { data } = await api.put(`/admin/subscriptions/${id}`, payload);
     return data;
   }
 };

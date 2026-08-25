@@ -74,8 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Subscription Management',
             links: [
-              { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard },
-              { name: 'Tenant Subscriptions', label: 'Tenant Subscriptions', path: '/tenant-subscriptions', icon: FileText }
+              { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard }
             ]
           },
           {

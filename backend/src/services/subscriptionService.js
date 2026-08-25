@@ -14,8 +14,14 @@ const changeSubscriptionPlan = async (id, planId) => {
     return await subscriptionModel.updateSubscriptionPlan(id, planId);
 };
 
+const updateSubscriptionFull = async (id, data) => {
+    if (!data.planId) throw new Error('planId is required');
+    return await subscriptionModel.updateSubscriptionFull(id, data);
+};
+
 module.exports = {
     getSubscriptions,
     getSubscriptionById,
-    changeSubscriptionPlan
+    changeSubscriptionPlan,
+    updateSubscriptionFull
 };

@@ -46,7 +46,17 @@ export interface IntegrationConfig {
   googleMeet: boolean;
   googleCalendar: boolean;
   biometricDevices: boolean;
-  biometricDevices: boolean;
+}
+
+export interface BillingOption {
+  id?: number;
+  billingType: 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Yearly' | 'Lifetime';
+  price: number;
+  currency: string;
+  trialDays: number;
+  setupFee: number;
+  renewalPrice: number;
+  autoRenewal: boolean;
 }
 
 export interface SubscriptionPlan {
@@ -56,12 +66,14 @@ export interface SubscriptionPlan {
   description: string;
   status: 'Active' | 'Inactive';
   displayOrder: number;
-  billingType: 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime';
-  price: number;
+  monthlyPrice: number;
+  quarterlyPrice: number;
+  halfYearlyPrice: number;
+  yearlyPrice: number;
+  lifetimePrice: number;
   currency: string;
   trialDays: number;
   setupFee: number;
-  renewalPrice: number;
   autoRenewal: boolean;
   maxInstances: number;
   maxBranches: number;
@@ -72,7 +84,6 @@ export interface SubscriptionPlan {
   maxStorage: string;
   maxFileSize: string;
   maxSmsCredits: number;
-  maxWhatsappMsgs: number;
   maxWhatsappMsgs: number;
   features: FeatureAccess;
   support: SupportConfig;
@@ -106,7 +117,6 @@ export interface TenantSubscription {
     maxFileSize?: string;
     maxSmsCredits?: number;
     maxWhatsappMsgs?: number;
-    maxWhatsappMsgs?: number;
   };
 }
 
@@ -126,7 +136,7 @@ export const DEFAULT_FEATURES: FeatureAccess = {
   assignments: false, exams: false, results: false, doubts: false,
   fees: false, payroll: false, income: false, expenses: false,
   notifications: false, sms: false, whatsapp: false, email: false,
-  reports: false, auditLogs: false, importExport: false
+  reports: false, auditLogs: false, importExport: false, apiAccess: false
 };
 
 export const DEFAULT_SUPPORT: SupportConfig = {

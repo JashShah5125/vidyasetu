@@ -38,7 +38,6 @@ import { TenantsManager } from './pages/TenantsManager';
 import { ExpenseVoucher } from './pages/ExpenseVoucher';
 import { ExpenseLedger } from './pages/ExpenseLedger';
 import { SubscriptionPlans } from './pages/SubscriptionPlans';
-import { TenantSubscriptions } from './pages/TenantSubscriptions';
 import { TenantDetails } from './pages/TenantDetails';
 
 // Teacher components
@@ -296,7 +295,6 @@ const ContentRouter = () => {
       <Route path="/tenants/create" element={<TenantsManager initialOpenCreate={true} />} />
       <Route path="/tenants/:id" element={<TenantDetailsWrapper />} />
       <Route path="/plans" element={<SubscriptionPlans />} />
-      <Route path="/tenant-subscriptions" element={<TenantSubscriptions />} />
       <Route path="/feature-flags" element={<FeatureFlags />} />
       <Route path="/modules" element={<ModuleManagement />} />
       <Route path="/approvals" element={<ApprovalCenter />} />
