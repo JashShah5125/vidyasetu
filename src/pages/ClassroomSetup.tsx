@@ -456,8 +456,21 @@ export const ClassroomSetup: React.FC = () => {
         <Table headers={['Room Name', 'Room No.', 'Branch', 'Type', 'Capacity', 'Status', 'Actions']}>
           {paginated.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">
-                No classrooms found. Click "Add Classroom" to get started.
+              <td colSpan={7} className="px-6 py-16">
+                <div className="text-center flex flex-col items-center justify-center">
+                  <div className="bg-blue-50 p-4 rounded-full mb-4">
+                    <DoorOpen size={40} className="text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">No classrooms found</h3>
+                  <p className="text-slate-500 max-w-sm mb-6">Get started by creating your first classroom, or adjust your filters to see more results.</p>
+                  <Button
+                    variant="primary"
+                    onClick={handleOpenAdd}
+                    style={{ backgroundColor: '#2563eb', color: 'white' }}
+                  >
+                    <Plus size={16} className="mr-2" /> Add Classroom
+                  </Button>
+                </div>
               </td>
             </tr>
           ) : (
