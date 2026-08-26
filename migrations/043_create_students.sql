@@ -1,7 +1,7 @@
 CREATE TABLE students (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
-    user_id VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    tenant_id INT NOT NULL REFERENCES tenants(id),
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
     primary_branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     student_code VARCHAR(50),
     first_name VARCHAR(100) NOT NULL,
@@ -23,8 +23,8 @@ CREATE TABLE students (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36)
+    created_by INT,
+    updated_by INT
 );
 CREATE UNIQUE INDEX idx_students_code ON students(tenant_id, student_code);
 CREATE INDEX idx_students_tenant ON students(tenant_id);

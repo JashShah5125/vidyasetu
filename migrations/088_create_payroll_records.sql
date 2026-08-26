@@ -1,6 +1,6 @@
 CREATE TABLE payroll_records (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     period_id VARCHAR(36) NOT NULL REFERENCES payroll_periods(id) ON DELETE RESTRICT,
     staff_id VARCHAR(36) NOT NULL REFERENCES staff_profiles(id) ON DELETE RESTRICT,
     gross_salary DECIMAL(10,2) NOT NULL,
@@ -9,6 +9,6 @@ CREATE TABLE payroll_records (
     status VARCHAR(20) NOT NULL DEFAULT 'generated',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36)
+    created_by INT,
+    updated_by INT
 );

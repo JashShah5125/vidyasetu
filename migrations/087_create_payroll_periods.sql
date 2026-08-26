@@ -1,6 +1,6 @@
 CREATE TABLE payroll_periods (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     month INTEGER NOT NULL,
     year INTEGER NOT NULL,

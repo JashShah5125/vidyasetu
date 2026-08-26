@@ -33,6 +33,9 @@ const createPlan = async (req, res) => {
         res.status(201).json({ status: 'success', message: 'Plan created successfully', data: { id: planId } });
     } catch (error) {
         console.error('Error creating plan:', error);
+        if (error.code === 'EXACT_DUPLICATE') {
+            return res.status(409).json({ status: 'error', message: error.message });
+        }
         res.status(400).json({ status: 'error', message: error.message || 'Failed to create plan' });
     }
 };

@@ -1,6 +1,6 @@
 CREATE TABLE lecture_cancellations (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     lecture_id VARCHAR(36) NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
     cancelled_by VARCHAR(36) REFERENCES users(id),

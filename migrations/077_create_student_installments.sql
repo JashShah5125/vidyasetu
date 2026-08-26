@@ -1,6 +1,6 @@
 CREATE TABLE student_installments (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     fee_assignment_id VARCHAR(36) NOT NULL REFERENCES student_fee_assignments(id) ON DELETE CASCADE,
     installment_number INTEGER NOT NULL,
     due_date DATE NOT NULL,

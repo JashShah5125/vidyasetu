@@ -1,6 +1,6 @@
 CREATE TABLE fee_plan_installments (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     fee_plan_id VARCHAR(36) NOT NULL REFERENCES fee_plans(id) ON DELETE CASCADE,
     installment_number INTEGER NOT NULL,
     percentage DECIMAL(5,2) NOT NULL,

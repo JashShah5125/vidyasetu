@@ -1,6 +1,6 @@
 CREATE TABLE communication_logs (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     channel VARCHAR(20) NOT NULL,
     recipient VARCHAR(255) NOT NULL,
     subject VARCHAR(255),

@@ -1,6 +1,6 @@
 CREATE TABLE receipts (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     receipt_number VARCHAR(50) NOT NULL UNIQUE,
     enrollment_id VARCHAR(36) NOT NULL REFERENCES student_enrollments(id) ON DELETE RESTRICT,
@@ -9,5 +9,5 @@ CREATE TABLE receipts (
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(36)
+    created_by INT
 );

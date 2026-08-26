@@ -2,7 +2,7 @@ const pool = require('../config/db');
 
 const formatPlan = (row) => {
     if (!row) return null;
-    
+
     return {
         id: row.id,
         name: row.name,
@@ -135,13 +135,105 @@ const getPlanById = async (id) => {
     return formatPlan(rows[0]);
 };
 
+const checkExactDuplicate = async (planData) => {
+    const billing = planData.billing || {};
+    const rl = planData.resource_limits || {};
+    const fa = planData.features || {};
+    const s = planData.support || {};
+    const br = planData.branding || {};
+    const it = planData.integrations || {};
+
+    const [rows] = await pool.query(`
+        SELECT sp.id
+        FROM subscription_plans sp
+        LEFT JOIN plan_limits pl ON sp.id = pl.plan_id
+        LEFT JOIN plan_features pf ON sp.id = pf.plan_id
+        LEFT JOIN plan_support ps ON sp.id = ps.plan_id
+        LEFT JOIN plan_branding pb ON sp.id = pb.plan_id
+        LEFT JOIN plan_integrations pi ON sp.id = pi.plan_id
+        WHERE sp.status != 'Deleted'
+          AND sp.name = ? AND sp.code = ? AND sp.status = ?
+          AND COALESCE(sp.description, '') = COALESCE(?, '')
+          AND sp.monthly_price = ? AND sp.quarterly_price = ? AND sp.half_yearly_price = ?
+          AND sp.yearly_price = ? AND sp.lifetime_price = ?
+          AND sp.currency = ? AND sp.trial_days = ? AND sp.setup_fee = ? AND sp.auto_renewal = ?
+          AND COALESCE(pl.max_instances, -1) = ? AND COALESCE(pl.max_branches, -1) = ?
+          AND COALESCE(pl.max_staff_users, -1) = ? AND COALESCE(pl.max_students, -1) = ?
+          AND COALESCE(pl.max_parents, -1) = ? AND COALESCE(pl.max_teachers, -1) = ?
+          AND COALESCE(pl.max_storage, '-1') = ? AND COALESCE(pl.max_file_size, '-1') = ?
+          AND COALESCE(pl.max_sms_credits, -1) = ? AND COALESCE(pl.max_whatsapp_msgs, -1) = ?
+          AND COALESCE(pf.admissions, 0) = ? AND COALESCE(pf.student_management, 0) = ?
+          AND COALESCE(pf.parent_portal, 0) = ? AND COALESCE(pf.teacher_portal, 0) = ?
+          AND COALESCE(pf.attendance, 0) = ? AND COALESCE(pf.timetable, 0) = ?
+          AND COALESCE(pf.assignments, 0) = ? AND COALESCE(pf.exams, 0) = ?
+          AND COALESCE(pf.results, 0) = ? AND COALESCE(pf.doubts, 0) = ?
+          AND COALESCE(pf.fees, 0) = ? AND COALESCE(pf.payroll, 0) = ?
+          AND COALESCE(pf.income, 0) = ? AND COALESCE(pf.expenses, 0) = ?
+          AND COALESCE(pf.notifications, 0) = ? AND COALESCE(pf.sms, 0) = ?
+          AND COALESCE(pf.whatsapp, 0) = ? AND COALESCE(pf.email, 0) = ?
+          AND COALESCE(pf.reports, 0) = ? AND COALESCE(pf.audit_logs, 0) = ?
+          AND COALESCE(pf.import_export, 0) = ? AND COALESCE(pf.api_access, 0) = ?
+          AND COALESCE(ps.email_support, 0) = ? AND COALESCE(ps.chat_support, 0) = ?
+          AND COALESCE(ps.phone_support, 0) = ? AND COALESCE(ps.dedicated_account_manager, 0) = ?
+          AND COALESCE(ps.onboarding_assistance, 0) = ?
+          AND COALESCE(pb.white_label, 0) = ? AND COALESCE(pb.custom_domain, 0) = ?
+          AND COALESCE(pb.custom_logo, 0) = ? AND COALESCE(pb.custom_email_templates, 0) = ?
+          AND COALESCE(pi.razorpay, 0) = ? AND COALESCE(pi.cashfree, 0) = ?
+          AND COALESCE(pi.whatsapp_business, 0) = ? AND COALESCE(pi.zoom, 0) = ?
+          AND COALESCE(pi.google_meet, 0) = ? AND COALESCE(pi.google_calendar, 0) = ?
+          AND COALESCE(pi.biometric_devices, 0) = ?
+        LIMIT 1
+    `, [
+        planData.name, planData.code, planData.status || 'Active',
+        planData.description || '',
+        billing.monthly_price || 0, billing.quarterly_price || 0, billing.half_yearly_price || 0,
+        billing.yearly_price || 0, billing.lifetime_price || 0,
+        billing.currency || 'INR', billing.trial_days || 0, billing.setup_fee || 0, billing.auto_renewal || 0,
+        rl.max_instances ?? -1, rl.max_branches ?? -1,
+        rl.max_staff_users ?? -1, rl.max_students ?? -1,
+        rl.max_parents ?? -1, rl.max_teachers ?? -1,
+        rl.max_storage || '-1', rl.max_file_size || '-1',
+        rl.max_sms_credits ?? -1, rl.max_whatsapp_msgs ?? -1,
+        fa.admissions || 0, fa.student_management || 0,
+        fa.parent_portal || 0, fa.teacher_portal || 0,
+        fa.attendance || 0, fa.timetable || 0,
+        fa.assignments || 0, fa.exams || 0,
+        fa.results || 0, fa.doubts || 0,
+        fa.fees || 0, fa.payroll || 0,
+        fa.income || 0, fa.expenses || 0,
+        fa.notifications || 0, fa.sms || 0,
+        fa.whatsapp || 0, fa.email || 0,
+        fa.reports || 0, fa.audit_logs || 0,
+        fa.import_export || 0, fa.api_access || 0,
+        s.email_support || 0, s.chat_support || 0,
+        s.phone_support || 0, s.dedicated_account_manager || 0,
+        s.onboarding_assistance || 0,
+        br.white_label || 0, br.custom_domain || 0,
+        br.custom_logo || 0, br.custom_email_templates || 0,
+        it.razorpay || 0, it.cashfree || 0,
+        it.whatsapp_business || 0, it.zoom || 0,
+        it.google_meet || 0, it.google_calendar || 0,
+        it.biometric_devices || 0
+    ]);
+
+    return rows.length > 0 ? rows[0].id : null;
+};
+
 const createPlan = async (planData) => {
+    // Check for exact duplicate before any DB writes
+    const duplicateId = await checkExactDuplicate(planData);
+    if (duplicateId) {
+        const err = new Error('An identical plan already exists. Please modify at least one field before creating.');
+        err.code = 'EXACT_DUPLICATE';
+        throw err;
+    }
+
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
         const billing = planData.billing || {};
-        
+
         const rl = planData.resource_limits || {};
         const fa = planData.features || {};
         const s = planData.support || {};
@@ -219,7 +311,7 @@ const updatePlan = async (id, planData) => {
         await connection.beginTransaction();
 
         const billing = planData.billing || {};
-        
+
         const rl = planData.resource_limits || {};
         const fa = planData.features || {};
         const s = planData.support || {};

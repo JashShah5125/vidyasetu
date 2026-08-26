@@ -1,6 +1,6 @@
 CREATE TABLE refunds (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     receipt_id VARCHAR(36) NOT NULL REFERENCES receipts(id) ON DELETE RESTRICT,
     amount DECIMAL(10,2) NOT NULL,
     reason TEXT NOT NULL,
@@ -8,5 +8,5 @@ CREATE TABLE refunds (
     reference_number VARCHAR(100),
     approved_by VARCHAR(36) REFERENCES users(id),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(36) REFERENCES users(id)
+    created_by INT REFERENCES users(id)
 );

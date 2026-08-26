@@ -1,6 +1,6 @@
 CREATE TABLE attendance_sessions (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     lecture_id VARCHAR(36) NOT NULL UNIQUE REFERENCES lectures(id) ON DELETE RESTRICT,
     status VARCHAR(20) NOT NULL DEFAULT 'draft',
     submitted_at DATETIME,

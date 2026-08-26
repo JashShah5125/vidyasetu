@@ -1,6 +1,6 @@
 CREATE TABLE branches (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id INT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     code VARCHAR(50) NOT NULL,
     address_line1 VARCHAR(255),
@@ -19,8 +19,8 @@ CREATE TABLE branches (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36),
+    created_by INT,
+    updated_by INT,
     UNIQUE(tenant_id, code)
 );
 CREATE INDEX idx_branches_tenant ON branches(tenant_id);

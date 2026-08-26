@@ -1,8 +1,8 @@
 CREATE TABLE staff_profiles (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     employee_id VARCHAR(50),
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
@@ -31,8 +31,8 @@ CREATE TABLE staff_profiles (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36),
+    created_by INT,
+    updated_by INT,
     UNIQUE(tenant_id, user_id),
     UNIQUE(tenant_id, employee_id)
 );

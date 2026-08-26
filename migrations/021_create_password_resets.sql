@@ -1,6 +1,6 @@
 CREATE TABLE password_resets (
     id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL,
     expires_at DATETIME NOT NULL,
     used_at DATETIME,

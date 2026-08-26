@@ -70,7 +70,7 @@ export const SubscriptionPlans: React.FC = () => {
   const loadPlans = async (filter: string = statusFilter) => {
     try {
       setLoading(true);
-      
+
       let statusesToFetch: string[] = [];
       if (filter === 'All') {
         statusesToFetch = ['Active', 'Inactive', 'Deleted'];
@@ -103,7 +103,7 @@ export const SubscriptionPlans: React.FC = () => {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [status, setStatus] = useState<'Active' | 'Inactive' | 'Deleted'>('Active');
   const [displayOrder, setDisplayOrder] = useState('');
 
   // Section 2
@@ -137,7 +137,7 @@ export const SubscriptionPlans: React.FC = () => {
 
   // Section 8
   const [notes, setNotes] = useState('');
-  
+
   const topRef = React.useRef<HTMLDivElement>(null);
 
 
@@ -306,19 +306,13 @@ export const SubscriptionPlans: React.FC = () => {
     }
   };
 
-  const handleDuplicatePlan = async (p: SubscriptionPlan) => {
-    const { id, ...rest } = p;
-    try {
-      await planService.createPlan({
-        ...rest,
-        name: `${p.name} Copy`
-      });
-      setSuccessMsg(`Plan "${p.name}" duplicated as "${p.name} Copy".`);
-      loadPlans();
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (err: any) {
-      addToast(err.response?.data?.message || 'Error duplicating plan', 'error');
-    }
+  const handleDuplicatePlan = (p: SubscriptionPlan) => {
+    // Pre-fill the form with the parent plan's data but treat it as a NEW creation
+    setEditingPlanId(null); // must be null — this is a create, not an edit
+    populateForm(p);
+    setCurrentStep(0);
+    setShowViewModal(false);
+    setShowAddModal(true);
   };
 
   // ─── Step renderer ────────────────────────────────────────────────────────
@@ -332,8 +326,8 @@ export const SubscriptionPlans: React.FC = () => {
             <Input label="Plan Code" required placeholder="e.g. PRO" value={code} onChange={e => setCode(e.target.value)} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select label="Status" value={status} onChange={e => setStatus(e.target.value as 'Active' | 'Inactive')}
-              options={[{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }]} />
+            <Select label="Status" value={status} onChange={e => setStatus(e.target.value as 'Active' | 'Inactive' | 'Deleted')}
+              options={[{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }, { value: 'Deleted', label: 'Deleted' }]} />
             <Input label="Display Order" type="number" min={1} placeholder="e.g. 1" value={displayOrder} onChange={e => setDisplayOrder(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -348,7 +342,7 @@ export const SubscriptionPlans: React.FC = () => {
       case 1: return (
         <div className="space-y-4">
           <SectionHead n="02" title="Billing Options" />
-          
+
           <p className="text-sm text-slate-500">Set the price for every supported billing cycle. Enter 0 for a free or unavailable cycle.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Monthly Price" type="number" min="0" placeholder="e.g. 2500" value={monthlyPrice} onChange={e => setMonthlyPrice(e.target.value)} />
@@ -527,30 +521,30 @@ export const SubscriptionPlans: React.FC = () => {
 
         <div className="w-full relative">
           <form onSubmit={handleSubmit} className="flex flex-col gap-10">
-            
+
             {/* Elegant Horizontal Stepper */}
             <div className="relative flex justify-between items-center px-4">
               {/* Background Line */}
               <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-slate-100 z-0 rounded-full"></div>
               {/* Progress Line */}
-              <div 
+              <div
                 className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-indigo-600 z-0 rounded-full transition-all duration-500 ease-in-out"
                 style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }}
               ></div>
-              
+
               {/* Steps */}
               {STEPS.map((s, i) => {
                 const isActive = currentStep === i;
                 const isCompleted = i < currentStep;
-                
+
                 return (
                   <div key={i} className="relative z-10 flex flex-col items-center group cursor-pointer" onClick={() => setCurrentStep(i)}>
-                    <div 
+                    <div
                       className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 font-bold text-sm outline-none
-                        ${isActive 
-                          ? 'bg-indigo-600 text-white shadow-[0_0_0_4px_rgba(79,70,229,0.15)] ring-2 ring-white scale-110' 
-                          : isCompleted 
-                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 ring-2 ring-white' 
+                        ${isActive
+                          ? 'bg-indigo-600 text-white shadow-[0_0_0_4px_rgba(79,70,229,0.15)] ring-2 ring-white scale-110'
+                          : isCompleted
+                            ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 ring-2 ring-white'
                             : 'bg-white border-[3px] border-slate-100 text-slate-400 group-hover:border-slate-300 group-hover:text-slate-500 ring-2 ring-white'
                         }`}
                     >
@@ -574,28 +568,28 @@ export const SubscriptionPlans: React.FC = () => {
 
             {/* Navigation Buttons */}
             <div className="flex justify-between items-center">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className={`px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 flex items-center gap-2
-                  ${currentStep > 0 
-                    ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-white border border-slate-200 shadow-sm' 
+                  ${currentStep > 0
+                    ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 bg-white border border-slate-200 shadow-sm'
                     : 'text-slate-400 bg-transparent hover:bg-slate-50'}`}
                 onClick={() => currentStep > 0 ? setCurrentStep(c => c - 1) : setShowAddModal(false)}
               >
                 {currentStep > 0 ? <><ChevronLeft size={18} /> Back</> : 'Cancel'}
               </button>
-              
+
               {currentStep < STEPS.length - 1 ? (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all duration-200 flex items-center gap-2 hover:-translate-y-[1px]"
                   onClick={() => setCurrentStep(c => c + 1)}
                 >
-                  Next Step <ChevronRight size={18} />
+                  Save & Next <ChevronRight size={18} />
                 </button>
               ) : (
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all duration-200 flex items-center gap-2 hover:-translate-y-[1px]"
                 >
                   {editingPlanId ? 'Save Changes' : 'Create Plan'} <Check size={18} />
@@ -614,7 +608,7 @@ export const SubscriptionPlans: React.FC = () => {
     return (
       <div ref={topRef} className="space-y-6 w-full animate-fade-in">
         <div className="relative pl-[72px] mb-2">
-          <button 
+          <button
             onClick={() => {
               searchParams.delete('view');
               setSearchParams(searchParams);
@@ -630,276 +624,276 @@ export const SubscriptionPlans: React.FC = () => {
         </div>
 
         <div className="flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-            {/* ── Hero header ── */}
-            <div className="pl-[72px] pr-8 py-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-3xl font-extrabold text-slate-900">{viewingPlan.name}</h3>
-                  <span className="text-sm font-bold font-mono bg-slate-100 text-slate-600 px-2.5 py-1 rounded">{viewingPlan.code}</span>
-                  <span className={`text-sm font-bold px-3 py-1 rounded-full ${viewingPlan.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>{viewingPlan.status}</span>
-                </div>
-                <p className="text-base text-slate-500">{viewingPlan.description}</p>
+          {/* ── Hero header ── */}
+          <div className="pl-[72px] pr-8 py-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h3 className="text-3xl font-extrabold text-slate-900">{viewingPlan.name}</h3>
+                <span className="text-sm font-bold font-mono bg-slate-100 text-slate-600 px-2.5 py-1 rounded">{viewingPlan.code}</span>
+                <span className={`text-sm font-bold px-3 py-1 rounded-full ${viewingPlan.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>{viewingPlan.status}</span>
               </div>
-              <div className="flex flex-col items-start md:items-end gap-1">
-                <div className="text-4xl font-extrabold text-slate-900">
-                  {primaryBilling.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${primaryBilling.price.toLocaleString()}`}
-                  <span className="text-lg text-slate-500 font-semibold ml-1">/ {primaryBilling.billingCycle.toLowerCase()}</span>
-                </div>
-                <div className="flex items-center gap-3 mt-3">
-                  <button 
-                    onClick={async () => {
-                      if (window.confirm('Are you sure you want to delete this plan? Historical data will be preserved, but it will be removed from the active catalog.')) {
-                        try {
-                          await planService.deletePlan(viewingPlan.id.toString());
-                          setSuccessMsg('Plan soft deleted successfully');
-                          setTimeout(() => setSuccessMsg(''), 3000);
-                          searchParams.delete('view'); 
-                          setSearchParams(searchParams); 
-                          loadPlans();
-                        } catch (err) {
-                          alert('Failed to delete plan');
-                        }
-                      }
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg transition-colors shadow-sm"
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
-                  <Button variant="secondary" onClick={() => { 
-                    searchParams.delete('view'); 
-                    setSearchParams(searchParams); 
-                  }}>Back to Plans</Button>
-                  <Button variant="primary" style={{ gap: '6px' }} onClick={() => { 
-                    searchParams.delete('view'); 
-                    setSearchParams(searchParams); 
-                    handleOpenEditModal(viewingPlan); 
-                  }}>
-                    <Edit size={14} /> Edit Plan
-                  </Button>
-                </div>
-              </div>
+              <p className="text-base text-slate-500">{viewingPlan.description}</p>
             </div>
-
-            {/* ── Tabs Navigation ── */}
-            <div className="flex items-center gap-10 pl-[72px] pr-8 border-b border-slate-100 bg-slate-50/50">
-              {[
-                { id: 'overview', label: 'Overview' },
-                { id: 'features', label: 'Feature Access' },
-                { id: 'config', label: 'Configuration' },
-                ...(viewingPlan.notes ? [{ id: 'notes', label: 'Internal Notes' }] : [])
-              ].map(tab => (
+            <div className="flex flex-col items-start md:items-end gap-1">
+              <div className="text-4xl font-extrabold text-slate-900">
+                {primaryBilling.price === 0 ? 'Free' : `${viewingPlan.currency === 'INR' ? '₹' : viewingPlan.currency === 'USD' ? '$' : '€'}${primaryBilling.price.toLocaleString()}`}
+                <span className="text-lg text-slate-500 font-semibold ml-1">/ {primaryBilling.billingCycle.toLowerCase()}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-3">
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveViewTab(tab.id as any)}
-                  className={`py-5 text-[17px] font-bold border-b-2 transition-colors ${activeViewTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to delete this plan? Historical data will be preserved, but it will be removed from the active catalog.')) {
+                      try {
+                        await planService.deletePlan(viewingPlan.id.toString());
+                        setSuccessMsg('Plan soft deleted successfully');
+                        setTimeout(() => setSuccessMsg(''), 3000);
+                        searchParams.delete('view');
+                        setSearchParams(searchParams);
+                        loadPlans();
+                      } catch (err) {
+                        alert('Failed to delete plan');
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg transition-colors shadow-sm"
                 >
-                  {tab.label}
+                  <Trash2 size={14} /> Delete
                 </button>
-              ))}
+                <Button variant="secondary" onClick={() => {
+                  searchParams.delete('view');
+                  setSearchParams(searchParams);
+                }}>Back to Plans</Button>
+                <Button variant="primary" style={{ gap: '6px' }} onClick={() => {
+                  searchParams.delete('view');
+                  setSearchParams(searchParams);
+                  handleOpenEditModal(viewingPlan);
+                }}>
+                  <Edit size={14} /> Edit Plan
+                </Button>
+              </div>
             </div>
+          </div>
 
-            {/* ── Tab Content ── */}
-            <div className="pl-[72px] pr-8 py-8">
-              {/* Overview Tab */}
-              {activeViewTab === 'overview' && (
-                <div className="space-y-10 animate-fade-in">
-                  {/* Billing Details */}
-                  <section>
-                    <h4 className="text-lg font-bold text-slate-900 mb-4">Billing & Terms</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[
-                        { label: 'Monthly', val: `${viewingPlan.currency} ${viewingPlan.monthlyPrice.toLocaleString()}` },
-                        { label: 'Quarterly', val: `${viewingPlan.currency} ${viewingPlan.quarterlyPrice.toLocaleString()}` },
-                        { label: 'Half-Yearly', val: `${viewingPlan.currency} ${viewingPlan.halfYearlyPrice.toLocaleString()}` },
-                        { label: 'Yearly', val: `${viewingPlan.currency} ${viewingPlan.yearlyPrice.toLocaleString()}` },
-                        { label: 'Lifetime', val: `${viewingPlan.currency} ${viewingPlan.lifetimePrice.toLocaleString()}` },
-                        { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
-                        { label: 'Trial Period', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
-                        { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
-                      ].map(({ label, val }) => (
-                        <div key={label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-4 py-3">
-                          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</div>
-                          <div className="text-lg font-bold text-slate-800">{val}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+          {/* ── Tabs Navigation ── */}
+          <div className="flex items-center gap-10 pl-[72px] pr-8 border-b border-slate-100 bg-slate-50/50">
+            {[
+              { id: 'overview', label: 'Overview' },
+              { id: 'features', label: 'Feature Access' },
+              { id: 'config', label: 'Configuration' },
+              ...(viewingPlan.notes ? [{ id: 'notes', label: 'Internal Notes' }] : [])
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveViewTab(tab.id as any)}
+                className={`py-5 text-[17px] font-bold border-b-2 transition-colors ${activeViewTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-                  {/* Resource Limits */}
-                  <section>
-                    <h4 className="text-lg font-bold text-slate-900 mb-4">Resource Limits</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                      {[
-                        { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
-                        { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
-                        { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
-                        { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },
-                        { label: 'Parents', val: displayLimit(viewingPlan.maxParents) },
-                        { label: 'Teachers', val: displayLimit(viewingPlan.maxTeachers) },
-                        { label: 'Storage', val: viewingPlan.maxStorage },
-                        { label: 'File Size', val: viewingPlan.maxFileSize },
-                        { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
-                        { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
-                      ].map(({ label, val }) => (
-                        <div key={label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-3.5 py-2.5">
-                          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
-                          <div className={`text-2xl font-black ${val === 'Unlimited' ? 'text-emerald-600' : 'text-slate-800'}`}>{val}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              )}
-
-              {/* Features Tab */}
-              {activeViewTab === 'features' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 animate-fade-in">
-                  {([
-                    {
-                      group: 'Core ERP',
-                      items: [
-                        { key: 'admissions', label: 'Admissions' }, { key: 'studentManagement', label: 'Student Management' },
-                        { key: 'parentPortal', label: 'Parent Portal' }, { key: 'teacherPortal', label: 'Teacher Portal' },
-                        { key: 'attendance', label: 'Attendance' }, { key: 'timetable', label: 'Timetable' },
-                      ]
-                    },
-                    {
-                      group: 'Academic',
-                      items: [
-                        { key: 'assignments', label: 'Assignments' }, { key: 'exams', label: 'Exams' },
-                        { key: 'results', label: 'Results' }, { key: 'doubts', label: 'Doubts & Q&A' },
-                      ]
-                    },
-                    {
-                      group: 'Finance',
-                      items: [
-                        { key: 'fees', label: 'Fees' }, { key: 'payroll', label: 'Payroll' },
-                        { key: 'income', label: 'Income Tracker' }, { key: 'expenses', label: 'Expense Tracker' },
-                      ]
-                    },
-                    {
-                      group: 'Communication',
-                      items: [
-                        { key: 'notifications', label: 'Push Notifications' }, { key: 'sms', label: 'SMS' },
-                        { key: 'whatsapp', label: 'WhatsApp' }, { key: 'email', label: 'Email' },
-                      ]
-                    },
-                    {
-                      group: 'Administration',
-                      items: [
-                        { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
-                        { key: 'importExport', label: 'Import / Export' },
-                      ]
-                    },
-                  ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
-                    <div key={group}>
-                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">{group}</h4>
-                      <div className="space-y-4">
-                        {items.map(({ key, label }) => {
-                          const on = viewingPlan.features[key];
-                          return (
-                            <div key={key} className="flex items-center gap-3">
-                              {on ? (
-                                <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" />
-                              ) : (
-                                <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />
-                              )}
-                              <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>
-                                {label}
-                              </span>
-                            </div>
-                          );
-                        })}
+          {/* ── Tab Content ── */}
+          <div className="pl-[72px] pr-8 py-8">
+            {/* Overview Tab */}
+            {activeViewTab === 'overview' && (
+              <div className="space-y-10 animate-fade-in">
+                {/* Billing Details */}
+                <section>
+                  <h4 className="text-lg font-bold text-slate-900 mb-4">Billing & Terms</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Monthly', val: `${viewingPlan.currency} ${viewingPlan.monthlyPrice.toLocaleString()}` },
+                      { label: 'Quarterly', val: `${viewingPlan.currency} ${viewingPlan.quarterlyPrice.toLocaleString()}` },
+                      { label: 'Half-Yearly', val: `${viewingPlan.currency} ${viewingPlan.halfYearlyPrice.toLocaleString()}` },
+                      { label: 'Yearly', val: `${viewingPlan.currency} ${viewingPlan.yearlyPrice.toLocaleString()}` },
+                      { label: 'Lifetime', val: `${viewingPlan.currency} ${viewingPlan.lifetimePrice.toLocaleString()}` },
+                      { label: 'Setup Fee', val: viewingPlan.setupFee > 0 ? `${viewingPlan.currency} ${viewingPlan.setupFee.toLocaleString()}` : 'None' },
+                      { label: 'Trial Period', val: viewingPlan.trialDays > 0 ? `${viewingPlan.trialDays} days` : 'None' },
+                      { label: 'Auto Renewal', val: viewingPlan.autoRenewal ? 'Enabled' : 'Disabled' },
+                    ].map(({ label, val }) => (
+                      <div key={label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-4 py-3">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</div>
+                        <div className="text-lg font-bold text-slate-800">{val}</div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                </section>
 
-              {/* Configuration Tab */}
-              {activeViewTab === 'config' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-fade-in">
-                  {/* Support */}
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Support</h4>
+                {/* Resource Limits */}
+                <section>
+                  <h4 className="text-lg font-bold text-slate-900 mb-4">Resource Limits</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    {[
+                      { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
+                      { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
+                      { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
+                      { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },
+                      { label: 'Parents', val: displayLimit(viewingPlan.maxParents) },
+                      { label: 'Teachers', val: displayLimit(viewingPlan.maxTeachers) },
+                      { label: 'Storage', val: viewingPlan.maxStorage },
+                      { label: 'File Size', val: viewingPlan.maxFileSize },
+                      { label: 'SMS Credits', val: displayLimit(viewingPlan.maxSmsCredits) },
+                      { label: 'WhatsApp', val: displayLimit(viewingPlan.maxWhatsappMsgs) },
+                    ].map(({ label, val }) => (
+                      <div key={label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-3.5 py-2.5">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
+                        <div className={`text-2xl font-black ${val === 'Unlimited' ? 'text-emerald-600' : 'text-slate-800'}`}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {/* Features Tab */}
+            {activeViewTab === 'features' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 animate-fade-in">
+                {([
+                  {
+                    group: 'Core ERP',
+                    items: [
+                      { key: 'admissions', label: 'Admissions' }, { key: 'studentManagement', label: 'Student Management' },
+                      { key: 'parentPortal', label: 'Parent Portal' }, { key: 'teacherPortal', label: 'Teacher Portal' },
+                      { key: 'attendance', label: 'Attendance' }, { key: 'timetable', label: 'Timetable' },
+                    ]
+                  },
+                  {
+                    group: 'Academic',
+                    items: [
+                      { key: 'assignments', label: 'Assignments' }, { key: 'exams', label: 'Exams' },
+                      { key: 'results', label: 'Results' }, { key: 'doubts', label: 'Doubts & Q&A' },
+                    ]
+                  },
+                  {
+                    group: 'Finance',
+                    items: [
+                      { key: 'fees', label: 'Fees' }, { key: 'payroll', label: 'Payroll' },
+                      { key: 'income', label: 'Income Tracker' }, { key: 'expenses', label: 'Expense Tracker' },
+                    ]
+                  },
+                  {
+                    group: 'Communication',
+                    items: [
+                      { key: 'notifications', label: 'Push Notifications' }, { key: 'sms', label: 'SMS' },
+                      { key: 'whatsapp', label: 'WhatsApp' }, { key: 'email', label: 'Email' },
+                    ]
+                  },
+                  {
+                    group: 'Administration',
+                    items: [
+                      { key: 'reports', label: 'Reports' }, { key: 'auditLogs', label: 'Audit Logs' },
+                      { key: 'importExport', label: 'Import / Export' },
+                    ]
+                  },
+                ] as { group: string; items: { key: keyof FeatureAccess; label: string }[] }[]).map(({ group, items }) => (
+                  <div key={group}>
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">{group}</h4>
                     <div className="space-y-4">
-                      {([
-                        { key: 'emailSupport', label: 'Email Support' },
-                        { key: 'chatSupport', label: 'Chat Support' },
-                        { key: 'phoneSupport', label: 'Phone Support' },
-                        { key: 'dedicatedAccountManager', label: 'Dedicated Account Manager' },
-                        { key: 'onboardingAssistance', label: 'Onboarding Assistance' },
-                      ] as { key: keyof SupportConfig; label: string }[]).map(({ key, label }) => {
-                        const on = viewingPlan.support[key];
+                      {items.map(({ key, label }) => {
+                        const on = viewingPlan.features[key];
                         return (
                           <div key={key} className="flex items-center gap-3">
-                            {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
-                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
+                            {on ? (
+                              <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" />
+                            ) : (
+                              <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />
+                            )}
+                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>
+                              {label}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
 
-                  {/* Branding */}
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Branding</h4>
-                    <div className="space-y-4">
-                      {([
-                        { key: 'whiteLabel', label: 'White Label' },
-                        { key: 'customDomain', label: 'Custom Domain' },
-                        { key: 'customLogo', label: 'Custom Logo' },
-                        { key: 'customEmailTemplates', label: 'Custom Email Templates' },
-                      ] as { key: keyof BrandingConfig; label: string }[]).map(({ key, label }) => {
-                        const on = viewingPlan.branding[key];
-                        return (
-                          <div key={key} className="flex items-center gap-3">
-                            {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
-                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Integrations */}
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Integrations</h4>
-                    <div className="space-y-4">
-                      {([
-                        { key: 'razorpay', label: 'Razorpay' },
-                        { key: 'cashfree', label: 'Cashfree' },
-                        { key: 'biometricDevices', label: 'Biometric Devices' },
-                        { key: 'zoom', label: 'Zoom' },
-                        { key: 'googleMeet', label: 'Google Meet' },
-                        { key: 'googleCalendar', label: 'Google Calendar' },
-                        { key: 'whatsappBusiness', label: 'WhatsApp Business' },
-                      ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
-                        const on = viewingPlan.integrations[key];
-                        return (
-                          <div key={key} className="flex items-center gap-3">
-                            {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
-                            <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+            {/* Configuration Tab */}
+            {activeViewTab === 'config' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-fade-in">
+                {/* Support */}
+                <div>
+                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Support</h4>
+                  <div className="space-y-4">
+                    {([
+                      { key: 'emailSupport', label: 'Email Support' },
+                      { key: 'chatSupport', label: 'Chat Support' },
+                      { key: 'phoneSupport', label: 'Phone Support' },
+                      { key: 'dedicatedAccountManager', label: 'Dedicated Account Manager' },
+                      { key: 'onboardingAssistance', label: 'Onboarding Assistance' },
+                    ] as { key: keyof SupportConfig; label: string }[]).map(({ key, label }) => {
+                      const on = viewingPlan.support[key];
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
+                          <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
 
-              {/* Notes Tab */}
-              {activeViewTab === 'notes' && viewingPlan.notes && (
-                <div className="max-w-3xl animate-fade-in">
-                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Internal Notes</h4>
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-base text-amber-900 leading-relaxed shadow-sm">
-                    {viewingPlan.notes}
+                {/* Branding */}
+                <div>
+                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Branding</h4>
+                  <div className="space-y-4">
+                    {([
+                      { key: 'whiteLabel', label: 'White Label' },
+                      { key: 'customDomain', label: 'Custom Domain' },
+                      { key: 'customLogo', label: 'Custom Logo' },
+                      { key: 'customEmailTemplates', label: 'Custom Email Templates' },
+                    ] as { key: keyof BrandingConfig; label: string }[]).map(({ key, label }) => {
+                      const on = viewingPlan.branding[key];
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
+                          <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Integrations */}
+                <div>
+                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Integrations</h4>
+                  <div className="space-y-4">
+                    {([
+                      { key: 'razorpay', label: 'Razorpay' },
+                      { key: 'cashfree', label: 'Cashfree' },
+                      { key: 'biometricDevices', label: 'Biometric Devices' },
+                      { key: 'zoom', label: 'Zoom' },
+                      { key: 'googleMeet', label: 'Google Meet' },
+                      { key: 'googleCalendar', label: 'Google Calendar' },
+                      { key: 'whatsappBusiness', label: 'WhatsApp Business' },
+                    ] as { key: keyof IntegrationConfig; label: string }[]).map(({ key, label }) => {
+                      const on = viewingPlan.integrations[key];
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          {on ? <Check size={20} className="text-emerald-500 shrink-0 stroke-[3]" /> : <Plus size={20} className="text-slate-300 shrink-0 rotate-45 stroke-[3]" />}
+                          <span className={`text-base font-medium ${on ? 'text-slate-800' : 'text-slate-400'}`}>{label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Notes Tab */}
+            {activeViewTab === 'notes' && viewingPlan.notes && (
+              <div className="max-w-3xl animate-fade-in">
+                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-5">Internal Notes</h4>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-base text-amber-900 leading-relaxed shadow-sm">
+                  {viewingPlan.notes}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        </div>
+      </div>
     );
   }
 
@@ -960,7 +954,7 @@ export const SubscriptionPlans: React.FC = () => {
               .map(k => featureLabels[k])
               .filter(Boolean);
 
-            const activeModulesText = enabledFeatures.length > 0 
+            const activeModulesText = enabledFeatures.length > 0
               ? `Includes ${enabledFeatures.slice(0, 4).join(', ')}${enabledFeatures.length > 4 ? '...' : ''}`
               : 'No modules enabled';
 
@@ -970,18 +964,16 @@ export const SubscriptionPlans: React.FC = () => {
                 className="flex flex-col bg-white rounded-[32px] border border-slate-200 shadow-sm transition-all duration-200 hover:shadow-md overflow-hidden p-3"
               >
                 {/* Upper Section Container (Design A/B inspired) */}
-                <div className={`relative flex flex-col p-6 rounded-[24px] gap-4 ${
-                  isActive 
-                    ? 'bg-gradient-to-tr from-blue-50 via-blue-50/50 to-indigo-50/50 border border-blue-200/60' 
+                <div className={`relative flex flex-col p-6 rounded-[24px] gap-4 ${isActive
+                    ? 'bg-gradient-to-tr from-blue-50 via-blue-50/50 to-indigo-50/50 border border-blue-200/60'
                     : 'bg-slate-50 border border-slate-100'
-                }`}>
+                  }`}>
                   {/* Status Badge */}
                   <div className="absolute top-4 right-4">
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                      isActive
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${isActive
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'bg-slate-200 text-slate-600'
-                    }`}>
+                      }`}>
                       {p.status}
                     </span>
                   </div>
@@ -1013,9 +1005,9 @@ export const SubscriptionPlans: React.FC = () => {
 
                   {/* CTA Button: View Details */}
                   <button
-                    onClick={() => { 
+                    onClick={() => {
                       setActiveViewTab('overview');
-                      setSearchParams({ view: p.id.toString() }); 
+                      setSearchParams({ view: p.id.toString() });
                     }}
                     className="w-full py-2.5 rounded-full text-[15px] font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer text-center select-none shadow-sm hover:shadow"
                   >
@@ -1112,9 +1104,9 @@ export const SubscriptionPlans: React.FC = () => {
 
       {/* ── Visibility Manager Modal ── */}
       {managingVisibilityPlan && (
-        <Modal 
-          isOpen={!!managingVisibilityPlan} 
-          onClose={() => setManagingVisibilityPlan(null)} 
+        <Modal
+          isOpen={!!managingVisibilityPlan}
+          onClose={() => setManagingVisibilityPlan(null)}
           title={`Plan Visibility: ${managingVisibilityPlan.name}`}
           size="md"
         >
@@ -1122,12 +1114,12 @@ export const SubscriptionPlans: React.FC = () => {
             <p className="text-sm text-slate-500 leading-relaxed">
               Define which institutes can view and subscribe to this plan. Private plans will be hidden from other tenants.
             </p>
-            
+
             <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 space-y-3">
               <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input 
-                  type="checkbox" 
-                  checked={visAll} 
+                <input
+                  type="checkbox"
+                  checked={visAll}
                   onChange={(e) => {
                     setVisAll(e.target.checked);
                     if (e.target.checked) {
@@ -1151,9 +1143,9 @@ export const SubscriptionPlans: React.FC = () => {
                     const isChecked = visTenants.includes(t.id);
                     return (
                       <label key={t.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors select-none">
-                        <input 
-                          type="checkbox" 
-                          checked={isChecked} 
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
                           onChange={(e) => {
                             if (e.target.checked) {
                               setVisTenants(prev => [...prev, t.id]);
@@ -1179,8 +1171,8 @@ export const SubscriptionPlans: React.FC = () => {
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
               <Button variant="secondary" onClick={() => setManagingVisibilityPlan(null)}>Cancel</Button>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={async () => {
                   const visibleTo = visAll ? ['All'] : visTenants;
                   try {
