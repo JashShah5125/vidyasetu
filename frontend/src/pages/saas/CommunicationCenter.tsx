@@ -173,7 +173,7 @@ export const CommunicationCenter: React.FC = () => {
 
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Communication &amp; Broadcast Center</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Communication Center</h2>
           <p className="text-sm text-slate-500 mt-1">
             Send platform-wide notifications, maintenance schedules, alerts, or targeted email campaigns to tenant owners.
           </p>

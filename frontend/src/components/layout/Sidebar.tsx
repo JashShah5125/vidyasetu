@@ -21,7 +21,8 @@ import {
   BarChart3,
   ChevronLeft,
   Zap,
-  DoorOpen
+  DoorOpen,
+  Mail
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -88,8 +89,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Operations',
             links: [
               { name: 'Approval Center', label: 'Approval Center', path: '/approvals', icon: CheckSquare },
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 },
-              { name: 'Communication', label: 'Communication', path: '/communication', icon: MessageSquare }
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 }
+            ]
+          },
+          {
+            title: 'COMMUNICATION',
+            links: [
+              { name: 'Communication Center', label: 'Communication Center', path: '/communication', icon: MessageSquare },
+              { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail }
             ]
           },
           {

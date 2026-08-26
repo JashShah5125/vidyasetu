@@ -56,6 +56,7 @@ import { ModuleManagement } from './pages/saas/ModuleManagement';
 import { ApprovalCenter } from './pages/saas/ApprovalCenter';
 import { SupportTickets } from './pages/saas/SupportTickets';
 import { CommunicationCenter } from './pages/saas/CommunicationCenter';
+import { EmailTemplates } from './pages/saas/EmailTemplates';
 import { BillingRevenue } from './pages/saas/BillingRevenue';
 import { ProductAnalytics } from './pages/saas/ProductAnalytics';
 import { SystemConfiguration } from './pages/saas/SystemConfiguration';
@@ -302,6 +303,7 @@ const ContentRouter = () => {
       <Route path="/approvals" element={<ApprovalCenter />} />
       <Route path="/support" element={<SupportTickets />} />
       <Route path="/communication" element={<CommunicationCenter />} />
+      <Route path="/email-templates" element={<EmailTemplates />} />
       <Route path="/billing" element={<BillingRevenue />} />
       <Route path="/analytics" element={<ProductAnalytics />} />
       <Route path="/system-config" element={<SystemConfiguration />} />

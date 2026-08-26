@@ -30,6 +30,7 @@ const tenantRoutes = require('./routes/tenantRoutes');
 const planRoutes = require('./routes/planRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const billingRoutes = require('./routes/billingRoutes');
+const emailTemplateRoutes = require('./routes/emailTemplateRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -42,6 +43,7 @@ app.use('/api/admin/tenants', tenantRoutes);
 app.use('/api/admin/plans', planRoutes);
 app.use('/api/admin/subscriptions', subscriptionRoutes);
 app.use('/api/admin/billing', billingRoutes);
+app.use('/api/admin/email-templates', emailTemplateRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {
