@@ -26,7 +26,7 @@ export const Login: React.FC = () => {
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    
+
     if (passwordInput !== 'password') {
       setErrorMessage('Invalid password. Demo password is "password"');
       return;
@@ -49,10 +49,10 @@ export const Login: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-xl space-y-6">
-        
+
         {/* Header */}
         <div className="text-center space-y-3">
-          <img src="/logo.png" alt="Vidya Setu Logo" className="h-28 mx-auto object-contain" />
+          <img src="/logo.png" alt="Vidya Setu Logo" className="w-full h-28 object-cover" />
           <p className="text-sm text-slate-500 font-semibold">
             Multi-Tenant Coaching Management Platform
           </p>
@@ -60,9 +60,9 @@ export const Login: React.FC = () => {
 
         {/* Credentials Form */}
         <form onSubmit={handleSignIn} className="space-y-4">
-          <Input 
-            label="Email Address" 
-            placeholder="e.g. admin@apexiit.com" 
+          <Input
+            label="Email Address"
+            placeholder="e.g. admin@apexiit.com"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             required
@@ -73,9 +73,9 @@ export const Login: React.FC = () => {
               <span className="text-red-500 font-bold ml-1">*</span>
             </label>
             <div className="relative w-full">
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="e.g. password" 
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="e.g. password"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 required
@@ -96,8 +96,8 @@ export const Login: React.FC = () => {
               <input type="checkbox" className="rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
               <span>Remember me</span>
             </label>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setErrorMessage('Demo Mode: Password reset is disabled. Please use "password".')}
               className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
             >
@@ -111,10 +111,10 @@ export const Login: React.FC = () => {
             </div>
           )}
 
-          <Button 
+          <Button
             type="submit"
-            variant="primary" 
-            fullWidth 
+            variant="primary"
+            fullWidth
             disabled={!emailInput.trim() || !passwordInput.trim()}
             style={{ padding: '12px' }}
           >
@@ -123,8 +123,8 @@ export const Login: React.FC = () => {
 
           <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100/50">
             Don't have an account?{' '}
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setErrorMessage('Self-registration is disabled. Please contact your administrator.')}
               className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
             >

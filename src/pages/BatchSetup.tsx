@@ -422,9 +422,19 @@ export const BatchSetup: React.FC = () => {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <Layers size={36} className="mx-auto mb-3 text-slate-300" />
-            <p className="font-medium">No batches match your filters.</p>
+          <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
+            <div className="bg-blue-50 p-4 rounded-full mb-4">
+              <Layers size={40} className="text-blue-400" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">No batches found</h3>
+            <p className="text-slate-500 max-w-sm mb-6">Get started by creating your first batch, or adjust your filters to see more results.</p>
+            <Button
+              variant="primary"
+              onClick={handleOpenAdd}
+              style={{ backgroundColor: '#2563eb', color: 'white' }}
+            >
+              <Plus size={16} className="mr-2" /> Create New Batch
+            </Button>
           </div>
         ) : (
           <>
