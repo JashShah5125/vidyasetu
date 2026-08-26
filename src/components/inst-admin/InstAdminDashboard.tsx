@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Building2, ChevronRight, GraduationCap, Users, DollarSign,
   Wallet, Network, Filter, ArrowUpRight, TrendingUp, HelpCircle,
@@ -41,6 +41,9 @@ export const InstAdminDashboard: React.FC = () => {
     leads, doubts, auditLogs, exams, approveStudentRegistration,
     sendDoubtReply
   } = useApp();
+
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [barTooltip, setBarTooltip] = useState<{ name: string; count: number; x: number; y: number } | null>(null);
 
   // Filter states persisted in localStorage to ensure matching values and state retention on refresh
   const [filters, setFilters] = useState(() => {
@@ -557,25 +560,27 @@ export const InstAdminDashboard: React.FC = () => {
               </h3>
             </div>
 
-            <div className="w-full h-[200px] mt-4">
+            <div className="w-full h-[220px] mt-4 relative" ref={chartContainerRef}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={leadStages} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip
-                    cursor={{ fill: 'transparent' }}
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        return (
-                          <div className="bg-white px-3 py-1.5 shadow-md border border-slate-100 rounded-lg text-sm font-black text-slate-800">
-                            {payload[0].value}
-                          </div>
-                        );
+                <BarChart data={leadStages} barSize={28} margin={{ top: 16, right: 10, left: -20, bottom: 5 }}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                  <YAxis type="number" hide />
+                  <Bar
+                    dataKey="count"
+                    radius={[4, 4, 0, 0]}
+                    onMouseEnter={(data, _index, event) => {
+                      if (chartContainerRef.current && event) {
+                        const rect = chartContainerRef.current.getBoundingClientRect();
+                        setBarTooltip({
+                          name: data.name,
+                          count: data.count,
+                          x: (event as unknown as MouseEvent).clientX - rect.left,
+                          y: (event as unknown as MouseEvent).clientY - rect.top,
+                        });
                       }
-                      return null;
                     }}
-                  />
-                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    onMouseLeave={() => setBarTooltip(null)}
+                  >
                     {leadStages.map((entry, index) => {
                       const colorMap: Record<string, string> = {
                         'bg-blue-500': '#3b82f6',
@@ -589,6 +594,30 @@ export const InstAdminDashboard: React.FC = () => {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              {barTooltip && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: barTooltip.x,
+                    top: barTooltip.y - 44,
+                    transform: 'translateX(-50%)',
+                    pointerEvents: 'none',
+                    background: 'white',
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.10)',
+                    border: '1px solid #f1f5f9',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#1e293b',
+                    whiteSpace: 'nowrap',
+                    zIndex: 10,
+                  }}
+                >
+                  <span style={{ color: '#64748b', fontWeight: 500 }}>{barTooltip.name}</span>
+                  <span style={{ marginLeft: 6 }}>{barTooltip.count} leads</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
