@@ -1,7 +1,7 @@
 CREATE TABLE app_devices (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id INT NOT NULL REFERENCES tenants(id),
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_name VARCHAR(255),
     os_type VARCHAR(50),
     os_version VARCHAR(50),

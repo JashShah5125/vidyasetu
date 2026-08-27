@@ -1,6 +1,6 @@
 CREATE TABLE concessions (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     enrollment_id VARCHAR(36) NOT NULL REFERENCES student_enrollments(id) ON DELETE CASCADE,
     amount DECIMAL(10,2),
@@ -11,6 +11,6 @@ CREATE TABLE concessions (
     approved_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36)
+    created_by INT,
+    updated_by INT
 );

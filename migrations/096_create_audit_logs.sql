@@ -1,7 +1,7 @@
 CREATE TABLE audit_logs (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) REFERENCES tenants(id),
-    user_id VARCHAR(36) REFERENCES users(id),
+    tenant_id INT REFERENCES tenants(id),
+    user_id INT REFERENCES users(id),
     action VARCHAR(100) NOT NULL,
     entity_type VARCHAR(100) NOT NULL,
     entity_id VARCHAR(36) NOT NULL,

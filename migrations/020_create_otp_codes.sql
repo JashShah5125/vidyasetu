@@ -1,6 +1,6 @@
 CREATE TABLE otp_codes (
     id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
     mobile VARCHAR(20) NOT NULL,
     code_hash VARCHAR(255) NOT NULL,
     purpose VARCHAR(50) NOT NULL,

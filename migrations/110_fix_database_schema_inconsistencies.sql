@@ -1,13 +1,10 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 1. `users` Table
-ALTER TABLE `users` MODIFY `id` VARCHAR(36) NOT NULL;
-ALTER TABLE `users` DROP PRIMARY KEY, ADD PRIMARY KEY (`id`);
-ALTER TABLE `users` MODIFY `tenant_id` VARCHAR(36) NOT NULL;
-ALTER TABLE `users` MODIFY `created_by` VARCHAR(36) DEFAULT NULL;
-ALTER TABLE `users` MODIFY `updated_by` VARCHAR(36) DEFAULT NULL;
+-- NOTE: Migration 121 handles converting all VARCHAR(36) IDs to INT AUTO_INCREMENT.
+-- The original users/tenants ID type changes have been removed — those tables
+-- already use INT AUTO_INCREMENT and should stay that way.
 
--- 2. `staff_profiles` Table
+-- 1. `staff_profiles` Table
 ALTER TABLE `staff_profiles`
   ADD COLUMN `contact_number` VARCHAR(20) DEFAULT NULL AFTER `employee_id`,
   ADD COLUMN `emergency_contact_name` VARCHAR(100) DEFAULT NULL,
@@ -22,43 +19,43 @@ ALTER TABLE `staff_profiles`
   ADD COLUMN `pf_account_number` VARCHAR(100) DEFAULT NULL AFTER `pf_applicable`,
   ADD COLUMN `esic_account_number` VARCHAR(100) DEFAULT NULL AFTER `esic_applicable`;
 
--- 3. `courses` & `course_branches` Table
+-- 2. `courses` & `course_branches` Table
 ALTER TABLE `courses`
   CHANGE COLUMN `duration_months` `duration` VARCHAR(50) DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS `course_branches` (
-  `course_id` VARCHAR(36) NOT NULL,
-  `branch_id` VARCHAR(36) NOT NULL,
+  `course_id` INT NOT NULL,
+  `branch_id` INT NOT NULL,
   PRIMARY KEY (`course_id`, `branch_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 4. `levels`
+-- 3. `levels`
 ALTER TABLE `levels`
   ADD COLUMN `duration` VARCHAR(50) DEFAULT NULL AFTER `code`;
 
--- 5. `batches` & `classrooms`
+-- 4. `batches` & `classrooms`
 ALTER TABLE `batches`
-  ADD COLUMN `classroom_id` VARCHAR(36) DEFAULT NULL AFTER `end_time`;
+  ADD COLUMN `classroom_id` INT DEFAULT NULL AFTER `end_time`;
 
 ALTER TABLE `classrooms`
   ADD COLUMN `room_number` VARCHAR(50) DEFAULT NULL AFTER `name`;
 
--- 6. `teacher_allocations`
+-- 5. `teacher_allocations`
 ALTER TABLE `teacher_allocations`
-  MODIFY `batch_id` VARCHAR(36) NULL;
+  MODIFY `batch_id` INT NULL;
 
--- 7. `lectures`
+-- 6. `lectures`
 ALTER TABLE `lectures`
   ADD COLUMN `lecture_type` VARCHAR(50) DEFAULT 'Regular' AFTER `topic`,
   ADD COLUMN `activity_type` VARCHAR(50) DEFAULT 'Lecture' AFTER `lecture_type`;
 
--- 8. `fee_plans`
+-- 7. `fee_plans`
 ALTER TABLE `fee_plans`
   ADD COLUMN `down_payment` DECIMAL(10,2) DEFAULT NULL AFTER `total_amount`,
   ADD COLUMN `months` INT DEFAULT NULL AFTER `down_payment`,
   ADD COLUMN `installment_amount` DECIMAL(10,2) DEFAULT NULL AFTER `months`;
 
--- 9. `students`
+-- 8. `students`
 ALTER TABLE `students`
   ADD COLUMN `full_name` VARCHAR(255) NOT NULL AFTER `student_code`,
   DROP COLUMN `first_name`,

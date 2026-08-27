@@ -1,6 +1,6 @@
 CREATE TABLE exams (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     academic_year_id VARCHAR(36) NOT NULL REFERENCES academic_years(id),
     subject_id VARCHAR(36) NOT NULL REFERENCES subjects(id),
@@ -15,6 +15,6 @@ CREATE TABLE exams (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36)
+    created_by INT,
+    updated_by INT
 );

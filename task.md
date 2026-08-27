@@ -1,0 +1,8 @@
+- [x] Create migration file `migrations/110_redesign_subscription_plans.sql`
+- [x] Run migration script to recreate plans and child tables
+- [x] Update seed script / create a new seed file for plans data
+- [/] Update `backend/src/models/planModel.js` queries and transaction logic
+- [ ] Update `backend/src/models/subscriptionModel.js` queries
+- [ ] Update `backend/src/models/billingModel.js` queries
+- [ ] Update `frontend/src/services/planService.ts` mapping functions
+- [ ] Update `backend/postman/Vidyasetu_SaaS_Admin_APIs.postman_collection.json` Create Plan request payload

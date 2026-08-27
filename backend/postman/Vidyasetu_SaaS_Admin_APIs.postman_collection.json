@@ -1,0 +1,1545 @@
+{
+	"info": {
+		"_postman_id": "a9a8d9b8-7c7c-4d8e-9f0a-1b2c3d4e5f6a",
+		"name": "Vidyasetu SaaS Admin APIs",
+		"description": "Postman collection for Vidyasetu SaaS Administration endpoints (Domain B).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login - SaaS Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set(\"token\", jsonData.data.token);",
+									"    console.log(\"Token automatically set in collection variables!\");",
+									"}",
+									"",
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@vidyasetu.com\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Plans",
+			"item": [
+				{
+					"name": "Get All Plans",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/plans",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"plans"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Create Plan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Pro Plan\",\n    \"code\": \"PRO-2026\",\n    \"description\": \"Professional plan for growing institutes\",\n    \"status\": \"Active\",\n    \"display_order\": 1,\n    \"notes\": \"Internal notes\",\n    \"billing\": {\n        \"billing_type\": \"Monthly\",\n        \"price\": 499,\n        \"currency\": \"INR\",\n        \"trial_days\": 14,\n        \"setup_fee\": 0,\n        \"renewal_price\": 499,\n        \"auto_renewal\": 1\n    },\n    \"resource_limits\": {\n        \"max_instances\": 1,\n        \"max_branches\": 5,\n        \"max_staff_users\": 20,\n        \"max_students\": 1000,\n        \"max_parents\": 2000,\n        \"max_teachers\": 20,\n        \"max_storage\": \"50 GB\",\n        \"max_file_size\": \"100 MB\",\n        \"max_sms_credits\": 10000,\n        \"max_whatsapp_msgs\": 10000\n    },\n    \"features\": {\n        \"admissions\": 1,\n        \"student_management\": 1,\n        \"parent_portal\": 1,\n        \"teacher_portal\": 1,\n        \"attendance\": 1,\n        \"timetable\": 1,\n        \"assignments\": 1,\n        \"exams\": 1,\n        \"results\": 1,\n        \"doubts\": 1,\n        \"fees\": 1,\n        \"payroll\": 1,\n        \"income\": 1,\n        \"expenses\": 1,\n        \"notifications\": 1,\n        \"sms\": 1,\n        \"whatsapp\": 1,\n        \"email\": 1,\n        \"reports\": 1,\n        \"audit_logs\": 1,\n        \"import_export\": 1,\n        \"api_access\": 1\n    },\n    \"support\": {\n        \"email_support\": 1,\n        \"chat_support\": 1,\n        \"phone_support\": 1,\n        \"dedicated_account_manager\": 1,\n        \"onboarding_assistance\": 1\n    },\n    \"branding\": {\n        \"white_label\": 1,\n        \"custom_domain\": 1,\n        \"custom_logo\": 1,\n        \"custom_email_templates\": 1\n    },\n    \"integrations\": {\n        \"razorpay\": 1,\n        \"cashfree\": 1,\n        \"whatsapp_business\": 1,\n        \"zoom\": 1,\n        \"google_meet\": 1,\n        \"google_calendar\": 1,\n        \"biometric_devices\": 1\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/plans",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"plans"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Plan By ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/plans/{{plan_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"plans",
+								"{{plan_id}}"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Plan",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Pro Plan Updated\",\n    \"code\": \"PRO-2026\",\n    \"description\": \"Professional plan for growing institutes\",\n    \"status\": \"Active\",\n    \"display_order\": 1,\n    \"notes\": \"Internal notes\",\n    \"visibleTo\": [\"All\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/plans/{{plan_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"plans",
+								"{{plan_id}}"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Delete Plan",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/plans/{{plan_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"plans",
+								"{{plan_id}}"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Plan Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/plans/{{plan_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"plans",
+								"{{plan_id}}",
+								"status"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Subscriptions",
+			"item": [
+				{
+					"name": "Get All Subscriptions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/subscriptions?page=1&limit=10&search=&status=All",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"subscriptions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "status",
+									"value": "All"
+								}
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Subscription By ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/subscriptions/{{subscription_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"subscriptions",
+								"{{subscription_id}}"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Subscription Plan",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"planId\": \"new-plan-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/subscriptions/{{subscription_id}}/plan",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"subscriptions",
+								"{{subscription_id}}",
+								"plan"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Billing & Revenue",
+			"item": [
+				{
+					"name": "Get Invoices",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/billing/invoices?page=1&limit=10&search=&status=All",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"billing",
+								"invoices"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "status",
+									"value": "All"
+								}
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Billing Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/billing/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"billing",
+								"summary"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Email Templates",
+			"item": [
+				{
+					"name": "Get All Email Templates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates?page=1&limit=10&search=&category=&status=",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" },
+								{ "key": "search", "value": "" },
+								{ "key": "category", "value": "" },
+								{ "key": "status", "value": "" }
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has pagination\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"    pm.expect(jsonData.pagination).to.have.property('total');",
+									"    pm.expect(jsonData.pagination).to.have.property('page');",
+									"    pm.expect(jsonData.pagination).to.have.property('limit');",
+									"});",
+									"pm.test(\"Response has data array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Email Templates - Filter by Active",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates?page=1&limit=10&status=ACTIVE",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" },
+								{ "key": "status", "value": "ACTIVE" }
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"All templates should have ACTIVE status\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.data.forEach(function(template) {",
+									"        pm.expect(template.status).to.equal('ACTIVE');",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Email Templates - Filter by Inactive",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates?page=1&limit=10&status=INACTIVE",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" },
+								{ "key": "status", "value": "INACTIVE" }
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"All templates should have INACTIVE status\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.data.forEach(function(template) {",
+									"        pm.expect(template.status).to.equal('INACTIVE');",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Email Templates - Filter by Category",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates?page=1&limit=10&category=AUTHENTICATION",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" },
+								{ "key": "category", "value": "AUTHENTICATION" }
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"All templates should have AUTHENTICATION category\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    jsonData.data.forEach(function(template) {",
+									"        pm.expect(template.category).to.equal('AUTHENTICATION');",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Email Templates - Search",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates?page=1&limit=10&search=password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "10" },
+								{ "key": "search", "value": "password" }
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"Results should contain search term\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data.length > 0) {",
+									"        var found = jsonData.data.some(function(t) {",
+									"            return t.name.toLowerCase().includes('password') ||",
+									"                   t.template_key.toLowerCase().includes('password') ||",
+									"                   (t.description && t.description.toLowerCase().includes('password'));",
+									"        });",
+									"        pm.expect(found).to.be.true;",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Email Template By ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates/{{email_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates", "{{email_template_id}}"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"Response has template data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.have.property('id');",
+									"    pm.expect(jsonData.data).to.have.property('template_key');",
+									"    pm.expect(jsonData.data).to.have.property('name');",
+									"    pm.expect(jsonData.data).to.have.property('category');",
+									"    pm.expect(jsonData.data).to.have.property('subject');",
+									"    pm.expect(jsonData.data).to.have.property('html_body');",
+									"    pm.expect(jsonData.data).to.have.property('status');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Create Email Template",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"template_key\": \"CUSTOM_WELCOME\",\n    \"name\": \"Custom Welcome Email\",\n    \"description\": \"A custom welcome email sent to new users after registration.\",\n    \"category\": \"ONBOARDING\",\n    \"subject\": \"Welcome to {{platform_name}}, {{user_name}}!\",\n    \"html_body\": \"<!DOCTYPE html>\\n<html>\\n<head><meta charset=\\\"UTF-8\\\"></head>\\n<body>\\n<h2>Welcome!</h2>\\n<p>Hello {{user_name}},</p>\\n<p>Welcome to <strong>{{platform_name}}</strong>.</p>\\n<p><a href=\\\"{{login_url}}\\\">Login to your account</a></p>\\n</body>\\n</html>\",\n    \"text_body\": \"Hello {{user_name}},\\n\\nWelcome to {{platform_name}}.\\n\\nLogin: {{login_url}}\",\n    \"variables\": {\n        \"platform_name\": \"Name of the SaaS platform\",\n        \"user_name\": \"Name of the user\",\n        \"login_url\": \"Login URL\"\n    },\n    \"status\": \"ACTIVE\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.expect(pm.response.code).to.equal(201);",
+									"});",
+									"pm.test(\"Response has created template\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data).to.have.property('id');",
+									"    pm.expect(jsonData.data.template_key).to.equal('CUSTOM_WELCOME');",
+									"    pm.expect(jsonData.data.name).to.equal('Custom Welcome Email');",
+									"    pm.expect(jsonData.data.category).to.equal('ONBOARDING');",
+									"    pm.expect(jsonData.data.status).to.equal('ACTIVE');",
+									"    pm.expect(jsonData.data.is_system).to.equal(0);",
+									"    pm.collectionVariables.set('email_template_id', jsonData.data.id);",
+									"    console.log('email_template_id auto-set to: ' + jsonData.data.id);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Email Template",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Custom Welcome Email - Updated\",\n    \"subject\": \"Welcome to {{platform_name}}!\",\n    \"description\": \"Updated custom welcome email sent to new users.\",\n    \"html_body\": \"<!DOCTYPE html>\\n<html>\\n<head><meta charset=\\\"UTF-8\\\"></head>\\n<body>\\n<h2>Welcome to our platform!</h2>\\n<p>Hello {{user_name}},</p>\\n<p>Thank you for joining <strong>{{platform_name}}</strong>.</p>\\n<p><a href=\\\"{{login_url}}\\\">Login to your account</a></p>\\n</body>\\n</html>\",\n    \"text_body\": \"Hello {{user_name}},\\n\\nThank you for joining {{platform_name}}.\\n\\nLogin: {{login_url}}\",\n    \"variables\": {\n        \"platform_name\": \"Name of the SaaS platform\",\n        \"user_name\": \"Name of the user\",\n        \"login_url\": \"Login URL\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates/{{email_template_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates", "{{email_template_id}}"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"Response has updated template\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData.data.name).to.equal('Custom Welcome Email - Updated');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Template Status - Inactive",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"INACTIVE\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates/{{email_template_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates", "{{email_template_id}}", "status"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"Template status is INACTIVE\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data.status).to.equal('INACTIVE');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Template Status - Active",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"ACTIVE\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates/{{email_template_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates", "{{email_template_id}}", "status"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.expect(pm.response.code).to.equal(200);",
+									"});",
+									"pm.test(\"Template status is ACTIVE\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data.status).to.equal('ACTIVE');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Create Template - Missing Required Fields (Expect 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"template_key\": \"INVALID_TEMPLATE\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.expect(pm.response.code).to.equal(400);",
+									"});",
+									"pm.test(\"Response has validation errors\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData).to.have.property('errors');",
+									"    pm.expect(jsonData.errors).to.be.an('array');",
+									"    pm.expect(jsonData.errors.length).to.be.above(0);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Create Template - Duplicate Key (Expect 409)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"template_key\": \"ACCOUNT_CREATED\",\n    \"name\": \"Duplicate Template\",\n    \"category\": \"AUTHENTICATION\",\n    \"subject\": \"Test\",\n    \"html_body\": \"<p>Test</p>\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.expect(pm.response.code).to.equal(409);",
+									"});",
+									"pm.test(\"Response has duplicate error message\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData.message).to.include('already exists');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Template - Not Found (Expect 404)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/email-templates/99999",
+							"host": ["{{base_url}}"],
+							"path": ["api", "admin", "email-templates", "99999"]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.expect(pm.response.code).to.equal(404);",
+									"});",
+									"pm.test(\"Response has not found message\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.equal('error');",
+									"    pm.expect(jsonData.message).to.include('not found');",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Tenants",
+			"item": [
+				{
+					"name": "Get All Tenants",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants?page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Create Tenant",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Test Logo Institute",
+									"type": "text"
+								},
+								{
+									"key": "legal_name",
+									"value": "Test Logo Pvt Ltd",
+									"type": "text"
+								},
+								{
+									"key": "slug",
+									"value": "test-logo-inst",
+									"type": "text"
+								},
+								{
+									"key": "adminEmail",
+									"value": "admin@testlogo.com",
+									"type": "text"
+								},
+								{
+									"key": "adminPassword",
+									"value": "securePass123",
+									"type": "text"
+								},
+								{
+									"key": "planId",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "logo",
+									"type": "file",
+									"src": "logo.png"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants"
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+									"});",
+									"pm.test(\"Response time is acceptable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});",
+									"pm.test(\"Response has JSON body\", function () {",
+									"    if (pm.response.code !== 204) {",
+									"        pm.response.to.have.jsonBody();",
+									"    }",
+									"});",
+									"",
+									"pm.test(\"Database should be filled with logo URL\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data.logoUrl).to.include(\"/uploads/tenants/logo/\");",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update Tenant",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Updated Institute Name",
+									"type": "text"
+								},
+								{
+									"key": "legal_name",
+									"value": "Updated Institute Pvt Ltd",
+									"type": "text"
+								},
+								{
+									"key": "slug",
+									"value": "updated-inst",
+									"type": "text"
+								},
+								{
+									"key": "adminEmail",
+									"value": "newadmin@updated.com",
+									"type": "text"
+								},
+								{
+									"key": "mobile",
+									"value": "9876543210",
+									"type": "text"
+								},
+								{
+									"key": "logo",
+									"type": "file",
+									"src": "logo.png"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is valid\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "YOUR_SAAS_ADMIN_TOKEN_HERE",
+			"type": "string"
+		},
+		{
+			"key": "plan_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "subscription_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "email_template_id",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}

@@ -1,6 +1,6 @@
 CREATE TABLE batches (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
     academic_year_id VARCHAR(36) NOT NULL REFERENCES academic_years(id),
     level_id VARCHAR(36) NOT NULL REFERENCES levels(id) ON DELETE RESTRICT,
@@ -10,13 +10,12 @@ CREATE TABLE batches (
     current_strength INTEGER NOT NULL DEFAULT 0,
     start_time TIME,
     end_time TIME,
-    classroom_id VARCHAR(36) REFERENCES classrooms(id) ON DELETE SET NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36),
+    created_by INT,
+    updated_by INT,
     UNIQUE(branch_id, academic_year_id, code)
 );
 CREATE INDEX idx_batches_branch ON batches(tenant_id, branch_id);

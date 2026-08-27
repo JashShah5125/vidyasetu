@@ -1,7 +1,7 @@
 CREATE TABLE user_sessions (
     id VARCHAR(36) PRIMARY KEY,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     refresh_token_hash VARCHAR(255) NOT NULL,
     device_id VARCHAR(36) REFERENCES app_devices(id) ON DELETE SET NULL,
     ip_address VARCHAR(45),

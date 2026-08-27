@@ -1,6 +1,6 @@
 CREATE TABLE student_documents (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     student_id VARCHAR(36) NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     document_type_id VARCHAR(36) NOT NULL REFERENCES document_types(id),
     storage_key TEXT NOT NULL,
@@ -13,6 +13,6 @@ CREATE TABLE student_documents (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
-    created_by VARCHAR(36),
-    updated_by VARCHAR(36)
+    created_by INT,
+    updated_by INT
 );

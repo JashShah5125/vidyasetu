@@ -1,6 +1,6 @@
 CREATE TABLE staff_attendance (
     id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL REFERENCES tenants(id),
+    tenant_id INT NOT NULL REFERENCES tenants(id),
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     staff_id VARCHAR(36) NOT NULL REFERENCES staff_profiles(id) ON DELETE CASCADE,
     date DATE NOT NULL,

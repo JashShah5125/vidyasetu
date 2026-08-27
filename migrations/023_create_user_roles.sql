@@ -2,7 +2,7 @@ CREATE TABLE user_roles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role_id INT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    branch_id INT REFERENCES branches(id) ON DELETE CASCADE,
+    branch_id VARCHAR(36) REFERENCES branches(id) ON DELETE CASCADE,
     tenant_id INT NOT NULL REFERENCES tenants(id),
     assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     assigned_by INT REFERENCES users(id),
