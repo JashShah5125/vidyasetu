@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import type { Role } from '../data/mockData';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { login, isLoading, error: authError } = useAuth();
+  const { login } = useApp();
   const navigate = useNavigate();
   const [emailInput, setEmailInput] = useState('admin@apexiit.com');
   const [passwordInput, setPasswordInput] = useState('password');
@@ -15,7 +15,7 @@ export const Login: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
 
   const emailPresets: Record<Role, string> = {
-    'saas-admin': '', // Cleared as requested
+    'saas-admin': 'owner@vidyasetu.com',
     'inst-admin': 'admin@apexiit.com',
     'branch-admin': 'mumbai@apexiit.com',
     'counsellor': 'counsel@apexiit.com',
@@ -23,56 +23,36 @@ export const Login: React.FC = () => {
     'finance': 'finance@apexiit.com'
   };
 
-  const validateForm = (): boolean => {
-    // Basic regex for email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
-    if (!emailRegex.test(emailInput)) {
-      setErrorMessage('Please enter a valid email address.');
-      return false;
-    }
-    
-    if (passwordInput.length < 6) {
-      setErrorMessage('Password must be at least 6 characters long.');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (!validateForm()) {
+    if (passwordInput !== 'password') {
+      setErrorMessage('Invalid password. Demo password is "password"');
       return;
     }
 
-    const success = await login(emailInput, passwordInput);
+    const success = login(emailInput);
     if (success) {
-      const savedUser = JSON.parse(localStorage.getItem('vs_current_user') || '{}');
-      navigate(savedUser.mustChangePassword ? '/change-password' : '/dashboard');
+      navigate('/dashboard');
+    } else {
+      setErrorMessage('Invalid email. Please use a valid demo email ID.');
     }
   };
 
   const handlePresetSelect = (role: Role) => {
-    if (role === 'saas-admin') {
-      setEmailInput('');
-      setPasswordInput('');
-    } else {
-      setEmailInput(emailPresets[role]);
-      setPasswordInput('password');
-    }
+    setEmailInput(emailPresets[role]);
+    setPasswordInput('password');
     setErrorMessage('');
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-xl space-y-6">
-        
+
         {/* Header */}
         <div className="text-center space-y-3">
-          <img src="/logo.png" alt="Vidya Setu Logo" className="h-28 mx-auto object-contain" />
+          <img src="/logo.png" alt="Vidya Setu Logo" className="w-full h-28 object-cover" />
           <p className="text-sm text-slate-500 font-semibold">
             Multi-Tenant Coaching Management Platform
           </p>
@@ -80,9 +60,9 @@ export const Login: React.FC = () => {
 
         {/* Credentials Form */}
         <form onSubmit={handleSignIn} className="space-y-4">
-          <Input 
-            label="Email Address" 
-            placeholder="e.g. admin@apexiit.com" 
+          <Input
+            label="Email Address"
+            placeholder="e.g. admin@apexiit.com"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             required
@@ -93,9 +73,9 @@ export const Login: React.FC = () => {
               <span className="text-red-500 font-bold ml-1">*</span>
             </label>
             <div className="relative w-full">
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="e.g. password" 
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="e.g. password"
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 required
@@ -116,8 +96,8 @@ export const Login: React.FC = () => {
               <input type="checkbox" className="rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
               <span>Remember me</span>
             </label>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setErrorMessage('Demo Mode: Password reset is disabled. Please use "password".')}
               className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
             >
@@ -125,26 +105,26 @@ export const Login: React.FC = () => {
             </button>
           </div>
 
-          {(errorMessage || authError) && (
+          {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 text-center animate-fade-in">
-              {errorMessage || authError}
+              {errorMessage}
             </div>
           )}
 
-          <Button 
+          <Button
             type="submit"
-            variant="primary" 
-            fullWidth 
-            disabled={!emailInput.trim() || !passwordInput.trim() || isLoading}
+            variant="primary"
+            fullWidth
+            disabled={!emailInput.trim() || !passwordInput.trim()}
             style={{ padding: '12px' }}
           >
-            {isLoading ? 'Signing In...' : 'Sign In'}
+            Sign In
           </Button>
 
           <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100/50">
             Don't have an account?{' '}
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setErrorMessage('Self-registration is disabled. Please contact your administrator.')}
               className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
             >

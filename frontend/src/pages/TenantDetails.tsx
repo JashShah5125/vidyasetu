@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Pencil, Check, X, Upload } from 'lucide-react';
 import { formatDate, getTenantStatus } from '../data/mockData';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { tenantService } from '../services/tenantService';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface StudentHistoryRecord {
   id: string;
@@ -188,6 +189,9 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
   const [studentsPage, setStudentsPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [customStudents, setCustomStudents] = useState<Record<string, StudentHistoryRecord[]>>({});
 
   // Edit view state
   const [showEditView, setShowEditView] = useState(false);
@@ -561,12 +565,16 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           )}
 
           {manageTab === 'payments' && (
-            <div className="space-y-6">
-              <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Payment &amp; Invoice History</h5>
-              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Payment &amp; Invoice History</h5>
+                <span className="text-xs text-slate-400 font-medium">Click any invoice to view itemization & details</span>
+              </div>
+              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm bg-white">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-xs tracking-wider">
+                      <th className="px-5 py-4 w-10"></th>
                       <th className="px-5 py-4">Invoice ID</th>
                       <th className="px-5 py-4">Billing Cycle</th>
                       <th className="px-5 py-4">Paid Date</th>
@@ -575,7 +583,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                       <th className="px-5 py-4">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
                     {[
                       { id: 'INV-2026-081', plan: viewingTenant.plan, date: formatDate(viewingTenant.startDate || '2026-04-15'), amt: '₹15,000 + GST', ref: 'pay_RZP98425102', status: 'Payment Complete' },
                       { id: 'INV-2026-015', plan: viewingTenant.plan, date: '15-01-2026', amt: '₹15,000 + GST', ref: 'pay_RZP88125412', status: 'Payment Complete' }
@@ -603,7 +611,10 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
             <div className="space-y-6">
               {!selectedStudentId ? (
                 (() => {
-                    const studentList = mockStudentsData[viewingTenant.id] || getFallbackStudents(viewingTenant.id);
+                    const studentList = [
+                      ...(customStudents[viewingTenant.id] || []),
+                      ...(mockStudentsData[viewingTenant.id] || getFallbackStudents(viewingTenant.id))
+                    ];
                     const uniqueCourses = Array.from(new Set(studentList.map(s => s.course)));
                     
                     const filteredAndSortedList = studentList
@@ -664,6 +675,9 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                           <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Registered Students Directory</h5>
                           <div className="flex gap-2 items-center">
                             <span className="text-xs text-slate-500 font-medium mr-2">Total Registered: {filteredAndSortedList.length}</span>
+                            <Button variant="secondary" size="sm" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1 font-bold">
+                              <Upload size={13} /> Bulk Import
+                            </Button>
                             <Button variant="secondary" size="sm" onClick={handleExportCSV}>Export CSV</Button>
                           </div>
                         </div>
@@ -965,6 +979,46 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           )}
         </div>
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Registered Students"
+        description="Select a CSV spreadsheet to import multiple student profiles under this tenant at once. Columns must match the template below exactly."
+        sampleHeaders={['StudentId', 'Name', 'Email', 'Mobile', 'Course', 'Batch', 'Branch', 'Status']}
+        sampleRows={[
+          ['STU-TEN-004', 'Karan Johar', 'karan@gmail.com', '9812457812', 'JEE Prep Course', 'JEE-Morning-A', 'Mumbai West', 'Active'],
+          ['STU-TEN-005', 'Nisha Sen', 'nisha@gmail.com', '9123049876', 'NEET Batch Premium', 'NEET-Regular-B', 'Pune Camp', 'Active']
+        ]}
+        onImport={(importedRows) => {
+          if (!viewingTenant) return;
+          const mapped = importedRows.map((row, rIdx) => {
+            return {
+              id: `S-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              studentId: row['StudentId'] || `STU-${Math.floor(100 + Math.random() * 900)}`,
+              name: row['Name'] || 'Imported Student',
+              email: row['Email'] || '',
+              mobile: row['Mobile'] || '',
+              parentMobile: '',
+              course: row['Course'] || 'JEE Prep Course',
+              batch: row['Batch'] || 'JEE-Morning-A',
+              branch: row['Branch'] || 'Mumbai West',
+              status: row['Status'] || 'Active',
+              admissionDate: new Date().toISOString().split('T')[0],
+              feePlan: { total: 0, paid: 0, pending: 0 },
+              receipts: [],
+              attendanceRate: '100.0%',
+              loginLogs: [],
+              assignments: []
+            };
+          });
+          setCustomStudents(prev => ({
+            ...prev,
+            [viewingTenant.id]: [...(prev[viewingTenant.id] || []), ...mapped]
+          }));
+          addToast('Registered student roster updated successfully.', 'success');
+        }}
+      />
     </div>
   );
 };

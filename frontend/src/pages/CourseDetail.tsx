@@ -10,6 +10,7 @@ import { Toggle } from '../components/ui/Toggle';
 import {
   ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle, ShieldAlert
 } from 'lucide-react';
+import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 
 // ─── Data Shape ───────────────────────────────────────────────────────────────
 
@@ -180,7 +181,7 @@ const ProgramCard: React.FC<{
   const [open, setOpen] = useState(program.enabled);
 
   return (
-    <Card>
+    <Card className="hover:-translate-y-0.5 transition-transform duration-200">
       {/* Program Header */}
       <div className="p-4 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 rounded-t-xl">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setOpen(o => !o)}>
@@ -363,12 +364,12 @@ export const CourseDetail: React.FC = () => {
       )}
       {/* Page Header */}
       <div className="flex flex-col gap-2 p-6 pb-0">
-        <button
-          onClick={() => navigate('/courses')}
-          className="text-sm font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 w-fit transition-colors"
-        >
-          <ChevronLeft size={16} /> Back to Courses
-        </button>
+        <Breadcrumbs
+          items={[
+            { label: 'Courses', href: '/courses' },
+            { label: isNew ? 'Create New Course' : formData.name }
+          ]}
+        />
         <div className="flex justify-between items-center">
           <h2 className="text-3xl font-display font-bold text-slate-900">
             {isNew ? 'Create New Course' : formData.name}

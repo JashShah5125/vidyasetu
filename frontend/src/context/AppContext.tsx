@@ -1,7 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { planService } from '../services/planService';
-import { tenantService } from '../services/tenantService';
-import { subscriptionService } from '../services/subscriptionService';
 import type {
   Role,
   UserProfile,
@@ -39,6 +36,8 @@ import {
   INITIAL_STAFF,
   INITIAL_DOUBTS,
   INITIAL_AUDIT_LOGS,
+  INITIAL_PLANS,
+  INITIAL_TENANT_SUBSCRIPTIONS,
   INITIAL_EXAMS,
   INITIAL_NOTIFICATIONS,
   TEACHER_INITIAL_ASSIGNMENTS,
@@ -53,13 +52,17 @@ export interface ToastMessage {
 
 interface AppContextType {
   currentUser: UserProfile | null;
+  setCurrentUser: (user: UserProfile | null) => void;
   tenants: Tenant[];
   leads: Lead[];
+  setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
   students: Student[];
+  setStudents: React.Dispatch<React.SetStateAction<Student[]>>;
   parents: Parent[];
   enrollments: Enrollment[];
   feeRecords: FeeRecord[];
   documents: Document[];
+  setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
   courses: Course[];
   batches: Batch[];
   branches: Branch[];
@@ -75,7 +78,8 @@ interface AppContextType {
   notifications: AppNotification[];
   markNotificationRead: (id: string) => void;
   sendNotification: (notification: AppNotification) => void;
-  logout: () => void | Promise<void>;
+  login: (email: string) => boolean;
+  logout: () => void;
   addTenant: (
     name: string, 
     ownerName: string, 
@@ -133,12 +137,21 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-import { useAuth } from './AuthContext';
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, logout } = useAuth();
-  
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('vs_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('vs_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('vs_current_user');
+    }
+  }, [currentUser]);
+
+  const [tenants, setTenants] = useState<Tenant[]>(INITIAL_TENANTS);
   const [leads, setLeads] = useState<Lead[]>(() => {
     const saved = localStorage.getItem('vs_leads');
     return saved ? JSON.parse(saved) : INITIAL_LEADS;
@@ -170,10 +183,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem('vs_leads', JSON.stringify(leads));
+    fetch('/api/save-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(leads)
+    }).catch(() => {});
   }, [leads]);
 
   useEffect(() => {
     localStorage.setItem('vs_students', JSON.stringify(students));
+    fetch('/api/save-students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(students)
+    }).catch(() => {});
   }, [students]);
 
   useEffect(() => {
@@ -187,65 +210,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('vs_fee_records', JSON.stringify(feeRecords));
   }, [feeRecords]);
-
-  // Fetch SaaS Data
-  useEffect(() => {
-    if (!currentUser) {
-      setPlans([]);
-      setTenants([]);
-      setTenantSubscriptions([]);
-      return;
-    }
-
-    const fetchPlans = async () => {
-      try {
-        const res = await planService.getPlans();
-        if (res && res.data) {
-          setPlans(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch plans:', err);
-      }
-    };
-
-    const fetchTenants = async () => {
-      if (currentUser?.role === 'saas-admin') {
-        try {
-          // Pass limit=1000 or similar if backend requires it to get all
-          const res = await tenantService.getTenants({ limit: 1000 });
-          if (res && res.data) {
-            setTenants(res.data);
-          }
-        } catch (err) {
-          console.error('Failed to fetch tenants:', err);
-        }
-      }
-    };
-    const fetchSubscriptions = async () => {
-      if (currentUser?.role === 'saas-admin') {
-        try {
-          const res = await subscriptionService.getSubscriptions();
-          if (res && res.data) {
-            setTenantSubscriptions(res.data);
-          }
-        } catch (err) {
-          console.error('Failed to fetch subscriptions:', err);
-        }
-      }
-    };
-    
-    fetchPlans();
-    fetchTenants();
-    fetchSubscriptions();
-  }, [currentUser]);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
   const [staff, setStaff] = useState<Staff[]>(INITIAL_STAFF);
   const [doubts, setDoubts] = useState<Doubt[]>(INITIAL_DOUBTS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(INITIAL_AUDIT_LOGS);
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>(INITIAL_PLANS);
+  const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscription[]>(INITIAL_TENANT_SUBSCRIPTIONS);
   const [exams, setExams] = useState<ExamItem[]>(INITIAL_EXAMS);
   const [assignments, setAssignments] = useState<AssignmentItem[]>(TEACHER_INITIAL_ASSIGNMENTS);
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
@@ -276,6 +248,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       institute: currentUser ? currentUser.tenantName : 'System'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  const login = (emailInput: string) => {
+    let name = '';
+    let email = emailInput.trim().toLowerCase();
+    let tenantName = 'Apex IIT Academy';
+    let tenantId = 'VS-001';
+    let role: Role = 'inst-admin';
+    let branch = 'Mumbai West';
+
+    const matchedTenant = tenants.find(t => {
+      const defEmail = (t.defaultEmail || t.email || '').trim().toLowerCase();
+      return defEmail === email;
+    });
+
+    if (email === 'owner@vidyasetu.com') {
+      role = 'saas-admin';
+      name = 'Alexander Vance';
+      tenantName = 'Vidya Setu Platform';
+      tenantId = 'SYSTEM';
+      branch = '';
+    } else if (matchedTenant) {
+      role = 'inst-admin';
+      name = matchedTenant.ownerName;
+      tenantName = matchedTenant.name;
+      tenantId = matchedTenant.id;
+    } else if (email === 'mumbai@apexiit.com') {
+      role = 'branch-admin';
+      name = 'Mrs. Seema Deshpande';
+    } else if (email === 'counsel@apexiit.com') {
+      role = 'counsellor';
+      name = 'Priya Sen';
+    } else if (email === 'kelkar@apexiit.com') {
+      role = 'teacher';
+      name = 'Prof. Arvind Kelkar';
+    } else if (email === 'finance@apexiit.com') {
+      role = 'finance';
+      name = 'Nitin Joshi';
+    } else {
+      return false;
+    }
+
+    const profile: UserProfile = {
+      name,
+      email,
+      role,
+      branch: role === 'saas-admin' ? undefined : branch,
+      tenantId,
+      tenantName
+    };
+    setCurrentUser(profile);
+    logAction('USER_LOGIN', `Logged in as ${roleLabels[role]}`);
+    return true;
+  };
+
+  const logout = () => {
+    logAction('USER_LOGOUT', 'Logged out');
+    setCurrentUser(null);
   };
 
   const addTenant = (
@@ -849,14 +879,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       currentUser,
-      logout,
+      setCurrentUser,
       tenants,
       leads,
+      setLeads,
       students: enrichedStudents,
+      setStudents,
       parents,
       enrollments,
       feeRecords,
       documents,
+      setDocuments,
       courses,
       batches,
       branches,
@@ -869,6 +902,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       assignments,
       setExams,
       setAssignments,
+      login,
+      logout,
       addTenant,
       updateTenant,
       toggleTenantStatus,
@@ -923,4 +958,11 @@ export const useApp = () => {
   return context;
 };
 
-
+const roleLabels: Record<Role, string> = {
+  'saas-admin': 'SaaS Super Admin',
+  'inst-admin': 'Institute Admin',
+  'branch-admin': 'Branch Admin',
+  'counsellor': 'Counsellor / Admissions',
+  'teacher': 'Teacher / Faculty',
+  'finance': 'Finance Staff'
+};

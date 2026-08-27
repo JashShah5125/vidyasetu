@@ -4,11 +4,12 @@ import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Layers, Plus, Search, Clock, BookOpen, Download, ArrowLeft } from 'lucide-react';
+import { Layers, Plus, Search, Clock, BookOpen, Download, ArrowLeft, Upload } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const BatchSetup: React.FC = () => {
-  const { batches, courses, branches, currentUser } = useApp();
+  const { batches, courses, branches, currentUser, setBatches } = useApp();
 
   const myCourses = useMemo(() => {
     return currentUser?.role === 'branch-admin'
@@ -24,6 +25,7 @@ export const BatchSetup: React.FC = () => {
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterYear, setFilterYear] = useState('All');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', branch: '', course: '', program: '', level: '', academicYear: '', startTime: '', endTime: '', room: '' });
@@ -332,7 +334,10 @@ export const BatchSetup: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Batch Management</h2>
           <p className="text-sm text-slate-500 mt-1">Configure and manage batches across programs and levels.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
@@ -417,9 +422,19 @@ export const BatchSetup: React.FC = () => {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <Layers size={36} className="mx-auto mb-3 text-slate-300" />
-            <p className="font-medium">No batches match your filters.</p>
+          <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
+            <div className="bg-blue-50 p-4 rounded-full mb-4">
+              <Layers size={40} className="text-blue-400" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">No batches found</h3>
+            <p className="text-slate-500 max-w-sm mb-6">Get started by creating your first batch, or adjust your filters to see more results.</p>
+            <Button
+              variant="primary"
+              onClick={handleOpenAdd}
+              style={{ backgroundColor: '#2563eb', color: 'white' }}
+            >
+              <Plus size={16} className="mr-2" /> Create New Batch
+            </Button>
           </div>
         ) : (
           <>
@@ -459,6 +474,35 @@ export const BatchSetup: React.FC = () => {
           </>
         )}
       </div>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Batches"
+        description="Select a CSV spreadsheet to import multiple batches at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'Branch', 'Course', 'Program', 'Level', 'AcademicYear', 'StartTime', 'EndTime', 'Room']}
+        sampleRows={[
+          ['JEE-Morning-B', 'Mumbai West', 'JEE Prep Course', '2 Year', 'Class XI', '2026-2027', '08:00 AM', '11:00 AM', 'Room 102'],
+          ['NEET-Regular-C', 'Pune Camp', 'NEET Batch Premium', '1 Year Crash Course', 'Class XII', '2026-2027', '12:00 PM', '03:00 PM', 'Room 105']
+        ]}
+        onImport={(importedRows) => {
+          const newBatches = importedRows.map((row, rIdx) => {
+            return {
+              id: `BAT-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Batch',
+              branch: row['Branch'] || 'Mumbai West',
+              course: row['Course'] || 'JEE Prep Course',
+              program: row['Program'] || '2 Year',
+              level: row['Level'] || 'Class XI',
+              academicYear: row['AcademicYear'] || '2026-2027',
+              timing: `${row['StartTime'] || '09:00 AM'} - ${row['EndTime'] || '12:00 PM'}`,
+              room: row['Room'] || 'Room 101'
+            } as any;
+          });
+          setBatchList(prev => [...newBatches, ...prev] as any[]);
+          setBatches(prev => [...newBatches, ...prev] as any[]);
+        }}
+      />
     </div>
   );
 };

@@ -7,13 +7,15 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
+import { Upload } from 'lucide-react';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface FeesProps {
   initialTab?: 'record' | 'defaulters';
 }
 
 export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
-  const { students: allStudents, recordPayment, currentUser } = useApp();
+  const { students: allStudents, recordPayment, currentUser, addToast } = useApp();
   const students = useMemo(() => {
     const isBranchScoped = currentUser?.role === 'branch-admin' || currentUser?.role === 'finance';
     return isBranchScoped
@@ -28,6 +30,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const itemsPerPage = 3;
 
   const uniqueCourses = Array.from(new Set(students.map(s => s.course)));
@@ -107,7 +110,12 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
               : 'Review outstanding dues profiles, warning status logs, and collection alerts.'}
           </p>
         </div>
-        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        </div>
       </div>
 
       {/* Search, Filter, Sort Controls */}
@@ -260,6 +268,32 @@ export const Fees: React.FC<FeesProps> = ({ initialTab = 'record' }) => {
           </div>
         </Modal>
       )}
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Fee Payments"
+        description="Select a CSV spreadsheet to import multiple fee payments at once. Columns must match the template below exactly."
+        sampleHeaders={['StudentId', 'Amount', 'PaymentMode']}
+        sampleRows={[
+          ['S-201', '15000', 'Bank Transfer'],
+          ['S-204', '8500', 'UPI']
+        ]}
+        onImport={(importedRows) => {
+          importedRows.forEach((row) => {
+            const sid = row['StudentId'] || row['Student ID'] || row['ID'];
+            const amt = parseFloat(row['Amount']) || 0;
+            const pMode = row['PaymentMode'] || row['Mode'] || 'UPI';
+            if (sid && amt > 0) {
+              const matchedStudent = students.find(s => s.id === sid || s.studentId === sid);
+              if (matchedStudent) {
+                recordPayment(matchedStudent.id, amt, pMode);
+              }
+            }
+          });
+          addToast('Fee payments imported and recorded successfully.', 'success');
+        }}
+      />
     </div>
   );
 };

@@ -3,9 +3,10 @@ import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
-import { BookOpen, Layers, Plus, Search, Download, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { BookOpen, Layers, Plus, Search, Download, ArrowLeft, ShieldAlert, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 import { INITIAL_SUBJECTS_MAP, INITIAL_BUNDLES_MAP } from '../data/mockData';
 
@@ -35,6 +36,7 @@ export const SubjectSetup: React.FC = () => {
   // Data State
   const [assignedSubjectsMap, setAssignedSubjectsMap] = useState<Record<string, any[]>>(INITIAL_SUBJECTS_MAP);
   const [bundlesMap, setBundlesMap] = useState<Record<string, any[]>>(INITIAL_BUNDLES_MAP);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Modal States
   const [isAddSubjectModalOpen, setAddSubjectModalOpen] = useState(false);
@@ -583,7 +585,10 @@ export const SubjectSetup: React.FC = () => {
           <h2 className="text-2xl font-display font-bold text-slate-900">Subject Management</h2>
           <p className="text-sm text-slate-500 mt-1">Manage subjects and bundles across all courses, programs, and levels.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+            <Upload size={14} /> Bulk Import
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={16} /> Export CSV
           </Button>
@@ -781,6 +786,45 @@ export const SubjectSetup: React.FC = () => {
         </div>
       </div>
       </fieldset>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Subjects"
+        description="Select a CSV spreadsheet to import multiple subjects at once. Columns must match the template below exactly."
+        sampleHeaders={['Name', 'Code', 'Type', 'CourseCode', 'ProgramName', 'LevelValue', 'Teachers']}
+        sampleRows={[
+          ['Electromagnetic Induction', 'PHY-104', 'Core', 'JEE Prep Course', '2 Year', 'year1', 'kelkar@apexiit.com'],
+          ['Organic Chains Nomenclature', 'CHEM-205', 'Core', 'NEET Batch Premium', '1 Year Crash Course', 'year2', 'kelkar@apexiit.com']
+        ]}
+        onImport={(importedRows) => {
+          const updatedMap = { ...assignedSubjectsMap };
+          importedRows.forEach((row, rIdx) => {
+            const courseCode = row['CourseCode'] || 'JEE Prep Course';
+            const programName = row['ProgramName'] || '2 Year';
+            const levelValue = row['LevelValue'] || 'year1';
+            const key = `${courseCode}-${programName}-${levelValue}`;
+            
+            const teacherIds = row['Teachers'] 
+              ? row['Teachers'].split(',').map((t: string) => t.trim()) 
+              : [];
+
+            const newSubject = {
+              id: `SUB-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+              name: row['Name'] || 'Imported Subject',
+              code: row['Code'] || `S-${Math.floor(100 + Math.random() * 900)}`,
+              type: row['Type'] || 'Core',
+              teacherIds: teacherIds
+            };
+
+            if (!updatedMap[key]) {
+              updatedMap[key] = [];
+            }
+            updatedMap[key] = [...updatedMap[key], newSubject];
+          });
+          setAssignedSubjectsMap(updatedMap);
+        }}
+      />
     </div>
   );
 };

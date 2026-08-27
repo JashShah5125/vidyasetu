@@ -6,9 +6,10 @@ import { Select } from '../components/ui/Select';
 import { INITIAL_COURSES, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useFeeConfig, type FeePlan } from '../context/FeeConfigContext';
 import { Modal } from '../components/ui/Modal';
-import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert, Download } from 'lucide-react';
+import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert, Download, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const FeesMaster: React.FC = () => {
   const { currentUser, addToast } = useApp();
@@ -26,6 +27,7 @@ export const FeesMaster: React.FC = () => {
 
   const [successMsg, setSuccessMsg] = useState('');
   const [editingPlan, setEditingPlan] = useState<FeePlan | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Get available programs for the selected course
   const availablePrograms = useMemo(() => {
@@ -308,9 +310,14 @@ export const FeesMaster: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           {view === 'list' && (activeMainTab !== 'subject-wise' || filteredSubjects.length > 0) && (
-            <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-2 cursor-pointer">
-              <Download size={16} /> Export CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+                <Upload size={14} /> Bulk Import
+              </Button>
+              <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-2 cursor-pointer">
+                <Download size={16} /> Export CSV
+              </Button>
+            </div>
           )}
           {activeMainTab === 'full-course' && view === 'list' && !isReadOnly && (
             <Button variant="primary" onClick={() => { setEditingPlan(null); setSelectedCourse(''); setSelectedProgram(''); setTotalFees(''); setDownPayment(''); setMonths(''); setView('form'); }} className="flex items-center gap-2 cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
@@ -759,6 +766,41 @@ export const FeesMaster: React.FC = () => {
         </Modal>
       </div>
       </fieldset>
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Bulk Import Fee Plans"
+        description="Select a CSV spreadsheet to import multiple Course Fee Plans at once. Columns must match the template below exactly."
+        sampleHeaders={['Course', 'Program', 'TotalFees', 'DownPayment', 'Installments']}
+        sampleRows={[
+          ['JEE Prep Course', '2 Year', '150000', '30000', '12'],
+          ['NEET Batch Premium', '1 Year Crash Course', '80000', '15000', '6']
+        ]}
+        onImport={(importedRows) => {
+          if (activeMainTab === 'full-course') {
+            const newPlans: FeePlan[] = importedRows.map((row, rIdx) => {
+              const total = parseInt(row['TotalFees'], 10) || 120000;
+              const down = parseInt(row['DownPayment'], 10) || 20000;
+              const mos = parseInt(row['Installments'] || row['Months'], 10) || 10;
+              const inst = mos > 0 ? Math.round((total - down) / mos) : 0;
+              return {
+                id: `PLAN-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+                course: row['Course'] || 'JEE Prep Course',
+                program: row['Program'] || '2 Year',
+                totalFees: total,
+                downPayment: down,
+                months: mos,
+                installment: inst
+              };
+            });
+            setPlans(prev => [...newPlans, ...prev]);
+            addToast('Full course fee plans imported.', 'success');
+          } else {
+            addToast('Bulk import is only supported for the Full Course Plans tab.', 'info');
+          }
+        }}
+      />
     </div>
   );
 };
