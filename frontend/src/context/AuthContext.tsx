@@ -8,6 +8,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   error: string | null;
+  updateCurrentUser: (fields: Partial<UserProfile>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +45,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('auth:force-logout', handleForceLogout);
     };
   }, []);
+
+  const updateCurrentUser = (fields: Partial<UserProfile>) => {
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...fields };
+      localStorage.setItem('vs_current_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const login = async (email: string, password?: string): Promise<boolean> => {
     setIsLoading(true);
@@ -104,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, error }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, error, updateCurrentUser }}>
       {children}
     </AuthContext.Provider>
   );

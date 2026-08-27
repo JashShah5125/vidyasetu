@@ -8,9 +8,6 @@ const MASTER_TENANT_ID = parseInt(process.env.MASTER_TENANT_ID) || 1;
 const changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-        if (!currentPassword || !newPassword || newPassword.length < 8) {
-            return res.status(400).json({ status: 'error', message: 'Current password and a new password of at least 8 characters are required' });
-        }
 
         const user = await userModel.findUserById(req.user.userId);
         if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {
@@ -23,6 +20,24 @@ const changePassword = async (req, res) => {
     } catch (error) {
         console.error('Change password error:', error);
         res.status(500).json({ status: 'error', message: 'Unable to change password' });
+    }
+};
+
+const updateProfile = async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        const userId = req.user.userId;
+
+        const existing = await userModel.findUserByEmail(email, req.user.tenantId);
+        if (existing && existing.length > 0 && existing[0].id !== userId) {
+            return res.status(409).json({ status: 'error', message: 'Email is already in use by another account' });
+        }
+
+        await userModel.updateUserProfile(userId, { name, email });
+        res.status(200).json({ status: 'success', message: 'Profile updated successfully' });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ status: 'error', message: 'Unable to update profile' });
     }
 };
 
@@ -163,6 +178,7 @@ const logout = async (req, res) => {
 module.exports = {
     login,
     changePassword,
+    updateProfile,
     refresh,
     logout
 };

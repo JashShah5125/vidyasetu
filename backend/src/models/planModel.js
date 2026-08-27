@@ -405,11 +405,18 @@ const deletePlan = async (id) => {
     return result.affectedRows > 0;
 };
 
+const updatePlanVisibility = async (id, visibleTo) => {
+    const query = `UPDATE subscription_plans SET visible_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    const [result] = await pool.query(query, [JSON.stringify(visibleTo), id]);
+    return result.affectedRows > 0;
+};
+
 module.exports = {
     getPlans,
     getPlanById,
     createPlan,
     updatePlan,
     updatePlanStatus,
-    deletePlan
+    deletePlan,
+    updatePlanVisibility
 };

@@ -35,9 +35,18 @@ const updatePassword = async (userId, passwordHash) => {
     return result.affectedRows > 0;
 };
 
+const updateUserProfile = async (userId, { name, email }) => {
+    const [result] = await pool.query(
+        'UPDATE users SET name = ?, email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [name, email, userId]
+    );
+    return result.affectedRows > 0;
+};
+
 module.exports = {
     findUserByEmail,
     findUserById,
     getUserPermissions,
-    updatePassword
+    updatePassword,
+    updateUserProfile
 };
