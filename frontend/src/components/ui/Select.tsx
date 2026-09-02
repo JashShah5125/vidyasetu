@@ -19,6 +19,7 @@ export const Select: React.FC<SelectProps> = ({
   className = '',
   wrapperClassName = '',
   id,
+  disabled,
   ...props
 }) => {
   return (
@@ -34,14 +35,25 @@ export const Select: React.FC<SelectProps> = ({
       <div className="relative">
         <select
           id={id}
-          className={`w-full border ${props.disabled ? 'bg-slate-50 text-slate-400 cursor-default border-slate-200' : 'bg-white text-slate-800 border-slate-200 focus:border-blue-500 focus:ring-blue-100'} ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''} rounded-lg pl-3 pr-10 py-2.5 text-sm outline-none transition duration-150 focus:ring-4 appearance-none ${className}`}
+          className={`
+            w-full pl-3 pr-8 py-2 bg-white border rounded-lg text-sm appearance-none
+            focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+            transition-all duration-200 cursor-pointer text-slate-700
+            ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200'}
+            ${disabled ? 'bg-slate-50 cursor-not-allowed opacity-70' : ''}
+            ${className}
+          `}
+          disabled={disabled}
           {...props}
         >
-          {options.map((opt, i) => (
-            <option key={i} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
+          {options.map((opt, i) => {
+            const labelStr = typeof opt.label === 'string' ? opt.label : (opt.label as any)?.name || 'Unknown';
+            return (
+              <option key={i} value={opt.value}>
+                {labelStr}
+              </option>
+            );
+          })}
         </select>
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
           <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">

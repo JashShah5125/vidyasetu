@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../../context/AppContext';
-import { Modal } from '../ui/Modal';
-import { Button } from '../ui/Button';
-import { Building2, GraduationCap, DollarSign, ShieldAlert, CheckCircle, Clock, Ticket, AlertOctagon, Loader2, Layers, Award, TrendingUp, CreditCard } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Building2, DollarSign, ShieldAlert, CheckCircle, Clock, Ticket, AlertOctagon, Loader2, Layers, Award, TrendingUp, CreditCard, Banknote, Wallet } from 'lucide-react';
 import api from '../../services/api';
 
 interface SaasStats {
@@ -14,19 +12,57 @@ interface SaasStats {
   total_plans: number;
   total_mrr: number;
   plan_distribution: { plan: string; count: number }[];
+  mrr_trend?: { m: string; val: string; raw_val: number; h: string; isCurrent: boolean }[];
+}
+
+interface BillingSummary {
+  total_revenue: number;
+  net_revenue: number;
+  outstanding: number;
+  refunded: number;
+  paid_count: number;
+  outstanding_count: number;
+  mrr: number;
+  arr: number;
+}
+
+interface RevenueTrendItem {
+  m: string;
+  val: string;
+  raw_val: number;
+  h: string;
+  isCurrent: boolean;
 }
 
 export const SaasAdminDashboard: React.FC = () => {
-  const { auditLogs } = useApp();
-  const [selectedLog, setSelectedLog] = useState<any | null>(null);
   const [stats, setStats] = useState<SaasStats | null>(null);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [revenueTrend, setRevenueTrend] = useState<RevenueTrendItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const formatINR = (n: number) => {
+    const val = Math.round(n);
+    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
+    if (val >= 100000) return `₹${(val / 100000).toFixed(2).replace(/\.00$/, '')}L`;
+    return `₹${val.toLocaleString('en-IN')}`;
+  };
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const { data } = await api.get('/admin/dashboard/saas-stats');
         if (data.status === 'success') setStats(data.data);
+        const { data: billingData } = await api.get('/admin/billing/summary');
+        if (billingData.status === 'success') setBilling(billingData.data);
+        const { data: revenueData } = await api.get('/admin/dashboard/saas-revenue');
+        if (revenueData.status === 'success') {
+          const trend = (revenueData.data.revenue_trend || []).map((t: any) => ({
+            ...t,
+            // Ensure raw_val is always a plain JavaScript Number, never a string
+            raw_val: Number(t.raw_val) || 0,
+          }));
+          setRevenueTrend(trend);
+        }
       } catch (err) {
         console.error('Failed to load SaaS dashboard stats:', err);
       } finally {
@@ -172,7 +208,9 @@ export const SaasAdminDashboard: React.FC = () => {
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SaaS MRR / ARR</span>
-            <span className="text-xl font-extrabold text-emerald-700 block mt-1">₹4.25L / ₹51L</span>
+            <span className="text-xl font-extrabold text-emerald-700 block mt-1">
+              {loading ? <Loader2 size={20} className="animate-spin text-slate-300" /> : `${formatINR(billing?.mrr || 0)} / ${formatINR(billing?.arr || 0)}`}
+            </span>
           </div>
           <div className="w-10 h-10 bg-emerald-50 text-emerald-700 rounded-xl flex items-center justify-center border border-emerald-100">
             <DollarSign size={18} />
@@ -182,7 +220,7 @@ export const SaasAdminDashboard: React.FC = () => {
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Support Tickets</span>
-            <span className="text-xl font-extrabold text-purple-700 block mt-1">3 Active Tickets</span>
+            <span className="text-xl font-extrabold text-purple-700 block mt-1">0 Active Tickets</span>
           </div>
           <div className="w-10 h-10 bg-purple-50 text-purple-700 rounded-xl flex items-center justify-center border border-purple-100">
             <Ticket size={18} />
@@ -200,13 +238,51 @@ export const SaasAdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Section — Finance Metrics (from saas_invoices table only) */}
+      <div className="space-y-4">
+        <h3 className="font-bold text-slate-800 text-sm px-1">Revenue & Finance Metrics</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Revenue"
+            value={loading ? '—' : formatINR(billing?.total_revenue || 0)}
+            color="text-emerald-600"
+            icon={Banknote}
+            bg="bg-emerald-50"
+            border="border border-emerald-100"
+          />
+          <StatCard
+            label="Net Revenue (Ex-GST)"
+            value={loading ? '—' : formatINR(billing?.net_revenue || 0)}
+            color="text-blue-600"
+            icon={Wallet}
+            bg="bg-blue-50"
+            border="border border-blue-100"
+          />
+          <StatCard
+            label="Outstanding"
+            value={loading ? '—' : formatINR(billing?.outstanding || 0)}
+            color="text-amber-600"
+            icon={AlertOctagon}
+            bg="bg-amber-50"
+            border="border border-amber-100"
+          />
+          <StatCard
+            label="MRR (Current Period)"
+            value={loading ? '—' : formatINR(billing?.mrr || 0)}
+            color="text-emerald-700"
+            icon={TrendingUp}
+            bg="bg-emerald-50"
+            border="border border-emerald-100"
+          />
+        </div>
+      </div>
+
       {/* Main metrics charts layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
-              <h3 className="font-bold text-slate-800 text-sm">Platform Monthly Recurring Revenue (2026)</h3>
-              <p className="text-xs text-slate-500 mt-0.5">SaaS subscription MRR trends across all registered institutes.</p>
+              <h3 className="font-bold text-slate-800 text-sm">Platform Revenue Trend ({new Date().getFullYear()})</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Cumulative SaaS subscription revenue from paid invoices across all institutes.</p>
             </div>
             {/* Legend */}
             <div className="flex items-center gap-4 text-xs font-semibold">
@@ -221,168 +297,56 @@ export const SaasAdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex h-56 pt-6">
-            {/* Y-Axis values */}
-            <div className="flex flex-col justify-between text-[10px] text-slate-400 font-bold pr-3 border-r border-slate-100 h-[174px] text-right w-12 shrink-0 select-none">
-              <span>₹5.0L</span>
-              <span>₹4.0L</span>
-              <span>₹3.0L</span>
-              <span>₹2.0L</span>
-              <span>₹1.0L</span>
-              <span>₹0</span>
-            </div>
-
-            {/* Chart Area with Gridlines */}
-            <div className="flex-1 relative h-[174px] flex items-end justify-between gap-1.5 px-3">
-              {/* Horizontal Gridlines */}
-              <div className="absolute inset-y-0 top-0 h-[174px] flex flex-col justify-between pointer-events-none select-none left-0 right-0">
-                {[0, 1, 2, 3, 4, 5].map((_, idx) => (
-                  <div key={idx} className="border-b border-slate-100 w-full h-0"></div>
-                ))}
+          <div className="w-full h-72 pt-4">
+            {loading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <Loader2 size={24} className="animate-spin text-slate-300" />
               </div>
-
-              {/* Bars */}
-              {[
-                { m: 'Jan', val: '₹1.80L', h: '36%', isCurrent: false },
-                { m: 'Feb', val: '₹2.10L', h: '42%', isCurrent: false },
-                { m: 'Mar', val: '₹2.30L', h: '46%', isCurrent: false },
-                { m: 'Apr', val: '₹2.60L', h: '52%', isCurrent: false },
-                { m: 'May', val: '₹3.10L', h: '62%', isCurrent: false },
-                { m: 'Jun', val: '₹3.40L', h: '68%', isCurrent: false },
-                { m: 'Jul', val: '₹3.80L', h: '76%', isCurrent: false },
-                { m: 'Aug', val: '₹4.10L', h: '82%', isCurrent: true },
-              ].map((bar, idx) => (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group relative">
-                  {/* Actual Bar */}
-                  <div 
-                    className={`w-full rounded-t-md transition-all duration-200 cursor-pointer relative ${
-                      bar.isCurrent 
-                        ? 'bg-purple-600 shadow-lg shadow-purple-500/20 hover:bg-purple-700' 
-                        : 'bg-purple-600/30 hover:bg-purple-600/60'
-                    }`} 
-                    style={{ height: bar.h }}
-                  >
-                    {/* Tooltip above bar on hover/active */}
-                    <div className="absolute -translate-y-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[9px] px-1.5 py-0.5 rounded shadow opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap z-10 pointer-events-none">
-                      {bar.val}
-                    </div>
-                  </div>
-                  
-                  {/* Month Label */}
-                  <span className={`text-[9px] font-bold select-none mt-1 ${bar.isCurrent ? 'text-purple-700 font-extrabold scale-110' : 'text-slate-400'}`}>
-                    {bar.m}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent activity summary */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <h3 className="font-bold text-slate-800 text-sm">Recent Tenant Activity</h3>
-          <div className="space-y-3.5">
-            {[
-              { tenant: 'Apex IIT Academy', desc: 'Added new batch: IIT-JEE morning session', time: '5 mins ago' },
-              { tenant: 'Bright Future Coaching', desc: 'Updated timetable calendar schedules', time: '12 mins ago' },
-              { tenant: 'Zenith Career Hub', desc: 'Requested custom domain mapping setup', time: '2 hours ago' },
-              { tenant: 'Vanguard Global', desc: 'Completed online fee gateway validation test', time: '4 hours ago' }
-            ].map((act, idx) => (
-              <div key={idx} className="flex justify-between items-start gap-2 text-xs">
-                <div>
-                  <span className="font-bold text-slate-800 block">{act.tenant}</span>
-                  <span className="text-slate-500 mt-0.5 block">{act.desc}</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{act.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Platform audit logs */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="font-bold text-slate-800 text-sm">Recent System Operations Registers</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
-                <th className="px-6 py-4">Timestamp</th>
-                <th className="px-6 py-4">Actor</th>
-                <th className="px-6 py-4">Institute</th>
-                <th className="px-6 py-4">Action Event</th>
-                <th className="px-6 py-4">Details Summary</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
-              {auditLogs.slice(0, 4).map((log, idx) => (
-                <tr 
-                  key={idx} 
-                  onClick={() => setSelectedLog(log)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={revenueTrend.map(t => ({ month: t.m, revenue: t.raw_val, isCurrent: t.isCurrent }))}
+                  margin={{ top: 20, right: 20, left: 10, bottom: 5 }}
+                  barCategoryGap="25%"
                 >
-                  <td className="px-6 py-4 font-mono text-[10px]">{log.timestamp}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">
-                    {log.actor} <span className="text-[9px] text-slate-400 uppercase font-normal">({log.role})</span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-700 font-semibold">{log.institute || 'System / Platform'}</td>
-                  <td className="px-6 py-4 font-mono text-[10px] text-purple-600">{log.action}</td>
-                  <td className="px-6 py-4 text-slate-600">{log.details}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {selectedLog && (
-        <Modal 
-          isOpen={true} 
-          onClose={() => setSelectedLog(null)} 
-          title="Audit Log Entry Details"
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Log Entry ID</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.id}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Timestamp</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.timestamp}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Actor / Operator</span>
-                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.actor}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Operator Role</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.role}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Action Identifier</span>
-                <span className="font-mono text-blue-600 font-bold mt-0.5 block">{selectedLog.action}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Origin IP Address</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.ipAddress || '192.168.1.1'}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Institute / Tenant</span>
-                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.institute || 'System / Platform'}</span>
-              </div>
-            </div>
-            <div className="border-t border-slate-100 pt-3">
-              <span className="text-xs font-bold text-slate-400 block uppercase">Operation Details</span>
-              <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 mt-1 leading-relaxed whitespace-pre-wrap">{selectedLog.details}</p>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button onClick={() => setSelectedLog(null)}>Close View</Button>
-            </div>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    dy={10}
+                  />
+                  <YAxis
+                    type="number"
+                    axisLine={false}
+                    tickLine={false}
+                    width={70}
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    tickFormatter={(value: number) => {
+                      if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)}Cr`;
+                      if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+                      return `₹${value.toLocaleString('en-IN')}`;
+                    }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 600 }}
+                    formatter={(value) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Revenue']}
+                  />
+                  <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                    {revenueTrend.map((entry, idx) => (
+                      <Cell
+                        key={idx}
+                        fill={entry.isCurrent ? '#7c3aed' : '#c4b5fd'}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
-        </Modal>
-      )}
+        </div>
 
     </div>
   );

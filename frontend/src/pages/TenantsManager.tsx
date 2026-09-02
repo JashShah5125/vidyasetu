@@ -8,9 +8,29 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Upload, Trash, ArrowLeft, X, Image as ImageIcon } from 'lucide-react';
-import { formatDate, getTenantStatus } from '../data/mockData';
+import { Plus, Upload, Trash, ArrowLeft, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { getTenantStatus } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
+
+const formatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '';
+  if (dateStr.includes('T')) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  }
+  const cleanStr = dateStr.split('T')[0];
+  const parts = cleanStr.split('-');
+  if (parts.length === 3) {
+    if (parts[0].length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    return cleanStr;
+  }
+  return dateStr;
+};
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
   const { addToast } = useApp();
@@ -23,6 +43,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   
   const [tenants, setTenants] = useState<any[]>([]);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
+  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -30,9 +51,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     try {
       setIsLoading(true);
       // Map frontend filters to backend expectations
-      let statusFilter = '';
-      if (filterStatus === 'Active') statusFilter = 'active';
-      else if (filterStatus === 'Suspended') statusFilter = 'suspended';
+      const statusFilter = filterStatus !== 'All' ? filterStatus : '';
 
       const result = await tenantService.getTenants({
         page: currentPage,
@@ -43,11 +62,21 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       });
       setTenants(result.data || []);
       setTotalItems(result.pagination?.total || 0);
+      if (result.filters?.statuses) {
+        setAvailableStatuses(result.filters.statuses);
+      }
     } catch (error) {
       console.error('Failed to fetch tenants:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterPlan('All');
+    setFilterStatus('All');
+    setCurrentPage(1);
   };
 
   useEffect(() => {
@@ -127,6 +156,16 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Horizontal tab navigation for the create/edit form
+  const [activeTab, setActiveTab] = useState('profile');
+  const formTabs = [
+    { id: 'profile', label: 'Institute Profile' },
+    { id: 'admin', label: 'Admin Credentials' },
+    { id: 'plan', label: 'Subscription Plan' },
+    { id: 'commercial', label: 'Commercial' },
+    { id: 'limits', label: 'Override Limits' }
+  ];
+
   // Calculate Expiry date automatically based on Plan Duration
   const calculateExpiryDate = (startStr: string, selectedPlan: string) => {
     if (!startStr) return '';
@@ -159,6 +198,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const handleOpenAddModal = () => {
     setEditingTenantId(null);
     
+    setActiveTab('profile');
     setDefaultPassword('Generated securely after submission');
     
     setName('');
@@ -209,6 +249,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   const handleEditTenant = (t: any) => {
     setEditingTenantId(t.id);
+    setActiveTab('profile');
     setName(t.name || '');
     setCustomSlug(t.slug || '');
     setGstNo(t.gst_number || '');
@@ -474,8 +515,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       'Mobile': t.mobile,
       'Status': t.status,
       'Plan Tier': t.plan,
-      'Start Date': t.startDate || '',
-      'Renewal Date': t.renewalDate || '',
+      'Start Date': t.start_date || '',
+      'Renewal Date': t.end_date || t.renewal_date || '',
       'Branch Count': t.branchCount,
       'Student Count': t.studentCount,
       'Address': t.address || '123 Educational Way, Block C, New Delhi',
@@ -537,9 +578,34 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               <div>{errorMsg}</div>
             </div>
           )}
+
+          {/* Horizontal Tabs */}
+          <div className="mb-8 border-b border-slate-200 overflow-x-auto">
+            <nav className="flex gap-1 min-w-max">
+              {formTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-[3px] -mb-px transition-colors cursor-pointer ${
+                      isActive
+                        ? 'border-blue-600 text-blue-700 bg-blue-50/50'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Section 1: Institute Information */}
+            {/* === TAB 1: Institute Profile & Branding === */}
+            {activeTab === 'profile' && (
             <div className="space-y-4">
               <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center gap-1.5 select-none">
                 <span>01.</span> Institute Profile & Branding
@@ -699,8 +765,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Section 2: Institute Admin Credentials */}
+            {/* === TAB 2: Admin Credentials === */}
+            {activeTab === 'admin' && (
             <div className="space-y-4 pt-1">
               <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
                 <span>02.</span> Institute Admin Credentials
@@ -822,8 +890,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Section 3: Subscription Plan */}
+            {/* === TAB 3: Subscription Plan === */}
+            {activeTab === 'plan' && (
             <div className="space-y-4 pt-1">
               <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
                 <span>03.</span> Subscription Plan
@@ -867,8 +937,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Section 03: Commercial */}
+            {/* === TAB 4: Commercial === */}
+            {activeTab === 'commercial' && (
             <div className="space-y-4 pt-1">
               <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
                 <span>03.</span> Commercial
@@ -888,8 +960,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 <Input label="Invoice Number" placeholder="e.g. INV-2026-042" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
               </div>
             </div>
+            )}
 
-            {/* Section 04: Override Limits */}
+            {/* === TAB 5: Override Limits === */}
+            {activeTab === 'limits' && (
             <div className="space-y-4 pt-1">
               <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
                 <span>04.</span> Override Limits <span className="text-slate-400 font-normal normal-case tracking-normal text-xs ml-2">(leave blank to use plan defaults)</span>
@@ -908,6 +982,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 <Input label="Max WhatsApp Msgs" type="number" placeholder="Plan default" value={ovMaxWhatsappMsgs} onChange={e => setOvMaxWhatsappMsgs(e.target.value)} />
               </div>
             </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
@@ -960,13 +1035,15 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             value={filterStatus} 
             onChange={(e) => setFilterStatus(e.target.value)} 
             options={[
-              { value: 'All', label: 'All Status' },
-              { value: 'Active', label: 'Active' },
-              { value: 'Suspended', label: 'Suspended' }
+              { value: 'All', label: 'All Statuses' },
+              ...availableStatuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))
             ]} 
           />
         </div>
-        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={handleClearFilters} className="text-slate-500 hover:text-slate-700">Clear</Button>
+          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        </div>
       </div>
 
       <Card>
@@ -995,8 +1072,17 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                       <div className="text-xs text-slate-500 mt-0.5">{t.contact_phone || 'N/A'}</div>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap"><span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-sm font-medium">{t.plan_name || 'Standard'}</span></td>
-                    <td className="px-3 py-3 text-sm whitespace-nowrap">{formatDate(t.created_at || '2026-04-15')}</td>
-                    <td className="px-3 py-3 text-sm whitespace-nowrap">N/A</td>
+                    <td className="px-3 py-3 text-sm whitespace-nowrap">{t.start_date ? formatDate(t.start_date) : 'N/A'}</td>
+                    <td className="px-3 py-3 text-sm whitespace-nowrap">
+                      <div className="flex flex-col gap-1 items-start">
+                        <span>{t.end_date ? formatDate(t.end_date) : 'N/A'}</span>
+                        {t.is_expiring_soon === 1 && (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 font-bold rounded text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-200">
+                            <AlertTriangle size={10} /> Expiring Soon
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       {(() => {
                         const status = t.status || 'Unknown';

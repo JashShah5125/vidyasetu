@@ -1,6 +1,10 @@
 const pool = require('../config/db');
 
 const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan = '') => {
+    // Fetch warning days setting
+    const [settingsRows] = await pool.query(`SELECT value FROM platform_settings WHERE category = 'billing' AND key_name = 'plan_expiry_warning_days'`);
+    const expiryDays = settingsRows.length > 0 ? Number(settingsRows[0].value) : 15;
+
     let query = `
         SELECT t.*, t.owner_name as legal_name, t.primary_email as contact_email, t.owner_mobile as contact_phone,
                u.name as admin_name, u.email as admin_email,
@@ -9,7 +13,8 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
                sp.name as plan_name, t.plan_id as subscription_id,
                t.subscription_discount, t.subscription_final_price, t.subscription_tax, t.subscription_invoice_number,
                t.override_max_branches, t.override_max_staff_users, t.override_max_students, t.override_max_parents,
-               t.override_max_teachers, t.override_max_storage, t.override_max_file_size, t.override_max_sms_credits, t.override_max_whatsapp_msgs
+               t.override_max_teachers, t.override_max_storage, t.override_max_file_size, t.override_max_sms_credits, t.override_max_whatsapp_msgs,
+               (DATEDIFF(t.end_date, CURRENT_DATE) <= ${expiryDays} AND DATEDIFF(t.end_date, CURRENT_DATE) >= 0 AND t.status IN ('active', 'trialing')) AS is_expiring_soon
         FROM tenants t
         LEFT JOIN users u ON t.primary_admin_user_id = u.id
         LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
@@ -29,7 +34,7 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
     }
 
     if (plan && plan !== 'All') {
-        query += ` AND sp.name = ?`;
+        query += ` AND t.plan_id = ?`;
         params.push(plan);
     }
 
@@ -59,15 +64,19 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
     }
 
     if (plan && plan !== 'All') {
-        countQuery += ` AND sp.name = ?`;
+        countQuery += ` AND t.plan_id = ?`;
         countParams.push(plan);
     }
 
     const [countRows] = await pool.query(countQuery, countParams);
     
+    // Get unique statuses for dynamic filtering
+    const [statusRows] = await pool.query(`SELECT DISTINCT status FROM tenants WHERE tenant_type = 'customer' AND id != 1`);
+    
     return {
         data: rows,
-        total: countRows[0].total
+        total: countRows[0].total,
+        available_statuses: statusRows.map(r => r.status)
     };
 };
 

@@ -2,7 +2,7 @@
 -- Merged from 00_seed_master_tenant.sql and 05_seed_test_tenants.sql
 
 -- Insert the Master HQ tenant (id=1 is always the SaaS platform itself)
-INSERT IGNORE INTO tenants (id, name, slug, code, status) VALUES
+INSERT IGNORE INTO tenants (id, name, slug, code, tenant_type, status) VALUES
 (1, 'Vidyasetu HQ', 'master', 'MASTER', 'master', 'active');
 
 -- Seed dummy customer tenants (id=2 onwards) with profile and subscription data merged in
@@ -25,7 +25,7 @@ INSERT IGNORE INTO tenants (
 
 (3, 'Aakash Institute', 'aakash', 'AAKASH', 'customer', 'active',
  'JC Chaudhry', 'owner@aakash.ac.in', '9876543211', 'Sector 11', 'Dwarka', 'Delhi', 'India', '110075',
- 2, 'active', 'monthly', '2026-08-01', '2026-09-01', '2026-09-01',
+ 2, 'active', 'monthly', '2026-08-15', '2026-09-15', '2026-09-15',
  '07BBBBB1111B1Z6', 'BBBBB1111B', 'https://aakash.ac.in/logo.png', '#FF0000', 'Asia/Kolkata', 'https://aakash.ac.in', NULL, 'Standard customer',
  0.00, 4999.00, 18.00, 'INV-AAKASH-001', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '["admin@aakash.ac.in", "contact@aakash.ac.in"]'),
 
@@ -37,8 +37,8 @@ INSERT IGNORE INTO tenants (
 
 (5, 'Resonance', 'resonance', 'RESO', 'customer', 'draft',
  'RK Verma', 'owner@resonance.ac.in', '9876543213', 'CG Tower', 'Kota', 'Rajasthan', 'India', '324005',
- 1, 'trialing', 'monthly', '2026-08-15', '2026-08-29', '2026-08-29',
- '22DDDDD3333D1Z8', 'DDDDD3333D', 'https://resonance.ac.in/logo.png', '#FFD700', 'Asia/Kolkata', 'https://resonance.ac.in', '2026-08-29', 'Trial period active',
+ 1, 'trialing', 'monthly', '2026-08-25', '2026-09-08', '2026-09-08',
+ '22DDDDD3333D1Z8', 'DDDDD3333D', 'https://resonance.ac.in/logo.png', '#FFD700', 'Asia/Kolkata', 'https://resonance.ac.in', '2026-09-08', 'Trial period active',
  0.00, 0.00, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '["hello@resonance.ac.in"]'),
 
 (6, 'Vibrant Academy', 'vibrant', 'VIBRANT', 'customer', 'active',
@@ -49,13 +49,13 @@ INSERT IGNORE INTO tenants (
 
 (7, 'Bansal Classes', 'bansal', 'BANSAL', 'customer', 'active',
  'VK Bansal', 'owner@bansal.ac.in', '9876543215', 'Gaurav Tower', 'Kota', 'Rajasthan', 'India', '324005',
- 3, 'active', 'lifetime', '2020-01-01', '2099-01-01', '2099-01-01',
+ 3, 'active', 'lifetime', '2026-03-01', '2099-12-31', '2099-12-31',
  '22FFFFF5555F1Z0', 'FFFFF5555F', 'https://bansal.ac.in/logo.png', '#008000', 'Asia/Kolkata', 'https://bansal.ac.in', NULL, 'Lifetime legacy partner',
  50.00, 99995.00, 18.00, 'INV-BANSAL-001', 100, 500, 100000, 200000, 1000, '1 TB', '500 MB', 500000, 100000, '["info@bansal.ac.in"]'),
 
 (8, 'Physics Wallah', 'pw', 'PW', 'customer', 'active',
  'Alakh Pandey', 'owner@pw.live', '9876543216', 'Sector 62', 'Noida', 'Uttar Pradesh', 'India', '201309',
- 3, 'active', 'monthly', '2026-08-01', '2026-09-01', '2026-09-01',
+ 3, 'active', 'monthly', '2026-09-01', '2026-10-01', '2026-10-01',
  '09GGGGG6666G1Z1', 'GGGGG6666G', 'https://pw.live/logo.png', '#000000', 'Asia/Kolkata', 'https://pw.live', NULL, 'High volume traffic tenant',
  0.00, 19999.00, 18.00, 'INV-PW-001', 500, 5000, 1000000, 2000000, 10000, '10 TB', '1 GB', 1000000, 500000, '["info@pw.live"]'),
 

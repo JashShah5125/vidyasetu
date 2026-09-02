@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
 const sessionModel = require('../models/sessionModel');
+const tenantModel = require('../models/tenantModel');
 const { generateToken, generateRefreshToken, verifyRefreshToken, hashRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/jwt');
 const redisClient = require('../config/redis');
 
@@ -78,9 +79,15 @@ const login = async (req, res) => {
             return res.status(403).json({ status: 'error', message: 'Account is not active' });
         }
 
-        // Login resolves identity (users) + role (user_roles) only. Permissions
-        // are checked per-request from role_permissions / overridden_permissions.
+        // Login resolves identity (users) + role (user_roles) only.
+        // Check whether user has at least one active assigned role in user_roles table.
         const roleCodes = await userModel.getUserRoleCodes(user.id);
+        if (!roleCodes || roleCodes.length === 0) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Login failed. No security role assigned to your account. Please contact system administrator.'
+            });
+        }
 
         let isSaasAdmin = user.tenant_id === MASTER_TENANT_ID;
 
@@ -106,6 +113,16 @@ const login = async (req, res) => {
 
         const token = generateToken(tokenPayload);
         const refreshToken = generateRefreshToken(tokenPayload);
+
+        // Resolve the requester's organization/tenant name for display (used by
+        // the support ticket "Requester Organization" field and general UI).
+        let tenantName = null;
+        if (!isSaasAdmin && user.tenant_id) {
+            const tenant = user.tenant_id === MASTER_TENANT_ID
+                ? null
+                : await tenantModel.getTenantById(user.tenant_id);
+            tenantName = tenant && tenant.name ? tenant.name : null;
+        }
 
         // Cache the session in Redis (fast path) and persist it durably in the
         // user_sessions table (fallback when Redis is flushed or restarted).
@@ -141,6 +158,7 @@ const login = async (req, res) => {
                     userType: effectiveUserType,
                     tenantId: user.tenant_id,
                     isSaasAdmin,
+                    tenantName,
                     mustChangePassword: Boolean(user.must_change_password)
                 }
             }

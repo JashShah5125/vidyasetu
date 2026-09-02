@@ -30,6 +30,43 @@ const uploadLogo = multer({
     }
 });
 
+// Support ticket attachment uploads (single file, up to 10MB).
+// Supported: images, PDFs, documents, spreadsheets, text/CSV and archives.
+const supportStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, '../../uploads/support');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const baseName = (file.originalname || 'attachment').replace(/[^\w.\- ]/g, '').replace(/\s+/g, '-').slice(0, 100);
+        cb(null, baseName + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const uploadSupportAttachment = multer({
+    storage: supportStorage,
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 }, // 10MB and exactly 1 file
+    fileFilter: (req, file, cb) => {
+        const allowedMimeTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain', 'text/csv',
+            'application/zip', 'application/x-zip-compressed'
+        ];
+        if (allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Allowed: images, PDF, DOC/XLS, TXT/CSV and ZIP files.'));
+        }
+    }
+});
+
 const verifyFileSignature = (req, res, next) => {
     if (!req.file) return next();
 
@@ -64,4 +101,4 @@ const verifyFileSignature = (req, res, next) => {
     next();
 };
 
-module.exports = { uploadLogo, verifyFileSignature };
+module.exports = { uploadLogo, uploadSupportAttachment, verifyFileSignature };

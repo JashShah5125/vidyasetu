@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -20,9 +20,14 @@ import {
   Ticket,
   BarChart3,
   ChevronLeft,
+  ChevronDown,
   Zap,
   DoorOpen,
-  Mail
+  Mail,
+  Plug,
+  MailOpen,
+  Smartphone,
+  MessageCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -50,15 +55,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
   if (!currentUser) return null;
 
+  interface SidebarLink {
+    name: string;
+    label: string;
+    path: string;
+    icon: any;
+    badge?: number;
+  }
+
+  interface SidebarGroup {
+    groupLabel: string;
+    groupIcon: any;
+    links: SidebarLink[];
+  }
+
   interface SidebarSection {
     title?: string;
-    links: {
-      name: string;
-      label: string;
-      path: string;
-      icon: any;
-      badge?: number;
-    }[];
+    links?: SidebarLink[];
+    groups?: SidebarGroup[];
   }
 
   const getSidebarSections = (role: string): SidebarSection[] => {
@@ -81,22 +95,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Platform',
             links: [
-              { name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare },
-              { name: 'Module Management', label: 'Module Management', path: '/modules', icon: BookOpen }
+              { name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare }
             ]
           },
           {
             title: 'Operations',
             links: [
-              { name: 'Approval Center', label: 'Approval Center', path: '/approvals', icon: CheckSquare },
               { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 }
             ]
           },
           {
-            title: 'COMMUNICATION',
+            title: 'Communication',
             links: [
-              { name: 'Communication Center', label: 'Communication Center', path: '/communication', icon: MessageSquare },
-              { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail }
+              { name: 'Communication Center', label: 'Communication Center', path: '/communication', icon: MessageSquare }
+            ],
+            groups: [
+              {
+                groupLabel: 'Templates',
+                groupIcon: MailOpen,
+                links: [
+                  { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail }
+                ]
+              }
             ]
           },
           {
@@ -110,14 +130,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'System',
             links: [
-              { name: 'Global Providers', label: 'Integrations', path: '/providers', icon: Settings },
-              { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
-              { name: 'System Configuration', label: 'System Configuration', path: '/system-config', icon: Settings }
+              { name: 'Users & Roles', label: 'Users & Roles', path: '/users-and-roles', icon: Users }
+            ],
+            groups: [
+              {
+                groupLabel: 'System Settings',
+                groupIcon: Settings,
+                links: [
+                  { name: 'SMS Configuration', label: 'SMS Configuration', path: '/system-settings/sms', icon: Smartphone },
+                  { name: 'Email Configuration', label: 'Email Configuration', path: '/system-settings/email', icon: Mail },
+                  { name: 'WhatsApp Configuration', label: 'WhatsApp Configuration', path: '/system-settings/whatsapp', icon: MessageCircle },
+                  { name: 'Global Providers', label: 'Integrations', path: '/providers', icon: Plug },
+                  { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
+                  { name: 'System Configuration', label: 'System Config', path: '/system-config', icon: Settings }
+                ]
+              }
             ]
-          },
-          {
-            title: 'Support Desk',
-            links: [{ name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }]
           }
         ];
 
@@ -397,6 +425,53 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     );
   };
 
+  // Collapsible group of nav items (e.g. System Settings, Templates)
+  const CollapsibleGroup = ({ group }: { group: SidebarGroup }) => {
+    const hasActiveChild = group.links.some(l => location.pathname.startsWith(l.path));
+    const [open, setOpen] = useState(hasActiveChild);
+    const GroupIcon = group.groupIcon;
+
+    return (
+      <div>
+        {/* Group header toggle */}
+        <div
+          onClick={() => setOpen(o => !o)}
+          className={`
+            group relative flex items-center rounded-lg cursor-pointer select-none
+            transition-all duration-150 border gap-3 px-3 py-2.5 w-full
+            ${hasActiveChild ? 'bg-blue-600/10 border-blue-500/20' : 'hover:bg-slate-800 border-transparent'}
+            ${isCollapsed ? 'justify-center px-0 w-10 h-10 mx-auto' : ''}
+          `}
+          title={isCollapsed ? group.groupLabel : undefined}
+        >
+          <div className={`relative flex-shrink-0 flex items-center justify-center transition-colors duration-150 ${hasActiveChild ? 'text-blue-400' : 'text-slate-400 group-hover:text-slate-200'}`}>
+            <GroupIcon size={18} />
+          </div>
+          {!isCollapsed && (
+            <>
+              <span className={`text-sm whitespace-nowrap flex-1 min-w-0 truncate transition-colors duration-150 ${hasActiveChild ? 'text-slate-100 font-semibold' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                {group.groupLabel}
+              </span>
+              <ChevronDown
+                size={14}
+                className={`flex-shrink-0 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+              />
+            </>
+          )}
+        </div>
+
+        {/* Expandable child links */}
+        {!isCollapsed && open && (
+          <div className="pl-4 mt-0.5 space-y-0.5 border-l border-slate-800 ml-5">
+            {group.links.map((link, i) => (
+              <NavItem key={i} path={link.path} icon={link.icon} label={link.label} badge={link.badge} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -466,11 +541,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               {section.title && isCollapsed && sIdx > 0 && (
                 <div className="my-2 border-t border-slate-800/50 mx-2" />
               )}
-              <div className="space-y-0.5">
-                {section.links.map((link, idx) => (
-                  <NavItem key={idx} path={link.path} icon={link.icon} label={link.label} badge={link.badge} />
-                ))}
-              </div>
+              {/* Flat links */}
+              {section.links && (
+                <div className="space-y-0.5">
+                  {section.links.map((link, idx) => (
+                    <NavItem key={idx} path={link.path} icon={link.icon} label={link.label} badge={link.badge} />
+                  ))}
+                </div>
+              )}
+              {/* Collapsible groups */}
+              {section.groups && (
+                <div className="space-y-0.5 mt-0.5">
+                  {section.groups.map((group, gIdx) => (
+                    <CollapsibleGroup key={gIdx} group={group} />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

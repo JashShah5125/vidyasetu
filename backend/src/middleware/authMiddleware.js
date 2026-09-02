@@ -1,7 +1,7 @@
 const { verifyToken } = require('../utils/jwt');
 const userModel = require('../models/userModel');
 
-const requireAuth = (req, res, next) => {
+const requireAuth = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ status: 'error', message: 'Unauthorized' });
@@ -12,6 +12,16 @@ const requireAuth = (req, res, next) => {
     try {
         const decoded = verifyToken(token);
         req.user = decoded;
+
+        // Verify active role assignment in user_roles table
+        const roleCodes = await userModel.getUserRoleCodes(decoded.userId);
+        if (!roleCodes || roleCodes.length === 0) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Access denied. No active security role assigned to your account. Please contact system administrator.'
+            });
+        }
+
         next();
     } catch (error) {
         console.error('JWT Verify Error:', error.message);

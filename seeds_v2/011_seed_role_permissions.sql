@@ -25,6 +25,11 @@ INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT 2, id FROM permissions
 WHERE code LIKE 'course.%';
 
+-- Map support permissions to the Institute Admin role (role_id=2)
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT 2, id FROM permissions
+WHERE code LIKE 'support.%';
+
 -- Map course permissions to the SaaS Admin role (role_id=1)
 INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT 1, id FROM permissions

@@ -53,32 +53,59 @@ const getInvoices = async (limit = 10, offset = 0, search = '', status = '') => 
 };
 
 const getBillingSummary = async () => {
-    const query = `
-        SELECT 
-            SUM(CASE WHEN t.subscription_status = 'active' THEN
-                        COALESCE(
-                            NULLIF(sp.monthly_price, 0),
-                            NULLIF(sp.quarterly_price, 0) / 3,
-                            NULLIF(sp.half_yearly_price, 0) / 6,
-                            NULLIF(sp.yearly_price, 0) / 12,
-                            0
-                        )
-                     ELSE 0 END) as mrr,
-            SUM(CASE WHEN i.status IN ('unpaid', 'overdue') THEN i.total_amount ELSE 0 END) as outstanding,
-            SUM(CASE WHEN i.status = 'paid' THEN i.total_amount ELSE 0 END) as total_paid
-        FROM tenants t
-        LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
-        LEFT JOIN saas_invoices i ON t.id = i.tenant_id
+    // Revenue figures sourced from the unified saas_invoices table only.
+
+    // 1. Lifetime revenue aggregates from paid invoices
+    const [[revRows]] = await pool.query(`
+        SELECT
+            SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END)     AS total_revenue,
+            SUM(CASE WHEN status = 'paid' THEN subtotal ELSE 0 END)         AS net_revenue,
+            SUM(CASE WHEN status = 'paid' THEN tax_amount ELSE 0 END)       AS total_tax,
+            SUM(CASE WHEN status IN ('unpaid', 'overdue') THEN total_amount ELSE 0 END) AS outstanding,
+            SUM(CASE WHEN status = 'refunded' THEN total_amount ELSE 0 END) AS refunded,
+            SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END)                AS paid_count,
+            SUM(CASE WHEN status IN ('unpaid', 'overdue') THEN 1 ELSE 0 END) AS outstanding_count
+        FROM saas_invoices
+        WHERE tenant_id IN (SELECT id FROM tenants WHERE tenant_type = 'customer')
+    `);
+
+    // 2. MRR from the current active billing period.
+    // Normalize each active tenant's current paid invoice total to monthly by billing_cycle.
+    // lifetime is spread over 36 months as a standard amortization.
+    const [[mrrRows]] = await pool.query(`
+        SELECT
+            SUM(
+                i.total_amount / CASE i.billing_cycle
+                    WHEN 'monthly'     THEN 1
+                    WHEN 'quarterly'   THEN 3
+                    WHEN 'half_yearly' THEN 6
+                    WHEN 'yearly'      THEN 12
+                    WHEN 'lifetime'    THEN 36
+                    ELSE 1
+                END
+            ) AS mrr
+        FROM saas_invoices i
+        JOIN tenants t ON i.tenant_id = t.id
         WHERE t.tenant_type = 'customer'
-    `;
-    // This query is a rough approximation. For large datasets, this needs separation or pre-aggregation.
-    const [rows] = await pool.query(query);
-    const mrr = rows[0].mrr || 0;
+          AND t.subscription_status = 'active'
+          AND i.status = 'paid'
+          AND i.billing_period_start <= CURDATE()
+          AND i.billing_period_end >= CURDATE()
+    `);
+
+    const total_revenue = Number(revRows.total_revenue) || 0;
+    const mrr = Number(mrrRows.mrr) || 0;
     return {
-        mrr: Number(mrr),
-        arr: Number(mrr) * 12,
-        outstanding: Number(rows[0].outstanding || 0),
-        total_paid: Number(rows[0].total_paid || 0)
+        total_revenue,
+        net_revenue: Number(revRows.net_revenue) || 0,
+        total_tax: Number(revRows.total_tax) || 0,
+        outstanding: Number(revRows.outstanding) || 0,
+        refunded: Number(revRows.refunded) || 0,
+        paid_count: Number(revRows.paid_count) || 0,
+        outstanding_count: Number(revRows.outstanding_count) || 0,
+        mrr,
+        arr: mrr * 12,
+        total_paid: total_revenue
     };
 };
 

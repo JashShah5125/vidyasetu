@@ -53,14 +53,18 @@ import { TeacherNotifications } from './components/teacher/TeacherNotifications'
 
 // SaaS Admin pages
 import { FeatureFlags } from './pages/saas/FeatureFlags';
-import { ModuleManagement } from './pages/saas/ModuleManagement';
-import { ApprovalCenter } from './pages/saas/ApprovalCenter';
+
+
 import { SupportTickets } from './pages/saas/SupportTickets';
 import { CommunicationCenter } from './pages/saas/CommunicationCenter';
 import { EmailTemplates } from './pages/saas/EmailTemplates';
 import { BillingRevenue } from './pages/saas/BillingRevenue';
 import { ProductAnalytics } from './pages/saas/ProductAnalytics';
 import { SystemConfiguration } from './pages/saas/SystemConfiguration';
+import { EmailConfiguration } from './pages/saas/EmailConfiguration';
+import { SmsConfiguration } from './pages/saas/SmsConfiguration';
+import { WhatsAppConfiguration } from './pages/saas/WhatsAppConfiguration';
+import { UsersAndRoles } from './pages/saas/UsersAndRoles';
 
 const GlobalProvidersPlaceholder = () => (
   <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
@@ -309,14 +313,18 @@ const ContentRouter = () => {
       <Route path="/tenants/:id" element={<TenantDetailsWrapper />} />
       <Route path="/plans" element={<SubscriptionPlans />} />
       <Route path="/feature-flags" element={<FeatureFlags />} />
-      <Route path="/modules" element={<ModuleManagement />} />
-      <Route path="/approvals" element={<ApprovalCenter />} />
+
+
       <Route path="/support" element={<SupportTickets />} />
       <Route path="/communication" element={<CommunicationCenter />} />
       <Route path="/email-templates" element={<EmailTemplates />} />
       <Route path="/billing" element={<BillingRevenue />} />
       <Route path="/analytics" element={<ProductAnalytics />} />
       <Route path="/system-config" element={<SystemConfiguration />} />
+      <Route path="/system-settings/email" element={<EmailConfiguration />} />
+      <Route path="/system-settings/sms" element={<SmsConfiguration />} />
+      <Route path="/system-settings/whatsapp" element={<WhatsAppConfiguration />} />
+      <Route path="/users-and-roles" element={<UsersAndRoles />} />
       <Route path="/saas-reports" element={<Reports mode="saas" />} />
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />

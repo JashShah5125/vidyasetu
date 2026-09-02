@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: user.email,
           role: (user.isSaasAdmin ? 'saas-admin' : normalizeRole(user.userType)) as Role,
           tenantId: user.tenantId !== undefined && user.tenantId !== null ? String(user.tenantId) : undefined,
-          tenantName: user.isSaasAdmin ? 'Vidya Setu Platform' : 'Institute Name', // Could be fetched from backend
+          tenantName: user.tenantName || (user.isSaasAdmin ? 'Vidya Setu Platform' : 'Institute Name'),
           branch: user.branch || '',
           mustChangePassword: Boolean(user.mustChangePassword)
         };

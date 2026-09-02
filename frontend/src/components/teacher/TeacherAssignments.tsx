@@ -854,7 +854,10 @@ export const TeacherAssignments: React.FC = () => {
               <label className="block text-xs font-semibold text-gray-600 mb-1">Batch</label>
               <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}>
                 <option value="All">All Batches</option>
-                {filteredBatches.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                {filteredBatches.map(b => {
+                  const name = typeof b.name === 'string' ? b.name : (b.name as any)?.name || 'Unknown';
+                  return <option key={b.id || name} value={name}>{name}</option>;
+                })}
               </select>
             </div>
           </div>

@@ -14,6 +14,9 @@ const getTenants = async (req, res) => {
                 total: result.total,
                 page: Number(page),
                 limit: Number(limit)
+            },
+            filters: {
+                statuses: result.available_statuses
             }
         });
     } catch (error) {

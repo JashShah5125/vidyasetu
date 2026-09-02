@@ -157,8 +157,15 @@ export const InstAdminDashboard: React.FC = () => {
 
   const feePercentage = totalFeesTarget > 0 ? Math.round((totalFeesPaid / totalFeesTarget) * 100) : 0;
 
-  const uniquePrograms = useMemo(() => Array.from(new Set(courses.flatMap(c => c.programs || []))), [courses]);
-  const uniqueLevels = useMemo(() => Array.from(new Set(batches.map(b => b.level).filter((l): l is string => Boolean(l)))), [batches]);
+  const uniquePrograms = useMemo(() => {
+    const names = courses.flatMap(c => c.programs || []).map((p: any) => typeof p === 'string' ? p : p.name).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [courses]);
+
+  const uniqueLevels = useMemo(() => {
+    const names = batches.map(b => b.level).map((l: any) => typeof l === 'string' ? l : l?.name).filter(Boolean);
+    return Array.from(new Set(names)) as string[];
+  }, [batches]);
 
   // Leads Funnel calculations
   const leadStages = useMemo(() => {
@@ -463,9 +470,10 @@ export const InstAdminDashboard: React.FC = () => {
           ) : (
             <>
               <option value="all">All Branches</option>
-              {branches.map(b => (
-                <option key={b.id || b.name} value={b.name}>{b.name}</option>
-              ))}
+              {branches.map(b => {
+                const name = typeof b.name === 'string' ? b.name : (b.name as any)?.name || 'Unknown';
+                return <option key={b.id || name} value={name}>{name}</option>;
+              })}
             </>
           )}
         </select>
@@ -476,9 +484,10 @@ export const InstAdminDashboard: React.FC = () => {
           onChange={(e) => setFilters({ ...filters, course: e.target.value })}
         >
           <option value="all">All Courses</option>
-          {courses.map(c => (
-            <option key={c.id || c.code} value={c.name}>{c.name}</option>
-          ))}
+          {courses.map(c => {
+            const name = typeof c.name === 'string' ? c.name : (c.name as any)?.name || 'Unknown';
+            return <option key={c.id || c.code || name} value={name}>{name}</option>;
+          })}
         </select>
 
         <select
@@ -487,9 +496,10 @@ export const InstAdminDashboard: React.FC = () => {
           onChange={(e) => setFilters({ ...filters, program: e.target.value })}
         >
           <option value="all">All Programs</option>
-          {uniquePrograms.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
+          {uniquePrograms.map((p: any) => {
+            const name = typeof p === 'string' ? p : p.name;
+            return <option key={name} value={name}>{name}</option>;
+          })}
         </select>
 
         <select
@@ -498,9 +508,10 @@ export const InstAdminDashboard: React.FC = () => {
           onChange={(e) => setFilters({ ...filters, level: e.target.value })}
         >
           <option value="all">All Levels</option>
-          {uniqueLevels.map(l => (
-            <option key={l} value={l}>{l}</option>
-          ))}
+          {uniqueLevels.map((l: any) => {
+            const name = typeof l === 'string' ? l : l.name;
+            return <option key={name} value={name}>{name}</option>;
+          })}
         </select>
       </div>
 

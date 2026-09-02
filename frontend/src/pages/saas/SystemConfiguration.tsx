@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -16,6 +16,17 @@ export const SystemConfiguration: React.FC = () => {
   const [taxRate, setTaxRate] = useState('18');
   const [defaultCurrency, setDefaultCurrency] = useState('INR');
   const [sessionTimeout, setSessionTimeout] = useState('60'); // minutes
+  const [expiryWarningDays, setExpiryWarningDays] = useState('15');
+
+  // Fetch from backend
+  useEffect(() => {
+    fetch('http://localhost:5000/api/admin/settings/billing/plan_expiry_warning_days')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.value) setExpiryWarningDays(data.value);
+      })
+      .catch(err => console.error(err));
+  }, []);
 
   // SMTP Settings
   const [smtpHost, setSmtpHost] = useState('smtp.sendgrid.net');
@@ -93,9 +104,18 @@ export const SystemConfiguration: React.FC = () => {
 
   const [toast, setToast] = useState('');
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setToast('Configuration settings updated successfully.');
+    try {
+      await fetch('http://localhost:5000/api/admin/settings/billing/plan_expiry_warning_days', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: expiryWarningDays })
+      });
+      setToast('Configuration settings updated successfully.');
+    } catch (err) {
+      setToast('Error updating settings.');
+    }
     setTimeout(() => setToast(''), 4000);
   };
 
@@ -278,6 +298,7 @@ export const SystemConfiguration: React.FC = () => {
                       ]} 
                     />
                     <Input label="Admin Idle Timeout (min)" type="number" value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)} />
+                    <Input label="Plan Expiry Warning (Days)" type="number" value={expiryWarningDays} onChange={e => setExpiryWarningDays(e.target.value)} />
                   </div>
                 </div>
               )}
