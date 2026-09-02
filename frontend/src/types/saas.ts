@@ -64,7 +64,6 @@ export interface SubscriptionPlan {
   trialDays: number;
   setupFee: number;
   autoRenewal: boolean;
-  maxInstances: number;
   maxBranches: number;
   maxStaffUsers: number;
   maxStudents: number;

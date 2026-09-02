@@ -2,7 +2,6 @@
 -- Sourced from: 002_create_plan_features.sql (split)
 CREATE TABLE plan_limits (
     plan_id INT PRIMARY KEY,
-    max_instances INT NOT NULL DEFAULT -1,
     max_branches INT NOT NULL DEFAULT -1,
     max_staff_users INT NOT NULL DEFAULT -1,
     max_students INT NOT NULL DEFAULT -1,

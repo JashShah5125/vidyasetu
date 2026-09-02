@@ -24,7 +24,6 @@ export const mapPlanToFrontend = (row: any): SubscriptionPlan => {
     trialDays: parseInt(row.trial_days) || 0,
     setupFee: parseFloat(row.setup_fee) || 0,
     autoRenewal: row.auto_renewal === 1 || !!row.auto_renewal,
-    maxInstances: parseInt(row.max_instances) || -1,
     maxBranches: parseInt(row.max_branches) || -1,
     maxStaffUsers: parseInt(row.max_staff_users) || -1,
     maxStudents: parseInt(row.max_students) || -1,
@@ -105,7 +104,6 @@ const mapPlanToBackend = (plan: any) => {
       auto_renewal: plan.autoRenewal ? 1 : 0
     },
     resource_limits: {
-      max_instances: parseInt(plan.maxInstances) || -1,
       max_branches: parseInt(plan.maxBranches) || -1,
       max_staff_users: parseInt(plan.maxStaffUsers) || -1,
       max_students: parseInt(plan.maxStudents) || -1,

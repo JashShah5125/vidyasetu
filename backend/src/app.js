@@ -38,6 +38,7 @@ const classroomRoutes = require('./routes/classroomRoutes');
 const instituteRoutes = require('./routes/instituteRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const batchRoutes = require('./routes/batchRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -57,6 +58,7 @@ app.use('/api/admin/subjects', subjectRoutes);
 app.use('/api/admin/classrooms', classroomRoutes);
 app.use('/api/admin/staff', staffRoutes);
 app.use('/api/admin/batches', batchRoutes);
+app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/institute', instituteRoutes);
 
 // 404 Handler

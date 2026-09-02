@@ -469,7 +469,6 @@ export interface SubscriptionPlan {
   renewalPrice: number;
   autoRenewal: boolean;
   // Section 3 – Resource Limits (use -1 for Unlimited)
-  maxInstances: number;
   maxBranches: number;
   maxStaffUsers: number;
   maxStudents: number;

@@ -28,7 +28,6 @@ const formatPlan = (row) => {
         setup_fee: Number(row.setup_fee) || 0,
         auto_renewal: row.auto_renewal,
 
-        max_instances: row.max_instances,
         max_branches: row.max_branches,
         max_staff_users: row.max_staff_users,
         max_students: row.max_students,
@@ -98,7 +97,7 @@ const getPlans = async (statuses = ['Active', 'Inactive']) => {
     const query = `
         SELECT sp.*, 
                pf.admissions, pf.student_management, pf.parent_portal, pf.teacher_portal, pf.attendance, pf.timetable, pf.assignments, pf.exams, pf.results, pf.doubts, pf.fees, pf.payroll, pf.income, pf.expenses, pf.notifications, pf.sms, pf.whatsapp, pf.email, pf.reports, pf.audit_logs, pf.import_export, pf.api_access,
-               pl.max_instances, pl.max_branches, pl.max_staff_users, pl.max_students, pl.max_parents, pl.max_teachers, pl.max_storage, pl.max_file_size, pl.max_sms_credits, pl.max_whatsapp_msgs,
+               pl.max_branches, pl.max_staff_users, pl.max_students, pl.max_parents, pl.max_teachers, pl.max_storage, pl.max_file_size, pl.max_sms_credits, pl.max_whatsapp_msgs,
                ps.email_support, ps.chat_support, ps.phone_support, ps.dedicated_account_manager, ps.onboarding_assistance,
                pb.white_label, pb.custom_domain, pb.custom_logo, pb.custom_email_templates,
                pi.razorpay, pi.cashfree, pi.whatsapp_business, pi.zoom, pi.google_meet, pi.google_calendar, pi.biometric_devices
@@ -119,7 +118,7 @@ const getPlanById = async (id) => {
     const query = `
         SELECT sp.*, 
                pf.admissions, pf.student_management, pf.parent_portal, pf.teacher_portal, pf.attendance, pf.timetable, pf.assignments, pf.exams, pf.results, pf.doubts, pf.fees, pf.payroll, pf.income, pf.expenses, pf.notifications, pf.sms, pf.whatsapp, pf.email, pf.reports, pf.audit_logs, pf.import_export, pf.api_access,
-               pl.max_instances, pl.max_branches, pl.max_staff_users, pl.max_students, pl.max_parents, pl.max_teachers, pl.max_storage, pl.max_file_size, pl.max_sms_credits, pl.max_whatsapp_msgs,
+               pl.max_branches, pl.max_staff_users, pl.max_students, pl.max_parents, pl.max_teachers, pl.max_storage, pl.max_file_size, pl.max_sms_credits, pl.max_whatsapp_msgs,
                ps.email_support, ps.chat_support, ps.phone_support, ps.dedicated_account_manager, ps.onboarding_assistance,
                pb.white_label, pb.custom_domain, pb.custom_logo, pb.custom_email_templates,
                pi.razorpay, pi.cashfree, pi.whatsapp_business, pi.zoom, pi.google_meet, pi.google_calendar, pi.biometric_devices
@@ -157,7 +156,7 @@ const checkExactDuplicate = async (planData) => {
           AND sp.monthly_price = ? AND sp.quarterly_price = ? AND sp.half_yearly_price = ?
           AND sp.yearly_price = ? AND sp.lifetime_price = ?
           AND sp.currency = ? AND sp.trial_days = ? AND sp.setup_fee = ? AND sp.auto_renewal = ?
-          AND COALESCE(pl.max_instances, -1) = ? AND COALESCE(pl.max_branches, -1) = ?
+          AND COALESCE(pl.max_branches, -1) = ?
           AND COALESCE(pl.max_staff_users, -1) = ? AND COALESCE(pl.max_students, -1) = ?
           AND COALESCE(pl.max_parents, -1) = ? AND COALESCE(pl.max_teachers, -1) = ?
           AND COALESCE(pl.max_storage, '-1') = ? AND COALESCE(pl.max_file_size, '-1') = ?
@@ -189,7 +188,7 @@ const checkExactDuplicate = async (planData) => {
         billing.monthly_price || 0, billing.quarterly_price || 0, billing.half_yearly_price || 0,
         billing.yearly_price || 0, billing.lifetime_price || 0,
         billing.currency || 'INR', billing.trial_days || 0, billing.setup_fee || 0, billing.auto_renewal || 0,
-        rl.max_instances ?? -1, rl.max_branches ?? -1,
+        rl.max_branches ?? -1,
         rl.max_staff_users ?? -1, rl.max_students ?? -1,
         rl.max_parents ?? -1, rl.max_teachers ?? -1,
         rl.max_storage || '-1', rl.max_file_size || '-1',
@@ -268,10 +267,10 @@ const createPlan = async (planData) => {
         ]);
 
         await connection.query(`
-            INSERT INTO plan_limits (plan_id, max_instances, max_branches, max_staff_users, max_students, max_parents, max_teachers, max_storage, max_file_size, max_sms_credits, max_whatsapp_msgs)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO plan_limits (plan_id, max_branches, max_staff_users, max_students, max_parents, max_teachers, max_storage, max_file_size, max_sms_credits, max_whatsapp_msgs)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
-            planId, rl.max_instances ?? -1, rl.max_branches ?? -1, rl.max_staff_users ?? -1, rl.max_students ?? -1, rl.max_parents ?? -1, rl.max_teachers ?? -1, rl.max_storage || '-1', rl.max_file_size || '-1', rl.max_sms_credits ?? -1, rl.max_whatsapp_msgs ?? -1
+            planId, rl.max_branches ?? -1, rl.max_staff_users ?? -1, rl.max_students ?? -1, rl.max_parents ?? -1, rl.max_teachers ?? -1, rl.max_storage || '-1', rl.max_file_size || '-1', rl.max_sms_credits ?? -1, rl.max_whatsapp_msgs ?? -1
         ]);
 
         await connection.query(`
@@ -348,10 +347,10 @@ const updatePlan = async (id, planData) => {
 
         await connection.query(`
             UPDATE plan_limits SET 
-                max_instances=?, max_branches=?, max_staff_users=?, max_students=?, max_parents=?, max_teachers=?, max_storage=?, max_file_size=?, max_sms_credits=?, max_whatsapp_msgs=?
+                max_branches=?, max_staff_users=?, max_students=?, max_parents=?, max_teachers=?, max_storage=?, max_file_size=?, max_sms_credits=?, max_whatsapp_msgs=?
             WHERE plan_id=?
         `, [
-            rl.max_instances ?? -1, rl.max_branches ?? -1, rl.max_staff_users ?? -1, rl.max_students ?? -1, rl.max_parents ?? -1, rl.max_teachers ?? -1, rl.max_storage || '-1', rl.max_file_size || '-1', rl.max_sms_credits ?? -1, rl.max_whatsapp_msgs ?? -1,
+            rl.max_branches ?? -1, rl.max_staff_users ?? -1, rl.max_students ?? -1, rl.max_parents ?? -1, rl.max_teachers ?? -1, rl.max_storage || '-1', rl.max_file_size || '-1', rl.max_sms_credits ?? -1, rl.max_whatsapp_msgs ?? -1,
             id
         ]);
 

@@ -118,7 +118,6 @@ export const SubscriptionPlans: React.FC = () => {
   const [autoRenewal, setAutoRenewal] = useState(false);
 
   // Section 3
-  const [maxInstances, setMaxInstances] = useState('');
   const [maxBranches, setMaxBranches] = useState('');
   const [maxStaffUsers, setMaxStaffUsers] = useState('');
   const [maxStudents, setMaxStudents] = useState('');
@@ -180,7 +179,7 @@ export const SubscriptionPlans: React.FC = () => {
     setTrialDays('0');
     setSetupFee('0');
     setAutoRenewal(false);
-    setMaxInstances(''); setMaxBranches(''); setMaxStaffUsers(''); setMaxStudents('');
+    setMaxBranches(''); setMaxStaffUsers(''); setMaxStudents('');
     setMaxParents(''); setMaxTeachers(''); setMaxStorage(''); setMaxFileSize('');
     setMaxSmsCredits(''); setMaxWhatsappMsgs('');
     setFeatures({ ...DEFAULT_FEATURES });
@@ -202,7 +201,7 @@ export const SubscriptionPlans: React.FC = () => {
     setTrialDays((p.trialDays || 0).toString());
     setSetupFee((p.setupFee || 0).toString());
     setAutoRenewal(p.autoRenewal || false);
-    setMaxInstances(p.maxInstances.toString()); setMaxBranches(p.maxBranches.toString());
+    setMaxBranches(p.maxBranches.toString());
     setMaxStaffUsers(p.maxStaffUsers.toString()); setMaxStudents(p.maxStudents.toString());
     setMaxParents(p.maxParents.toString()); setMaxTeachers(p.maxTeachers.toString());
     setMaxStorage(p.maxStorage); setMaxFileSize(p.maxFileSize);
@@ -229,7 +228,6 @@ export const SubscriptionPlans: React.FC = () => {
       trialDays: parseInt(trialDays) || 0,
       setupFee: parseFloat(setupFee) || 0,
       autoRenewal,
-      maxInstances: parseInt(maxInstances) || 1,
       maxBranches: parseInt(maxBranches) || 0,
       maxStaffUsers: parseInt(maxStaffUsers) || 0,
       maxStudents: parseInt(maxStudents) || 0,
@@ -365,11 +363,7 @@ export const SubscriptionPlans: React.FC = () => {
       case 2: return (
         <div className="space-y-4">
           <SectionHead n="03" title="Resource Limits" />
-          <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 -mt-2 mb-2">
-            Enter <strong>-1</strong> for any field to set it as <strong>Unlimited</strong>.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input label="Max Instances" type="number" placeholder="-1 = Unlimited" value={maxInstances} onChange={e => setMaxInstances(e.target.value)} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Max Branches" type="number" placeholder="-1 = Unlimited" value={maxBranches} onChange={e => setMaxBranches(e.target.value)} />
             <Input label="Max Staff Users" type="number" placeholder="-1 = Unlimited" value={maxStaffUsers} onChange={e => setMaxStaffUsers(e.target.value)} />
           </div>
@@ -724,7 +718,6 @@ export const SubscriptionPlans: React.FC = () => {
                   <h4 className="text-lg font-bold text-slate-900 mb-4">Resource Limits</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                     {[
-                      { label: 'Instances', val: displayLimit(viewingPlan.maxInstances) },
                       { label: 'Branches', val: displayLimit(viewingPlan.maxBranches) },
                       { label: 'Staff Users', val: displayLimit(viewingPlan.maxStaffUsers) },
                       { label: 'Students', val: displayLimit(viewingPlan.maxStudents) },

@@ -1,12 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Building2, GraduationCap, DollarSign, ShieldAlert, CheckCircle, Clock, Users, Ticket } from 'lucide-react';
+import { Building2, GraduationCap, DollarSign, ShieldAlert, CheckCircle, Clock, Ticket, AlertOctagon, Loader2, Layers, Award, TrendingUp, CreditCard } from 'lucide-react';
+import api from '../../services/api';
+
+interface SaasStats {
+  total_tenants: number;
+  active_tenants: number;
+  suspended_tenants: number;
+  draft_tenants: number;
+  pending_approvals: number;
+  total_plans: number;
+  total_mrr: number;
+  plan_distribution: { plan: string; count: number }[];
+}
 
 export const SaasAdminDashboard: React.FC = () => {
-  const { tenants, auditLogs } = useApp();
+  const { auditLogs } = useApp();
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [stats, setStats] = useState<SaasStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const { data } = await api.get('/admin/dashboard/saas-stats');
+        if (data.status === 'success') setStats(data.data);
+      } catch (err) {
+        console.error('Failed to load SaaS dashboard stats:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const StatCard = ({
+    label, value, color, icon: Icon, bg, border,
+  }: {
+    label: string;
+    value: React.ReactNode;
+    color: string;
+    icon: React.ElementType;
+    bg: string;
+    border: string;
+  }) => (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+      <div>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{label}</span>
+        <span className={`text-2xl font-extrabold block mt-1 ${color}`}>
+          {loading ? <Loader2 size={20} className="animate-spin text-slate-300" /> : value}
+        </span>
+      </div>
+      <div className={`w-10 h-10 ${bg} ${color} rounded-xl flex items-center justify-center ${border}`}>
+        <Icon size={18} />
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -15,70 +66,109 @@ export const SaasAdminDashboard: React.FC = () => {
         <p className="text-sm text-slate-500 mt-1">Cross-tenant infrastructure health, subscription pipelines, customer success logs, and platform revenue metrics.</p>
       </div>
 
-      {/* Widgets Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Institutes</span>
-            <span className="text-2xl font-extrabold text-slate-900 block mt-1">{tenants.length + 3}</span>
-          </div>
-          <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center border border-purple-100">
-            <Building2 size={18} />
-          </div>
-        </div>
+      {/* Section 1 — KPI Cards (4 cards, real DB data) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Total Institutes"
+          value={stats?.total_tenants ?? '—'}
+          color="text-slate-900"
+          icon={Building2}
+          bg="bg-purple-50"
+          border="border border-purple-100"
+        />
+        <StatCard
+          label="Active Institutes"
+          value={stats?.active_tenants ?? '—'}
+          color="text-emerald-600"
+          icon={CheckCircle}
+          bg="bg-emerald-50"
+          border="border border-emerald-100"
+        />
+        <StatCard
+          label="Suspended / Inactive"
+          value={stats ? (stats.suspended_tenants + stats.draft_tenants) : '—'}
+          color="text-red-600"
+          icon={AlertOctagon}
+          bg="bg-red-50"
+          border="border border-red-100"
+        />
+        <StatCard
+          label="Pending Approvals"
+          value={stats?.pending_approvals ?? '—'}
+          color={stats && stats.pending_approvals > 0 ? 'text-amber-600' : 'text-slate-400'}
+          icon={ShieldAlert}
+          bg="bg-amber-50"
+          border="border border-amber-100"
+        />
+      </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Active Institutes</span>
-            <span className="text-2xl font-extrabold text-emerald-600 block mt-1">{tenants.filter(t => t.status === 'Active').length + 2}</span>
-          </div>
-          <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
-            <CheckCircle size={18} />
-          </div>
-        </div>
+      {/* Section 2 — Plan & Subscription Analytics */}
+      <div className="space-y-4">
+        <h3 className="font-bold text-slate-800 text-sm px-1">Plan & Subscription Analytics</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Available Plans"
+            value={stats?.total_plans ?? '—'}
+            color="text-slate-900"
+            icon={Layers}
+            bg="bg-slate-50"
+            border="border border-slate-100"
+          />
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Trial Institutes</span>
-            <span className="text-2xl font-extrabold text-blue-600 block mt-1">2</span>
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Most Popular Plan</span>
+              <span className="text-xl font-extrabold text-blue-700 block mt-1 truncate max-w-[120px]">
+                {loading ? <Loader2 size={20} className="animate-spin text-slate-300" /> : (stats?.plan_distribution?.[0]?.plan || 'None')}
+              </span>
+            </div>
+            <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
+              <Award size={18} />
+            </div>
           </div>
-          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
-            <Clock size={18} />
-          </div>
-        </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Expired Subs</span>
-            <span className="text-2xl font-extrabold text-red-600 block mt-1">1</span>
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Avg MRR per Tenant</span>
+              <span className="text-xl font-extrabold text-emerald-600 block mt-1">
+                {loading || !stats?.active_tenants ? <Loader2 size={20} className="animate-spin text-slate-300" /> : `₹${Math.round(stats.total_mrr / stats.active_tenants).toLocaleString()}`}
+              </span>
+            </div>
+            <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
+              <TrendingUp size={18} />
+            </div>
           </div>
-          <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center border border-red-100">
-            <ShieldAlert size={18} />
-          </div>
-        </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Active Users</span>
-            <span className="text-2xl font-extrabold text-slate-900 block mt-1">64</span>
-          </div>
-          <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center border border-slate-100">
-            <Users size={18} />
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+            <div className="w-full">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Adoption Breakdown</span>
+                <div className="w-6 h-6 bg-slate-50 text-slate-500 rounded-lg flex items-center justify-center border border-slate-100">
+                  <CreditCard size={12} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {loading ? (
+                  <div className="h-4 bg-slate-100 rounded animate-pulse w-full mt-2"></div>
+                ) : stats?.plan_distribution && stats.plan_distribution.length > 0 ? (
+                  stats.plan_distribution.slice(0, 2).map((p, i) => (
+                    <div key={i} className="flex justify-between items-center text-[11px]">
+                      <span className="text-slate-600 truncate mr-2 font-medium">{p.plan}</span>
+                      <span className="font-bold text-slate-800">{p.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400">No data</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Students (All Tenants)</span>
-            <span className="text-xl font-extrabold text-slate-900 block mt-1">1,480 Students</span>
-          </div>
-          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
-            <GraduationCap size={18} />
-          </div>
-        </div>
-
+      {/* Secondary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">SaaS MRR / ARR</span>
@@ -91,21 +181,21 @@ export const SaasAdminDashboard: React.FC = () => {
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Pending Approvals</span>
-            <span className="text-xl font-extrabold text-amber-700 block mt-1">4 Requests</span>
-          </div>
-          <div className="w-10 h-10 bg-amber-50 text-amber-700 rounded-xl flex items-center justify-center border border-amber-100">
-            <ShieldAlert size={18} />
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Support Tickets</span>
             <span className="text-xl font-extrabold text-purple-700 block mt-1">3 Active Tickets</span>
           </div>
           <div className="w-10 h-10 bg-purple-50 text-purple-700 rounded-xl flex items-center justify-center border border-purple-100">
             <Ticket size={18} />
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Trial Institutes</span>
+            <span className="text-xl font-extrabold text-blue-600 block mt-1">{loading ? '—' : (stats?.draft_tenants ?? '—')}</span>
+          </div>
+          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
+            <Clock size={18} />
           </div>
         </div>
       </div>
