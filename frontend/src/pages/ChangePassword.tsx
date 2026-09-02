@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { KeyRound } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
 export const ChangePassword: React.FC = () => {
   const navigate = useNavigate();
+  const { updateCurrentUser } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,8 +31,7 @@ export const ChangePassword: React.FC = () => {
     try {
       setIsSaving(true);
       await api.post('/auth/change-password', { currentPassword, newPassword });
-      const savedUser = JSON.parse(localStorage.getItem('vs_current_user') || '{}');
-      localStorage.setItem('vs_current_user', JSON.stringify({ ...savedUser, mustChangePassword: false }));
+      updateCurrentUser({ mustChangePassword: false });
       navigate('/dashboard', { replace: true });
     } catch (requestError: any) {
       setError(requestError.response?.data?.message || 'Unable to change password.');

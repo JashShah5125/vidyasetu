@@ -8,9 +8,10 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Modal } from '../components/ui/Modal';
-import { Plus, ArrowLeft, Upload } from 'lucide-react';
+import { Plus, ArrowLeft, Upload, Loader2 } from 'lucide-react';
 import type { Staff } from '../data/mockData';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { staffApi } from '../services/staffApi';
 
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff, currentUser, addToast } = useApp();
@@ -25,20 +26,39 @@ export const Users: React.FC = () => {
   const [filterRole, setFilterRole] = useState('All');
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
 
+  const [loading, setLoading] = useState(false);
+  const [apiStaff, setApiStaff] = useState<any[]>([]);
+  const [totalStaff, setTotalStaff] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
+
+  const fetchStaff = async () => {
+    setLoading(true);
+    try {
+      const filters = {
+        page: currentPage,
+        limit: itemsPerPage,
+        search: searchTerm,
+        branchId: filterBranch !== 'All' ? filterBranch : undefined, // Actually needs branch IDs, this might be tricky since mock uses names
+      };
+      const res = await staffApi.list(filters);
+      setApiStaff(res.data);
+      setTotalStaff(res.pagination.total);
+    } catch (err) {
+      console.error('Failed to fetch staff', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchStaff();
+  }, [currentPage, searchTerm, filterBranch, filterRole]);
+
   const uniqueRoles = Array.from(new Set(staff.map(s => s.role)));
   const uniqueBranches = Array.from(new Set(staff.map(s => s.branch)));
 
-  const filteredAndSortedStaff = staff
-    .filter(s => {
-      const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchRole = filterRole === 'All' || s.role === filterRole;
-      const matchBranch = currentUser?.role === 'branch-admin'
-        ? s.branch === currentUser.branch
-        : (filterBranch === 'All' || s.branch === filterBranch);
-      return matchSearch && matchRole && matchBranch;
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const filteredAndSortedStaff = apiStaff;
 
   const handleExportCSV = () => {
     const dataToExport = filteredAndSortedStaff.map(s => ({
@@ -73,10 +93,9 @@ export const Users: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
-  const totalPages = Math.ceil(filteredAndSortedStaff.length / itemsPerPage);
-  const paginatedStaff = filteredAndSortedStaff.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const totalPages = Math.ceil(totalStaff / itemsPerPage);
+  const paginatedStaff = apiStaff;
 
   // Form states
   const [name, setName] = useState('');
@@ -644,54 +663,49 @@ export const Users: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Staff Members</CardTitle>
+          <CardTitle>Staff Members {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}</CardTitle>
         </CardHeader>
         <Table headers={['Staff Name', 'Official Email', 'Primary Branch', 'Assigned Role', 'Status', 'Actions']}>
-          {paginatedStaff.map((s, idx) => (
+          {paginatedStaff.map((s, idx) => {
+            const nameStr = s.first_name + ' ' + (s.last_name || '');
+            const emailStr = s.email;
+            const branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
+            const roleStr = s.employee_type || 'Staff';
+            
+            return (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="px-6 py-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-xs font-bold font-display border border-slate-200">
-                    {s.name.split(' ').map(n => n[0]).join('')}
+                    {nameStr.split(' ').map((n: string) => n[0]).join('')}
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-800 block">{s.name}</span>
-                    <span className="text-[10px] font-mono text-slate-400">EMP-{(s as any).employeeId || s.id || '2938'}</span>
+                    <span className="font-semibold text-slate-800 block">{nameStr}</span>
+                    <span className="text-[10px] font-mono text-slate-400">EMP-{(s as any).employee_id || s.id || '2938'}</span>
                   </div>
                 </div>
               </td>
-              <td className="px-6 py-4 font-mono text-xs">{s.email}</td>
-              <td className="px-6 py-4 text-xs font-medium text-slate-700">{s.branch}</td>
+              <td className="px-6 py-4 font-mono text-xs">{emailStr}</td>
+              <td className="px-6 py-4 text-xs font-medium text-slate-700">{branchStr}</td>
               <td className="px-6 py-4">
-                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold border ${roleBadgeColors(s.role)}`}>
-                  {s.role}
+                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold border ${roleBadgeColors(roleStr)}`}>
+                  {roleStr}
                 </span>
               </td>
               <td className="px-6 py-4">
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${s.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${s.status?.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
                   {s.status}
                 </span>
               </td>
               <td className="px-6 py-4">
                 <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" className="py-1" onClick={() => { setSelectedStaff(s); setStaffProfileTab('overview'); }}>
-                    View Profile
-                  </Button>
-                  <Button variant="secondary" size="sm" className="py-1" onClick={() => handleEditStaff(s)}>
-                    Edit
-                  </Button>
-                  <Button
-                    variant={s.status === 'Active' ? 'danger' : 'primary'}
-                    size="sm"
-                    className="py-1"
-                    onClick={() => handleDeactivateStaff(s.email)}
-                  >
-                    {s.status === 'Active' ? 'Deactivate' : 'Activate'}
+                  <Button variant="secondary" size="sm" className="py-1" onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}>
+                    Manage
                   </Button>
                 </div>
               </td>
             </tr>
-          ))}
+          )})}
         </Table>
         <Pagination
           currentPage={currentPage}

@@ -13,6 +13,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const normalizeRole = (userType: string | undefined): Role => {
+  const t = (userType || '').trim().toLowerCase();
+  if (!t) return 'inst-admin';
+  // Backend stores snake_case user types (inst_admin, branch_admin, ...)
+  return t.replace(/_/g, '-') as Role;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -25,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (savedUser && accessToken) {
       try {
         setCurrentUser(JSON.parse(savedUser));
-      } catch (e) {
+      } catch {
         localStorage.removeItem('vs_current_user');
       }
     } else if (savedUser) {
@@ -72,11 +79,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Map backend user to frontend UserProfile
         const profile: UserProfile = {
+          id: user.id ? String(user.id) : undefined,
           name: user.name,
           email: user.email,
-          role: (user.isSaasAdmin ? 'saas-admin' : user.userType || 'inst-admin') as Role,
-          tenantId: user.tenantId,
-          tenantName: user.tenantId === 'SYSTEM' ? 'Vidya Setu Platform' : 'Institute Name', // Could be fetched from backend
+          role: (user.isSaasAdmin ? 'saas-admin' : normalizeRole(user.userType)) as Role,
+          tenantId: user.tenantId !== undefined && user.tenantId !== null ? String(user.tenantId) : undefined,
+          tenantName: user.isSaasAdmin ? 'Vidya Setu Platform' : 'Institute Name', // Could be fetched from backend
           branch: user.branch || '',
           mustChangePassword: Boolean(user.mustChangePassword)
         };

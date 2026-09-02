@@ -108,7 +108,13 @@ const createTenant = async (req, res) => {
             maxWhatsappMsgs: parseNum(maxWhatsappMsgs)
         });
 
-        res.status(201).json({ status: 'success', message: 'Tenant created successfully', data: result });
+        const responseData = { ...result };
+        if (process.env.NODE_ENV === 'production') {
+            // Never leak the auto-generated password outside development.
+            delete responseData.temporaryPassword;
+        }
+
+        res.status(201).json({ status: 'success', message: 'Tenant created successfully', data: responseData });
     } catch (error) {
         console.error('Error creating tenant:', error);
         if (error.message === 'Tenant slug already exists') {

@@ -1,31 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import { classroomApi, ROOM_TYPES, STATUS_OPTIONS } from '../services/classroomApi';
+import type { Classroom } from '../services/classroomApi';
+import { branchApi, toBranch } from '../services/branchApi';
+import type { Branch } from '../data/mockData';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { DoorOpen, Plus, Search, Download, ArrowLeft, Edit2, Trash2, Upload } from 'lucide-react';
+import { DoorOpen, Plus, Search, Download, ArrowLeft, Edit2, Trash2, Upload, Loader2 } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
-
-export interface Classroom {
-  id: string;
-  branchId: string;
-  branchName: string;
-  name: string;
-  roomNumber: string;
-  capacity: number;
-  type: 'Classroom' | 'Lab' | 'Seminar Hall' | 'Computer Lab';
-  status: 'Active' | 'Inactive' | 'Under Maintenance';
-}
-
-const ROOM_TYPES = ['Classroom', 'Lab', 'Seminar Hall', 'Computer Lab'] as const;
-const STATUS_OPTIONS = ['Active', 'Inactive', 'Under Maintenance'] as const;
 
 const statusColors: Record<Classroom['status'], string> = {
   Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   Inactive: 'bg-slate-100 text-slate-500 border-slate-200',
   'Under Maintenance': 'bg-amber-50 text-amber-700 border-amber-200',
+  Deleted: 'bg-red-50 text-red-700 border-red-200',
 };
 
 const typeColors: Record<Classroom['type'], string> = {
@@ -45,7 +36,23 @@ const emptyForm = {
 };
 
 export const ClassroomSetup: React.FC = () => {
-  const { branches, currentUser, addToast } = useApp();
+  const { branches: contextBranches, currentUser, addToast } = useApp();
+  const [branches, setBranches] = useState<Branch[]>(contextBranches);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await branchApi.list({ limit: 1000 });
+        if (!cancelled && res?.status === 'success') {
+          setBranches((res.data || []).map((row: any) => toBranch(row)));
+        }
+      } catch {
+        setBranches(contextBranches);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [contextBranches]);
 
   const accessibleBranches = useMemo(() => {
     if (currentUser?.role === 'branch-admin') {
@@ -54,34 +61,25 @@ export const ClassroomSetup: React.FC = () => {
     return branches;
   }, [branches, currentUser]);
 
-  const [classrooms, setClassrooms] = useState<Classroom[]>(() => {
-    const initial: Classroom[] = [];
-    branches.forEach(b => {
-      initial.push(
-        {
-          id: `CR-${b.id ?? b.code}-001`,
-          branchId: b.id ?? b.name,
-          branchName: b.name,
-          name: 'Room 101',
-          roomNumber: '101',
-          capacity: 60,
-          type: 'Classroom',
-          status: 'Active',
-        },
-        {
-          id: `CR-${b.id ?? b.code}-002`,
-          branchId: b.id ?? b.name,
-          branchName: b.name,
-          name: 'Physics Lab',
-          roomNumber: 'L-01',
-          capacity: 30,
-          type: 'Lab',
-          status: 'Active',
-        }
-      );
-    });
-    return initial;
-  });
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadClassrooms = useCallback(async () => {
+    try {
+      const res = await classroomApi.list({ limit: 500 });
+      if (res?.status === 'success') {
+        setClassrooms(res.data || []);
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to fetch classrooms', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    loadClassrooms();
+  }, [loadClassrooms]);
 
   const [search, setSearch] = useState('');
   const [filterBranch, setFilterBranch] = useState(
@@ -98,7 +96,6 @@ export const ClassroomSetup: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [successMsg, setSuccessMsg] = useState('');
 
   const branchFilterOptions = useMemo(() => {
     if (currentUser?.role === 'branch-admin') {
@@ -174,17 +171,17 @@ export const ClassroomSetup: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (id: string, name: string) => {
-    setClassrooms(prev => prev.filter(c => c.id !== id));
-    addToast(`Classroom "${name}" deleted.`, 'success');
+  const handleDelete = async (id: string, name: string) => {
+    try {
+      const res = await classroomApi.delete(id);
+      addToast(res?.message || `Classroom "${name}" deleted.`, 'success');
+      setClassrooms(prev => prev.filter(c => c.id !== id));
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to delete classroom', 'error');
+    }
   };
 
-  const flash = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 4000);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
@@ -192,43 +189,29 @@ export const ClassroomSetup: React.FC = () => {
       setFormErrors({ roomNumber: 'A classroom with this room number already exists in this branch.' });
       return;
     }
-    const branchName = accessibleBranches.find(b => (b.id ?? b.name) === form.branchId)?.name ?? form.branchId;
+    const payload = {
+      branchId: form.branchId,
+      name: form.name.trim(),
+      roomNumber: form.roomNumber.trim(),
+      capacity: parseInt(form.capacity as string),
+      type: form.type,
+      status: form.status,
+    };
 
-    if (editingId) {
-      setClassrooms(prev =>
-        prev.map(c =>
-          c.id === editingId
-            ? {
-                ...c,
-                branchId: form.branchId,
-                branchName,
-                name: form.name.trim(),
-                roomNumber: form.roomNumber.trim(),
-                capacity: parseInt(form.capacity as string),
-                type: form.type,
-                status: form.status,
-              }
-            : c
-        )
-      );
-      flash(`Classroom "${form.name.trim()}" updated.`);
-    } else {
-      setClassrooms(prev => [
-        ...prev,
-        {
-          id: `CR-${form.branchId}-${Date.now()}`,
-          branchId: form.branchId,
-          branchName,
-          name: form.name.trim(),
-          roomNumber: form.roomNumber.trim(),
-          capacity: parseInt(form.capacity as string),
-          type: form.type,
-          status: form.status,
-        },
-      ]);
-      flash(`Classroom "${form.name.trim()}" added to ${branchName}.`);
+    try {
+      const res = editingId
+        ? await classroomApi.update(editingId, payload)
+        : await classroomApi.create(payload);
+      addToast(res?.message || `Classroom "${payload.name}" ${editingId ? 'updated' : 'added'} successfully.`, 'success');
+      await loadClassrooms();
+      setShowModal(false);
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        setFormErrors({ roomNumber: err.response?.data?.message || 'A classroom with this room number already exists in this branch.' });
+        return;
+      }
+      addToast(err.response?.data?.message || 'Failed to save classroom', 'error');
     }
-    setShowModal(false);
   };
 
   const handleExportCSV = () => {
@@ -356,12 +339,6 @@ export const ClassroomSetup: React.FC = () => {
   // ── List ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {successMsg && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
-          ✓ {successMsg}
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-slate-900">Classroom Master</h2>
@@ -454,7 +431,16 @@ export const ClassroomSetup: React.FC = () => {
         </div>
 
         <Table headers={['Room Name', 'Room No.', 'Branch', 'Type', 'Capacity', 'Status', 'Actions']}>
-          {paginated.length === 0 ? (
+          {isLoading ? (
+            <tr>
+              <td colSpan={7} className="px-6 py-16">
+                <div className="text-center flex flex-col items-center justify-center text-slate-400">
+                  <Loader2 size={32} className="animate-spin mb-3" />
+                  <p className="text-sm font-semibold">Loading classrooms...</p>
+                </div>
+              </td>
+            </tr>
+          ) : paginated.length === 0 ? (
             <tr>
               <td colSpan={7} className="px-6 py-16">
                 <div className="text-center flex flex-col items-center justify-center">

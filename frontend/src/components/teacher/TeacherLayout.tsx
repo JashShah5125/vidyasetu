@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export const TeacherLayout: React.FC = () => {
-  const { currentUser, logout } = useApp();
+  const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
   if (currentUser?.role !== 'teacher') {

@@ -31,6 +31,13 @@ const planRoutes = require('./routes/planRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const emailTemplateRoutes = require('./routes/emailTemplateRoutes');
+const courseRoutes = require('./routes/courseRoutes');
+const branchRoutes = require('./routes/branchRoutes');
+const subjectRoutes = require('./routes/subjectRoutes');
+const classroomRoutes = require('./routes/classroomRoutes');
+const instituteRoutes = require('./routes/instituteRoutes');
+const staffRoutes = require('./routes/staffRoutes');
+const batchRoutes = require('./routes/batchRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -44,6 +51,13 @@ app.use('/api/admin/plans', planRoutes);
 app.use('/api/admin/subscriptions', subscriptionRoutes);
 app.use('/api/admin/billing', billingRoutes);
 app.use('/api/admin/email-templates', emailTemplateRoutes);
+app.use('/api/admin/courses', courseRoutes);
+app.use('/api/admin/branches', branchRoutes);
+app.use('/api/admin/subjects', subjectRoutes);
+app.use('/api/admin/classrooms', classroomRoutes);
+app.use('/api/admin/staff', staffRoutes);
+app.use('/api/admin/batches', batchRoutes);
+app.use('/api/institute', instituteRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {
@@ -57,3 +71,5 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+
+// force restart

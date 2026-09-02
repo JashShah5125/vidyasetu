@@ -218,7 +218,7 @@ export const SubscriptionPlans: React.FC = () => {
     const visibleTo = existing ? existing.visibleTo : ['All'];
 
     return {
-      name, code: code.toUpperCase().replace(/\s+/g, '-'), description, status,
+      name, code: code.toUpperCase().replace(/\s+/g, '-'), description, status: status as 'Active' | 'Inactive',
       displayOrder: parseInt(displayOrder) || 1,
       monthlyPrice: parseFloat(monthlyPrice) || 0,
       quarterlyPrice: parseFloat(quarterlyPrice) || 0,

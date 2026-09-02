@@ -1,16 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
-import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown, Upload } from 'lucide-react';
+import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown, Upload, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { branchApi, toBranch } from '../services/branchApi';
 
 export const BranchSetup: React.FC = () => {
-  const { branches, courses, currentUser, setBranches } = useApp();
+  const { branches, courses, currentUser, setBranches, addToast } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
@@ -20,6 +21,30 @@ export const BranchSetup: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  const loadBranches = useCallback(async () => {
+    try {
+      const result = await branchApi.list({ limit: 1000 });
+      setBranches((result.data || []).map((row: any) => toBranch(row)));
+    } catch {
+      addToast('Failed to load branches.');
+    }
+  }, [setBranches, addToast]);
+
+  useEffect(() => {
+    loadBranches();
+  }, [loadBranches]);
+
+  const handleDelete = async (branchId: string, branchCode: string, branchName: string) => {
+    if (!window.confirm(`Delete branch "${branchName}"? This action cannot be undone.`)) return;
+    try {
+      await branchApi.remove(branchId || branchCode);
+      setBranches(prev => prev.filter(b => (b.id || b.code) !== (branchId || branchCode)));
+      addToast('Branch deleted successfully.');
+    } catch {
+      addToast('Failed to delete branch.');
+    }
+  };
 
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
@@ -54,6 +79,7 @@ export const BranchSetup: React.FC = () => {
     switch (status) {
       case 'Active': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'Suspended': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'Deleted': return 'bg-red-50 text-red-700 border-red-200';
       default: return 'bg-slate-100 text-slate-500 border-slate-200';
     }
   };
@@ -157,7 +183,7 @@ export const BranchSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={['Branch', 'Code', 'Admin', 'Contact', 'Programs', 'Status', 'Actions']}>
+            <Table headers={['Branch', 'Code', 'Admin', 'Contact', 'Courses', 'Status', 'Actions']}>
               {paginated.map(branch => (
                 <tr key={branch.id || branch.code} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
@@ -169,8 +195,8 @@ export const BranchSetup: React.FC = () => {
                   <td className="px-6 py-4 text-sm text-slate-600">{branch.phone || branch.email || '—'}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
-                      {(branch.programs || []).map((p, i) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">{p}</span>
+                      {(branch.courses || []).map((c, i) => (
+                        <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">{c}</span>
                       ))}
                     </div>
                   </td>
@@ -180,12 +206,22 @@ export const BranchSetup: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <button
-                      onClick={() => navigate(`/branches/${branch.id || branch.code}`)}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                    >
-                      Manage <ArrowRight size={14} />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => navigate(`/branches/${branch.id || branch.code}`)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        Manage <ArrowRight size={14} />
+                      </button>
+                      {currentUser?.role !== 'branch-admin' && (
+                        <button
+                          onClick={() => handleDelete(branch.id || '', branch.code, branch.name)}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

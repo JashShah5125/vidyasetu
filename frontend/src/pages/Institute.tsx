@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
@@ -9,6 +9,8 @@ import {
   Plus, Trash2, Star, ShieldAlert
 } from 'lucide-react';
 import { formatDate } from '../data/mockData';
+import type { InstituteProfile, UpdateInstituteProfilePayload } from '../services/instituteApi';
+import { getInstituteProfile, updateInstituteProfile } from '../services/instituteApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ProgressBar: React.FC<{ value: number; max: number; label: string; limitText: string }> = ({ value, max, label, limitText }) => {
@@ -32,25 +34,54 @@ const ProgressBar: React.FC<{ value: number; max: number; label: string; limitTe
 };
 
 export const Institute: React.FC = () => {
-  const { currentUser, tenants, plans, tenantSubscriptions, logAction, addToast } = useApp();
+  const { currentUser, logAction, addToast } = useApp();
   const navigate = useNavigate();
-  
-  // ── Data Resolution ──
-  const myTenant = tenants.find(t => t.id === currentUser?.tenantId);
-  const mySub = tenantSubscriptions.find(s => s.tenantId === currentUser?.tenantId && s.status === 'Active');
-  const myPlan = plans.find(p => p.id === mySub?.planId);
+
+  // ── Data Resolution (from backend) ──
+  const [profile, setProfile] = useState<InstituteProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    getInstituteProfile()
+      .then(result => { if (mounted) setProfile(result); })
+      .catch(err => { if (mounted) setProfileError((err as any)?.response?.data?.message || 'Failed to load institute profile.'); })
+      .finally(() => { if (mounted) setProfileLoading(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  // Hydrate the editable form once real data arrives
+  useEffect(() => {
+    if (!profile) return;
+    const { tenant } = profile;
+    const freshEmails = [
+      { address: tenant.email, isDefault: true },
+      ...(tenant.altEmails || []).map(address => ({ address, isDefault: false }))
+    ].filter(em => em.address.trim() !== '');
+    const freshPhones = [
+      { number: tenant.mobile, isDefault: true }
+    ].filter(ph => ph.number.trim() !== '');
+    setEmails(freshEmails.length ? freshEmails : [{ address: '', isDefault: true }]);
+    setPhones(freshPhones.length ? freshPhones : [{ number: '', isDefault: true }]);
+    setAddress(tenant.address || '');
+  }, [profile]);
+
+  const myTenant = profile?.tenant;
+  const mySub = profile?.subscription;
+  const myPlan = profile?.plan;
 
   // ── State ──
   const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'billing' | 'limits' | 'features' | 'integrations'>('profile');
   
   // Profile State
   const [emails, setEmails] = useState<{address: string, isDefault: boolean}[]>([
-    { address: myTenant?.email || 'contact@institute.com', isDefault: true }
+    { address: myTenant?.email || '', isDefault: true }
   ]);
   const [phones, setPhones] = useState<{number: string, isDefault: boolean}[]>([
-    { number: myTenant?.mobile || '9876543210', isDefault: true }
+    { number: myTenant?.mobile || '', isDefault: true }
   ]);
-  const [address, setAddress] = useState(myTenant?.address || '123 Main Street');
+  const [address, setAddress] = useState(myTenant?.address || '');
   const [academicYear, setAcademicYear] = useState('2026 - 2027');
 
   // Integrations State
@@ -66,16 +97,42 @@ export const Institute: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  if (!myTenant) return <div>Tenant profile not found.</div>;
+  if (profileLoading) {
+    return <div className="flex items-center justify-center py-24 text-sm font-semibold text-slate-500">Loading institute profile...</div>;
+  }
 
-  const handleSave = (e: React.FormEvent) => {
+  if (!myTenant) {
+    return <div className="p-8 text-center text-sm font-semibold text-slate-500">Unable to load the institute profile. {profileError}</div>;
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      const defaultEmail = emails.find(em => em.isDefault);
+      const alternates = emails.filter(em => !em.isDefault).map(em => em.address.trim()).filter(Boolean);
+      const defaultPhone = phones.find(ph => ph.isDefault);
+      const payload: UpdateInstituteProfilePayload = {};
+      if (defaultEmail?.address?.trim()) payload.adminEmail = defaultEmail.address.trim();
+      if (alternates.length) payload.alternateEmails = alternates;
+      if (defaultPhone?.number?.trim()) payload.mobile = defaultPhone.number.trim();
+      if (address.trim()) payload.address = address.trim();
+
+      if (Object.keys(payload).length === 0) {
+        addToast('No editable contact details to save.');
+        setIsSaving(false);
+        return;
+      }
+
+      await updateInstituteProfile(payload);
       logAction('UPDATE_INSTITUTE_SETUP', `Updated profile settings for ${myTenant.name}`);
       addToast('Institute configuration saved successfully.');
+      setProfile(await getInstituteProfile());
+    } catch (err) {
+      addToast((err as any)?.response?.data?.message || 'Failed to save institute configuration.');
+    } finally {
       setIsSaving(false);
-    }, 800);
+    }
   };
 
   const handleUploadLogo = () => {

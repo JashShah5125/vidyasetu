@@ -21,6 +21,7 @@ import { CourseSetup } from './pages/CourseSetup';
 import { CourseDetail } from './pages/CourseDetail';
 import { BatchSetup } from './pages/BatchSetup';
 import { SubjectSetup } from './pages/SubjectSetup';
+import { SubjectDetail } from './pages/SubjectDetail';
 import { ClassroomSetup } from './pages/ClassroomSetup';
 import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
@@ -288,6 +289,15 @@ const ContentRouter = () => {
   const { currentUser } = useAuth();
   const isTeacher = currentUser?.role === 'teacher';
 
+  if (currentUser?.mustChangePassword) {
+    return (
+      <Routes>
+        <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="*" element={<Navigate to="/change-password" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -319,9 +329,11 @@ const ContentRouter = () => {
       <Route path="/courses/:code" element={<CourseDetail />} />
       <Route path="/batches" element={<BatchSetup />} />
       <Route path="/subjects" element={<SubjectSetup />} />
+      <Route path="/subjects/:code" element={<SubjectDetail />} />
       <Route path="/classrooms" element={<ClassroomSetup />} />
       <Route path="/staff" element={<Users />} />
       <Route path="/staff/new" element={<StaffCreate />} />
+      <Route path="/staff/:id" element={<StaffCreate />} />
       <Route path="/admissions" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/students" element={isTeacher ? <TeacherStudents /> : <Students />} />
       <Route path="/admin/timetable" element={<LectureScheduler />} />

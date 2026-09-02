@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -7,8 +7,9 @@ import { Select } from '../components/ui/Select';
 import {
   User, Phone, Briefcase, GitBranch, BookOpen,
   DollarSign, FileText, Shield, AlertTriangle, CheckCircle,
-  ChevronRight, ChevronLeft, ArrowLeft, Check
+  ChevronRight, ChevronLeft, ArrowLeft, Check, Loader2
 } from 'lucide-react';
+import { staffApi } from '../services/staffApi';
 
 // ─── Tab Config ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -82,9 +83,16 @@ const MultiSelect: React.FC<{
 // ─── Main Component ────────────────────────────────────────────────────────────
 export const StaffCreate: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const { state } = useLocation();
+  const staffData = state?.staffData;
+  const isEditMode = !!id;
+
   const { addStaff, branches, courses } = useApp();
   const [activeTab, setActiveTab] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const [form, setForm] = useState({
     firstName: '', middleName: '', lastName: '', gender: '', dob: '',
@@ -109,6 +117,27 @@ export const StaffCreate: React.FC = () => {
     emergencyContact: '', emergencyRelationship: '', emergencyMobile: '',
   });
 
+  useEffect(() => {
+    if (staffData && isEditMode) {
+      setForm(prev => ({
+        ...prev,
+        firstName: staffData.first_name || staffData.name?.split(' ')[0] || '',
+        lastName: staffData.last_name || staffData.name?.split(' ')[1] || '',
+        gender: staffData.gender || '',
+        mobile: staffData.contact_number || '',
+        email: staffData.email || '',
+        employeeType: staffData.employee_type || 'Teaching',
+        designation: staffData.designation || '',
+        department: staffData.department || '',
+        primaryBranch: staffData.primary_branch_name || '',
+        employmentType: staffData.employment_type || 'Full-Time',
+        maxLecturesPerDay: staffData.max_lectures_per_day?.toString() || '',
+        roles: staffData.role ? [staffData.role] : (staffData.employee_type === 'Teaching' ? ['Teacher'] : []),
+        employmentStatus: staffData.status === 'active' ? 'Active' : 'Inactive'
+      }));
+    }
+  }, [staffData, isEditMode]);
+
   const set = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
   const isTeacher = form.roles.includes('Teacher');
   const tabList = TABS.filter(t => t.id !== 'teacher' || isTeacher);
@@ -125,56 +154,66 @@ export const StaffCreate: React.FC = () => {
     'Botany', 'Zoology', 'English', 'Social Science', 'Advanced Math', 'Science Foundations'
   ];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setLoading(true);
+    setErrorMsg('');
     const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
     const empId = `EMP-${String(Date.now()).slice(-5)}`;
-    addStaff({
-      id: empId, employeeId: empId,
-      firstName: form.firstName, middleName: form.middleName, lastName: form.lastName,
-      name: fullName, gender: form.gender, dob: form.dob,
-      bloodGroup: form.bloodGroup, maritalStatus: form.maritalStatus,
-      aadhaar: form.aadhaar, pan: form.pan,
-      mobile: form.mobile, alternateMobile: form.alternateMobile,
-      email: form.email, personalEmail: form.personalEmail,
-      currentAddress: form.currentAddress, permanentAddress: form.permanentAddress,
-      city: form.city, state: form.state, country: form.country, pinCode: form.pinCode,
-      employeeType: form.employeeType, designation: form.designation,
-      department: form.department, joiningDate: form.joiningDate,
-      employmentType: form.employmentType, reportingManager: form.reportingManager,
-      employmentStatus: form.employmentStatus, experience: form.experience,
-      qualification: form.qualification,
-      branch: form.primaryBranch, primaryBranch: form.primaryBranch,
-      additionalBranches: form.additionalBranches,
-      roles: form.roles, role: form.roles[0] || '',
-      workingDays: form.workingDays, defaultShift: form.defaultShift,
-      subjects: isTeacher ? form.subjects : undefined,
-      coursesAssigned: isTeacher ? form.coursesAssigned : undefined,
-      programsAssigned: isTeacher ? form.programsAssigned : undefined,
-      academicLevels: isTeacher ? form.academicLevels : undefined,
-      maxLecturesPerDay: isTeacher && form.maxLecturesPerDay ? Number(form.maxLecturesPerDay) : undefined,
-      maxLecturesPerWeek: isTeacher && form.maxLecturesPerWeek ? Number(form.maxLecturesPerWeek) : undefined,
-      preferredWorkingHours: isTeacher ? form.preferredWorkingHours : undefined,
-      unavailableDays: isTeacher ? form.unavailableDays : undefined,
-      preferredBreakTime: isTeacher ? form.preferredBreakTime : undefined,
-      teachingMode: isTeacher ? form.teachingMode as any : undefined,
-      biometricMandatory: isTeacher ? form.biometricMandatory : undefined,
-      salaryType: form.salaryType,
-      monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : undefined,
-      hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
-      contractAmount: form.contractAmount ? Number(form.contractAmount) : undefined,
-      bankName: form.bankName, accountHolder: form.accountHolder,
-      accountNumber: form.accountNumber, ifsc: form.ifsc, upiId: form.upiId,
-      pfNumber: form.pfNumber, esicNumber: form.esicNumber,
-      professionalTax: form.professionalTax, tdsApplicable: form.tdsApplicable,
-      createLogin: form.createLogin, username: form.username,
-      mobileLogin: form.mobileLogin, tempPassword: form.tempPassword,
-      permissionProfile: form.permissionProfile, forcePasswordReset: form.forcePasswordReset,
-      mobileApp: form.mobileApp,
-      emergencyContact: form.emergencyContact, emergencyRelationship: form.emergencyRelationship,
-      emergencyMobile: form.emergencyMobile,
-      status: 'Active',
-    });
-    setSubmitted(true);
+    
+    // Fallback branch mapping if you don't have IDs
+    const primaryBranchObj = branches.find(b => b.name === form.primaryBranch);
+    const primaryBranchId = primaryBranchObj?.id || 1;
+
+    try {
+      const payload = {
+        employeeId: isEditMode ? staffData.employee_id || empId : empId,
+        firstName: form.firstName, middleName: form.middleName, lastName: form.lastName,
+        name: fullName, gender: form.gender, dob: form.dob,
+        bloodGroup: form.bloodGroup, maritalStatus: form.maritalStatus,
+        aadhaar: form.aadhaar, pan: form.pan,
+        mobile: form.mobile, alternateMobile: form.alternateMobile,
+        email: form.email, personalEmail: form.personalEmail,
+        currentAddress: form.currentAddress, permanentAddress: form.permanentAddress,
+        city: form.city, state: form.state, pinCode: form.pinCode,
+        employeeType: form.employeeType, designation: form.designation,
+        department: form.department, joiningDate: form.joiningDate,
+        employmentType: form.employmentType, reportingManager: form.reportingManager,
+        employmentStatus: form.employmentStatus, experience: form.experience,
+        qualification: form.qualification,
+        primaryBranchId,
+        roles: form.roles, role: form.roles[0] || '',
+        maxLecturesPerDay: isTeacher && form.maxLecturesPerDay ? Number(form.maxLecturesPerDay) : undefined,
+        maxLecturesPerWeek: isTeacher && form.maxLecturesPerWeek ? Number(form.maxLecturesPerWeek) : undefined,
+        biometricMandatory: isTeacher ? form.biometricMandatory : undefined,
+        salaryType: form.salaryType,
+        monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : undefined,
+        hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
+        contractAmount: form.contractAmount ? Number(form.contractAmount) : undefined,
+        bankName: form.bankName, accountHolder: form.accountHolder,
+        accountNumber: form.accountNumber, ifsc: form.ifsc, upiId: form.upiId,
+        pfNumber: form.pfNumber, esicNumber: form.esicNumber,
+        professionalTax: form.professionalTax, tdsApplicable: form.tdsApplicable,
+        createLogin: form.createLogin, username: form.username,
+        mobileLogin: form.mobileLogin, tempPassword: form.tempPassword,
+        permissionProfile: form.permissionProfile, forcePasswordReset: form.forcePasswordReset,
+        mobileApp: form.mobileApp,
+        emergencyContact: form.emergencyContact, emergencyRelationship: form.emergencyRelationship,
+        emergencyMobile: form.emergencyMobile,
+        status: 'Active',
+      };
+
+      if (isEditMode) {
+        await staffApi.update(id!, payload);
+      } else {
+        await staffApi.create(payload);
+      }
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.response?.data?.message || `An error occurred while ${isEditMode ? 'updating' : 'creating'} the employee.`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -185,12 +224,12 @@ export const StaffCreate: React.FC = () => {
           <CheckCircle size={40} className="text-emerald-600" />
         </div>
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-slate-900">Employee Created Successfully!</h2>
-          <p className="text-slate-500 mt-2">{fullName} has been added to the staff directory.</p>
+          <h2 className="text-2xl font-bold text-slate-900">Employee {isEditMode ? 'Updated' : 'Created'} Successfully!</h2>
+          <p className="text-slate-500 mt-2">{fullName} has been {isEditMode ? 'updated' : 'added'} in the staff directory.</p>
         </div>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={() => navigate('/staff')}>Back to Staff Directory</Button>
-          <Button variant="primary" onClick={() => { setSubmitted(false); setActiveTab(0); }}>Add Another Employee</Button>
+          {!isEditMode && <Button variant="primary" onClick={() => { setSubmitted(false); setActiveTab(0); }}>Add Another Employee</Button>}
         </div>
       </div>
     );
@@ -204,11 +243,11 @@ export const StaffCreate: React.FC = () => {
           <ArrowLeft size={15} /> Staff Directory
         </button>
         <ChevronRight size={13} className="text-slate-300" />
-        <span className="font-semibold text-slate-800">New Employee Registration</span>
+        <span className="font-semibold text-slate-800">{isEditMode ? 'Edit Employee Details' : 'New Employee Registration'}</span>
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">New Employee Registration</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{isEditMode ? `Edit Profile: ${form.firstName} ${form.lastName}` : 'New Employee Registration'}</h1>
         <p className="text-sm text-slate-500 mt-1">Fill in each section. Teacher-specific fields appear automatically based on assigned roles.</p>
       </div>
 
@@ -498,9 +537,15 @@ export const StaffCreate: React.FC = () => {
           {currentTabId === 'review' && (
             <div className="space-y-5">
               <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-sm text-emerald-800">
-                <strong>✅ Ready to Create Employee Profile</strong>
+                <strong>✅ Ready to {isEditMode ? 'Update' : 'Create'} Employee Profile</strong>
                 <p className="mt-1 text-emerald-700">Review the information below. Click any step in the sidebar to go back and edit.</p>
               </div>
+              {errorMsg && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-sm text-red-800">
+                  <strong>❌ Error {isEditMode ? 'Updating' : 'Creating'} Employee</strong>
+                  <p className="mt-1">{errorMsg}</p>
+                </div>
+              )}
               {[
                 { title: 'Basic Information', rows: [['Name', [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ')], ['Gender', form.gender], ['DOB', form.dob], ['Blood Group (Optional)', form.bloodGroup]] },
                 { title: 'Contact', rows: [['Mobile', form.mobile], ['Email', form.email], ['City', form.city], ['State', form.state]] },
@@ -539,8 +584,9 @@ export const StaffCreate: React.FC = () => {
               Next <ChevronRight size={16} className="ml-1" />
             </Button>
           ) : (
-            <Button type="button" variant="primary" style={{ backgroundColor: '#10b981', borderColor: '#10b981' }} onClick={handleSubmit}>
-              <CheckCircle size={16} className="mr-1.5" /> Create Employee
+            <Button type="button" variant="primary" style={{ backgroundColor: '#10b981', borderColor: '#10b981' }} onClick={handleSubmit} disabled={loading}>
+              {loading ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <CheckCircle size={16} className="mr-1.5" />}
+              {loading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Employee' : 'Create Employee')}
             </Button>
           )}
         </div>

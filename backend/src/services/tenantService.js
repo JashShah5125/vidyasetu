@@ -65,50 +65,55 @@ const createTenantWithAdmin = async (tenantData) => {
         );
         const tenantId = tenantResult.insertId;
 
-        // 3. Create Admin User
+        // 3. Resolve / create the global admin role (flat RBAC: one role
+        //    definition per code, shared by every tenant).
+        const ADMIN_ROLE_CODE = 'inst_admin';
+        let [roles] = await connection.query('SELECT id, code FROM roles WHERE code = ?', [ADMIN_ROLE_CODE]);
+        if (roles.length === 0) {
+            await connection.query(
+                'INSERT IGNORE INTO roles (name, code, description, is_system) VALUES (?, ?, ?, ?)',
+                ['Institute Admin', ADMIN_ROLE_CODE, 'Full access to institute', 0]
+            );
+            [roles] = await connection.query('SELECT id, code FROM roles WHERE code = ?', [ADMIN_ROLE_CODE]);
+        }
+        const roleId = roles[0].id;
+        const roleCode = roles[0].code;
+
+        // 4. Create Admin User (user_type mirrors the assigned role code so the
+        //    users.user_type column stays consistent for listings/indexes).
         const passwordHash = await bcrypt.hash(temporaryPassword, 10);
         const [userResult] = await connection.query(
             'INSERT INTO users (tenant_id, name, email, password_hash, user_type, status, must_change_password, password_generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-            [tenantId, legal_name || 'Tenant Admin', adminEmail, passwordHash, 'staff', 'active', 1]
+            [tenantId, legal_name || 'Tenant Admin', adminEmail, passwordHash, roleCode, 'active', 1]
         );
         const adminUserId = userResult.insertId;
 
-        // 4. Update primary admin on tenant
+        // 5. Update primary admin on tenant
         await connection.query(
             'UPDATE tenants SET primary_admin_user_id = ? WHERE id = ?',
             [adminUserId, tenantId]
         );
 
-        // 5. Assign Role (inst_admin)
-        // Find role id for inst_admin in this tenant (we should copy roles from system, or just create it if missing, but we assume it exists if seeded properly, actually we seed roles per tenant, wait. The unique index allows it. Let's just create the role for now if it doesn't exist)
-        let [roles] = await connection.query('SELECT id FROM roles WHERE code = ? AND tenant_id = ?', ['inst_admin', tenantId]);
-        let roleId;
-        if (roles.length === 0) {
-            // Create role
-            const [roleResult] = await connection.query(
-                'INSERT INTO roles (tenant_id, name, code, description, is_system) VALUES (?, ?, ?, ?, ?)',
-                [tenantId, 'Institute Admin', 'inst_admin', 'Full access to institute', 0]
-            );
-            roleId = roleResult.insertId;
-        } else {
-            roleId = roles[0].id;
-        }
-
-        // Assign user_role
+        // 6. Assign Role
         await connection.query(
-            'INSERT INTO user_roles (user_id, role_id, tenant_id) VALUES (?, ?, ?)',
-            [adminUserId, roleId, tenantId]
+            'INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
+            [adminUserId, roleId]
         );
 
-        // 6. Subscription is now handled in Step 1
+        // 7. Subscription handled in Step 1
 
-        // 7. Audit Log
+        // 8. Audit Log
         await connection.query(
             'INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (UUID(), ?, ?, ?, ?, ?, ?)',
             [tenantId, adminUserId, 'CREATE', 'tenant', tenantId, '127.0.0.1'] // Placeholder IP
         );
 
         await connection.commit();
+
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[DEV] Tenant "${name}" created. Admin email: ${adminEmail}. Temporary password: ${temporaryPassword}`);
+        }
+
         let welcomeEmailSent = false;
         try {
             await sendTenantWelcomeEmail({
@@ -122,7 +127,7 @@ const createTenantWithAdmin = async (tenantData) => {
             console.error('Tenant created but welcome email failed:', emailError.message);
         }
 
-        return { tenantId, adminUserId, logoUrl, welcomeEmailSent };
+        return { tenantId, adminUserId, logoUrl, welcomeEmailSent, temporaryPassword };
     } catch (error) {
         await connection.rollback();
         throw error;

@@ -1,338 +1,587 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import { batchApi, BATCH_STATUS_OPTIONS, formatBatchTiming } from '../services/batchApi';
+import type { Batch, BatchStatus, AcademicYear } from '../services/batchApi';
+import { classroomApi } from '../services/classroomApi';
+import { branchApi, toBranch } from '../services/branchApi';
+import { courseApi } from '../services/courseApi';
+import type { CourseApiProgram } from '../services/courseApi';
+import type { Branch } from '../data/mockData';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Layers, Plus, Search, Clock, BookOpen, Download, ArrowLeft, Upload } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { Layers, Plus, Search, Download, ArrowLeft, Edit2, Trash2, Upload, Loader2 } from 'lucide-react';
+
+const statusColors: Record<BatchStatus, string> = {
+  Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Inactive: 'bg-slate-100 text-slate-500 border-slate-200',
+  Deleted: 'bg-red-50 text-red-700 border-red-200',
+};
+
+interface CourseOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+interface ClassroomOpt {
+  id: string;
+  name: string;
+  branchId: string;
+}
+
+interface BatchForm {
+  name: string;
+  code: string;
+  branchId: string;
+  academicYearId: string;
+  courseCode: string;
+  programId: string;
+  levelId: string;
+  capacity: string;
+  startTime: string;
+  endTime: string;
+  classroomId: string;
+  status: BatchStatus;
+}
+
+const emptyForm: BatchForm = {
+  name: '',
+  code: '',
+  branchId: '',
+  academicYearId: '',
+  courseCode: '',
+  programId: '',
+  levelId: '',
+  capacity: '',
+  startTime: '',
+  endTime: '',
+  classroomId: '',
+  status: 'Active',
+};
 
 export const BatchSetup: React.FC = () => {
-  const { batches, courses, branches, currentUser, setBatches } = useApp();
+  const { currentUser, addToast } = useApp();
 
-  const myCourses = useMemo(() => {
-    return currentUser?.role === 'branch-admin'
-      ? courses.filter(c => (c.branches || []).includes(currentUser.branch || ''))
-      : courses;
-  }, [courses, currentUser]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassroomOpt[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [filterCoursePrograms, setFilterCoursePrograms] = useState<CourseApiProgram[]>([]);
+  const [formCoursePrograms, setFormCoursePrograms] = useState<CourseApiProgram[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormSubmitting, setIsFormSubmitting] = useState(false);
 
-  // Local batch state since batches aren't managed via context mutations yet
-  const [batchList, setBatchList] = useState(batches);
   const [search, setSearch] = useState('');
-  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterBranch, setFilterBranch] = useState('All');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterYear, setFilterYear] = useState('All');
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: '', branch: '', course: '', program: '', level: '', academicYear: '', startTime: '', endTime: '', room: '' });
+  const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<BatchForm>({ ...emptyForm });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const ACADEMIC_YEARS = ['2023-24', '2024-25', '2025-26', '2026-27', '2027-28'];
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
 
-  const courseOptions = useMemo(() => {
+  const accessibleBranches = useMemo(() => {
+    if (isBranchAdmin) {
+      return branches.filter(b => b.name === currentUser.branch);
+    }
+    return branches;
+  }, [branches, currentUser, isBranchAdmin]);
+
+  const branchAdminId = isBranchAdmin ? accessibleBranches[0]?.id ?? '' : '';
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setCurrentPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const buildQuery = useCallback((page: number, limit: number) => {
+    const params: Record<string, any> = { page, limit };
+    if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+    if (isBranchAdmin) {
+      if (branchAdminId) params.branch = branchAdminId;
+    } else {
+      if (filterBranch !== 'All') params.branch = filterBranch;
+    }
+    if (filterCourse !== 'All') params.course = filterCourse;
+    if (filterProgram !== 'All') params.program = filterProgram;
+    if (filterLevel !== 'All') params.level = filterLevel;
+    if (filterYear !== 'All') params.academicYear = filterYear;
+    if (filterStatus !== 'All') params.status = filterStatus;
+    return params;
+  }, [debouncedSearch, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterStatus, isBranchAdmin, branchAdminId]);
+
+  const loadBatches = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await batchApi.list(buildQuery(currentPage, pageSize));
+      if (res?.status === 'success') {
+        setBatches((res.data || []) as Batch[]);
+        const serverTotal = res.pagination?.total ?? 0;
+        setTotal(serverTotal);
+        if (serverTotal > 0 && res.data?.length === 0 && currentPage > 1) {
+          setCurrentPage(1);
+        }
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to fetch batches', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [buildQuery, currentPage, pageSize, addToast]);
+
+  useEffect(() => {
+    loadBatches();
+  }, [loadBatches]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [bRes, cRes, yRes, crRes] = await Promise.all([
+          branchApi.list({ limit: 1000 }),
+          courseApi.list({ limit: 500 }),
+          batchApi.academicYears(),
+          classroomApi.list({ limit: 500 }),
+        ]);
+        if (cancelled) return;
+        if (bRes?.status === 'success') setBranches((bRes.data || []).map((r: any) => toBranch(r)));
+        if (cRes?.status === 'success') {
+          setCourses((cRes.data || []).map((r: any) => ({
+            id: String(r.id ?? ''),
+            code: r.code || '',
+            name: r.name || '',
+          })));
+        }
+        if (yRes?.status === 'success') setAcademicYears((yRes.data || []) as AcademicYear[]);
+        if (crRes?.status === 'success') {
+          setClassrooms((crRes.data || []).map((r: any) => ({
+            id: String(r.id),
+            name: r.name,
+            branchId: r.branchId ?? String(r.branch_id ?? ''),
+          })));
+        }
+      } catch (err: any) {
+        addToast(err.response?.data?.message || 'Failed to load batch data', 'error');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [addToast]);
+
+  const fetchCoursePrograms = async (code: string): Promise<CourseApiProgram[]> => {
+    if (!code) return [];
+    try {
+      const res = await courseApi.getByCode(code);
+      return res?.data?.programs || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const branchFilterOptions = useMemo(() => {
+    if (isBranchAdmin) {
+      return accessibleBranches.map(b => ({ value: b.id ?? b.name, label: b.name }));
+    }
     return [
-      { value: 'All', label: 'All Courses' },
-      ...myCourses.map(c => ({ value: c.name, label: c.name }))
+      { value: 'All', label: 'All Branches' },
+      ...accessibleBranches.map(b => ({ value: b.id ?? b.name, label: b.name })),
     ];
-  }, [myCourses]);
+  }, [accessibleBranches, isBranchAdmin]);
 
-  const formCourseOptions = useMemo(() => {
-    return myCourses.map(c => ({ value: c.name, label: c.name }));
-  }, [myCourses]);
+  const branchFormOptions = useMemo(() =>
+    accessibleBranches.map(b => ({ value: b.id ?? b.name, label: b.name })),
+    [accessibleBranches]
+  );
 
-  const formBranchOptions = useMemo(() => {
-    if (currentUser?.role === 'branch-admin') {
-      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
-    }
-    return branches.map(b => ({ value: b.name, label: b.name }));
-  }, [branches, currentUser]);
+  const courseFilterOptions = useMemo(() => [
+    { value: 'All', label: 'All Courses' },
+    ...courses.map(c => ({ value: c.id, label: c.name })),
+  ], [courses]);
 
-  const filterBranchOptions = useMemo(() => {
-    if (currentUser?.role === 'branch-admin') {
-      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
-    }
-    return [{ value: 'All', label: 'All Branches' }, ...branches.map(b => ({ value: b.name, label: b.name }))];
-  }, [branches, currentUser]);
+  const programFilterOptions = useMemo(() => [
+    { value: 'All', label: 'All Programs' },
+    ...filterCoursePrograms.map(p => ({ value: String(p.id), label: p.name || '' })),
+  ], [filterCoursePrograms]);
 
-  const filterProgramOptions = useMemo(() => {
-    if (filterCourse === 'All') return [{ value: 'All', label: 'All Programs' }];
-    const course = myCourses.find(c => c.name === filterCourse);
-    if (!course || !course.programs) return [{ value: 'All', label: 'All Programs' }];
-    return [{ value: 'All', label: 'All Programs' }, ...course.programs.map(p => ({ value: p, label: p }))];
-  }, [filterCourse, myCourses]);
+  const levelFilterOptions = useMemo(() => {
+    const program = filterCoursePrograms.find(p => String(p.id) === filterProgram);
+    const levels = program?.levels || [];
+    return [
+      { value: 'All', label: 'All Levels' },
+      ...levels.map(l => ({ value: String(l.id), label: l.name || '' })),
+    ];
+  }, [filterCoursePrograms, filterProgram]);
 
-  const formProgramOptions = useMemo(() => {
-    if (!form.course) return [];
-    const course = myCourses.find(c => c.name === form.course);
-    if (!course || !course.programs) return [];
-    return course.programs.map(p => ({ value: p, label: p }));
-  }, [form.course, myCourses]);
+  const yearFilterOptions = useMemo(() => [
+    { value: 'All', label: 'All Years' },
+    ...academicYears.map(y => ({ value: y.id, label: y.name })),
+  ], [academicYears]);
 
-  const deriveLevels = (progName: string) => {
-    if (!progName) return [];
-    if (progName.toLowerCase().includes('2 year')) {
-      return [{ value: 'year1', label: 'Year 1' }, { value: 'year2', label: 'Year 2' }];
-    }
-    if (progName.toLowerCase().includes('8th std')) {
-      return [{ value: 'class8', label: 'Class 8' }];
-    }
-    return [{ value: 'year1', label: 'Year 1' }];
-  };
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const formatLevelLabel = (val: string) => {
-    if (!val) return '—';
-    if (val === 'year1') return 'Year 1';
-    if (val === 'year2') return 'Year 2';
-    if (val === 'class8') return 'Class 8';
-    return val;
-  };
+  const formCourseOptions = useMemo(() =>
+    courses.map(c => ({ value: c.code, label: c.name })),
+    [courses]);
 
-  const filterLevelOptions = useMemo(() => {
-    if (filterProgram === 'All') return [{ value: 'All', label: 'All Levels' }];
-    const levels = deriveLevels(filterProgram);
-    return [{ value: 'All', label: 'All Levels' }, ...levels];
-  }, [filterProgram]);
+  const formProgramOptions = useMemo(() =>
+    formCoursePrograms.map(p => ({ value: String(p.id), label: p.name || '' })),
+    [formCoursePrograms]);
 
   const formLevelOptions = useMemo(() => {
-    return deriveLevels(form.program);
-  }, [form.program]);
+    const program = formCoursePrograms.find(p => String(p.id) === form.programId);
+    return (program?.levels || []).map(l => ({ value: String(l.id), label: l.name || '' }));
+  }, [formCoursePrograms, form.programId]);
 
+  const formYearOptions = useMemo(() =>
+    academicYears.filter(y => y.branchId === form.branchId).map(y => ({ value: y.id, label: y.name })),
+    [academicYears, form.branchId]);
 
+  const formRoomOptions = useMemo(() =>
+    classrooms.filter(r => r.branchId === form.branchId).map(r => ({ value: r.id, label: r.name })),
+    [classrooms, form.branchId]);
 
-  const filtered = useMemo(() => {
-    const list = batchList.filter(b => {
-      const matchSearch =
-        b.name.toLowerCase().includes(search.toLowerCase()) ||
-        (b.room || '').toLowerCase().includes(search.toLowerCase());
-      const matchBranch = currentUser?.role === 'branch-admin'
-        ? b.branch === currentUser.branch
-        : (filterBranch === 'All' || b.branch === filterBranch);
-      const matchCourse = filterCourse === 'All' || b.course === filterCourse;
-      const matchProgram = filterProgram === 'All' || b.program === filterProgram;
-      const matchLevel = filterLevel === 'All' || b.level === filterLevel;
-      const matchYear = filterYear === 'All' || b.academicYear === filterYear;
-      return matchSearch && matchBranch && matchCourse && matchProgram && matchLevel && matchYear;
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = 'Batch name is required.';
+    if (!form.branchId) errs.branchId = 'Branch is required.';
+    if (!form.academicYearId) errs.academicYearId = 'Academic year is required.';
+    if (!form.courseCode) errs.courseCode = 'Course is required.';
+    if (!form.programId) errs.programId = 'Program is required.';
+    if (!form.levelId) errs.levelId = 'Level is required.';
+    if (form.capacity) {
+      const cap = parseInt(form.capacity, 10);
+      if (isNaN(cap) || cap < 0) errs.capacity = 'Enter a valid capacity (>= 0).';
+    }
+    return errs;
+  };
+
+  const openAdd = async () => {
+    const branchId = accessibleBranches[0]?.id ?? '';
+    const firstYear = academicYears.find(y => y.branchId === branchId);
+    const firstCourse = courses[0];
+    const programs = firstCourse ? await fetchCoursePrograms(firstCourse.code) : [];
+    const firstProgram = programs[0];
+    setForm({
+      ...emptyForm,
+      branchId,
+      academicYearId: firstYear?.id ?? '',
+      courseCode: firstCourse?.code ?? '',
+      programId: firstProgram ? String(firstProgram.id) : '',
+      levelId: firstProgram?.levels?.[0] ? String(firstProgram.levels[0].id) : '',
     });
-    return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [batchList, search, filterBranch, filterCourse, filterProgram, filterLevel, filterYear, currentUser]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  const format12h = (time24: string) => {
-    if (!time24) return '';
-    const [h, m] = time24.split(':');
-    let hours = parseInt(h, 10);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${hours.toString().padStart(2, '0')}:${m} ${ampm}`;
+    setFormCoursePrograms(programs);
+    setFormErrors({});
+    setEditingId(null);
+    setShowModal(true);
   };
 
-  const parseTo24h = (time12: string) => {
-    if (!time12) return '';
-    const parts = time12.trim().split(' ');
-    if (parts.length < 2) return time12;
-    const [time, ampm] = parts;
-    let [h, m] = time.split(':');
-    let hours = parseInt(h, 10);
-    if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
-    if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
-    return `${hours.toString().padStart(2, '0')}:${m}`;
-  };
-
-  const handleOpenAdd = () => {
-    setEditingIdx(null);
-    const initialBranch = currentUser?.role === 'branch-admin' ? currentUser.branch || '' : (branches[0]?.name || '');
-    const initialCourse = myCourses[0]?.name || '';
-    const initialProgram = myCourses[0]?.programs?.[0] || '';
-    const initialLevel = deriveLevels(initialProgram)[0]?.value || '';
-    setForm({ name: '', branch: initialBranch, course: initialCourse, program: initialProgram, level: initialLevel, academicYear: '2026-27', startTime: '', endTime: '', room: '' });
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEdit = (idx: number) => {
-    const b = filtered[idx];
-    const realIdx = batchList.findIndex(x => x.name === b.name && x.course === b.course);
-    setEditingIdx(realIdx);
-    
-    let st = '', et = '';
-    if (b.timing) {
-      const parts = b.timing.split(' - ');
-      st = parts[0] ? parseTo24h(parts[0]) : '';
-      et = parts[1] ? parseTo24h(parts[1]) : '';
+  const openEdit = async (b: Batch) => {
+    const course = courses.find(c => c.id === b.courseId);
+    setForm({
+      name: b.name,
+      code: b.code,
+      branchId: b.branchId,
+      academicYearId: b.academicYearId,
+      courseCode: course?.code ?? '',
+      programId: b.programId,
+      levelId: b.levelId,
+      capacity: b.capacity === null ? '' : String(b.capacity),
+      startTime: b.startTime,
+      endTime: b.endTime,
+      classroomId: b.classroomId,
+      status: b.status === 'Deleted' ? 'Active' : b.status,
+    });
+    setFormCoursePrograms([]);
+    setFormErrors({});
+    setEditingId(b.id);
+    setShowModal(true);
+    if (course) {
+      const programs = await fetchCoursePrograms(course.code);
+      setFormCoursePrograms(programs);
     }
-    
-    setForm({ name: b.name, branch: b.branch || branches[0]?.name || '', course: b.course, program: b.program || '', level: b.level || '', academicYear: b.academicYear || '2026-27', startTime: st, endTime: et, room: b.room });
-    setIsModalOpen(true);
   };
 
-  const handleDelete = (idx: number) => {
-    const b = filtered[idx];
-    setBatchList(prev => prev.filter(x => !(x.name === b.name && x.course === b.course)));
-  };
-
-  const handleSave = () => {
-    if (!form.name || !form.course || !form.branch) return;
-    
-    let timingStr = '';
-    if (form.startTime && form.endTime) {
-      timingStr = `${format12h(form.startTime)} - ${format12h(form.endTime)}`;
+  const handleDelete = async (id: string, name: string) => {
+    try {
+      const res = await batchApi.delete(id);
+      addToast(res?.message || `Batch "${name}" deleted.`, 'success');
+      loadBatches();
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to delete batch', 'error');
     }
-    
-    const finalBatch = {
-      name: form.name,
-      branch: form.branch,
-      course: form.course,
-      program: form.program,
-      level: form.level,
-      academicYear: form.academicYear,
-      timing: timingStr,
-      room: form.room
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs = validate();
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
+
+    const payload = {
+      name: form.name.trim(),
+      code: form.code.trim() || undefined,
+      branchId: form.branchId,
+      academicYearId: form.academicYearId,
+      levelId: form.levelId,
+      capacity: form.capacity ? parseInt(form.capacity, 10) : undefined,
+      startTime: form.startTime || undefined,
+      endTime: form.endTime || undefined,
+      classroomId: form.classroomId || undefined,
+      status: form.status,
     };
 
-    if (editingIdx !== null) {
-      setBatchList(prev => prev.map((b, i) => i === editingIdx ? finalBatch : b));
-    } else {
-      setBatchList(prev => [...prev, finalBatch]);
+    setIsFormSubmitting(true);
+    try {
+      const res = editingId
+        ? await batchApi.update(editingId, payload)
+        : await batchApi.create(payload);
+      addToast(res?.message || `Batch "${payload.name}" ${editingId ? 'updated' : 'created'} successfully.`, 'success');
+      setShowModal(false);
+      loadBatches();
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to save batch', 'error');
+    } finally {
+      setIsFormSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  const handleExportCSV = () => {
-    if (filtered.length === 0) return;
-    const rows = filtered.map(b => ({
+  const handleFilterCourseChange = async (courseId: string) => {
+    setFilterCourse(courseId);
+    setFilterProgram('All');
+    setFilterLevel('All');
+    if (courseId === 'All') { setFilterCoursePrograms([]); return; }
+    const course = courses.find(c => c.id === courseId);
+    const programs = course ? await fetchCoursePrograms(course.code) : [];
+    setFilterCoursePrograms(programs);
+  };
+
+  const handleExportCSV = async () => {
+    let rowsData: Batch[];
+    try {
+      const res = await batchApi.list(buildQuery(1, 1000));
+      rowsData = (res?.data || []) as Batch[];
+    } catch {
+      rowsData = batches;
+    }
+    if (rowsData.length === 0) return;
+    const rows = rowsData.map(b => ({
       'Batch Name': b.name,
-      'Course': b.course,
-      'Program': b.program || '',
-      'Level': formatLevelLabel(b.level || ''),
-      'Academic Year': b.academicYear || '',
-      'Timing': b.timing,
-      'Room': b.room
+      'Code': b.code,
+      'Branch': b.branchName,
+      'Course': b.courseName,
+      'Program': b.programName,
+      'Level': b.levelName,
+      'Academic Year': b.academicYearName,
+      'Timing': formatBatchTiming(b),
+      'Room': b.classroomName,
+      Capacity: b.capacity ?? '',
+      'Current Strength': b.currentStrength,
+      Status: b.status,
     }));
     const headers = Object.keys(rows[0]);
-    const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String(r[h as keyof typeof r]).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const csv = [
+      headers.join(','),
+      ...rows.map(r =>
+        headers.map(h => `"${String(r[h as keyof typeof r]).replace(/"/g, '""')}"`).join(',')
+      ),
+    ].join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
     a.download = 'batches.csv';
     a.click();
   };
 
-  if (isModalOpen) {
+  const setF = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }));
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  if (showModal) {
     return (
       <div className="space-y-6 w-full animate-fade-in">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsModalOpen(false)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            type="button"
+            onClick={() => setShowModal(false)}
+            className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
           >
-            <ArrowLeft size={26} />
+            <ArrowLeft size={20} />
           </button>
           <div>
             <h2 className="text-2xl font-display font-bold text-slate-900">
-              {editingIdx !== null ? 'Edit Batch' : 'Create New Batch'}
+              {editingId ? 'Edit Batch' : 'Create New Batch'}
             </h2>
-            <p className="text-sm text-slate-500">Configure academic year, course alignment, programs levels, times, and lecture rooms.</p>
+            <p className="text-sm text-slate-500">Configure academic year, course alignment, programs, levels, and lecture rooms.</p>
           </div>
         </div>
 
-        <div className="w-full space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5"
+        >
           <Select
             label="Branch"
-            options={formBranchOptions}
-            value={form.branch}
-            onChange={e => setForm(p => ({ ...p, branch: e.target.value }))}
-            disabled={currentUser?.role === 'branch-admin'}
+            required
+            id="bt-branch"
+            value={form.branchId}
+            onChange={e => {
+              const branchId = e.target.value;
+              const firstYear = academicYears.find(y => y.branchId === branchId);
+              setForm(f => ({ ...f, branchId, academicYearId: firstYear?.id ?? '', classroomId: '' }));
+            }}
+            options={branchFormOptions}
+            disabled={isBranchAdmin}
+            error={formErrors.branchId}
           />
-          <Input
-            label="Batch Name"
-            placeholder="e.g. JEE-Morning-A"
-            value={form.name}
-            onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-          />
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Batch Name"
+              id="bt-name"
+              required
+              placeholder="e.g. JEE-Morning-A"
+              value={form.name}
+              onChange={e => setF('name', e.target.value)}
+              error={formErrors.name}
+            />
+            <Input
+              label="Batch Code"
+              id="bt-code"
+              placeholder="e.g. JEE-XI-M (auto if blank)"
+              value={form.code}
+              onChange={e => setF('code', e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Course"
-              options={formCourseOptions}
-              value={form.course}
-              onChange={e => {
-                const newCourse = e.target.value;
-                const courseObj = myCourses.find(c => c.name === newCourse);
-                const newProg = courseObj?.programs?.[0] || '';
-                const newLvl = deriveLevels(newProg)[0]?.value || '';
-                setForm(p => ({ ...p, course: newCourse, program: newProg, level: newLvl }));
+              required
+              id="bt-course"
+              value={form.courseCode}
+              onChange={async e => {
+                const code = e.target.value;
+                setForm(f => ({ ...f, courseCode: code, programId: '', levelId: '' }));
+                const programs = await fetchCoursePrograms(code);
+                setFormCoursePrograms(programs);
               }}
+              options={formCourseOptions}
+              error={formErrors.courseCode}
             />
             <Select
               label="Academic Year"
-              options={ACADEMIC_YEARS.map(y => ({ value: y, label: y }))}
-              value={form.academicYear}
-              onChange={e => setForm(p => ({ ...p, academicYear: e.target.value }))}
+              required
+              id="bt-year"
+              value={form.academicYearId}
+              onChange={e => setF('academicYearId', e.target.value)}
+              options={formYearOptions}
+              error={formErrors.academicYearId}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Program"
+              required
+              id="bt-program"
+              value={form.programId}
+              onChange={e => setForm(f => ({ ...f, programId: e.target.value, levelId: '' }))}
               options={formProgramOptions}
-              value={form.program}
-              onChange={e => {
-                const newProg = e.target.value;
-                const newLvl = deriveLevels(newProg)[0]?.value || '';
-                setForm(p => ({ ...p, program: newProg, level: newLvl }));
-              }}
-              disabled={!form.course}
+              disabled={!form.courseCode}
+              error={formErrors.programId}
             />
             <Select
               label="Level"
+              required
+              id="bt-level"
+              value={form.levelId}
+              onChange={e => setF('levelId', e.target.value)}
               options={formLevelOptions}
-              value={form.level}
-              onChange={e => setForm(p => ({ ...p, level: e.target.value }))}
-              disabled={!form.program}
+              disabled={!form.programId}
+              error={formErrors.levelId}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               type="time"
               label="Start Time"
+              id="bt-start"
               value={form.startTime}
-              onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
+              onChange={e => setF('startTime', e.target.value)}
             />
             <Input
               type="time"
               label="End Time"
+              id="bt-end"
               value={form.endTime}
-              onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
+              onChange={e => setF('endTime', e.target.value)}
             />
           </div>
-          <Input
-            label="Room"
-            placeholder="e.g. Classroom 101"
-            value={form.room}
-            onChange={e => setForm(p => ({ ...p, room: e.target.value }))}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Room / Classroom"
+              id="bt-room"
+              value={form.classroomId}
+              onChange={e => setF('classroomId', e.target.value)}
+              options={[{ value: '', label: 'No room assigned' }, ...formRoomOptions]}
+            />
+            <Input
+              label="Capacity"
+              id="bt-capacity"
+              type="number"
+              min={0}
+              placeholder="e.g. 60"
+              value={form.capacity}
+              onChange={e => setF('capacity', e.target.value)}
+              error={formErrors.capacity}
+            />
+          </div>
+
+          <Select
+            label="Status"
+            id="bt-status"
+            value={form.status}
+            onChange={e => setF('status', e.target.value)}
+            options={BATCH_STATUS_OPTIONS.map(s => ({ value: s, label: s }))}
           />
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.name || !form.course} className="disabled:opacity-50">
-              {editingIdx !== null ? 'Save Changes' : 'Create Batch'}
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isFormSubmitting}>
+              {isFormSubmitting ? 'Saving...' : editingId ? 'Save Changes' : 'Create Batch'}
             </Button>
           </div>
-        </div>
+        </form>
       </div>
     );
   }
 
+  // ── List ───────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 animate-fade-in p-6">
-      {/* Page Header */}
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-slate-900">Batch Management</h2>
-          <p className="text-sm text-slate-500 mt-1">Configure and manage batches across programs and levels.</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Configure and manage batches across programs and levels.
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
@@ -341,138 +590,165 @@ export const BatchSetup: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={15} /> Export CSV
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleOpenAdd}
-            style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-          >
-            <Plus size={16} className="mr-2" /> Create New Batch
+          <Button variant="primary" onClick={openAdd} style={{ gap: '6px' }}>
+            <Plus size={16} /> Create New Batch
           </Button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 bg-white border border-slate-200 rounded-xl p-4 shadow-sm items-end">
-        <div className="relative xl:col-span-2 flex flex-col gap-1.5 w-full">
-          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Search</label>
-          <div className="relative w-full">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search by batch name or room..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
-            />
+      <div className="flex flex-col xl:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end">
+        <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 items-end">
+          <div className="md:col-span-2">
+            <label className="text-xs font-semibold text-slate-700 block mb-1.5">Search</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition duration-150"
+                placeholder="Search by name, code, course, or branch..."
+                value={search}
+                onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+              />
+            </div>
           </div>
+
+          <Select
+            label="Branch"
+            value={filterBranch}
+            onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
+            options={branchFilterOptions}
+            disabled={isBranchAdmin}
+          />
+
+          <Select
+            label="Course"
+            value={filterCourse}
+            onChange={e => { handleFilterCourseChange(e.target.value); setCurrentPage(1); }}
+            options={courseFilterOptions}
+          />
+
+          <Select
+            label="Program"
+            value={filterProgram}
+            onChange={e => { setFilterProgram(e.target.value); setFilterLevel('All'); setCurrentPage(1); }}
+            options={programFilterOptions}
+            disabled={filterCourse === 'All'}
+          />
+
+          <Select
+            label="Level"
+            value={filterLevel}
+            onChange={e => { setFilterLevel(e.target.value); setCurrentPage(1); }}
+            options={levelFilterOptions}
+            disabled={filterProgram === 'All'}
+          />
+
+          <Select
+            label="Academic Year"
+            value={filterYear}
+            onChange={e => { setFilterYear(e.target.value); setCurrentPage(1); }}
+            options={yearFilterOptions}
+          />
+
+          <Select
+            label="Status"
+            value={filterStatus}
+            onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+            options={[
+              { value: 'All', label: 'All Statuses' },
+              ...BATCH_STATUS_OPTIONS.map(s => ({ value: s, label: s })),
+            ]}
+          />
         </div>
-        <Select
-          label="Branch"
-          options={filterBranchOptions}
-          value={filterBranch}
-          onChange={e => {
-            setFilterBranch(e.target.value);
-            setCurrentPage(1);
-          }}
-          disabled={currentUser?.role === 'branch-admin'}
-        />
-        <Select
-          label="Course"
-          options={courseOptions}
-          value={filterCourse}
-          onChange={e => {
-            setFilterCourse(e.target.value);
-            setFilterProgram('All');
-            setFilterLevel('All');
-          }}
-        />
-        <Select
-          label="Program"
-          options={filterProgramOptions}
-          value={filterProgram}
-          onChange={e => {
-            setFilterProgram(e.target.value);
-            setFilterLevel('All');
-          }}
-          disabled={filterCourse === 'All'}
-        />
-        <Select
-          label="Level"
-          options={filterLevelOptions}
-          value={filterLevel}
-          onChange={e => setFilterLevel(e.target.value)}
-          disabled={filterProgram === 'All'}
-        />
-        <Select
-          label="Academic Year"
-          options={[{ value: 'All', label: 'All Years' }, ...ACADEMIC_YEARS.map(y => ({ value: y, label: y }))]}
-          value={filterYear}
-          onChange={e => setFilterYear(e.target.value)}
-        />
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <Layers size={18} className="text-blue-600" />
-            <h3 className="font-bold text-slate-800">All Batches</h3>
-            <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-          </div>
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+          <Layers size={18} className="text-blue-600" />
+          <h3 className="font-bold text-slate-800 text-sm">
+            All Batches
+            <span className="ml-2 text-xs font-normal text-slate-400">
+              ({total} result{total !== 1 ? 's' : ''})
+            </span>
+          </h3>
         </div>
 
-        {filtered.length === 0 ? (
-          <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
-            <div className="bg-blue-50 p-4 rounded-full mb-4">
-              <Layers size={40} className="text-blue-400" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">No batches found</h3>
-            <p className="text-slate-500 max-w-sm mb-6">Get started by creating your first batch, or adjust your filters to see more results.</p>
-            <Button
-              variant="primary"
-              onClick={handleOpenAdd}
-              style={{ backgroundColor: '#2563eb', color: 'white' }}
-            >
-              <Plus size={16} className="mr-2" /> Create New Batch
-            </Button>
-          </div>
-        ) : (
-          <>
-            <Table dense headers={['Batch Name', 'Course', 'Program', 'Level', 'Academic Year', 'Actions']}>
-              {paginated.map((batch, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-3 py-3 font-semibold text-slate-800">{batch.name}</td>
-                  <td className="px-3 py-3">
-                    <span className="flex items-center gap-1.5 text-sm text-slate-600">
-                      <BookOpen size={13} className="text-purple-400 shrink-0" /> {batch.course}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-sm text-slate-600">{batch.program || '—'}</td>
-                  <td className="px-3 py-3 whitespace-nowrap">
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-semibold border border-slate-200">
-                      {formatLevelLabel(batch.level || '')}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-sm font-medium text-slate-600 whitespace-nowrap text-center">{batch.academicYear || '—'}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => handleOpenEdit(idx)} className="text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors">Edit</button>
-                      <button onClick={() => handleDelete(idx)} className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors">Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filtered.length}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={size => { setPageSize(size); setCurrentPage(1); }}
-            />
-          </>
-        )}
+        <Table headers={['Batch Name', 'Code', 'Branch', 'Course', 'Program', 'Level', 'Academic Year', 'Status', 'Actions']}>
+          {isLoading ? (
+            <tr>
+              <td colSpan={9} className="px-6 py-16">
+                <div className="text-center flex flex-col items-center justify-center text-slate-400">
+                  <Loader2 size={32} className="animate-spin mb-3" />
+                  <p className="text-sm font-semibold">Loading batches...</p>
+                </div>
+              </td>
+            </tr>
+          ) : batches.length === 0 ? (
+            <tr>
+              <td colSpan={9} className="px-6 py-16">
+                <div className="text-center flex flex-col items-center justify-center">
+                  <div className="bg-blue-50 p-4 rounded-full mb-4">
+                    <Layers size={40} className="text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">No batches found</h3>
+                  <p className="text-slate-500 max-w-sm mb-6">Get started by creating your first batch, or adjust your filters to see more results.</p>
+                  <Button variant="primary" onClick={openAdd} style={{ backgroundColor: '#2563eb', color: 'white' }}>
+                    <Plus size={16} className="mr-2" /> Create New Batch
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          ) : (
+            batches.map(b => (
+              <tr key={b.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-5 py-4">
+                  <div className="font-semibold text-slate-800 text-sm">{b.name}</div>
+                </td>
+                <td className="px-5 py-4">
+                  <span className="font-mono text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                    {b.code || '—'}
+                  </span>
+                </td>
+                <td className="px-5 py-4 text-sm text-slate-600 font-medium">{b.branchName}</td>
+                <td className="px-5 py-4 text-sm text-slate-600">{b.courseName}</td>
+                <td className="px-5 py-4 text-sm text-slate-600">{b.programName || '—'}</td>
+                <td className="px-5 py-4 text-sm text-slate-600">{b.levelName || '—'}</td>
+                <td className="px-5 py-4 text-sm font-medium text-slate-600 whitespace-nowrap">{b.academicYearName || '—'}</td>
+                <td className="px-5 py-4">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold border ${statusColors[b.status]}`}>
+                    {b.status}
+                  </span>
+                </td>
+                <td className="px-5 py-4 whitespace-nowrap">
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => openEdit(b)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                    >
+                      <Edit2 size={12} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(b.id, b.name)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-red-100 text-red-600 bg-red-50/50 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          )}
+        </Table>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={total}
+          pageSize={pageSize}
+          onPageChange={p => setCurrentPage(p)}
+          onPageSizeChange={s => { setPageSize(s); setCurrentPage(1); }}
+        />
       </div>
 
       <BulkImportModal
@@ -480,27 +756,35 @@ export const BatchSetup: React.FC = () => {
         onClose={() => setIsImportModalOpen(false)}
         title="Bulk Import Batches"
         description="Select a CSV spreadsheet to import multiple batches at once. Columns must match the template below exactly."
-        sampleHeaders={['Name', 'Branch', 'Course', 'Program', 'Level', 'AcademicYear', 'StartTime', 'EndTime', 'Room']}
+        sampleHeaders={['Name', 'Branch', 'Course', 'Program', 'Level', 'AcademicYear']}
         sampleRows={[
-          ['JEE-Morning-B', 'Mumbai West', 'JEE Prep Course', '2 Year', 'Class XI', '2026-2027', '08:00 AM', '11:00 AM', 'Room 102'],
-          ['NEET-Regular-C', 'Pune Camp', 'NEET Batch Premium', '1 Year Crash Course', 'Class XII', '2026-2027', '12:00 PM', '03:00 PM', 'Room 105']
+          ['JEE-Morning-B', 'Mumbai West', 'JEE Prep Course', '2 Year', 'Class XI', '2026-27'],
+          ['NEET-Regular-C', 'Pune Camp', 'NEET Batch Premium', '1 Year', 'Class XII', '2026-27'],
         ]}
         onImport={(importedRows) => {
-          const newBatches = importedRows.map((row, rIdx) => {
-            return {
-              id: `BAT-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
-              name: row['Name'] || 'Imported Batch',
-              branch: row['Branch'] || 'Mumbai West',
-              course: row['Course'] || 'JEE Prep Course',
-              program: row['Program'] || '2 Year',
-              level: row['Level'] || 'Class XI',
-              academicYear: row['AcademicYear'] || '2026-2027',
-              timing: `${row['StartTime'] || '09:00 AM'} - ${row['EndTime'] || '12:00 PM'}`,
-              room: row['Room'] || 'Room 101'
-            } as any;
-          });
-          setBatchList(prev => [...newBatches, ...prev] as any[]);
-          setBatches(prev => [...newBatches, ...prev] as any[]);
+          const newBatches = importedRows.map((row, rIdx) => ({
+            id: `IMP-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
+            name: row['Name'] || 'Imported Batch',
+            courseName: row['Course'] || '',
+            programName: row['Program'] || '',
+            levelName: row['Level'] || '',
+            academicYearName: row['AcademicYear'] || '',
+            branchName: row['Branch'] || branches[0]?.name || '',
+            status: 'Active' as BatchStatus,
+            code: '',
+            currentStrength: 0,
+            capacity: null,
+            startTime: '09:00',
+            endTime: '12:00',
+            courseId: '',
+            programId: '',
+            levelId: '',
+            branchId: branches.find(b => b.name === row['Branch'])?.id || '',
+            academicYearId: '',
+            classroomId: '',
+            classroomName: '',
+          }));
+          setBatches(prev => [...newBatches, ...prev]);
         }}
       />
     </div>

@@ -13,7 +13,7 @@ import { formatDate, getTenantStatus } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
-  const { updateTenant } = useApp();
+  const { addToast } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -407,6 +407,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           // Edit mode using real backend
           await tenantService.updateTenant(editingTenantId.toString(), formData, onProgress);
           setSuccessMsg(`Tenant "${name}" settings updated successfully!`);
+          addToast(`Tenant "${name}" settings updated successfully!`, 'success');
         } else {
           // Create mode using real backend
           const result = await tenantService.createTenant(formData, onProgress);
@@ -414,6 +415,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             ? ' Welcome email sent.'
             : ' Tenant created, but the welcome email could not be sent.';
           setSuccessMsg(`Tenant "${name}" created successfully.${emailStatus}`);
+          addToast(
+            result?.data?.welcomeEmailSent
+              ? `Tenant "${name}" created successfully. Welcome email sent.`
+              : `Tenant "${name}" created, but the welcome email could not be sent.`,
+            result?.data?.welcomeEmailSent ? 'success' : 'warning'
+          );
         }
         
         setIsUploading(false);
@@ -904,7 +911,9 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary">{editingTenantId ? "Save Changes" : "Provision Tenant"}</Button>
+              <Button type="submit" variant="primary" disabled={isUploading}>
+                {isUploading ? (editingTenantId ? 'Saving Changes...' : 'Creating Institute...') : (editingTenantId ? 'Save Changes' : 'Provision Tenant')}
+              </Button>
             </div>
           </form>
         </div>

@@ -7,7 +7,7 @@ import {
 } from '../types/saas';
 import type { SubscriptionPlan } from '../types/saas';
 
-const mapPlanToFrontend = (row: any): SubscriptionPlan => {
+export const mapPlanToFrontend = (row: any): SubscriptionPlan => {
   return {
     id: String(row.id),
     name: row.name || 'Unnamed Plan',

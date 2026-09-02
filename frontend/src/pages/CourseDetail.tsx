@@ -1,127 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import courseHierarchy from '../data/courseHierarchy.json';
+import { courseApi } from '../services/courseApi';
+import type { CourseCreatePayload, CourseApiProgram, CourseApiProgramLevel } from '../services/courseApi';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { Toggle } from '../components/ui/Toggle';
 import {
-  ChevronLeft, BookOpen, GraduationCap, Layers, Users, Plus, Trash2, ChevronDown, ChevronRight, Clock, Tag, CheckCircle2, Circle, ShieldAlert
+  ChevronLeft, BookOpen, GraduationCap, Layers, Plus, Trash2, ChevronDown, ChevronRight, ShieldAlert, Loader2
 } from 'lucide-react';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 
-// ─── Data Shape ───────────────────────────────────────────────────────────────
-
-interface AcademicLevel {
-  id: string;
-  name: string; // e.g. "Class XI", "Year 1"
-  duration?: string;
-}
-
-interface Program {
-  id: string;
-  name: string; // e.g. "2 Year", "1 Year Crash Course"
-  code: string;
-  enabled: boolean;
-  levels: AcademicLevel[];
-}
-
-interface CourseData {
-  name: string;
-  code: string;
-  duration: string;
-  enabled: boolean;
-  programs: Program[];
-  branches?: string[];
-}
-
-// ─── Mock Seed Data ────────────────────────────────────────────────────────────
-
-const SEED_DATA: Record<string, CourseData> = {
-  'JEE-PREP': {
-    name: 'JEE Prep Course', code: 'JEE-PREP', duration: '2 Years', enabled: true,
-    programs: [
-      {
-        id: 'p1', name: '2 Year', code: 'PRG-001', enabled: true,
-        levels: [
-          { id: 'l1', name: 'Class XI' },
-          { id: 'l2', name: 'Class XII' },
-        ]
-      },
-      {
-        id: 'p2', name: '1 Year', code: 'PRG-002', enabled: true,
-        levels: [
-          { id: 'l3', name: 'Class XII (Dropper)' }
-        ]
-      },
-      { id: 'p3', name: 'Crash Course', code: 'PRG-003', enabled: false, levels: [] },
-    ]
-  },
-  'NEET-PREM': {
-    name: 'NEET Batch Premium', code: 'NEET-PREM', duration: '1 Year', enabled: true,
-    programs: [
-      {
-        id: 'p4', name: '1 Year', code: 'PRG-004', enabled: true,
-        levels: [
-          { id: 'l4', name: 'Class XII' }
-        ]
-      },
-      { id: 'p5', name: 'Repeater', code: 'PRG-005', enabled: true, levels: [{ id: 'l5', name: 'Repeater Batch' }] },
-    ]
-  },
-  'FOUND-10': {
-    name: 'Class 10 Foundation', code: 'FOUND-10', duration: '1 Year', enabled: true,
-    programs: [
-      {
-        id: 'p6', name: '2 Year', code: 'PRG-006', enabled: true,
-        levels: [
-          { id: 'l6', name: 'Class VIII' },
-          { id: 'l7', name: 'Class IX' },
-        ]
-      },
-      { id: 'p7', name: '1 Year', code: 'PRG-007', enabled: false, levels: [] },
-    ]
-  },
-  '8TH-STD': {
-    name: '8th Standard', code: '8TH-STD', duration: '1 Year', enabled: true,
-    programs: [
-      {
-        id: 'p8', name: '8th std ICSE', code: 'PRG-008', enabled: true,
-        levels: [{ id: 'l8', name: 'Class VIII' }]
-      },
-      {
-        id: 'p9', name: '8th std CBSE', code: 'PRG-009', enabled: true,
-        levels: [{ id: 'l9', name: 'Class VIII' }]
-      }
-    ]
-  }
-};
-
-const newLevel = (): AcademicLevel => ({ id: `l-${Date.now()}`, name: '' });
-const newProgram = (): Program => ({ id: `p-${Date.now()}`, name: '', code: '', enabled: true, levels: [] });
-
-const getLevelsForProgram = (courseName: string, programName: string): AcademicLevel[] => {
-  const courseMatch = courseHierarchy.find(
-    c => c.courseName.toLowerCase() === courseName.toLowerCase()
-  );
-  if (!courseMatch) return [];
-  const programMatch = courseMatch.programs.find(
-    p => p.programName.toLowerCase() === programName.toLowerCase()
-  );
-  if (!programMatch) return [];
-  return programMatch.levels.map((lvl, index) => ({
-    id: lvl.levelId || `l-${index}-${Date.now()}`,
-    name: lvl.levelName
-  }));
-};
+const newLevel = (): CourseApiProgramLevel => ({ id: `l-${Date.now()}`, name: '', duration: '' });
+const newProgram = (): CourseApiProgram => ({ id: `p-${Date.now()}`, name: '', code: '', is_active: true, levels: [] });
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 const LevelCard: React.FC<{
-  level: AcademicLevel;
-  onChange: (l: AcademicLevel) => void;
+  level: CourseApiProgramLevel;
+  onChange: (l: CourseApiProgramLevel) => void;
   onDelete: () => void;
 }> = ({ level, onChange, onDelete }) => {
   const { currentUser } = useApp();
@@ -135,7 +34,7 @@ const LevelCard: React.FC<{
       <div className="flex-1 w-full">
         <Input
           label=""
-          value={level.name}
+          value={level.name || ''}
           placeholder="Level Name (e.g. Class XI)"
           onChange={e => onChange({ ...level, name: e.target.value })}
           disabled={disableInputs}
@@ -170,19 +69,18 @@ const LevelCard: React.FC<{
 };
 
 const ProgramCard: React.FC<{
-  program: Program;
-  onChange: (p: Program) => void;
+  program: CourseApiProgram;
+  onChange: (p: CourseApiProgram) => void;
   onDelete: () => void;
 }> = ({ program, onChange, onDelete }) => {
   const { currentUser } = useApp();
   const { code } = useParams<{ code: string }>();
   const isNew = code === 'new';
   const disableInputs = currentUser?.role === 'branch-admin' && !isNew;
-  const [open, setOpen] = useState(program.enabled);
+  const [open, setOpen] = useState(program.is_active !== false);
 
   return (
     <Card className="hover:-translate-y-0.5 transition-transform duration-200">
-      {/* Program Header */}
       <div className="p-4 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 rounded-t-xl">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setOpen(o => !o)}>
           {open ? <ChevronDown size={18} className="text-slate-400" /> : <ChevronRight size={18} className="text-slate-400" />}
@@ -192,11 +90,10 @@ const ProgramCard: React.FC<{
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Toggle enabled */}
           <Toggle 
-            checked={program.enabled} 
-            onChange={(checked) => onChange({ ...program, enabled: checked })} 
-            label={program.enabled ? 'Active' : 'Inactive'} 
+            checked={program.is_active !== false} 
+            onChange={(checked) => onChange({ ...program, is_active: checked })} 
+            label={program.is_active !== false ? 'Active' : 'Inactive'} 
           />
           {!disableInputs && (
             <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors cursor-pointer">
@@ -211,7 +108,7 @@ const ProgramCard: React.FC<{
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Program Name"
-              value={program.name}
+              value={program.name || ''}
               placeholder="e.g. 2 Year / 1 Year Crash Course / Repeater"
               onChange={e => onChange({ ...program, name: e.target.value })}
               disabled={disableInputs}
@@ -220,7 +117,7 @@ const ProgramCard: React.FC<{
             <Input
               label="Program Code"
               type="text"
-              value={program.code}
+              value={program.code || ''}
               placeholder="e.g. PRG-001"
               onChange={e => onChange({ ...program, code: e.target.value })}
               disabled={disableInputs}
@@ -231,22 +128,22 @@ const ProgramCard: React.FC<{
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Academic Levels</p>
             <div className="space-y-3">
-              {program.levels.map((level, li) => (
+              {(program.levels || []).map((level, li) => (
                 <LevelCard
-                  key={level.id}
+                  key={level.id || li}
                   level={level}
                   onChange={updated => {
-                    const levels = [...program.levels];
+                    const levels = [...(program.levels || [])];
                     levels[li] = updated;
                     onChange({ ...program, levels });
                   }}
-                  onDelete={() => onChange({ ...program, levels: program.levels.filter((_, i) => i !== li) })}
+                  onDelete={() => onChange({ ...program, levels: (program.levels || []).filter((_, i) => i !== li) })}
                 />
               ))}
             </div>
             {!disableInputs && (
               <button
-                onClick={() => onChange({ ...program, levels: [...program.levels, newLevel()] })}
+                onClick={() => onChange({ ...program, levels: [...(program.levels || []), newLevel()] })}
                 className="flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 mt-3 cursor-pointer"
               >
                 <Plus size={15} /> Add Academic Level
@@ -264,96 +161,85 @@ const ProgramCard: React.FC<{
 export const CourseDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { courses, setCourses, addToast, currentUser, branches } = useApp();
+  const { addToast, currentUser, branches } = useApp();
 
   const isNew = code === 'new';
   const isReadOnly = false;
 
-  const seedKey = code && SEED_DATA[code] ? code : null;
-
   const [activeTab, setActiveTab] = useState<'general' | 'programs'>('general');
+  const [isLoading, setIsLoading] = useState(!isNew);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const [formData, setFormData] = useState<CourseData>(
-    seedKey
-      ? { ...JSON.parse(JSON.stringify(SEED_DATA[seedKey])), branches: [] }
-      : { name: '', code: '', duration: '', enabled: true, programs: [], branches: [] }
-  );
+  const [formData, setFormData] = useState<CourseCreatePayload>({
+    name: '',
+    code: '',
+    description: '',
+    is_active: true,
+    programs: [],
+    branches: []
+  });
 
-  React.useEffect(() => {
-    const existing = courses.find(c => c.code === code);
-    if (existing) {
-      setFormData({
-        name: existing.name || '',
-        code: existing.code || '',
-        duration: existing.duration || '',
-        enabled: true,
-        programs: existing.programs ? existing.programs.map((pName: any, idx: number) => ({
-          id: `p-${idx}`,
-          name: pName,
-          code: `PRG-00${idx + 1}`,
-          enabled: true,
-          levels: getLevelsForProgram(existing.name || '', pName)
-        })) : [],
-        branches: existing.branches || []
-      });
-    } else if (seedKey && SEED_DATA[seedKey]) {
-      const seedCourse = SEED_DATA[seedKey];
-      setFormData({
-        ...JSON.parse(JSON.stringify(seedCourse)),
-        programs: seedCourse.programs.map((p, idx) => ({
-          ...p,
-          levels: getLevelsForProgram(seedCourse.name, p.name)
-        })),
-        branches: []
-      });
-    } else {
-      setFormData({ name: '', code: code === 'new' ? '' : (code || ''), duration: '', enabled: true, programs: [], branches: [] });
+  useEffect(() => {
+    if (!isNew && code) {
+      fetchCourse(code);
     }
-  }, [code, seedKey, courses]);
+  }, [code, isNew]);
 
-  const handleSave = () => {
+  const fetchCourse = async (courseCode: string) => {
+    try {
+      setIsLoading(true);
+      const res = await courseApi.getByCode(courseCode);
+      if (res?.status === 'success' && res.data) {
+        setFormData({
+          name: res.data.name || '',
+          code: res.data.code || '',
+          description: res.data.description || '',
+          is_active: res.data.is_active ?? true,
+          branches: res.data.branches || [],
+          programs: res.data.programs || []
+        });
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to fetch course details', 'error');
+      navigate('/courses');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
     if (!formData.name || !formData.code) {
-      addToast('Please enter both Course Name and Course Code.');
+      addToast('Please enter both Course Name and Course Code.', 'error');
       return;
     }
     const selectedBranches = formData.branches || [];
-    if (selectedBranches.length === 0) {
-      addToast('Please select at least one branch.');
-      return;
-    }
     
-    const existingIndex = courses.findIndex(c => c.code === code);
-    if (existingIndex > -1) {
-      // Edit mode
-      setCourses(prev => prev.map(c => {
-        if (c.code === code) {
-          return {
-            ...c,
-            name: formData.name,
-            code: formData.code,
-            branches: selectedBranches,
-            programs: formData.programs.map(p => p.name)
-          };
-        }
-        return c;
-      }));
-      addToast(`Course "${formData.name}" updated successfully.`);
-    } else {
-      // Create mode
-      const newCourseItem = {
-        name: formData.name,
-        code: formData.code,
-        duration: formData.duration || '1 Year',
-        fees: 80000,
-        programs: formData.programs.map(p => p.name),
-        branches: selectedBranches
-      };
-      setCourses(prev => [...prev, newCourseItem]);
-      addToast(`Course "${formData.name}" created successfully.`);
+
+    try {
+      setIsSaving(true);
+      if (isNew) {
+        await courseApi.create(formData);
+        addToast(`Course "${formData.name}" created successfully.`, 'success');
+      } else if (code) {
+        await courseApi.update(code, formData);
+        addToast(`Course "${formData.name}" updated successfully.`, 'success');
+      }
+      navigate('/courses');
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to save course', 'error');
+    } finally {
+      setIsSaving(false);
     }
-    
-    navigate('/courses');
   };
+
+  if (isLoading) {
+    return (
+      <div className="py-20 text-center flex flex-col items-center justify-center">
+        <Loader2 size={40} className="text-blue-400 animate-spin mb-4" />
+        <h3 className="text-lg font-bold text-slate-800 mb-1">Loading details...</h3>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full animate-fade-in">
@@ -427,9 +313,9 @@ export const CourseDetail: React.FC = () => {
                 <h3 className="font-bold text-slate-800">Course Details</h3>
               </div>
               <Toggle 
-                checked={formData.enabled} 
-                onChange={(checked) => setFormData({ ...formData, enabled: checked })} 
-                label={formData.enabled ? 'Course Active' : 'Course Inactive'} 
+                checked={formData.is_active !== false} 
+                onChange={(checked) => setFormData({ ...formData, is_active: checked })} 
+                label={formData.is_active !== false ? 'Course Active' : 'Course Inactive'} 
               />
             </div>
             {(() => {
@@ -454,35 +340,6 @@ export const CourseDetail: React.FC = () => {
                       className="disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-default"
                     />
                   </div>
-                  <div className="p-5 border-t border-slate-100 flex flex-col gap-3">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Offered in Branches</label>
-                    <div className="flex flex-wrap gap-5 mt-1">
-                      {branches.map(branch => {
-                        const isChecked = (formData.branches || []).includes(branch.name);
-                        return (
-                          <label key={branch.id} className={`flex items-center gap-2.5 select-none ${disableInputs ? 'cursor-default opacity-60' : 'cursor-pointer group'}`}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              disabled={disableInputs}
-                              onChange={e => {
-                                const checked = e.target.checked;
-                                const currentBranches = formData.branches || [];
-                                const updated = checked
-                                  ? [...currentBranches, branch.name]
-                                  : currentBranches.filter(name => name !== branch.name);
-                                setFormData({ ...formData, branches: updated });
-                              }}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 transition-all duration-150 cursor-pointer disabled:cursor-default"
-                            />
-                            <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
-                              {branch.name}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </>
               );
             })()}
@@ -502,14 +359,14 @@ export const CourseDetail: React.FC = () => {
               {!(currentUser?.role === 'branch-admin' && !isNew) && (
                 <Button
                   variant="secondary"
-                  onClick={() => setFormData({ ...formData, programs: [...formData.programs, newProgram()] })}
+                  onClick={() => setFormData({ ...formData, programs: [...(formData.programs || []), newProgram()] })}
                 >
                   <Plus size={15} className="mr-1.5" /> Add Program
                 </Button>
               )}
             </div>
 
-            {formData.programs.length === 0 && (
+            {(!formData.programs || formData.programs.length === 0) && (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                 <GraduationCap size={40} className="mb-3 opacity-40" />
                 <p className="font-semibold text-sm">No programs added yet</p>
@@ -517,17 +374,17 @@ export const CourseDetail: React.FC = () => {
               </div>
             )}
 
-            {formData.programs.map((program, pi) => (
+            {(formData.programs || []).map((program, pi) => (
               <ProgramCard
                 key={program.id}
                 program={program}
                 onChange={updated => {
-                  const programs = [...formData.programs];
+                  const programs = [...(formData.programs || [])];
                   programs[pi] = updated;
                   setFormData({ ...formData, programs });
                 }}
                 onDelete={() =>
-                  setFormData({ ...formData, programs: formData.programs.filter((_, i) => i !== pi) })
+                  setFormData({ ...formData, programs: (formData.programs || []).filter((_, i) => i !== pi) })
                 }
               />
             ))}

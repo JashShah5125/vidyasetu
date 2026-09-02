@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
 import { ChevronLeft, MapPin, Building, Clock, Landmark, ShieldAlert, GraduationCap, Plus, Trash2, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Branch } from '../data/mockData';
+import { branchApi, toBranch } from '../services/branchApi';
 
 // Type for a course-program mapping on a branch
 interface BranchCourseMapping {
@@ -15,18 +16,21 @@ interface BranchCourseMapping {
   courseCode: string;
   courseName: string;
   programs: string[];
+  programCodes?: string[];
 }
 
 export const BranchDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { branches, setBranches, courses, addToast, currentUser } = useApp();
-  
+
   const isNew = id === 'new';
   const existingBranch = branches.find(b => b.id === id || b.code === id);
   const isReadOnly = currentUser?.role === 'branch-admin'
     ? (existingBranch ? existingBranch.name !== currentUser.branch : true)
     : false;
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [loadedIdentifier, setLoadedIdentifier] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentUser?.role === 'branch-admin' && isNew) {
@@ -57,45 +61,137 @@ export const BranchDetail: React.FC = () => {
   // Course modal form state
   const [modalCourseCode, setModalCourseCode] = useState('');
 
+  // Convert the backend's flat program-mappings list into the grouped
+  // BranchCourseMapping[] shape the Courses & Programs tab renders.
+  const buildCourseMappings = (mappings: any[]): BranchCourseMapping[] => {
+    const map = new Map<string, BranchCourseMapping>();
+    for (const m of mappings || []) {
+      const key = m.courseCode || m.course_name || String(m.courseId);
+      if (!map.has(key)) {
+        map.set(key, {
+          id: `cm-${key}`,
+          courseCode: m.courseCode || m.course_code || '',
+          courseName: m.courseName || m.course_name || '',
+          programs: [],
+          programCodes: [],
+        });
+      }
+      if (m.programName || m.program_name) {
+        map.get(key)!.programs.push(m.programName || m.program_name);
+        map.get(key)!.programCodes!.push(m.programCode || m.program_code || '');
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  // Build the payload sent to the backend. Program mappings carry course/program
+  // codes so the backend can resolve them to real DB ids (mock courses use string ids).
+  const buildPayload = () => {
+    const programMappings = courseMappings
+      .map(mapping => {
+        const course = courses.find(c => c.code === mapping.courseCode);
+        const storedCodes = (mapping.programCodes || []).filter(Boolean);
+        const programCodes = storedCodes.length > 0
+          ? storedCodes
+          : (mapping.programs || [])
+              .map(p => course?.programDetails?.find(pd => pd.name === p)?.code)
+              .filter((c): c is string => Boolean(c));
+        return { courseCode: mapping.courseCode, programCodes };
+      })
+      .filter(m => m.courseCode && m.programCodes.length > 0);
+
+    return {
+      name: formData.name as string,
+      code: formData.code as string,
+      status: formData.status,
+      capacity: formData.capacity,
+      address: formData.address,
+      email: formData.email,
+      phone: formData.phone,
+      operatingHours: formData.operatingHours,
+      bankDetails: formData.bankDetails,
+      admin: formData.admin,
+      adminEmail: formData.adminEmail,
+      adminMobile: formData.adminMobile,
+      altEmails: formData.altEmails || [],
+      defaultEmail: formData.defaultEmail || '',
+      programMappings,
+      replaceMappings: true,
+    };
+  };
+
   useEffect(() => {
     if (existingBranch && !isNew) {
-      setFormData({ ...existingBranch });
-      // Load mock initial mappings for existing branches
-      if (existingBranch.id === 'B-001') {
-        setCourseMappings([
-          {
-            id: 'cm-1',
-            courseCode: 'JEE-PREP',
-            courseName: 'JEE Prep Course',
-            programs: ['2 Year', '1 Year']
-          },
-          {
-            id: 'cm-2',
-            courseCode: 'NEET-PREM',
-            courseName: 'NEET Batch Premium',
-            programs: ['1 Year']
-          },
-          {
-            id: 'cm-3',
-            courseCode: 'FOUND-10',
-            courseName: 'Class 10 Foundation',
-            programs: ['2 Year']
-          }
-        ]);
-      }
+      setFormData({
+        ...formData,
+        ...existingBranch,
+        bankDetails: existingBranch.bankDetails || formData.bankDetails,
+        altEmails: existingBranch.altEmails || [],
+        defaultEmail: existingBranch.defaultEmail || '',
+      });
     }
   }, [existingBranch, isNew]);
 
-  const handleSave = () => {
-    if (isNew) {
-      const newBranch = { ...formData, id: `B-${Date.now()}` } as Branch;
-      setBranches([...branches, newBranch]);
-      addToast('New branch created successfully.');
-    } else {
-      setBranches(branches.map(b => (b.id === existingBranch?.id ? (formData as Branch) : b)));
-      addToast('Branch details updated successfully.');
+  // When opening an existing branch, load the authoritative record from the API.
+  useEffect(() => {
+    if (isNew || isLoadingDetail) return;
+    let cancelled = false;
+    setIsLoadingDetail(true);
+    branchApi.getByCode(id!)
+      .then(res => {
+        const row = res.data;
+        const branch = toBranch(row);
+        if (cancelled) return;
+        setFormData({
+          ...formData,
+          ...branch,
+          bankDetails: branch.bankDetails || formData.bankDetails,
+          altEmails: branch.altEmails || [],
+          defaultEmail: branch.defaultEmail || '',
+        });
+        setCourseMappings(buildCourseMappings(row.programMappings || []));
+        setLoadedIdentifier(branch.id || branch.code);
+        setBranches(prev => {
+          const exists = prev.some(b => (b.id || b.code) === (branch.id || branch.code));
+          return exists ? prev.map(b => (b.id || b.code) === (branch.id || branch.code) ? branch : b) : [...prev, branch];
+        });
+      })
+      .catch(() => {
+        if (!cancelled) addToast('Failed to load branch details.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingDetail(false);
+      });
+    return () => { cancelled = true; };
+  }, [id, isNew]);
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.code) {
+      addToast('Branch name and code are required.');
+      return;
     }
-    navigate('/branches');
+    try {
+      const payload = buildPayload();
+      if (isNew) {
+        await branchApi.create(payload);
+      } else {
+        await branchApi.update(loadedIdentifier || existingBranch?.id || existingBranch?.code || id!, payload);
+      }
+      addToast(isNew ? 'New branch created successfully.' : 'Branch details updated successfully.');
+      await loadBranchList();
+      navigate('/branches');
+    } catch {
+      addToast('Failed to save branch. Please try again.');
+    }
+  };
+
+  const loadBranchList = async () => {
+    try {
+      const result = await branchApi.list({ limit: 1000 });
+      setBranches((result.data || []).map((row: any) => toBranch(row)));
+    } catch {
+      /* keep current list on failure */
+    }
   };
 
   // Already-mapped course codes
@@ -123,7 +219,8 @@ export const BranchDetail: React.FC = () => {
       id: `cm-${Date.now()}`,
       courseCode: course.code,
       courseName: course.name,
-      programs: []
+      programs: [],
+      programCodes: [],
     };
     setCourseMappings(prev => [...prev, newMapping]);
     setExpandedCourse(newMapping.id);
@@ -141,15 +238,29 @@ export const BranchDetail: React.FC = () => {
     setCourseMappings(prev => prev.map(cm => {
       if (cm.id !== mappingId) return cm;
       const hasProg = cm.programs.includes(programName);
-      return { 
-        ...cm, 
-        programs: hasProg ? cm.programs.filter(p => p !== programName) : [...cm.programs, programName] 
+      if (hasProg) {
+        const index = cm.programs.indexOf(programName);
+        return {
+          ...cm,
+          programs: cm.programs.filter(p => p !== programName),
+          programCodes: (cm.programCodes || []).filter((_, i) => i !== index),
+        };
+      }
+      const course = courses.find(c => c.code === cm.courseCode);
+      const code = course?.programDetails?.find(pd => pd.name === programName)?.code || '';
+      return {
+        ...cm,
+        programs: [...cm.programs, programName],
+        programCodes: [...(cm.programCodes || []), code],
       };
     }));
   };
 
-  if (!isNew && !existingBranch) {
+  if (!isNew && !existingBranch && !isLoadingDetail) {
     return <div className="p-8 text-center">Branch not found.</div>;
+  }
+  if (!isNew && isLoadingDetail) {
+    return <div className="p-12 text-center text-slate-400">Loading branch details…</div>;
   }
 
   const tabClass = (tab: string) =>

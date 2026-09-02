@@ -1,13 +1,13 @@
 import React from 'react';
 import { LogOut, Menu } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { currentUser, logout } = useApp();
+  const { currentUser, logout } = useAuth();
 
   if (!currentUser) return null;
 
@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </span>
 
         <button
-          onClick={logout}
+          onClick={() => { logout(); }}
           className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-slate-50 transition-colors rounded-lg text-xs font-semibold text-slate-600 hover:text-red-600 cursor-pointer shadow-sm"
           title="Sign Out"
         >

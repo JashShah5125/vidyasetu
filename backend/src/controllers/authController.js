@@ -1,9 +1,18 @@
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
-const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+const sessionModel = require('../models/sessionModel');
+const { generateToken, generateRefreshToken, verifyRefreshToken, hashRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/jwt');
 const redisClient = require('../config/redis');
 
 const MASTER_TENANT_ID = parseInt(process.env.MASTER_TENANT_ID) || 1;
+
+// Format in server-local time so the DATETIME round-trips through mysql2
+// without timezone drift (mysql2 parses DATETIME back into local time).
+const toMySqlDatetime = (date) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+        `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
 const changePassword = async (req, res) => {
     try {
@@ -69,27 +78,55 @@ const login = async (req, res) => {
             return res.status(403).json({ status: 'error', message: 'Account is not active' });
         }
 
-        let isSaasAdmin = false;
-        
-        if (user.tenant_id === MASTER_TENANT_ID) {
-            isSaasAdmin = true;
-        } 
-        
-        const permissions = await userModel.getUserPermissions(user.id, user.tenant_id);
+        // Login resolves identity (users) + role (user_roles) only. Permissions
+        // are checked per-request from role_permissions / overridden_permissions.
+        const roleCodes = await userModel.getUserRoleCodes(user.id);
+
+        let isSaasAdmin = user.tenant_id === MASTER_TENANT_ID;
+
+        const ROLE_PRIORITY = ['saas_admin', 'inst_admin', 'branch_admin', 'counsellor', 'finance', 'teacher'];
+        let effectiveUserType = user.user_type;
+        if (isSaasAdmin) {
+            effectiveUserType = 'saas_admin';
+        } else if (roleCodes.length > 0) {
+            for (const role of ROLE_PRIORITY) {
+                if (roleCodes.includes(role)) {
+                    effectiveUserType = role;
+                    break;
+                }
+            }
+        }
 
         const tokenPayload = {
             userId: user.id,
             tenantId: user.tenant_id,
-            userType: user.user_type,
-            isSaasAdmin,
-            permissions
+            userType: effectiveUserType,
+            isSaasAdmin
         };
 
         const token = generateToken(tokenPayload);
         const refreshToken = generateRefreshToken(tokenPayload);
 
-        // Store session in Redis with 7 days TTL (604800 seconds)
-        await redisClient.setEx(`session:${refreshToken}`, 604800, user.id.toString());
+        // Cache the session in Redis (fast path) and persist it durably in the
+        // user_sessions table (fallback when Redis is flushed or restarted).
+        await redisClient.setEx(`session:${refreshToken}`, REFRESH_TTL_SECONDS, user.id.toString());
+
+        const expiresAt = toMySqlDatetime(new Date(Date.now() + REFRESH_TTL_SECONDS * 1000));
+        try {
+            await sessionModel.createSession({
+                userId: user.id,
+                tenantId: user.tenant_id,
+                refreshTokenHash: hashRefreshToken(refreshToken),
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent') || null,
+                expiresAt
+            });
+        } catch (err) {
+            // Keep Redis and the table consistent: if the durable row fails,
+            // do not leave an orphaned session key behind.
+            await redisClient.del(`session:${refreshToken}`);
+            throw err;
+        }
 
         res.status(200).json({
             status: 'success',
@@ -101,11 +138,10 @@ const login = async (req, res) => {
                     id: user.id,
                     name: user.name,
                     email: user.email,
-                    userType: user.user_type,
+                    userType: effectiveUserType,
                     tenantId: user.tenant_id,
                     isSaasAdmin,
-                    mustChangePassword: Boolean(user.must_change_password),
-                    permissions
+                    mustChangePassword: Boolean(user.must_change_password)
                 }
             }
         });
@@ -128,19 +164,42 @@ const refresh = async (req, res) => {
             return res.status(401).json({ status: 'error', message: 'Invalid or expired refresh token' });
         }
 
-        // Check if the token exists in Redis
-        const userId = await redisClient.get(`session:${refreshToken}`);
-        if (!userId || String(userId) !== String(decoded.userId)) {
+        // Fast path: the session is alive in Redis (the cache is authoritative when hit).
+        const cachedUserId = await redisClient.get(`session:${refreshToken}`);
+        if (cachedUserId) {
+            if (String(cachedUserId) !== String(decoded.userId)) {
+                return res.status(401).json({ status: 'error', message: 'Session expired or invalid' });
+            }
+            const newAccessToken = generateToken({
+                userId: decoded.userId,
+                tenantId: decoded.tenantId,
+                userType: decoded.userType,
+                isSaasAdmin: decoded.isSaasAdmin
+            });
+            return res.status(200).json({
+                status: 'success',
+                data: { token: newAccessToken }
+            });
+        }
+
+        // Fallback: Redis was cleared/restarted. Restore from the durable table.
+        const row = await sessionModel.findByTokenHash(hashRefreshToken(refreshToken));
+        if (!row
+            || row.revoked_at
+            || new Date(row.expires_at).getTime() <= Date.now()
+            || String(row.user_id) !== String(decoded.userId)) {
             return res.status(401).json({ status: 'error', message: 'Session expired or invalid' });
         }
 
-        // Issue a new short-lived access token
+        // Refresh cache TTL so it matches the durable expiry
+        const remainingSeconds = Math.max(1, Math.floor((new Date(row.expires_at).getTime() - Date.now()) / 1000));
+        await redisClient.setEx(`session:${refreshToken}`, remainingSeconds, row.user_id.toString());
+
         const newAccessToken = generateToken({
             userId: decoded.userId,
             tenantId: decoded.tenantId,
             userType: decoded.userType,
-            isSaasAdmin: decoded.isSaasAdmin,
-            permissions: decoded.permissions
+            isSaasAdmin: decoded.isSaasAdmin
         });
 
         res.status(200).json({
@@ -159,10 +218,12 @@ const refresh = async (req, res) => {
 const logout = async (req, res) => {
     try {
         const { refreshToken } = req.body;
-        
+
         // Remove from Redis to invalidate the session instantly
         if (refreshToken) {
             await redisClient.del(`session:${refreshToken}`);
+            // Keep the durable row for audit but mark it as ended
+            await sessionModel.revokeByTokenHash(hashRefreshToken(refreshToken));
         }
 
         res.status(200).json({

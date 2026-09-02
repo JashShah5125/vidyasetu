@@ -1,4 +1,5 @@
 const { verifyToken } = require('../utils/jwt');
+const userModel = require('../models/userModel');
 
 const requireAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -26,7 +27,7 @@ const requireSaasAdmin = (req, res, next) => {
 };
 
 const requirePermission = (action) => {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ status: 'error', message: 'Unauthorized' });
         }
@@ -36,11 +37,18 @@ const requirePermission = (action) => {
             return next();
         }
         
-        if (!req.user.permissions || !req.user.permissions.includes(action)) {
-            return res.status(403).json({ status: 'error', message: `Forbidden. Missing permission: ${action}` });
+        try {
+            // Resolve the user's effective permissions per-request from
+            // role_permissions + overridden_permissions (not from the JWT).
+            const permissions = await userModel.getUserPermissions(req.user.userId);
+            if (!permissions.includes(action)) {
+                return res.status(403).json({ status: 'error', message: `Forbidden. Missing permission: ${action}` });
+            }
+            next();
+        } catch (error) {
+            console.error('Permission check error:', error.message);
+            return res.status(500).json({ status: 'error', message: 'Internal server error during permission check' });
         }
-        
-        next();
     };
 };
 

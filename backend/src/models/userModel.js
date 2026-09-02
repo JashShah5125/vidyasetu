@@ -14,17 +14,45 @@ const findUserById = async (userId) => {
     return rows[0];
 };
 
-const getUserPermissions = async (userId, tenantId) => {
-    // We only call this for normal users, NOT the SaaS admin.
-    const query = `
-        SELECT DISTINCT p.code
-        FROM user_roles ur
-        JOIN role_permissions rp ON ur.role_id = rp.role_id
-        JOIN permissions p ON rp.permission_id = p.id
-        WHERE ur.user_id = ? AND ur.tenant_id = ?
-    `;
-    const [rows] = await pool.query(query, [userId, tenantId]);
+const getUserRoleCodes = async (userId) => {
+    const [rows] = await pool.query(
+        `SELECT DISTINCT r.code
+         FROM user_roles ur
+         JOIN roles r ON ur.role_id = r.id
+         WHERE ur.user_id = ? AND r.is_active = 1 AND r.deleted_at IS NULL`,
+        [userId]
+    );
     return rows.map(row => row.code);
+};
+
+const getUserPermissions = async (userId) => {
+    // Flat RBAC: effective permissions = union of the user's role permissions
+    // plus explicit 'grant' overrides, minus explicit 'revoke' overrides.
+    const [rows] = await pool.query(
+        `SELECT DISTINCT p.code
+         FROM user_roles ur
+         JOIN role_permissions rp ON ur.role_id = rp.role_id
+         JOIN permissions p ON rp.permission_id = p.id
+         WHERE ur.user_id = ?
+         UNION
+         SELECT DISTINCT p.code
+         FROM overridden_permissions op
+         JOIN permissions p ON op.permission_id = p.id
+         WHERE op.user_id = ? AND op.override_type = 'grant'`,
+        [userId, userId]
+    );
+    const permissionCodes = rows.map(row => row.code);
+
+    const [revokedRows] = await pool.query(
+        `SELECT p.code
+         FROM overridden_permissions op
+         JOIN permissions p ON op.permission_id = p.id
+         WHERE op.user_id = ? AND op.override_type = 'revoke'`,
+        [userId]
+    );
+    const revoked = new Set(revokedRows.map(row => row.code));
+
+    return permissionCodes.filter(code => !revoked.has(code));
 };
 
 const updatePassword = async (userId, passwordHash) => {
@@ -46,6 +74,7 @@ const updateUserProfile = async (userId, { name, email }) => {
 module.exports = {
     findUserByEmail,
     findUserById,
+    getUserRoleCodes,
     getUserPermissions,
     updatePassword,
     updateUserProfile

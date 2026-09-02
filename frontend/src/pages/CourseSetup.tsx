@@ -1,47 +1,55 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { courseApi } from '../services/courseApi';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { BookOpen, Plus, Search, ArrowRight, Download, ShieldAlert, Upload } from 'lucide-react';
+import { BookOpen, Plus, Search, ArrowRight, Download, ShieldAlert, Upload, Loader2 } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 export const CourseSetup: React.FC = () => {
-  const { courses, branches, currentUser, setCourses } = useApp();
+  const { branches, currentUser, addToast } = useApp();
   const navigate = useNavigate();
+  const [courses, setCourses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  const fetchCourses = async () => {
+    try {
+      setIsLoading(true);
+      const res = await courseApi.list({ status: filterStatus });
+      if (res?.status === 'success') {
+        setCourses(res.data || []);
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to fetch courses', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCourses();
+  }, [filterStatus]);
+
 
   const [search, setSearch] = useState('');
-  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const branchOptions = useMemo(() => {
-    if (currentUser?.role === 'branch-admin') {
-      return [{ value: currentUser.branch || '', label: currentUser.branch || '' }];
-    }
-    return [
-      { value: 'All', label: 'All Branches' },
-      ...branches.map(b => ({ value: b.name, label: b.name }))
-    ];
-  }, [branches, currentUser]);
-
   const filtered = useMemo(() => {
     const list = courses.filter(c => {
-      const isMyBranch = currentUser?.role === 'branch-admin'
-        ? (c.branches || []).includes(currentUser.branch || '')
-        : true;
       const matchSearch =
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.code.toLowerCase().includes(search.toLowerCase());
-      const matchBranch = filterBranch === 'All' || (c.branches || []).includes(filterBranch);
-      return isMyBranch && matchSearch && matchBranch;
+      return matchSearch;
     });
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
-  }, [courses, search, filterBranch, currentUser]);
+  }, [courses, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -52,8 +60,7 @@ export const CourseSetup: React.FC = () => {
       'Course Name': c.name,
       'Code': c.code,
       'Duration': c.duration,
-      'Programs': (c.programs || []).join('; '),
-      'Branches': (c.branches || []).join('; ')
+      'Programs': (c.programs || []).map((p: any) => p.name || p).join('; ')
     }));
     const headers = Object.keys(rows[0]);
     const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String(r[h as keyof typeof r]).replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -106,11 +113,14 @@ export const CourseSetup: React.FC = () => {
           </div>
         </div>
         <Select
-          label="Branch"
-          options={branchOptions}
-          value={filterBranch}
-          onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
-          disabled={currentUser?.role === 'branch-admin'}
+          label="Status"
+          options={[
+            { value: 'all', label: 'All Status' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' }
+          ]}
+          value={filterStatus}
+          onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
         />
       </div>
 
@@ -124,7 +134,12 @@ export const CourseSetup: React.FC = () => {
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
+            <Loader2 size={40} className="text-blue-400 animate-spin mb-4" />
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Loading courses...</h3>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
             <div className="bg-blue-50 p-4 rounded-full mb-4">
               <BookOpen size={40} className="text-blue-400" />
@@ -141,7 +156,7 @@ export const CourseSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={currentUser?.role === 'branch-admin' ? ['Course', 'Code', 'Programs', 'Actions'] : ['Course', 'Code', 'Programs', 'Branches', 'Actions']}>
+            <Table headers={['Course', 'Code', 'Programs', 'Actions']}>
               {paginated.map(course => (
                 <tr key={course.code} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
@@ -150,9 +165,9 @@ export const CourseSetup: React.FC = () => {
                   <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500 uppercase">{course.code}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
-                      {(course.programs || []).map((p, i) => (
+                      {(course.programs || []).map((p: any, i: number) => (
                         <span key={i} className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded text-[10px] font-semibold">
-                          {p}
+                          {p.name || p}
                         </span>
                       ))}
                       {(!course.programs || course.programs.length === 0) && (
@@ -160,22 +175,7 @@ export const CourseSetup: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  {currentUser?.role !== 'branch-admin' && (
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {(course.branches || [])
-                          .filter(b => filterBranch === 'All' || b === filterBranch)
-                          .map((b, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">
-                              {b}
-                            </span>
-                          ))}
-                        {(!course.branches || course.branches.length === 0) && (
-                          <span className="text-xs text-slate-400 italic">Global (All)</span>
-                        )}
-                      </div>
-                    </td>
-                  )}
+
                   <td className="px-6 py-4">
                     <button
                       onClick={() => {
@@ -206,22 +206,19 @@ export const CourseSetup: React.FC = () => {
         onClose={() => setIsImportModalOpen(false)}
         title="Bulk Import Courses"
         description="Select a CSV spreadsheet to import multiple academic courses at once. Columns must match the template below exactly."
-        sampleHeaders={['Name', 'Code', 'Description', 'Branches']}
+        sampleHeaders={['Name', 'Code', 'Description']}
         sampleRows={[
-          ['NEET Foundation', 'NEET-FOUND', 'NEET Pre-foundation for class X', 'Mumbai West, Pune Camp'],
-          ['JEE Advanced Crash', 'JEE-CRASH', 'JEE Advanced crash practice program', 'Mumbai West']
+          ['NEET Foundation', 'NEET-FOUND', 'NEET Pre-foundation for class X'],
+          ['JEE Advanced Crash', 'JEE-CRASH', 'JEE Advanced crash practice program']
         ]}
         onImport={(importedRows) => {
           const newCourses = importedRows.map((row, rIdx) => {
-            const branchesMapped = row['Branches'] 
-              ? row['Branches'].split(',').map((b: string) => b.trim()) 
-              : ['Mumbai West'];
             return {
               id: `CRS-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
               name: row['Name'] || 'Imported Course',
               code: row['Code'] || `C-${Math.floor(100 + Math.random() * 900)}`,
               description: row['Description'] || '',
-              branches: branchesMapped,
+              branches: [],
               programs: []
             };
           });

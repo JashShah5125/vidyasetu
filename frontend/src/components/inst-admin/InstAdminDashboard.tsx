@@ -570,10 +570,11 @@ export const InstAdminDashboard: React.FC = () => {
                     radius={[4, 4, 0, 0]}
                     onMouseEnter={(data, _index, event) => {
                       if (chartContainerRef.current && event) {
+                        const d = data as any;
                         const rect = chartContainerRef.current.getBoundingClientRect();
                         setBarTooltip({
-                          name: data.name,
-                          count: data.count,
+                          name: d.name,
+                          count: d.count,
                           x: (event as unknown as MouseEvent).clientX - rect.left,
                           y: (event as unknown as MouseEvent).clientY - rect.top,
                         });

@@ -9,6 +9,9 @@
     "migrate": "node src/scripts/migrate.js",
     "seed": "node src/scripts/seed.js",
     "setup": "node src/scripts/migrate.js && node src/scripts/seed.js",
+    "migrate:v2": "node src/scripts/migrate_v2.js",
+    "seed:v2": "node src/scripts/seed_v2.js",
+    "setup:v2": "npm run migrate:v2 && npm run seed:v2",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
