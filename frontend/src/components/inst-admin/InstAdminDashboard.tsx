@@ -444,10 +444,10 @@ export const InstAdminDashboard: React.FC = () => {
             <ChevronRight size={12} className="text-slate-300" />
             <span className="text-slate-400 uppercase tracking-wider">Institute Admin</span>
           </div>
-          <h1 className="text-2xl font-display font-bold text-slate-900 leading-tight">
+          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
             Good morning, {currentUser.name}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base text-slate-500 mt-2">
             Institute-wide performance snapshot · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>

@@ -8,6 +8,7 @@ const getTemplates = async (req, res) => {
         res.status(200).json({
             status: 'success',
             data: result.data,
+            categories: result.categories,
             pagination: {
                 total: result.total,
                 page: Number(page),

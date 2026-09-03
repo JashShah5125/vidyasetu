@@ -27,5 +27,6 @@ router.post('/:ticketNumber/replies', requirePermission('support.reply'), handle
 router.patch('/:ticketNumber', requirePermission('support.edit'), supportController.updateTicket);
 router.delete('/:ticketNumber', requirePermission('support.delete'), supportController.deleteTicket);
 router.patch('/:ticketNumber/resolve', requirePermission('support.resolve'), supportController.resolveTicket);
+router.patch('/:ticketNumber/status', requirePermission('support.resolve'), supportController.updateTicketStatus);
 
 module.exports = router;

@@ -3,7 +3,8 @@ const emailTemplateModel = require('../models/emailTemplateModel');
 const getTemplates = async (limit, offset, search, category, status) => {
     const data = await emailTemplateModel.getAll(limit, offset, search, category, status);
     const total = await emailTemplateModel.getTotalCount(search, category, status);
-    return { data, total };
+    const categories = await emailTemplateModel.getCategories();
+    return { data, total, categories };
 };
 
 const getTemplateById = async (id) => {

@@ -329,6 +329,20 @@ const updateCourse = async (tenantId, code, data, userId) => {
     }
 };
 
+const syncLevelSubjects = async (conn, tenantId, levelId, subjects = []) => {
+    await conn.query('DELETE FROM level_subjects WHERE level_id = ?', [levelId]);
+    if (!subjects || subjects.length === 0) return;
+    for (const sub of subjects) {
+        const subjectId = Number(typeof sub === 'object' ? sub.id : sub);
+        if (subjectId) {
+            await conn.query(
+                'INSERT IGNORE INTO level_subjects (tenant_id, level_id, subject_id) VALUES (?, ?, ?)',
+                [tenantId, levelId, subjectId]
+            );
+        }
+    }
+};
+
 const insertPrograms = async (conn, courseId, tenantId, programs, userId) => {
     for (const program of programs) {
         const [pInsert] = await conn.query(
@@ -341,11 +355,12 @@ const insertPrograms = async (conn, courseId, tenantId, programs, userId) => {
         if (program.levels && program.levels.length > 0) {
             for (const level of program.levels) {
                 const levelActive = level.is_active === undefined ? 1 : (level.is_active ? 1 : 0);
-                await conn.query(
+                const [lInsert] = await conn.query(
                     `INSERT INTO levels (tenant_id, course_id, program_id, name, code, duration, is_active, created_by, updated_by)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                     [tenantId, courseId, programId, level.name, level.code, level.duration, levelActive, userId, userId]
                 );
+                await syncLevelSubjects(conn, tenantId, lInsert.insertId, level.subjects);
             }
         }
     }
@@ -375,6 +390,7 @@ const upsertProgramLevels = async (conn, programId, tenantId, levels, userId) =>
             return rows[0]?.course_id;
         })();
         const levelActive = level.is_active === undefined ? 1 : (level.is_active ? 1 : 0);
+        let targetLevelId = levelId;
         if (levelId && existingIds.includes(levelId)) {
             await conn.query(
                 `UPDATE levels SET name = ?, code = ?, duration = ?, is_active = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
@@ -382,11 +398,16 @@ const upsertProgramLevels = async (conn, programId, tenantId, levels, userId) =>
                 [level.name, level.code, level.duration, levelActive, userId, levelId]
             );
         } else {
-            await conn.query(
+            const [lInsert] = await conn.query(
                 `INSERT INTO levels (tenant_id, course_id, program_id, name, code, duration, is_active, created_by, updated_by)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [tenantId, courseId, programId, level.name, level.code, level.duration, levelActive, userId, userId]
             );
+            targetLevelId = lInsert.insertId;
+        }
+
+        if (targetLevelId) {
+            await syncLevelSubjects(conn, tenantId, targetLevelId, level.subjects);
         }
     }
 };

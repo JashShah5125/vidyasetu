@@ -89,7 +89,7 @@ const login = async (req, res) => {
             });
         }
 
-        let isSaasAdmin = user.tenant_id === MASTER_TENANT_ID;
+        let isSaasAdmin = user.tenant_id === MASTER_TENANT_ID || roleCodes.includes('saas_admin') || user.user_type === 'saas_admin';
 
         const ROLE_PRIORITY = ['saas_admin', 'inst_admin', 'branch_admin', 'counsellor', 'finance', 'teacher'];
         let effectiveUserType = user.user_type;

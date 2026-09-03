@@ -28,6 +28,10 @@ const resolveTicket = async (ticketNumber) => {
     return await supportModel.resolveTicket(ticketNumber);
 };
 
+const updateTicketStatus = async (ticketNumber, status) => {
+    return await supportModel.updateTicketStatus(ticketNumber, status);
+};
+
 module.exports = {
     getTickets,
     getTicketByNumber,
@@ -35,5 +39,6 @@ module.exports = {
     addReply,
     updateTicket,
     deleteTicket,
-    resolveTicket
+    resolveTicket,
+    updateTicketStatus
 };

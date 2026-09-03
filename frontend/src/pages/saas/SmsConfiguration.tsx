@@ -1,20 +1,74 @@
-import React, { useState } from 'react';
-import { Layers, Key, Terminal, Send, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Layers, Key, Terminal, Send, Check, Loader2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { systemConfigurationService } from '../../services/systemConfigurationService';
 
 export const SmsConfiguration: React.FC = () => {
   const { addToast } = useApp();
-  const [provider, setProvider] = useState('AWS SNS');
+  const [provider, setProvider] = useState('Twilio');
   const [senderId, setSenderId] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
+  const [fromNumber, setFromNumber] = useState('');
   const [apiEndpoint, setApiEndpoint] = useState('');
   const [testPhone, setTestPhone] = useState('');
   const [isEnabled, setIsEnabled] = useState(true);
+  const [providers, setProviders] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [providersRes, configRes] = await Promise.all([
+          systemConfigurationService.getProviders('SMS'),
+          systemConfigurationService.getByChannel('SMS'),
+        ]);
+        setProviders(providersRes.data);
+
+        const data = configRes.data;
+        if (data) {
+          setProvider(data.provider_name || '');
+          setSenderId(data.sender_id || '');
+          const creds = (data.credentials as unknown as Record<string, string>) || {};
+          setApiKey(creds.account_sid || '');
+          setApiSecret(creds.auth_token || '');
+          setFromNumber(creds.from_number || '');
+          setApiEndpoint(creds.api_endpoint || '');
+          setTestPhone(creds.test_phone || '');
+          setIsEnabled(Boolean(data.is_enabled));
+        }
+      } catch {
+        addToast('Failed to load SMS configuration.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    addToast('SMS Configuration saved successfully!', 'info');
+    setSaving(true);
+    try {
+      await systemConfigurationService.save('SMS', {
+        provider_name: provider,
+        sender_id: senderId,
+        is_enabled: isEnabled,
+        credentials: {
+          account_sid: apiKey,
+          auth_token: apiSecret,
+          from_number: fromNumber,
+          api_endpoint: apiEndpoint,
+          test_phone: testPhone,
+        },
+      });
+      addToast('SMS Configuration saved successfully!', 'success');
+    } catch {
+      addToast('Failed to save SMS configuration.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSendTest = () => {
@@ -27,6 +81,12 @@ export const SmsConfiguration: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 size={28} className="animate-spin text-blue-600" />
+        </div>
+      ) : (
+      <>
       {/* Top Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -37,7 +97,12 @@ export const SmsConfiguration: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => setIsEnabled(!isEnabled)}
+          onClick={() => {
+            const next = !isEnabled;
+            setIsEnabled(next);
+            systemConfigurationService.toggle('SMS', next)
+              .catch(() => addToast('Failed to update SMS status.', 'error'));
+          }}
           className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
             isEnabled
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -66,10 +131,9 @@ export const SmsConfiguration: React.FC = () => {
                 onChange={(e) => setProvider(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition cursor-pointer"
               >
-                <option value="AWS SNS">AWS SNS</option>
-                <option value="Twilio">Twilio</option>
-                <option value="Msg91">Msg91 (India DLT)</option>
-                <option value="MessageBird">MessageBird</option>
+                {providers.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
               <span className="text-xs text-slate-400 mt-1 block">
                 Choose your SMS service provider
@@ -137,13 +201,29 @@ export const SmsConfiguration: React.FC = () => {
 
           <div>
             <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+              From Number
+            </label>
+            <input
+              type="text"
+              value={fromNumber}
+              onChange={(e) => setFromNumber(e.target.value)}
+              placeholder="+12513095544"
+              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition duration-150"
+            />
+            <span className="text-xs text-slate-400 mt-1 block">
+              Your Twilio issued phone number
+            </span>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
               API Endpoint URL
             </label>
             <input
               type="text"
               value={apiEndpoint}
               onChange={(e) => setApiEndpoint(e.target.value)}
-              placeholder="test url for sms"
+              placeholder="https://api.twilio.com/2010-04-01"
               className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition duration-150"
             />
             <span className="text-xs text-slate-400 mt-1 block">
@@ -195,12 +275,16 @@ export const SmsConfiguration: React.FC = () => {
           </button>
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
+            disabled={saving}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
           >
-            <Check size={16} /> Save Configuration
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            {saving ? 'Saving...' : 'Save Configuration'}
           </button>
         </div>
       </form>
+      </>
+      )}
     </div>
   );
 };

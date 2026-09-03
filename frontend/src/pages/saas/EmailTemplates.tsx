@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Eye, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, Eye, Search, Loader2, RotateCcw, Copy, Code, FileText } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -8,15 +8,7 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Modal } from '../../components/ui/Modal';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { emailTemplateService } from '../../services/emailTemplateService';
-import { CATEGORY_LABELS, type EmailTemplate } from '../../data/emailTemplatesMock';
-
-const CATEGORY_OPTIONS = [
-  { value: 'ALL', label: 'All Categories' },
-  { value: 'AUTHENTICATION', label: 'Authentication' },
-  { value: 'ONBOARDING', label: 'Onboarding' },
-  { value: 'TENANT', label: 'Tenant' },
-  { value: 'SUBSCRIPTION', label: 'Subscription' },
-];
+import { type EmailTemplate } from '../../data/emailTemplatesMock';
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All Statuses' },
@@ -36,39 +28,11 @@ const STATUS_BADGE: Record<string, string> = {
   INACTIVE: 'bg-slate-100 text-slate-500',
 };
 
-const PREVIEW_SAMPLE_DATA: Record<string, string> = {
-  platform_name: 'Vidya Setu',
-  user_name: 'Rahul Sharma',
-  username: 'rahul.sharma',
-  temporary_password: 'Temp@1234',
-  login_url: 'https://vidyasetu.popopower.com/login',
-  support_email: 'support@vidyasetu.com',
-  verification_link: 'https://vidyasetu.popopower.com/verify?token=abc123',
-  expiry_time: '2026-09-01 23:59:59',
-  reset_link: 'https://vidyasetu.popopower.com/reset?token=xyz789',
-  changed_at: '2026-08-26 14:30:00',
-  student_name: 'Priya Patel',
-  institute_name: 'Delhi Public School',
-  student_id: 'STU-2026-0451',
-  course_name: 'Science',
-  program_name: 'Senior Secondary',
-  batch_name: 'Batch A-2026',
-  parent_name: 'Anita Patel',
-  staff_name: 'Vikram Singh',
-  teacher_name: 'Meena Gupta',
-  admin_name: 'Rajesh Kumar',
-  tenant_id: 'TEN-001',
-  suspension_reason: 'Subscription expired',
-  plan_name: 'Professional',
-  start_date: '2026-08-01',
-  end_date: '2027-07-31',
-  expiry_date: '2026-09-30',
-};
-
 const ITEMS_PER_PAGE = 10;
 
 export const EmailTemplates: React.FC = () => {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [selectedTemplate, setSelectedTemplate] = useState<(EmailTemplate & { _isNew?: boolean }) | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,7 +48,7 @@ export const EmailTemplates: React.FC = () => {
 
   const [editName, setEditName] = useState('');
   const [editTemplateKey, setEditTemplateKey] = useState('');
-  const [editCategory, setEditCategory] = useState<EmailTemplate['category']>('AUTHENTICATION');
+  const [editCategory, setEditCategory] = useState<string>('General');
   const [editSubject, setEditSubject] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
@@ -93,31 +57,42 @@ export const EmailTemplates: React.FC = () => {
 
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    const fetchTemplates = async () => {
-      try {
-        setIsLoading(true);
-        setErrorMsg('');
-        const result = await emailTemplateService.getTemplates({
-          page: currentPage,
-          limit: ITEMS_PER_PAGE,
-          search: searchQuery,
-          category: filterCategory === 'ALL' ? '' : filterCategory,
-          status: filterStatus === 'ALL' ? '' : filterStatus,
-        });
-        setTemplates(result.data);
-        setTotalItems(result.pagination.total);
-      } catch (err: any) {
-        console.error('Failed to fetch email templates:', err);
-        setErrorMsg(err.response?.data?.message || 'Failed to load email templates.');
-      } finally {
-        setIsLoading(false);
+  const fetchTemplates = async () => {
+    try {
+      setIsLoading(true);
+      setErrorMsg('');
+      const result = await emailTemplateService.getTemplates({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        search: searchQuery,
+        category: filterCategory === 'ALL' ? '' : filterCategory,
+        status: filterStatus === 'ALL' ? '' : filterStatus,
+      });
+      setTemplates(result.data || []);
+      setTotalItems(result.pagination?.total || 0);
+      if (result.categories && Array.isArray(result.categories)) {
+        setCategoriesList(result.categories);
       }
-    };
+    } catch (err: any) {
+      console.error('Failed to fetch email templates:', err);
+      setErrorMsg(err.response?.data?.message || 'Failed to load email templates.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTemplates();
   }, [currentPage, searchQuery, filterCategory, filterStatus]);
 
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterCategory('ALL');
+    setFilterStatus('ALL');
+    setCurrentPage(1);
+  };
 
   const openEditor = (template: EmailTemplate) => {
     setSelectedTemplate(template);
@@ -133,13 +108,14 @@ export const EmailTemplates: React.FC = () => {
   };
 
   const openCreateEditor = () => {
+    const defaultCat = categoriesList.length > 0 ? categoriesList[0] : 'General';
     setSelectedTemplate({
       id: 0,
-      tenant_id: 0,
+      tenant_id: 1,
       template_key: '',
       name: '',
       description: '',
-      category: 'AUTHENTICATION',
+      category: defaultCat as any,
       subject: '',
       html_body: '',
       text_body: '',
@@ -148,14 +124,11 @@ export const EmailTemplates: React.FC = () => {
       is_system: false,
       created_by: null,
       updated_by: null,
-      created_at: '',
-      updated_at: '',
-      deleted_at: null,
       _isNew: true,
     });
     setEditName('');
     setEditTemplateKey('');
-    setEditCategory('AUTHENTICATION');
+    setEditCategory(defaultCat);
     setEditSubject('');
     setEditDescription('');
     setEditStatus('ACTIVE');
@@ -165,64 +138,58 @@ export const EmailTemplates: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!selectedTemplate) return;
-    setErrorMsg('');
-
-    if (selectedTemplate._isNew && !editTemplateKey.trim()) {
-      setErrorMsg('Template key is required for new templates.');
+    if (!editName.trim()) {
+      setErrorMsg('Template Name is required');
+      return;
+    }
+    if (!editTemplateKey.trim()) {
+      setErrorMsg('Template Key is required');
       return;
     }
 
     try {
       setIsLoading(true);
-      if (selectedTemplate._isNew) {
-        await emailTemplateService.createTemplate({
-          template_key: editTemplateKey.trim(),
-          name: editName,
-          category: editCategory,
-          subject: editSubject,
-          description: editDescription || undefined,
-          html_body: editHtmlBody,
-          text_body: editTextBody || undefined,
-          status: editStatus,
-        });
-        setToast('Template created successfully!');
-      } else {
-        await emailTemplateService.updateTemplate(String(selectedTemplate.id), {
-          name: editName,
-          category: editCategory,
-          subject: editSubject,
-          description: editDescription || undefined,
-          html_body: editHtmlBody,
-          text_body: editTextBody || undefined,
-        });
-        setToast('Template updated successfully!');
-      }
-      setTimeout(() => setToast(''), 4000);
-      setView('list');
-      setSelectedTemplate(null);
-      fetchCurrentPage();
-    } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to save template. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setErrorMsg('');
 
-  const fetchCurrentPage = async () => {
-    try {
-      setIsLoading(true);
-      const result = await emailTemplateService.getTemplates({
-        page: currentPage,
-        limit: ITEMS_PER_PAGE,
-        search: searchQuery,
-        category: filterCategory === 'ALL' ? '' : filterCategory,
-        status: filterStatus === 'ALL' ? '' : filterStatus,
+      // Dynamically extract variables JSON object from html and text body
+      const extractedTokens = Array.from(
+        new Set([
+          ...(editHtmlBody.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []),
+          ...(editTextBody.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []),
+          ...(editSubject.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || [])
+        ])
+      ).map(t => t.replace(/[{}]/g, ''));
+
+      const variablesMap: Record<string, string> = {};
+      extractedTokens.forEach(token => {
+        variablesMap[token] = selectedTemplate?.variables?.[token] || token.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       });
-      setTemplates(result.data);
-      setTotalItems(result.pagination.total);
+
+      const payload = {
+        name: editName,
+        template_key: editTemplateKey,
+        category: editCategory as any,
+        subject: editSubject,
+        description: editDescription,
+        status: editStatus,
+        html_body: editHtmlBody,
+        text_body: editTextBody,
+        variables: variablesMap,
+      };
+
+      if (selectedTemplate?._isNew) {
+        await emailTemplateService.createTemplate({ ...payload, tenant_id: 1 });
+        setToast('Email template created successfully!');
+      } else if (selectedTemplate?.id) {
+        await emailTemplateService.updateTemplate(selectedTemplate.id, payload);
+        setToast('Email template updated successfully!');
+      }
+
+      setView('list');
+      fetchTemplates();
     } catch (err: any) {
-      console.error('Failed to fetch email templates:', err);
+      console.error('Failed to save template:', err);
+      setErrorMsg(err.response?.data?.message || 'Failed to save template.');
     } finally {
       setIsLoading(false);
     }
@@ -232,405 +199,354 @@ export const EmailTemplates: React.FC = () => {
     e.stopPropagation();
     const newStatus = template.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     try {
-      await emailTemplateService.updateTemplateStatus(String(template.id), newStatus);
-      setTemplates((prev) => prev.map((t) => (t.id === template.id ? { ...t, status: newStatus } : t)));
-      setToast(`Template ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'}.`);
-      setTimeout(() => setToast(''), 3000);
+      await emailTemplateService.updateStatus(template.id, newStatus);
+      setToast(`Template ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'} successfully.`);
+      fetchTemplates();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Failed to update status.');
+      console.error('Failed to update status:', err);
     }
   };
 
-  const handlePreview = () => {
-    setPreviewTab('html');
-    setShowPreview(true);
-    setTimeout(() => {
-      if (previewFrameRef.current) {
-        const doc = previewFrameRef.current.contentDocument;
-        if (doc) {
-          doc.open();
-          doc.write(editHtmlBody);
-          doc.close();
-        }
-      }
-    }, 100);
+  // Dynamically extract placeholders from currently active template
+  const getDynamicPlaceholders = (template: EmailTemplate | null) => {
+    if (!template) return [];
+    const tokensFromText = [
+      ...(template.html_body?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []),
+      ...(template.text_body?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || []),
+      ...(template.subject?.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || [])
+    ].map(t => t.replace(/[{}]/g, ''));
+
+    const tokensFromDbVars = template.variables ? Object.keys(template.variables) : [];
+    return Array.from(new Set([...tokensFromDbVars, ...tokensFromText]));
   };
 
-  const getPreviewHtml = (): string => {
-    let html = editHtmlBody;
-    Object.entries(PREVIEW_SAMPLE_DATA).forEach(([key, value]) => {
-      html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+  // Dynamic preview generator replacing placeholders using DB variables map
+  const renderDynamicPreview = (text: string, template: EmailTemplate | null) => {
+    if (!text) return '';
+    let processed = text;
+    const dbVars = template?.variables || {};
+
+    const matches = processed.match(/\{\{([a-zA-Z0-9_]+)\}\}/g) || [];
+    matches.forEach((tokenWithBrackets) => {
+      const key = tokenWithBrackets.replace(/[{}]/g, '');
+      const dynamicVal = dbVars[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      processed = processed.replace(new RegExp(tokenWithBrackets.replace(/[{}]/g, '\\$&'), 'g'), dynamicVal);
     });
-    return html;
+
+    return processed;
   };
 
-  const getPreviewText = (): string => {
-    let text = editTextBody || '';
-    Object.entries(PREVIEW_SAMPLE_DATA).forEach(([key, value]) => {
-      text = text.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
-    });
-    return text;
-  };
-
-  const showPreviewHtml = () => {
-    setTimeout(() => {
-      if (previewFrameRef.current) {
-        const doc = previewFrameRef.current.contentDocument;
-        if (doc) {
-          doc.open();
-          doc.write(getPreviewHtml());
-          doc.close();
-        }
-      }
-    }, 100);
-  };
-
-  const isNewTemplate = selectedTemplate?._isNew === true;
-
-  if (view === 'editor' && selectedTemplate) {
-    return (
-      <div className="space-y-6">
-        {errorMsg && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-800 animate-fade-in shadow-sm">
-            {errorMsg}
-          </div>
-        )}
-        {toast && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
-            {toast}
-          </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => { setView('list'); setSelectedTemplate(null); setErrorMsg(''); }}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">
-              {isNewTemplate ? 'Create Template' : selectedTemplate.is_system ? 'Edit System Template' : 'Edit Template'}
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">
-              {isNewTemplate
-                ? 'Define the new email template below.'
-                : selectedTemplate.is_system
-                  ? 'System template — template key is read-only. Other fields can be edited.'
-                  : 'Modify the template content and settings below.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Template Name"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="e.g. Account Created"
-              required
-            />
-            {isNewTemplate ? (
-              <Input
-                label="Template Key"
-                value={editTemplateKey}
-                onChange={(e) => setEditTemplateKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-                placeholder="e.g. CUSTOM_WELCOME"
-                required
-              />
-            ) : (
-              <Input
-                label="Template Key"
-                value={selectedTemplate.template_key}
-                disabled
-                wrapperClassName="opacity-70"
-              />
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select
-              label="Category"
-              value={editCategory}
-              onChange={(e) => setEditCategory(e.target.value as EmailTemplate['category'])}
-              options={[
-                { value: 'AUTHENTICATION', label: 'Authentication' },
-                { value: 'ONBOARDING', label: 'Onboarding' },
-                { value: 'TENANT', label: 'Tenant' },
-                { value: 'SUBSCRIPTION', label: 'Subscription' },
-              ]}
-            />
-            <Select
-              label="Status"
-              value={editStatus}
-              onChange={(e) => setEditStatus(e.target.value as 'ACTIVE' | 'INACTIVE')}
-              options={[
-                { value: 'ACTIVE', label: 'Active' },
-                { value: 'INACTIVE', label: 'Inactive' },
-              ]}
-            />
-          </div>
-
-          <Input
-            label="Email Subject"
-            value={editSubject}
-            onChange={(e) => setEditSubject(e.target.value)}
-            placeholder="e.g. Your {{platform_name}} account has been created"
-            required
-          />
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-700">Description</label>
-            <textarea
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              placeholder="Brief description of when this template is sent..."
-              className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 h-20 resize-none"
-            />
-          </div>
-
-          {selectedTemplate.variables && Object.keys(selectedTemplate.variables).length > 0 && (
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Template Variables</label>
-              <p className="text-xs text-slate-400">These placeholders are replaced with real values when the email is sent.</p>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-200">
-                      <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Variable</th>
-                      <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {Object.entries(selectedTemplate.variables).map(([varName, desc]) => (
-                      <tr key={varName}>
-                        <td className="px-4 py-2.5 text-xs font-mono font-bold text-blue-600">{`{{${varName}}}`}</td>
-                        <td className="px-4 py-2.5 text-xs text-slate-600">{desc}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-700">HTML Body</label>
-            <textarea
-              value={editHtmlBody}
-              onChange={(e) => setEditHtmlBody(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-mono text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 h-64 resize-y"
-              placeholder="<!DOCTYPE html>..."
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-700">Plain Text Body</label>
-            <textarea
-              value={editTextBody}
-              onChange={(e) => setEditTextBody(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-mono text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 h-40 resize-y"
-              placeholder="Plain text version of the email..."
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="secondary" onClick={() => { setView('list'); setSelectedTemplate(null); setErrorMsg(''); }}>
-              Cancel
-            </Button>
-            <Button variant="outline" onClick={handlePreview}>
-              <Eye size={14} className="mr-1.5" />
-              Preview
-            </Button>
-            <Button variant="primary" onClick={handleSave} disabled={isLoading}>
-              {isLoading ? 'Saving...' : isNewTemplate ? 'Create Template' : 'Save Changes'}
-            </Button>
-          </div>
-        </div>
-
-        <Modal isOpen={showPreview} onClose={() => setShowPreview(false)} title="Template Preview" size="4xl">
-          <div className="space-y-4">
-            <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 w-fit">
-              <button
-                onClick={() => { setPreviewTab('html'); setTimeout(showPreviewHtml, 50); }}
-                className={`px-4 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition ${
-                  previewTab === 'html' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                HTML Preview
-              </button>
-              <button
-                onClick={() => setPreviewTab('text')}
-                className={`px-4 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition ${
-                  previewTab === 'text' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Plain Text
-              </button>
-            </div>
-
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-              {previewTab === 'html' ? (
-                <iframe
-                  ref={previewFrameRef}
-                  title="Email Preview"
-                  sandbox=""
-                  className="w-full h-[500px]"
-                  style={{ border: 'none' }}
-                />
-              ) : (
-                <pre className="p-6 text-xs font-mono text-slate-700 whitespace-pre-wrap leading-relaxed overflow-auto max-h-[500px]">
-                  {getPreviewText()}
-                </pre>
-              )}
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-              Preview uses sample variable values. No email is sent.
-            </div>
-          </div>
-        </Modal>
-      </div>
-    );
-  }
+  const dynamicCategoriesOptions = [
+    { value: 'ALL', label: 'All Categories' },
+    ...categoriesList.map((c) => ({ value: c, label: c }))
+  ];
 
   return (
     <div className="space-y-6">
-      {errorMsg && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-800 animate-fade-in shadow-sm">
-          {errorMsg}
-        </div>
-      )}
+      {/* Toast Notification */}
       {toast && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
-          {toast}
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm flex items-center justify-between">
+          <span>{toast}</span>
+          <button onClick={() => setToast('')} className="text-emerald-600 hover:text-emerald-900 font-bold">×</button>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Email Templates</h2>
-          <p className="text-base text-slate-500 mt-2">
-            Manage platform email templates that control content for account notifications, onboarding messages, and system alerts.
-          </p>
+      {errorMsg && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm font-semibold text-red-800 animate-fade-in shadow-sm flex items-center justify-between">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg('')} className="text-red-600 hover:text-red-900 font-bold">×</button>
         </div>
-        <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={openCreateEditor}>
-          + Create Template
-        </Button>
-      </div>
+      )}
 
-      <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 w-full">
-          <div className="relative">
-            <Input
-              label="Search"
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              wrapperClassName="mb-0"
-            />
-            <Search size={14} className="absolute right-3 top-[38px] text-slate-400 pointer-events-none" />
-          </div>
-          <Select
-            label="Category"
-            value={filterCategory}
-            onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
-            options={CATEGORY_OPTIONS}
-          />
-          <Select
-            label="Status"
-            value={filterStatus}
-            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-            options={STATUS_OPTIONS}
-          />
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Email Templates</CardTitle>
-        </CardHeader>
-
-        {isLoading && templates.length === 0 ? (
-          <div className="p-12 text-center">
-            <Loader2 size={32} className="mx-auto text-blue-500 animate-spin mb-3" />
-            <p className="text-sm text-slate-500 font-semibold">Loading templates...</p>
-          </div>
-        ) : templates.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="text-slate-300 mb-3">
-              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-              </svg>
+      {view === 'list' ? (
+        <>
+          {/* Header Section */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Email Templates</h2>
+              <p className="text-base text-slate-500 mt-2">
+                Manage system and transactional email layouts used across authentication, billing, and onboarding.
+              </p>
             </div>
-            <p className="text-sm text-slate-500 font-semibold">No templates found</p>
-            <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
+            <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={openCreateEditor}>
+              + Create Template
+            </Button>
           </div>
-        ) : (
-          <Table headers={['ID', 'Name', 'Template Key', 'Category', 'Status', 'Type', 'Actions']} dense>
-            {templates.map((template) => (
-              <tr
-                key={template.id}
-                className="hover:bg-slate-50 cursor-pointer transition-colors"
-                onClick={() => openEditor(template)}
-              >
-                <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{template.id}</td>
-                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[200px]">
-                  <div>{template.name}</div>
-                  {template.description && (
-                    <div className="text-xs text-slate-500 mt-0.5 max-w-xs truncate">{template.description}</div>
-                  )}
-                </td>
-                <td className="px-3 py-3 text-sm font-semibold text-blue-600 whitespace-nowrap">{template.template_key}</td>
-                <td className="px-3 py-3 whitespace-nowrap">
-                  <span className={`text-sm font-semibold px-2 py-0.5 rounded border uppercase ${CATEGORY_BADGE[template.category]}`}>
-                    {CATEGORY_LABELS[template.category]}
-                  </span>
-                </td>
-                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={(e) => handleToggleStatus(template, e)}
-                    className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold cursor-pointer transition hover:opacity-80 ${STATUS_BADGE[template.status]}`}
-                    title={`Click to ${template.status === 'ACTIVE' ? 'deactivate' : 'activate'}`}
-                  >
-                    {template.status}
-                  </button>
-                </td>
-                <td className="px-3 py-3 whitespace-nowrap">
-                  {template.is_system ? (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                      System
-                    </span>
-                  ) : (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-                      Custom
-                    </span>
-                  )}
-                </td>
-                <td className="px-3 py-3 whitespace-nowrap">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); openEditor(template); }}
-                    className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
-                  >
-                    Edit
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        )}
 
-        {totalItems > ITEMS_PER_PAGE && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            pageSize={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
-          />
-        )}
-      </Card>
+          {/* Dynamic Filter and Search Bar */}
+          <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 items-start w-full">
+              <div className="relative">
+                <Input
+                  label="Search"
+                  placeholder="Search templates..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  wrapperClassName="mb-0"
+                />
+                <Search size={14} className="absolute right-3 top-[38px] text-slate-400 pointer-events-none" />
+              </div>
+              <Select
+                label="Category"
+                value={filterCategory}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
+                options={dynamicCategoriesOptions}
+              />
+              <Select
+                label="Status"
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                options={STATUS_OPTIONS}
+              />
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-transparent select-none opacity-0" aria-hidden="true">Action</span>
+                <Button
+                  variant="outline"
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[38px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
+                >
+                  <RotateCcw size={14} />
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Templates</CardTitle>
+            </CardHeader>
+
+            {isLoading && templates.length === 0 ? (
+              <div className="p-12 text-center">
+                <Loader2 size={32} className="mx-auto text-blue-500 animate-spin mb-3" />
+                <p className="text-sm text-slate-500 font-semibold">Loading email templates...</p>
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="p-12 text-center">
+                <p className="text-sm text-slate-500 font-semibold">No email templates found</p>
+                <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
+              </div>
+            ) : (
+              <Table headers={['ID', 'Name', 'Key', 'Subject', 'Category', 'Status', 'Actions']} dense>
+                {templates.map((template) => (
+                  <tr
+                    key={template.id}
+                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => openEditor(template)}
+                  >
+                    <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{template.id}</td>
+                    <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[180px]">
+                      <div>{template.name}</div>
+                      {template.description && (
+                        <div className="text-xs text-slate-500 font-normal mt-0.5 max-w-xs truncate">{template.description}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-sm font-semibold text-blue-600 whitespace-nowrap font-mono">{template.template_key}</td>
+                    <td className="px-3 py-3 text-sm text-slate-600 max-w-xs truncate">{template.subject}</td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase border ${CATEGORY_BADGE[template.category] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        {template.category}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => handleToggleStatus(template, e)}
+                        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold cursor-pointer transition hover:opacity-80 ${STATUS_BADGE[template.status]}`}
+                      >
+                        {template.status}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => {
+                            setSelectedTemplate(template);
+                            setShowPreview(true);
+                          }}
+                          className="text-sm font-semibold text-slate-500 hover:text-indigo-600 cursor-pointer transition flex items-center gap-1"
+                        >
+                          <Eye size={15} /> Preview
+                        </button>
+                        <button
+                          onClick={() => openEditor(template)}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            )}
+
+            {totalItems > ITEMS_PER_PAGE && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={ITEMS_PER_PAGE}
+                onPageChange={setCurrentPage}
+              />
+            )}
+          </Card>
+        </>
+      ) : (
+        /* EDITOR VIEW */
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setView('list')} className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition cursor-pointer">
+                <ArrowLeft size={20} className="text-slate-600" />
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  {selectedTemplate?._isNew ? 'Create Email Template' : `Edit: ${editName}`}
+                </h2>
+                <p className="text-xs text-slate-500">Configure template details, HTML layout, and plain text content.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" onClick={() => setShowPreview(true)} className="flex items-center gap-1.5">
+                <Eye size={16} /> Preview Template
+              </Button>
+              <Button variant="primary" onClick={handleSave} disabled={isLoading}>
+                {isLoading ? <Loader2 size={16} className="animate-spin mr-1.5" /> : null}
+                Save Changes
+              </Button>
+            </div>
+          </div>
+
+          <Card>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input label="Template Name *" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="e.g. Password Reset" required />
+                <Input label="Template Key *" value={editTemplateKey} onChange={(e) => setEditTemplateKey(e.target.value)} placeholder="e.g. AUTH_PASSWORD_RESET" required disabled={!selectedTemplate?._isNew} />
+                <Select
+                  label="Category *"
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  options={categoriesList.map((c) => ({ value: c, label: c }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label="Subject Line *" value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="e.g. Reset your password for {{platform_name}}" required />
+                <Select
+                  label="Status"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  options={[
+                    { value: 'ACTIVE', label: 'Active' },
+                    { value: 'INACTIVE', label: 'Inactive' },
+                  ]}
+                />
+              </div>
+
+              <Input label="Description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Brief description of when this email is sent" />
+
+              {/* Dynamic Placeholders extracted from DB variables & template text */}
+              <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2">
+                <h4 className="text-sm font-bold text-white">Dynamic Placeholders (From Database)</h4>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {getDynamicPlaceholders(selectedTemplate).map((token) => (
+                    <button
+                      key={token}
+                      type="button"
+                      onClick={() => setEditHtmlBody((prev) => prev + `{{${token}}}`)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-white border border-slate-700 transition cursor-pointer"
+                    >
+                      <Copy size={11} className="text-slate-400" />
+                      {`{{${token}}}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-slate-700">HTML Body *</label>
+                <textarea
+                  rows={12}
+                  value={editHtmlBody}
+                  onChange={(e) => setEditHtmlBody(e.target.value)}
+                  placeholder="Enter HTML email content..."
+                  className="w-full font-mono text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-slate-700">Plain Text Body (Optional)</label>
+                <textarea
+                  rows={5}
+                  value={editTextBody}
+                  onChange={(e) => setEditTextBody(e.target.value)}
+                  placeholder="Enter fallback text content..."
+                  className="w-full font-mono text-sm p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* DYNAMIC PREVIEW MODAL */}
+      {showPreview && (
+        <Modal
+          isOpen={showPreview}
+          onClose={() => setShowPreview(false)}
+          title={`Preview: ${view === 'editor' ? editName : selectedTemplate?.name}`}
+          description={`Subject: ${renderDynamicPreview(view === 'editor' ? editSubject : selectedTemplate?.subject || '', selectedTemplate)}`}
+          size="xl"
+        >
+          <div className="space-y-4">
+            <div className="flex border-b border-slate-200">
+              <button
+                onClick={() => setPreviewTab('html')}
+                className={`px-4 py-2 text-xs font-bold border-b-2 ${previewTab === 'html' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}
+              >
+                HTML Render
+              </button>
+              <button
+                onClick={() => setPreviewTab('text')}
+                className={`px-4 py-2 text-xs font-bold border-b-2 ${previewTab === 'text' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}
+              >
+                Text Fallback
+              </button>
+            </div>
+
+            {previewTab === 'html' ? (
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white p-4 min-h-[300px]">
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: renderDynamicPreview(view === 'editor' ? editHtmlBody : selectedTemplate?.html_body || '', selectedTemplate)
+                  }}
+                />
+              </div>
+            ) : (
+              <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono whitespace-pre-wrap min-h-[200px]">
+                {renderDynamicPreview(view === 'editor' ? editTextBody : selectedTemplate?.text_body || '', selectedTemplate)}
+              </pre>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <Button onClick={() => setShowPreview(false)} variant="secondary" className="text-xs font-bold">
+                Close Preview
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

@@ -15,6 +15,9 @@ import {
   AlertTriangle,
   Bell,
   Layers,
+  Flag,
+  Smartphone,
+  Server,
   CreditCard,
   FileText,
   Ticket,
@@ -26,7 +29,6 @@ import {
   Mail,
   Plug,
   MailOpen,
-  Smartphone,
   MessageCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -101,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Operations',
             links: [
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket, badge: 3 }
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket }
             ]
           },
           {
@@ -114,7 +116,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 groupLabel: 'Templates',
                 groupIcon: MailOpen,
                 links: [
-                  { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail }
+                  { name: 'SMS Templates', label: 'SMS Templates', path: '/sms-templates', icon: Smartphone },
+                  { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail },
+                  { name: 'WhatsApp Templates', label: 'WhatsApp Templates', path: '/whatsapp-templates', icon: MessageCircle }
                 ]
               }
             ]
@@ -123,7 +127,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Business',
             links: [
               { name: 'Billing & Revenue', label: 'Billing & Revenue', path: '/billing', icon: DollarSign },
-              { name: 'SaaS Reports', label: 'Reports', path: '/saas-reports', icon: ClipboardList },
               { name: 'Product Analytics', label: 'Product Analytics', path: '/analytics', icon: BarChart3 }
             ]
           },
@@ -188,7 +191,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Reports & Auditing',
             links: [
-              { name: 'Reports', label: 'Performance Reports', path: '/reports', icon: BarChart3 },
               { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
               { name: 'Audit Logs', label: 'Audit Trail Logs', path: '/audit-logs', icon: ClipboardList }
             ]
@@ -244,7 +246,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Reports & Auditing',
             links: [
-              { name: 'Reports', label: 'Branch Reports', path: '/reports', icon: BarChart3 },
               { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
               { name: 'Audit Logs', label: 'Branch Audit Logs', path: '/audit-logs', icon: ClipboardList }
             ]
@@ -318,12 +319,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
               { name: 'Defaulters Ledger', label: 'Dues & Defaulters', path: '/defaulters', icon: AlertTriangle }
-            ]
-          },
-          {
-            title: 'Analytics',
-            links: [
-              { name: 'Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
           },
           {

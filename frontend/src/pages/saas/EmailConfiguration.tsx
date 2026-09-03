@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Layers, Key, Mail, Terminal, Send, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Layers, Key, Mail, Terminal, Send, Check, Loader2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { systemConfigurationService } from '../../services/systemConfigurationService';
 
 export const EmailConfiguration: React.FC = () => {
   const { addToast } = useApp();
@@ -15,10 +16,68 @@ export const EmailConfiguration: React.FC = () => {
   const [replyToEmail, setReplyToEmail] = useState('');
   const [testEmail, setTestEmail] = useState('');
   const [isEnabled, setIsEnabled] = useState(true);
+  const [providers, setProviders] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [providersRes, configRes] = await Promise.all([
+          systemConfigurationService.getProviders('EMAIL'),
+          systemConfigurationService.getByChannel('EMAIL'),
+        ]);
+        setProviders(providersRes.data);
+
+        const data = configRes.data;
+        if (data) {
+          setProvider(data.provider_name || '');
+          const creds = (data.credentials as unknown as Record<string, string>) || {};
+          setEncryption(creds.encryption || 'TLS (Recommended)');
+          setSmtpHost(creds.smtp_host || '');
+          setSmtpPort(creds.smtp_port || '');
+          setSmtpUser(creds.smtp_username || '');
+          setSmtpPass(creds.smtp_password || '');
+          setFromEmail(creds.from_email || '');
+          setFromName(creds.from_name || '');
+          setReplyToEmail(creds.reply_to_email || '');
+          setTestEmail(creds.test_email || '');
+          setIsEnabled(Boolean(data.is_enabled));
+        }
+      } catch {
+        addToast('Failed to load Email configuration.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    addToast('Email Configuration saved successfully!', 'info');
+    setSaving(true);
+    try {
+      await systemConfigurationService.save('EMAIL', {
+        provider_name: provider,
+        is_enabled: isEnabled,
+        credentials: {
+          encryption,
+          smtp_host: smtpHost,
+          smtp_port: smtpPort,
+          smtp_username: smtpUser,
+          smtp_password: smtpPass,
+          from_email: fromEmail,
+          from_name: fromName,
+          reply_to_email: replyToEmail,
+          test_email: testEmail,
+        },
+      });
+      addToast('Email Configuration saved successfully!', 'success');
+    } catch {
+      addToast('Failed to save Email configuration.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSendTest = () => {
@@ -31,6 +90,12 @@ export const EmailConfiguration: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 size={28} className="animate-spin text-blue-600" />
+        </div>
+      ) : (
+      <>
       {/* Top Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -41,7 +106,12 @@ export const EmailConfiguration: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => setIsEnabled(!isEnabled)}
+          onClick={() => {
+            const next = !isEnabled;
+            setIsEnabled(next);
+            systemConfigurationService.toggle('EMAIL', next)
+              .catch(() => addToast('Failed to update Email status.', 'error'));
+          }}
           className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
             isEnabled
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -70,10 +140,9 @@ export const EmailConfiguration: React.FC = () => {
                 onChange={(e) => setProvider(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition cursor-pointer"
               >
-                <option value="SMTP Server">SMTP Server</option>
-                <option value="Amazon SES">Amazon SES</option>
-                <option value="SendGrid">SendGrid</option>
-                <option value="Mailgun">Mailgun</option>
+                {providers.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
               <span className="text-xs text-slate-400 mt-1 block">
                 Choose your email service provider
@@ -275,12 +344,16 @@ export const EmailConfiguration: React.FC = () => {
           </button>
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
+            disabled={saving}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
           >
-            <Check size={16} /> Save Configuration
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            {saving ? 'Saving...' : 'Save Configuration'}
           </button>
         </div>
       </form>
+      </>
+      )}
     </div>
   );
 };

@@ -22,6 +22,10 @@ const requireAuth = async (req, res, next) => {
             });
         }
 
+        if (roleCodes.includes('saas_admin') || decoded.isSaasAdmin || decoded.tenantId === 1) {
+            req.user.isSaasAdmin = true;
+        }
+
         next();
     } catch (error) {
         console.error('JWT Verify Error:', error.message);

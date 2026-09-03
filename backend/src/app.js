@@ -31,6 +31,8 @@ const planRoutes = require('./routes/planRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const emailTemplateRoutes = require('./routes/emailTemplateRoutes');
+const smsTemplateRoutes = require('./routes/smsTemplateRoutes');
+const whatsappTemplateRoutes = require('./routes/whatsappTemplateRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
@@ -40,9 +42,11 @@ const staffRoutes = require('./routes/staffRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const settingRoutes = require('./routes/settingRoutes');
+const systemConfigurationRoutes = require('./routes/systemConfigurationRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const userRoutes = require('./routes/userRoutes');
 const roleRoutes = require('./routes/roleRoutes');
+const platformSettingsRoutes = require('./routes/platformSettingsRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -56,6 +60,9 @@ app.use('/api/admin/plans', planRoutes);
 app.use('/api/admin/subscriptions', subscriptionRoutes);
 app.use('/api/admin/billing', billingRoutes);
 app.use('/api/admin/email-templates', emailTemplateRoutes);
+app.use('/api/admin/sms-templates', smsTemplateRoutes);
+app.use('/api/admin/whatsapp-templates', whatsappTemplateRoutes);
+app.use('/api/admin/platform-settings', platformSettingsRoutes);
 app.use('/api/admin/courses', courseRoutes);
 app.use('/api/admin/branches', branchRoutes);
 app.use('/api/admin/subjects', subjectRoutes);
@@ -64,6 +71,7 @@ app.use('/api/admin/staff', staffRoutes);
 app.use('/api/admin/batches', batchRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/settings', settingRoutes);
+app.use('/api/admin/system-configurations', systemConfigurationRoutes);
 app.use('/api/admin/support', supportRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/admin/roles', roleRoutes);

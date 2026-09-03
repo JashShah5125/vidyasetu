@@ -183,8 +183,9 @@ export const UsersAndRoles: React.FC = () => {
 
   // Reset Password Modal
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetUser, setResetUser] = useState<UserRecord | null>(null);
+  const [resetUser, setResetUser] = useState<any | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [resetSubmitting, setResetSubmitting] = useState(false);
 
   // Delete User Modal
@@ -201,11 +202,9 @@ export const UsersAndRoles: React.FC = () => {
   const [roleSearch, setRoleSearch] = useState('');
   const [roleTypeFilter, setRoleTypeFilter] = useState<'all' | 'system' | 'custom'>('all');
 
-  // Role Modals
+  // Role Modal
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleRecord | null>(null);
-
-  // Role Form fields
   const [roleName, setRoleName] = useState('');
   const [roleCode, setRoleCode] = useState('');
   const [roleDescription, setRoleDescription] = useState('');
@@ -216,6 +215,50 @@ export const UsersAndRoles: React.FC = () => {
   // Delete Role Modal
   const [showDeleteRoleModal, setShowDeleteRoleModal] = useState(false);
   const [deletingRole, setDeletingRole] = useState<RoleRecord | null>(null);
+
+  // Password Reset Handler
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetUser) return;
+
+    if (!newPassword || newPassword.length < 6) {
+      addToast('Password must be at least 6 characters long.', 'error');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      addToast('New password and confirm password do not match.', 'error');
+      return;
+    }
+
+    setResetSubmitting(true);
+    try {
+      const res = await api.post(`/admin/users/${resetUser.id}/reset-password`, {
+        newPassword
+      });
+      if (res.data.status === 'success') {
+        addToast(`Password for "${resetUser.name}" reset successfully.`, 'info');
+        setShowResetModal(false);
+        setNewPassword('');
+        setConfirmPassword('');
+        setResetUser(null);
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to reset password.', 'error');
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
+  const generateRandomPass = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let pass = '';
+    for (let i = 0; i < 10; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(pass);
+    setConfirmPassword(pass);
+  };
 
   // Load Meta
   const fetchMeta = async () => {
@@ -576,40 +619,6 @@ export const UsersAndRoles: React.FC = () => {
     }
   };
 
-  // Password Reset Handler
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetUser || !newPassword || newPassword.length < 6) {
-      addToast('Password must be at least 6 characters long.', 'error');
-      return;
-    }
-    setResetSubmitting(true);
-    try {
-      const res = await api.post(`/admin/users/${resetUser.id}/reset-password`, {
-        newPassword
-      });
-      if (res.data.status === 'success') {
-        addToast(`Password for "${resetUser.name}" reset successfully.`, 'info');
-        setShowResetModal(false);
-        setNewPassword('');
-        setResetUser(null);
-      }
-    } catch (err: any) {
-      addToast(err.response?.data?.message || 'Failed to reset password.', 'error');
-    } finally {
-      setResetSubmitting(false);
-    }
-  };
-
-  const generateRandomPass = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    let pass = '';
-    for (let i = 0; i < 10; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setNewPassword(pass);
-  };
-
   // Delete User Handler
   const handleDeleteUser = async () => {
     if (!deletingUser) return;
@@ -952,7 +961,7 @@ export const UsersAndRoles: React.FC = () => {
 
                       <button
                         type="button"
-                        onClick={() => { setResetUser(managedUser); setNewPassword(''); setShowResetModal(true); }}
+                        onClick={() => { setResetUser(managedUser); setNewPassword(''); setConfirmPassword(''); setShowResetModal(true); }}
                         className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-2 border border-amber-200"
                       >
                         <Key size={15} /> Reset User Password
@@ -1619,6 +1628,88 @@ export const UsersAndRoles: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* RESET PASSWORD MODAL FOR MANAGE VIEW */}
+        {showResetModal && resetUser && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in">
+              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Key size={18} className="text-amber-500" />
+                  Reset Password for {resetUser.name}
+                </h3>
+                <button onClick={() => setShowResetModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition cursor-pointer">✕</button>
+              </div>
+
+              <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+                {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-800">
+                    ⚠ New password and confirm password do not match.
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 mb-1 block">New Password <span className="text-red-500">*</span></label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password..."
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                    />
+                    <Button type="button" variant="secondary" onClick={generateRandomPass}>Generate</Button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Confirm New Password <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password..."
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                  <Button type="button" variant="secondary" onClick={() => setShowResetModal(false)}>Cancel</Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={resetSubmitting || (Boolean(newPassword) && newPassword !== confirmPassword)}
+                  >
+                    {resetSubmitting ? 'Resetting...' : 'Confirm Reset Password'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE USER MODAL FOR MANAGE VIEW */}
+        {showDeleteUserModal && deletingUser && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 text-center animate-fade-in">
+              <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto border border-red-100">
+                <AlertTriangle size={28} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Delete User Account?</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Are you sure you want to soft-delete user <span className="font-bold text-slate-800">"{deletingUser.name}"</span>?
+                </p>
+              </div>
+              <div className="flex justify-center gap-3 pt-2">
+                <Button variant="secondary" onClick={() => setShowDeleteUserModal(false)}>Cancel</Button>
+                <Button variant="danger" onClick={handleDeleteUser}>Confirm Delete</Button>
+              </div>
             </div>
           </div>
         )}
@@ -2293,18 +2384,47 @@ export const UsersAndRoles: React.FC = () => {
             </div>
 
             <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+              {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-800">
+                  ⚠ New password and confirm password do not match.
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-semibold text-slate-700 mb-1 block">New Password <span className="text-red-500">*</span></label>
                 <div className="flex gap-2">
-                  <input type="text" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter password..." className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition" />
+                  <input
+                    type="text"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password..."
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                  />
                   <Button type="button" variant="secondary" onClick={generateRandomPass}>Generate</Button>
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-semibold text-slate-700 mb-1 block">Confirm New Password <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password..."
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                />
+              </div>
+
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <Button type="button" variant="secondary" onClick={() => setShowResetModal(false)}>Cancel</Button>
-                <Button type="submit" variant="primary" disabled={resetSubmitting}>
-                  {resetSubmitting ? 'Resetting...' : 'Set Password'}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={resetSubmitting || (Boolean(newPassword) && newPassword !== confirmPassword)}
+                >
+                  {resetSubmitting ? 'Resetting...' : 'Confirm Reset Password'}
                 </Button>
               </div>
             </form>

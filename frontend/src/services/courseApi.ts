@@ -6,6 +6,7 @@ export interface CourseApiProgramLevel {
   code?: string;
   duration?: string;
   is_active?: boolean;
+  subjects?: Array<{ id: string | number; name: string; code: string }>;
 }
 
 export interface CourseApiProgram {

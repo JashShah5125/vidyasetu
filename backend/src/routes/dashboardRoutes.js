@@ -17,10 +17,38 @@ router.get('/saas-stats', async (req, res) => {
                 COUNT(*) AS total_tenants,
                 SUM(status = 'active') AS active_tenants,
                 SUM(status = 'suspended') AS suspended_tenants,
-                SUM(status = 'draft') AS draft_tenants
+                SUM(status = 'draft') AS draft_tenants,
+                SUM(status = 'expired' OR (end_date IS NOT NULL AND end_date < CURRENT_DATE AND status NOT IN ('suspended', 'draft'))) AS expired_tenants
             FROM tenants
-            WHERE tenant_type != 'master'
+            WHERE tenant_type != 'master' AND id != 1
         `);
+
+        const [statusRows] = await db.query(`
+            SELECT status, COUNT(*) AS count
+            FROM tenants
+            WHERE tenant_type != 'master' AND id != 1
+            GROUP BY status
+        `);
+
+        const expiringLimit = req.query.expiring_limit === 'all' ? 1000 : (Number(req.query.expiring_limit) || 10);
+
+        const [expiringTenants] = await db.query(`
+            SELECT t.id, t.name, t.slug, t.status, t.end_date, t.start_date,
+                   DATEDIFF(t.end_date, CURRENT_DATE) AS days_left,
+                   sp.name AS plan_name, u.email AS admin_email, t.owner_name
+            FROM tenants t
+            LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
+            LEFT JOIN users u ON t.primary_admin_user_id = u.id
+            WHERE t.tenant_type != 'master' AND t.id != 1
+            ORDER BY
+                CASE
+                    WHEN t.end_date IS NULL THEN 3
+                    WHEN t.end_date < CURRENT_DATE THEN 1
+                    ELSE 2
+                END,
+                t.end_date ASC
+            LIMIT ?
+        `, [expiringLimit]);
 
         const [[approvalStats]] = await db.query(`
             SELECT COUNT(*) AS pending_approvals
@@ -39,7 +67,7 @@ router.get('/saas-stats', async (req, res) => {
             SELECT sp.name as plan, COUNT(t.id) as count
             FROM tenants t
             JOIN subscription_plans sp ON t.plan_id = sp.id
-            WHERE t.tenant_type != 'master'
+            WHERE t.tenant_type != 'master' AND t.id != 1
             GROUP BY sp.name
             ORDER BY count DESC
         `);
@@ -48,14 +76,14 @@ router.get('/saas-stats', async (req, res) => {
         const [[mrrStats]] = await db.query(`
             SELECT SUM(subscription_final_price) as total_mrr
             FROM tenants
-            WHERE tenant_type != 'master' AND status = 'active'
+            WHERE tenant_type != 'master' AND id != 1 AND status = 'active'
         `);
 
         // MRR Trend
         const [allActive] = await db.query(`
             SELECT start_date, subscription_final_price
             FROM tenants
-            WHERE tenant_type != 'master' AND status = 'active'
+            WHERE tenant_type != 'master' AND id != 1 AND status = 'active'
         `);
 
         const currentYear = new Date().getFullYear();
@@ -91,6 +119,36 @@ router.get('/saas-stats', async (req, res) => {
             h: Math.round((t.raw_val / maxMrr) * 85) + '%' // Max height 85% to fit tooltip
         }));
 
+        // User Metrics across all tenants
+        const [[userStats]] = await db.query(`
+            SELECT
+                COUNT(*) AS total_users,
+                SUM(CASE WHEN (status = 'active' OR status IS NULL) AND app_access_suspended != 1 THEN 1 ELSE 0 END) AS active_users,
+                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_users,
+                SUM(CASE WHEN status = 'suspended' OR app_access_suspended = 1 THEN 1 ELSE 0 END) AS suspended_users,
+                SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) AS expired_users,
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_users
+            FROM users
+            WHERE deleted_at IS NULL
+        `);
+
+        const [userRoleDistribution] = await db.query(`
+            SELECT user_type, COUNT(*) AS count
+            FROM users
+            WHERE deleted_at IS NULL
+            GROUP BY user_type
+            ORDER BY count DESC
+        `);
+
+        const [recentlyRegisteredUsers] = await db.query(`
+            SELECT u.id, u.name, u.email, u.user_type, u.status, u.created_at, t.name AS tenant_name
+            FROM users u
+            LEFT JOIN tenants t ON u.tenant_id = t.id
+            WHERE u.deleted_at IS NULL
+            ORDER BY u.created_at DESC
+            LIMIT 5
+        `);
+
         res.status(200).json({
             status: 'success',
             data: {
@@ -98,6 +156,21 @@ router.get('/saas-stats', async (req, res) => {
                 active_tenants: Number(tenantStats.active_tenants) || 0,
                 suspended_tenants: Number(tenantStats.suspended_tenants) || 0,
                 draft_tenants: Number(tenantStats.draft_tenants) || 0,
+                expired_tenants: Number(tenantStats.expired_tenants) || 0,
+                status_distribution: statusRows,
+                recently_registered: expiringTenants,
+                expiring_tenants: expiringTenants,
+                // User Analytics
+                user_metrics: {
+                    total_users: Number(userStats.total_users) || 0,
+                    active_users: Number(userStats.active_users) || 0,
+                    inactive_users: Number(userStats.inactive_users) || 0,
+                    suspended_users: Number(userStats.suspended_users) || 0,
+                    expired_users: Number(userStats.expired_users) || 0,
+                    new_users: Number(userStats.new_users) || 0,
+                },
+                user_role_distribution: userRoleDistribution,
+                recently_registered_users: recentlyRegisteredUsers,
                 pending_approvals: Number(approvalStats.pending_approvals) || 0,
                 total_plans: Number(planStats.total_plans) || 0,
                 total_mrr: Number(mrrStats.total_mrr) || 0,
@@ -118,18 +191,20 @@ router.get('/saas-stats', async (req, res) => {
  */
 router.get('/saas-revenue', async (req, res) => {
     try {
+        const selectedYear = (req.query.year && req.query.year !== 'all') ? Number(req.query.year) : new Date().getFullYear();
+        const selectedMonth = (req.query.month && req.query.month !== 'all') ? Number(req.query.month) : null;
+
         // Monthly paid revenue trend (group by month over all paid invoices)
         const [paidByMonth] = await db.query(`
             SELECT
-                YEAR(i.payment_date) AS yr,
-                MONTH(i.payment_date) AS mo,
+                YEAR(COALESCE(i.payment_date, i.created_at)) AS yr,
+                MONTH(COALESCE(i.payment_date, i.created_at)) AS mo,
                 SUM(i.total_amount) AS rev
             FROM saas_invoices i
-            WHERE i.status = 'paid' AND i.payment_date IS NOT NULL
-            GROUP BY YEAR(i.payment_date), MONTH(i.payment_date)
+            WHERE i.status = 'paid'
+            GROUP BY YEAR(COALESCE(i.payment_date, i.created_at)), MONTH(COALESCE(i.payment_date, i.created_at))
         `);
 
-        const currentYear = new Date().getFullYear();
         let monthTotals = Array(12).fill(0);
         let baseTotal = 0;
 
@@ -137,44 +212,32 @@ router.get('/saas-revenue', async (req, res) => {
             const yr = Number(row.yr);
             const mo = Number(row.mo) - 1; // 0-based
             const rev = Number(row.rev) || 0;
-            if (yr < currentYear) {
+            if (yr < selectedYear) {
                 baseTotal += rev;
-            } else if (yr === currentYear && mo >= 0 && mo < 12) {
-                monthTotals[mo] += rev;
+            } else if (yr === selectedYear && mo >= 0 && mo < 12) {
+                if (selectedMonth === null || (mo + 1) === selectedMonth) {
+                    monthTotals[mo] += rev;
+                }
             }
         });
 
-        // Build a running cumulative trend for the current year
+        // Build a running cumulative trend for the selected year
         let runningTotal = baseTotal;
         const trend = monthTotals.map((added, index) => {
             runningTotal += added;
-            const monthStr = new Date(currentYear, index, 1).toLocaleString('en-US', { month: 'short' });
+            const monthStr = new Date(selectedYear, index, 1).toLocaleString('en-US', { month: 'short' });
             const roundedTotal = Math.round(runningTotal);
             return {
                 m: monthStr,
                 val: '₹' + roundedTotal.toLocaleString('en-IN'),
                 raw_val: roundedTotal,
-                isCurrent: index === new Date().getMonth()
+                isCurrent: selectedYear === new Date().getFullYear() && index === new Date().getMonth()
             };
         });
-
-        // raw_val is already a plain Number from Math.round — no strings, no formatting
-
-        // KPI aggregates from the same table
-        const [[summary]] = await db.query(`
-            SELECT
-                SUM(CASE WHEN status = 'paid' THEN total_amount ELSE 0 END) AS total_revenue,
-                SUM(CASE WHEN status IN ('unpaid', 'overdue') THEN total_amount ELSE 0 END) AS outstanding,
-                SUM(CASE WHEN status = 'paid' THEN subtotal ELSE 0 END) AS net_revenue
-            FROM saas_invoices
-        `);
 
         res.status(200).json({
             status: 'success',
             data: {
-                total_revenue: Number(summary.total_revenue) || 0,
-                net_revenue: Number(summary.net_revenue) || 0,
-                outstanding: Number(summary.outstanding) || 0,
                 revenue_trend: trend
             }
         });

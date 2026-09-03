@@ -24,6 +24,18 @@ async function main() {
         console.log('Running 06_seed_domain_b_permissions.sql...');
         await runSQLFile(path.join(__dirname, 'migrations/seeds/06_seed_domain_b_permissions.sql'));
 
+        console.log('Running 112_create_sms_templates.sql...');
+        await runSQLFile(path.join(__dirname, 'migrations_v2/112_create_sms_templates.sql'));
+
+        console.log('Running 036_seed_sms_templates.sql...');
+        await runSQLFile(path.join(__dirname, 'seeds_v2/036_seed_sms_templates.sql'));
+
+        console.log('Running 113_create_whatsapp_templates.sql...');
+        await runSQLFile(path.join(__dirname, 'migrations_v2/113_create_whatsapp_templates.sql'));
+
+        console.log('Running 037_seed_whatsapp_templates.sql...');
+        await runSQLFile(path.join(__dirname, 'seeds_v2/037_seed_whatsapp_templates.sql'));
+
         console.log('Migrations and seeds completed successfully.');
     } catch (err) {
         console.error('Migration failed:', err);

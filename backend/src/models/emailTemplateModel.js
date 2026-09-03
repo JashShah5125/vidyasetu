@@ -49,6 +49,11 @@ const getTotalCount = async (search = '', category = '', status = '') => {
     return rows[0].total;
 };
 
+const getCategories = async () => {
+    const [rows] = await pool.query(`SELECT DISTINCT category FROM email_templates WHERE deleted_at IS NULL AND category IS NOT NULL AND category != ''`);
+    return rows.map(r => r.category).filter(Boolean);
+};
+
 const getById = async (id) => {
     const query = `SELECT id, tenant_id, template_key, name, description, category, subject, html_body, text_body, variables, status, is_system, created_by, updated_by, created_at, updated_at FROM email_templates WHERE id = ? AND deleted_at IS NULL`;
     const [rows] = await pool.query(query, [id]);
@@ -131,6 +136,7 @@ const updateStatus = async (id, status) => {
 module.exports = {
     getAll,
     getTotalCount,
+    getCategories,
     getById,
     getByTemplateKey,
     create,

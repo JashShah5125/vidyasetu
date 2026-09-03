@@ -4,8 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Card } from '../../components/ui/Card';
-import { ArrowLeft, Download, Plus, MessageSquare, Upload, Loader2, Paperclip, Trash2, Pencil, FileText, X } from 'lucide-react';
-import { BulkImportModal } from '../../components/ui/BulkImportModal';
+import { ArrowLeft, Download, Plus, MessageSquare, Loader2, Paperclip, Trash2, Pencil, FileText, X, Ticket } from 'lucide-react';
 import api from '../../services/api';
 
 interface TicketReply {
@@ -41,7 +40,6 @@ export const SupportTickets: React.FC = () => {
   // Filters State
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Active Ticket Selection
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
@@ -58,6 +56,9 @@ export const SupportTickets: React.FC = () => {
 
   // Delete confirmation
   const [deleting, setDeleting] = useState(false);
+
+  // Status update
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Raise Ticket Form State
   const [showRaiseForm, setShowRaiseForm] = useState(false);
@@ -177,6 +178,21 @@ export const SupportTickets: React.FC = () => {
     }
   };
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!activeTicketId || !newStatus) return;
+    setUpdatingStatus(true);
+    try {
+      await api.patch(`/admin/support/${activeTicketId}/status`, { status: newStatus });
+      await fetchTickets();
+      addToast(`Ticket status changed to ${newStatus} successfully!`, 'success');
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+      addToast('Failed to update ticket status.', 'error');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const handleRaiseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubject || !newDesc) return;
@@ -255,8 +271,11 @@ export const SupportTickets: React.FC = () => {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h2 className="text-xl font-display font-bold text-slate-900">Raise Support Ticket</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Submit a query or report a technical issue to the platform operators.</p>
+            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <Ticket size={24} className="text-indigo-600" />
+              Raise Support Ticket
+            </h2>
+            <p className="text-sm text-slate-500 mt-0.5">Submit a query or report a technical issue to the platform operators.</p>
           </div>
         </div>
 
@@ -275,7 +294,7 @@ export const SupportTickets: React.FC = () => {
               disabled
             />
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-500">Detailed Description *</label>
+              <label className="text-xs font-semibold text-slate-700">Detailed Description *</label>
               <textarea
                 required
                 value={newDesc}
@@ -285,7 +304,7 @@ export const SupportTickets: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500">Attachment (optional)</label>
+              <label className="text-xs font-semibold text-slate-700">Attachment (optional)</label>
               <input
                 ref={raiseFileRef}
                 type="file"
@@ -322,20 +341,22 @@ export const SupportTickets: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Title Header Matching TenantsManager & SmsTemplates */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">
-            {isStaff ? 'Support Center Inbox' : 'Support Helpdesk'}
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            <Ticket size={32} className="text-indigo-600" />
+            Support Tickets
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-base text-slate-500 mt-2">
             {isStaff
               ? 'Review issues, debug configurations, and reply directly to Tenant Operators.'
               : 'Submit support queries, track resolution logs, and interact with support engineers.'}
           </p>
         </div>
         {!isStaff && (
-          <Button variant="primary" onClick={() => setShowRaiseForm(true)} className="flex items-center gap-1.5 cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
-            <Plus size={14} /> Raise Ticket
+          <Button variant="primary" onClick={() => setShowRaiseForm(true)} className="flex items-center gap-1.5 cursor-pointer px-5 py-2.5 text-sm shadow-sm" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+            <Plus size={16} /> Raise Ticket
           </Button>
         )}
       </div>
@@ -361,10 +382,7 @@ export const SupportTickets: React.FC = () => {
           />
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer font-bold flex items-center justify-center">
-            <Upload size={14} className="mr-1.5" /> Bulk Import
-          </Button>
-          <Button variant="secondary" onClick={handleExportCSV} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer">
+          <Button variant="secondary" onClick={handleExportCSV} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer text-xs font-semibold px-4">
             <Download size={14} className="mr-1.5" /> Export CSV
           </Button>
         </div>
@@ -372,9 +390,9 @@ export const SupportTickets: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Tickets List */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[550px]">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-            <h3 className="font-bold text-slate-800 text-sm">Tickets Register</h3>
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[600px]">
+          <div className="p-3.5 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="font-bold text-slate-900 text-sm">Tickets Register</h3>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
             {loading ? (
@@ -390,15 +408,15 @@ export const SupportTickets: React.FC = () => {
                 <div
                   key={t.id}
                   onClick={() => setActiveTicketId(t.id)}
-                  className={`p-4 hover:bg-slate-50 cursor-pointer transition flex flex-col gap-2 ${activeTicketId === t.id ? 'bg-blue-50/30 border-l-4 border-blue-500' : ''}`}
+                  className={`p-3.5 hover:bg-slate-50 cursor-pointer transition flex flex-col gap-1.5 ${activeTicketId === t.id ? 'bg-blue-50/30 border-l-4 border-blue-500' : ''}`}
                 >
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-[10px] font-mono text-slate-400 font-bold">{t.id}</span>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-xs font-mono text-indigo-600 font-bold">{t.id}</span>
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{t.subject}</h4>
-                  <div className="flex justify-between items-center text-xs text-slate-400 mt-1">
-                    <span>{t.tenantName}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${statusColors[t.status]}`}>
+                  <h4 className="text-base font-bold text-slate-900 line-clamp-1">{t.subject}</h4>
+                  <div className="flex justify-between items-center text-xs text-slate-500 mt-0.5">
+                    <span className="font-medium">{t.tenantName}</span>
+                    <span className={`px-2.5 py-0.5 rounded text-xs font-bold border uppercase ${statusColors[t.status]}`}>
                       {t.status}
                     </span>
                   </div>
@@ -409,20 +427,20 @@ export const SupportTickets: React.FC = () => {
         </div>
 
         {/* Details and Conversations */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[550px]">
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[600px]">
           {activeTicket ? (
             <>
               {/* Ticket header */}
-              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4 animate-fade-in">
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-3 animate-fade-in">
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-400 font-mono">{activeTicket.id}</span>
+                      <span className="text-xs font-bold text-indigo-600 font-mono">{activeTicket.id}</span>
                       <span className="text-xs text-slate-400">•</span>
-                      <span className="text-xs text-slate-400">{activeTicket.created}</span>
+                      <span className="text-xs text-slate-500 font-medium">{activeTicket.created}</span>
                     </div>
                     {editing ? (
-                      <div className="mt-1 space-y-2">
+                      <div className="mt-2 space-y-2">
                         <Input label="Subject" value={editSubject} onChange={e => setEditSubject(e.target.value)} />
                         <textarea
                           value={editDesc}
@@ -438,8 +456,8 @@ export const SupportTickets: React.FC = () => {
                       </div>
                     ) : (
                       <>
-                        <h3 className="text-base font-bold text-slate-800 mt-1">{activeTicket.subject}</h3>
-                        <p className="text-xs text-slate-500 mt-1">Requester: <strong>{activeTicket.tenantName}</strong></p>
+                        <h3 className="text-lg font-extrabold text-slate-900 mt-1">{activeTicket.subject}</h3>
+                        <p className="text-xs text-slate-600 mt-1">Requester: <strong className="text-slate-900">{activeTicket.tenantName}</strong></p>
                       </>
                     )}
                   </div>
@@ -450,17 +468,27 @@ export const SupportTickets: React.FC = () => {
                     {!editing && (
                       <div className="flex gap-2">
                         {!isStaff && (
-                          <Button variant="secondary" size="sm" onClick={handleStartEdit} className="cursor-pointer">
+                          <Button variant="secondary" size="sm" onClick={handleStartEdit} className="cursor-pointer text-xs font-semibold">
                             <Pencil size={13} /> Edit
                           </Button>
                         )}
-                        {isStaff && activeTicket.status !== 'Resolved' && (
-                          <Button variant="secondary" size="sm" onClick={handleResolve} className="cursor-pointer">
-                            Mark Resolved
-                          </Button>
+                        {isStaff && (
+                          <Select
+                            value={activeTicket.status}
+                            onChange={(e) => handleStatusChange(e.target.value)}
+                            disabled={updatingStatus}
+                            options={[
+                              { value: 'Open', label: 'Open' },
+                              { value: 'In Progress', label: 'In Progress' },
+                              { value: 'Resolved', label: 'Resolved' },
+                              { value: 'Closed', label: 'Closed' }
+                            ]}
+                            wrapperClassName="min-w-[130px]"
+                            className="text-xs font-semibold"
+                          />
                         )}
                         {!isStaff && (
-                          <Button variant="secondary" size="sm" onClick={handleDelete} className="cursor-pointer text-red-600 border-red-200" disabled={deleting}>
+                          <Button variant="secondary" size="sm" onClick={handleDelete} className="cursor-pointer text-red-600 border-red-200 text-xs font-semibold" disabled={deleting}>
                             {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
                           </Button>
                         )}
@@ -471,24 +499,24 @@ export const SupportTickets: React.FC = () => {
               </div>
 
               {/* Chat timeline */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/30">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/30">
                 {!editing && (
-                  <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Original Description</span>
-                    <p className="text-xs text-slate-700 leading-relaxed font-medium">{activeTicket.description}</p>
+                  <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Original Description</span>
+                    <p className="text-sm text-slate-800 leading-relaxed font-medium">{activeTicket.description}</p>
                   </div>
                 )}
 
-                <div className="space-y-4">
+                <div className="space-y-3.5">
                   {activeTicket.replies.map((r, i) => {
                     const fromStaff = r.is_from_staff || r.sender === 'SaaS Support Staff' || r.sender === 'SaaS Admin';
                     return (
                       <div key={i} className={`flex flex-col gap-1 max-w-[85%] ${fromStaff ? 'ml-auto items-end' : 'mr-auto items-start'}`}>
-                        <span className="text-[10px] text-slate-450 font-semibold">{r.sender} · {r.time}</span>
-                        <div className={`p-3 rounded-xl text-xs leading-relaxed font-sans ${
+                        <span className="text-xs text-slate-500 font-semibold">{r.sender} · {r.time}</span>
+                        <div className={`p-3.5 rounded-xl text-sm leading-relaxed font-sans ${
                           fromStaff
                             ? 'bg-blue-600 text-white rounded-tr-none font-medium'
-                            : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none font-medium'
+                            : 'bg-white border border-slate-200 text-slate-900 rounded-tl-none font-medium shadow-sm'
                         }`}>
                           {r.text}
                           {r.attachment_url && (
@@ -496,11 +524,11 @@ export const SupportTickets: React.FC = () => {
                               href={r.attachment_url}
                               target="_blank"
                               rel="noreferrer"
-                              className={`mt-2 flex items-center gap-1.5 font-bold underline truncate max-w-[200px] ${
+                              className={`mt-2 flex items-center gap-1.5 font-bold underline truncate max-w-[220px] ${
                                 fromStaff ? 'text-blue-50' : 'text-blue-600'
                               }`}
                             >
-                              <FileText size={13} className="shrink-0" />
+                              <FileText size={14} className="shrink-0" />
                               {r.attachment_name || 'Attachment'}
                             </a>
                           )}
@@ -512,13 +540,13 @@ export const SupportTickets: React.FC = () => {
               </div>
 
               {/* Input box */}
-              <form onSubmit={handleSendReply} className="p-4 border-t border-slate-100 bg-white flex flex-col gap-2">
+              <form onSubmit={handleSendReply} className="p-3.5 border-t border-slate-100 bg-white flex flex-col gap-2">
                 {!editing && activeTicket.status !== 'Resolved' && activeTicket.status !== 'Closed' && (
                   <div className="flex items-end gap-2">
                     <input
                       type="text"
                       placeholder={isStaff ? 'Write your response message...' : 'Write a comment or update for the support team...'}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-blue-500 focus:bg-white"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:bg-white"
                       value={replyInput}
                       onChange={e => setReplyInput(e.target.value)}
                     />
@@ -536,7 +564,7 @@ export const SupportTickets: React.FC = () => {
                     >
                       <Paperclip size={18} />
                     </button>
-                    <Button type="submit" variant="primary" size="sm" className="cursor-pointer" disabled={sendingReply}>
+                    <Button type="submit" variant="primary" size="sm" className="cursor-pointer text-xs font-bold px-4 py-2.5" disabled={sendingReply}>
                       {sendingReply ? <Loader2 size={14} className="animate-spin" /> : isStaff ? 'Send Response' : 'Send Message'}
                     </Button>
                   </div>
@@ -552,37 +580,12 @@ export const SupportTickets: React.FC = () => {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-6 text-center gap-2">
-              <MessageSquare size={36} />
-              <p className="text-sm font-semibold">Select a ticket from the left panel to review and reply.</p>
+              <MessageSquare size={40} className="text-slate-300" />
+              <p className="text-base font-semibold text-slate-600">Select a ticket from the left panel to review and reply.</p>
             </div>
           )}
         </div>
       </div>
-
-      <BulkImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        title="Bulk Import Support Tickets"
-        description="Select a CSV spreadsheet to import multiple support tickets at once. Columns must match the template below exactly."
-        sampleHeaders={['Subject', 'Description', 'Status']}
-        sampleRows={[
-          ['Unable to download reports', 'The export CSV button does not trigger downloads on Safari', 'Open'],
-          ['Payment gateway failure', 'UPI transactions showing pending indefinitely', 'Open']
-        ]}
-        onImport={async (importedRows) => {
-          for (const row of importedRows) {
-            try {
-              await api.post('/admin/support', {
-                subject: row['Subject'] || 'Imported Support Request',
-                description: row['Description'] || 'No details provided.'
-              });
-            } catch (error) {
-              console.error('Error importing ticket:', error);
-            }
-          }
-          await fetchTickets();
-        }}
-      />
     </div>
   );
 };

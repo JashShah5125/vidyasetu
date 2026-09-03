@@ -135,13 +135,13 @@ const deleteUser = async (req, res) => {
 const resetPassword = async (req, res) => {
     try {
         const { id } = req.params;
-        const { newPassword } = req.body;
+        const targetPassword = req.body.newPassword || req.body.password;
 
-        if (!newPassword || newPassword.length < 6) {
+        if (!targetPassword || targetPassword.length < 6) {
             return res.status(400).json({ status: 'error', message: 'New password must be at least 6 characters long' });
         }
 
-        const password_hash = await bcrypt.hash(newPassword, 10);
+        const password_hash = await bcrypt.hash(targetPassword, 10);
         const success = await userModel.resetUserPassword(id, password_hash);
 
         if (!success) {

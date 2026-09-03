@@ -19,6 +19,7 @@ import { BranchSetup } from './pages/BranchSetup';
 import { BranchDetail } from './pages/BranchDetail';
 import { CourseSetup } from './pages/CourseSetup';
 import { CourseDetail } from './pages/CourseDetail';
+import { CourseCurriculumView } from './pages/CourseCurriculumView';
 import { BatchSetup } from './pages/BatchSetup';
 import { SubjectSetup } from './pages/SubjectSetup';
 import { SubjectDetail } from './pages/SubjectDetail';
@@ -33,7 +34,6 @@ import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
 import { Assignments } from './pages/Assignments';
 import { ExamMarks } from './pages/ExamMarks';
-import { Reports } from './pages/Reports';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
 import { TenantsManager } from './pages/TenantsManager';
@@ -58,6 +58,8 @@ import { FeatureFlags } from './pages/saas/FeatureFlags';
 import { SupportTickets } from './pages/saas/SupportTickets';
 import { CommunicationCenter } from './pages/saas/CommunicationCenter';
 import { EmailTemplates } from './pages/saas/EmailTemplates';
+import { SmsTemplates } from './pages/saas/SmsTemplates';
+import { WhatsAppTemplates } from './pages/saas/WhatsAppTemplates';
 import { BillingRevenue } from './pages/saas/BillingRevenue';
 import { ProductAnalytics } from './pages/saas/ProductAnalytics';
 import { SystemConfiguration } from './pages/saas/SystemConfiguration';
@@ -318,6 +320,8 @@ const ContentRouter = () => {
       <Route path="/support" element={<SupportTickets />} />
       <Route path="/communication" element={<CommunicationCenter />} />
       <Route path="/email-templates" element={<EmailTemplates />} />
+      <Route path="/sms-templates" element={<SmsTemplates />} />
+      <Route path="/whatsapp-templates" element={<WhatsAppTemplates />} />
       <Route path="/billing" element={<BillingRevenue />} />
       <Route path="/analytics" element={<ProductAnalytics />} />
       <Route path="/system-config" element={<SystemConfiguration />} />
@@ -325,7 +329,6 @@ const ContentRouter = () => {
       <Route path="/system-settings/sms" element={<SmsConfiguration />} />
       <Route path="/system-settings/whatsapp" element={<WhatsAppConfiguration />} />
       <Route path="/users-and-roles" element={<UsersAndRoles />} />
-      <Route path="/saas-reports" element={<Reports mode="saas" />} />
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
@@ -335,6 +338,8 @@ const ContentRouter = () => {
       <Route path="/branches/:id" element={<BranchDetail />} />
       <Route path="/courses" element={<CourseSetup />} />
       <Route path="/courses/:code" element={<CourseDetail />} />
+      <Route path="/courses/:code/curriculum" element={<CourseCurriculumView />} />
+      <Route path="/courses/:code/view" element={<CourseCurriculumView />} />
       <Route path="/batches" element={<BatchSetup />} />
       <Route path="/subjects" element={<SubjectSetup />} />
       <Route path="/subjects/:code" element={<SubjectDetail />} />
@@ -364,7 +369,6 @@ const ContentRouter = () => {
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/expense-voucher" element={<ExpenseVoucher />} />
       <Route path="/expense-ledger" element={<ExpenseLedger />} />
-      <Route path="/reports" element={<Reports mode="institute" />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/doubts" element={isTeacher ? <TeacherDoubts /> : <DoubtChatsPlaceholder />} />

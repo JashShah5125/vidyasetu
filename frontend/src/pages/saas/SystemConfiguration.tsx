@@ -1,605 +1,410 @@
 import React, { useState, useEffect } from 'react';
+import { Search, Loader2, RotateCcw, Sliders, Eye, EyeOff, Edit, Trash2, Key } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { Table } from '../../components/ui/Table';
+import { Pagination } from '../../components/ui/Pagination';
 import { Modal } from '../../components/ui/Modal';
-import { Trash2 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
+import { platformSettingsService, type PlatformSetting } from '../../services/platformSettingsService';
+
+const STATUS_OPTIONS = [
+  { value: 'ALL', label: 'All Statuses' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'DELETED', label: 'Deleted' },
+];
+
+const ITEMS_PER_PAGE = 10;
 
 export const SystemConfiguration: React.FC = () => {
-  const { addToast } = useApp();
-  const [activeTab, setActiveTab] = useState<'general' | 'smtp' | 'sms' | 'payments' | 'branding' | 'security' | 'permissions'>('general');
-  
-  // General Constants State
-  const [platformName, setPlatformName] = useState('Vidya Setu');
-  const [supportEmail, setSupportEmail] = useState('support@vidyasetu.com');
-  const [taxRate, setTaxRate] = useState('18');
-  const [defaultCurrency, setDefaultCurrency] = useState('INR');
-  const [sessionTimeout, setSessionTimeout] = useState('60'); // minutes
-  const [expiryWarningDays, setExpiryWarningDays] = useState('15');
+  const [settings, setSettings] = useState<PlatformSetting[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Fetch from backend
-  useEffect(() => {
-    fetch('http://localhost:5000/api/admin/settings/billing/plan_expiry_warning_days')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.value) setExpiryWarningDays(data.value);
-      })
-      .catch(err => console.error(err));
-  }, []);
+  // Mask toggle for secrets
+  const [showSecretsMap, setShowSecretsMap] = useState<Record<number, boolean>>({});
 
-  // SMTP Settings
-  const [smtpHost, setSmtpHost] = useState('smtp.sendgrid.net');
-  const [smtpPort, setSmtpPort] = useState('587');
-  const [smtpUser, setSmtpUser] = useState('apikey');
-  const [smtpPass, setSmtpPass] = useState('SG.xxxxxxxxxxxxxxxxx');
-  const [senderEmail, setSenderEmail] = useState('noreply@vidyasetu.com');
+  // Modals
+  const [showAddEditModal, setShowAddEditModal] = useState(false);
+  const [editingSetting, setEditingSetting] = useState<PlatformSetting | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingSetting, setDeletingSetting] = useState<PlatformSetting | null>(null);
 
-  // SMS & WhatsApp Gateway Settings
-  const [smsGateway, setSmsGateway] = useState('Twilio');
-  const [smsApiKey, setSmsApiKey] = useState('SK_twilio_xxxxxxxxx');
-  const [waApiKey, setWaApiKey] = useState('WA_meta_xxxxxxxxx');
-  const [dltId, setDltId] = useState('1101234567890123456');
+  // Form state
+  const [formKeyName, setFormKeyName] = useState('');
+  const [formValue, setFormValue] = useState('');
+  const [formIsSecret, setFormIsSecret] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Payment Settings
-  const [stripeSecret, setStripeSecret] = useState('sk_live_51Pxxxxxxxxxxxxxxxx');
-  const [stripePublishable, setStripePublishable] = useState('pk_live_51Pxxxxxxxxxxxxxxxx');
-  const [razorpayId, setRazorpayId] = useState('rzp_live_xxxxxxxxxxx');
-  const [razorpaySecret, setRazorpaySecret] = useState('xxxxxxxxxxxxxxxxxxxx');
-
-  // Branding
-  const [primaryColor, setPrimaryColor] = useState('#2563eb');
-  const [secondaryColor, setSecondaryColor] = useState('#0f172a');
-  const [logoUrl, setLogoUrl] = useState('https://vidyasetu.com/assets/logo.png');
-
-  // Security & Backups
-  const [mfaEnforced, setMfaEnforced] = useState(true);
-  const [backupSchedule, setBackupSchedule] = useState('Daily');
-  const [passwordMinLength, setPasswordMinLength] = useState('8');
-
-  // RBAC State
-  const [selectedRole, setSelectedRole] = useState<string>('institute_admin');
-  const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
-    institute_admin: {
-      'View Dashboard': true, 'Export Dashboard Data': true,
-      'View Programs': true, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
-      'View Sessions': true, 'Create Sessions': true, 'Edit Sessions': true, 'Delete Sessions': true, 'Approve Sessions': true, 'Edit Session Links': false,
-      'View Batches': true, 'Create Batches': true, 'Edit Batches': true, 'Delete Batches': false,
-      'View Enrollments': true, 'Create Enrollments': true, 'Edit Enrollments': true, 'Approve Enrollments': true,
-      'View Certificates': true, 'Generate Certificates': true, 'Issue Certificates': false
-    },
-    branch_admin: {
-      'View Dashboard': true, 'Export Dashboard Data': false,
-      'View Programs': true, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
-      'View Sessions': true, 'Create Sessions': true, 'Edit Sessions': true, 'Delete Sessions': false, 'Approve Sessions': false, 'Edit Session Links': true,
-      'View Batches': true, 'Create Batches': true, 'Edit Batches': false, 'Delete Batches': false,
-      'View Enrollments': true, 'Create Enrollments': true, 'Edit Enrollments': false, 'Approve Enrollments': false,
-      'View Certificates': true, 'Generate Certificates': false, 'Issue Certificates': false
-    },
-    teacher: {
-      'View Dashboard': true, 'Export Dashboard Data': false,
-      'View Programs': true, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
-      'View Sessions': true, 'Create Sessions': false, 'Edit Sessions': false, 'Delete Sessions': false, 'Approve Sessions': false, 'Edit Session Links': true,
-      'View Batches': true, 'Create Batches': false, 'Edit Batches': false, 'Delete Batches': false,
-      'View Enrollments': false, 'Create Enrollments': false, 'Edit Enrollments': false, 'Approve Enrollments': false,
-      'View Certificates': false, 'Generate Certificates': false, 'Issue Certificates': false
-    },
-    counsellor: {
-      'View Dashboard': true, 'Export Dashboard Data': false,
-      'View Programs': true, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
-      'View Sessions': false, 'Create Sessions': false, 'Edit Sessions': false, 'Delete Sessions': false, 'Approve Sessions': false, 'Edit Session Links': false,
-      'View Batches': false, 'Create Batches': false, 'Edit Batches': false, 'Delete Batches': false,
-      'View Enrollments': true, 'Create Enrollments': true, 'Edit Enrollments': true, 'Approve Enrollments': false,
-      'View Certificates': false, 'Generate Certificates': false, 'Issue Certificates': false
-    },
-    finance: {
-      'View Dashboard': true, 'Export Dashboard Data': true,
-      'View Programs': false, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
-      'View Sessions': false, 'Create Sessions': false, 'Edit Sessions': false, 'Delete Sessions': false, 'Approve Sessions': false, 'Edit Session Links': false,
-      'View Batches': false, 'Create Batches': false, 'Edit Batches': false, 'Delete Batches': false,
-      'View Enrollments': true, 'Create Enrollments': false, 'Edit Enrollments': false, 'Approve Enrollments': false,
-      'View Certificates': false, 'Generate Certificates': false, 'Issue Certificates': false
+  const fetchSettings = async () => {
+    try {
+      setIsLoading(true);
+      const res = await platformSettingsService.getSettings({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        search: searchQuery,
+        category: 'general',
+        status: filterStatus === 'ALL' ? '' : filterStatus
+      });
+      if (res.status === 'success') {
+        setSettings(res.data || []);
+        setTotalItems(res.pagination?.total || 0);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to load platform settings');
+    } finally {
+      setIsLoading(false);
     }
-  });
+  };
 
-  const [toast, setToast] = useState('');
+  useEffect(() => {
+    fetchSettings();
+  }, [currentPage, filterStatus]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchSettings();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterStatus('ALL');
+    setCurrentPage(1);
+  };
+
+  const toggleSecretVisibility = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowSecretsMap(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleOpenAdd = () => {
+    setEditingSetting(null);
+    setFormKeyName('');
+    setFormValue('');
+    setFormIsSecret(false);
+    setFormError('');
+    setShowAddEditModal(true);
+  };
+
+  const handleOpenEdit = (s: PlatformSetting) => {
+    setEditingSetting(s);
+    setFormKeyName(s.key_name);
+    setFormValue(s.value || '');
+    setFormIsSecret(Boolean(s.is_secret));
+    setFormError('');
+    setShowAddEditModal(true);
+  };
+
+  const handleOpenDelete = (s: PlatformSetting) => {
+    setDeletingSetting(s);
+    setShowDeleteModal(true);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await fetch('http://localhost:5000/api/admin/settings/billing/plan_expiry_warning_days', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: expiryWarningDays })
-      });
-      setToast('Configuration settings updated successfully.');
-    } catch (err) {
-      setToast('Error updating settings.');
-    }
-    setTimeout(() => setToast(''), 4000);
-  };
-
-  const handleTogglePermission = (permission: string) => {
-    setRolePermissions(prev => ({
-      ...prev,
-      [selectedRole]: {
-        ...prev[selectedRole],
-        [permission]: !prev[selectedRole][permission]
-      }
-    }));
-  };
-
-  const handleCreateRole = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoleName.trim()) return;
-
-    const newId = newRoleName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    if (rolesList.find(r => r.id === newId)) {
-      addToast("A role with this name already exists.", "error");
+    if (!formKeyName.trim()) {
+      setFormError('Setting Key Name is required');
       return;
     }
 
-    const newRole = {
-      id: newId,
-      label: newRoleName.trim(),
-      desc: newRoleDesc.trim() || 'Custom user role definition'
-    };
+    try {
+      setIsLoading(true);
+      const payload = {
+        category: 'general',
+        key_name: formKeyName,
+        value: formValue,
+        is_secret: formIsSecret ? 1 : 0
+      };
 
-    setRolesList(prev => [...prev, newRole]);
-    setRolePermissions(prev => ({
-      ...prev,
-      [newId]: {
-        'View Dashboard': true, 'Export Dashboard Data': false,
-        'View Programs': false, 'Create Programs': false, 'Edit Programs': false, 'Delete Programs': false,
-        'View Sessions': false, 'Create Sessions': false, 'Edit Sessions': false, 'Delete Sessions': false, 'Approve Sessions': false, 'Edit Session Links': false,
-        'View Batches': false, 'Create Batches': false, 'Edit Batches': false, 'Delete Batches': false,
-        'View Enrollments': false, 'Create Enrollments': false, 'Edit Enrollments': false, 'Approve Enrollments': false,
-        'View Certificates': false, 'Generate Certificates': false, 'Issue Certificates': false
+      if (editingSetting) {
+        await platformSettingsService.updateSetting(editingSetting.id, payload);
+        showToast('Platform setting parameter updated successfully');
+      } else {
+        await platformSettingsService.createSetting(payload);
+        showToast('Platform setting parameter created successfully');
       }
-    }));
-    setSelectedRole(newId);
-    setNewRoleName('');
-    setNewRoleDesc('');
-    setShowAddRoleModal(false);
-  };
-
-  const isSystemRole = (id: string) => ['institute_admin', 'branch_admin', 'teacher', 'counsellor', 'finance'].includes(id);
-
-  const [roleToDelete, setRoleToDelete] = useState<string | null>(null);
-
-  const handleDeleteRole = (roleId: string) => {
-    setRoleToDelete(roleId);
-  };
-
-  const performDeleteRole = (roleId: string) => {
-    const roleObj = rolesList.find(r => r.id === roleId);
-    const roleLabel = roleObj ? roleObj.label : 'Role';
-    
-    setRolesList(prev => prev.filter(r => r.id !== roleId));
-    setRolePermissions(prev => {
-      const next = { ...prev };
-      delete next[roleId];
-      return next;
-    });
-    if (selectedRole === roleId) {
-      setSelectedRole('institute_admin');
+      setShowAddEditModal(false);
+      fetchSettings();
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to save platform setting');
+    } finally {
+      setIsLoading(false);
     }
-    setRoleToDelete(null);
-    setToast(`"${roleLabel}" role definition deleted successfully.`);
-    setTimeout(() => setToast(''), 4000);
   };
 
-  const tabs = [
-    { id: 'general', label: 'General Parameters' },
-    { id: 'smtp', label: 'SMTP & Email' },
-    { id: 'sms', label: 'SMS & WhatsApp' },
-    { id: 'payments', label: 'Payment Gateways' },
-    { id: 'branding', label: 'White-Label & DNS' },
-    { id: 'security', label: 'Security & Backups' },
-    { id: 'permissions', label: 'Roles & Permissions' }
-  ] as const;
-
-  const [rolesList, setRolesList] = useState([
-    { id: 'institute_admin', label: 'Institute Admin', desc: 'Institute-level administration and setups' },
-    { id: 'branch_admin', label: 'Branch Admin', desc: 'Branch operations and registrations' },
-    { id: 'teacher', label: 'Teacher', desc: 'Schedules and doubt clearance' },
-    { id: 'counsellor', label: 'Counsellor', desc: 'Lead pipeline and enquiry logs' },
-    { id: 'finance', label: 'Finance', desc: 'Fee ledger and invoice records' }
-  ]);
-
-  const [showAddRoleModal, setShowAddRoleModal] = useState(false);
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDesc, setNewRoleDesc] = useState('');
-
-  const modulesData = [
-    {
-      title: 'Dashboard',
-      permissions: ['View Dashboard', 'Export Dashboard Data']
-    },
-    {
-      title: 'Programs',
-      permissions: ['View Programs', 'Create Programs', 'Edit Programs', 'Delete Programs']
-    },
-    {
-      title: 'Sessions',
-      permissions: ['View Sessions', 'Create Sessions', 'Edit Sessions', 'Delete Sessions', 'Approve Sessions', 'Edit Session Links']
-    },
-    {
-      title: 'Batches',
-      permissions: ['View Batches', 'Create Batches', 'Edit Batches', 'Delete Batches']
-    },
-    {
-      title: 'Enrollments',
-      permissions: ['View Enrollments', 'Create Enrollments', 'Edit Enrollments', 'Approve Enrollments']
-    },
-    {
-      title: 'Certificates',
-      permissions: ['View Certificates', 'Generate Certificates', 'Issue Certificates']
+  const handleDelete = async () => {
+    if (!deletingSetting) return;
+    try {
+      setIsLoading(true);
+      await platformSettingsService.deleteSetting(deletingSetting.id);
+      showToast('Platform setting soft-deleted successfully');
+      setShowDeleteModal(false);
+      fetchSettings();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete setting parameter');
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
 
-  const currentPermissions = rolePermissions[selectedRole] || {};
-  const totalPermissions = Object.keys(currentPermissions).length;
-  const selectedCount = Object.values(currentPermissions).filter(Boolean).length;
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
       {toast && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
           ✓ {toast}
         </div>
       )}
 
-      <div>
-        <h2 className="text-2xl font-display font-bold text-slate-900">System Configuration</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Update SaaS defaults, system parameter keys, white-label configurations, email/SMS template defaults.
-        </p>
+      {/* Header Section Matching Tenants */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            <Sliders size={32} className="text-indigo-600" />
+            System Configuration
+          </h2>
+          <p className="text-base text-slate-500 mt-2">
+            Manage global platform configuration parameters, operational keys, and environment settings.
+          </p>
+        </div>
+        <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={handleOpenAdd}>
+          + Add Parameter
+        </Button>
       </div>
 
-      {/* Horizontal Tabs Navigation */}
-      <div className="border-b border-slate-200 flex gap-6 overflow-x-auto pb-px">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`py-3 text-sm font-semibold cursor-pointer border-b-2 transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-350'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab !== 'permissions' ? (
-        <div className="w-full space-y-6">
-          <form onSubmit={handleSave} className="space-y-6">
-              
-              {activeTab === 'general' && (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3">Global Platform Configuration Parameters</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="SaaS Platform Name" value={platformName} onChange={e => setPlatformName(e.target.value)} />
-                    <Input label="Global Support Relay Email" type="email" value={supportEmail} onChange={e => setSupportEmail(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Input label="Default GST Rate (%)" type="number" value={taxRate} onChange={e => setTaxRate(e.target.value)} />
-                    <Select 
-                      label="Platform Base Currency" 
-                      value={defaultCurrency} 
-                      onChange={e => setDefaultCurrency(e.target.value)}
-                      options={[
-                        { value: 'INR', label: 'INR (₹)' },
-                        { value: 'USD', label: 'USD ($)' },
-                        { value: 'EUR', label: 'EUR (€)' }
-                      ]} 
-                    />
-                    <Input label="Admin Idle Timeout (min)" type="number" value={sessionTimeout} onChange={e => setSessionTimeout(e.target.value)} />
-                    <Input label="Plan Expiry Warning (Days)" type="number" value={expiryWarningDays} onChange={e => setExpiryWarningDays(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'smtp' && (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3">SMTP Mail Relay Settings</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="SMTP Host Server" value={smtpHost} onChange={e => setSmtpHost(e.target.value)} />
-                    <Input label="SMTP Port" value={smtpPort} onChange={e => setSmtpPort(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="SMTP Username" value={smtpUser} onChange={e => setSmtpUser(e.target.value)} />
-                    <Input label="SMTP Password" type="password" value={smtpPass} onChange={e => setSmtpPass(e.target.value)} />
-                  </div>
-                  <Input label="Global Default Sender Email (From)" type="email" value={senderEmail} onChange={e => setSenderEmail(e.target.value)} />
-                </div>
-              )}
-
-              {activeTab === 'sms' && (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3">SMS & WhatsApp Gateway Keys</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select 
-                      label="Primary SMS Gateway" 
-                      value={smsGateway} 
-                      onChange={e => setSmsGateway(e.target.value)}
-                      options={[
-                        { value: 'Twilio', label: 'Twilio Cloud API' },
-                        { value: 'MessageBird', label: 'MessageBird' },
-                        { value: 'Msg91', label: 'Msg91 (India DLT)' }
-                      ]} 
-                    />
-                    <Input label="DLT Registration Entity ID (Header log)" value={dltId} onChange={e => setDltId(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="SMS Gateway Authentication Secret" type="password" value={smsApiKey} onChange={e => setSmsApiKey(e.target.value)} />
-                    <Input label="WhatsApp Cloud API Bearer Token" type="password" value={waApiKey} onChange={e => setWaApiKey(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'payments' && (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3">Payment Gateway Integration Keys</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Stripe Publishable Key" value={stripePublishable} onChange={e => setStripePublishable(e.target.value)} />
-                    <Input label="Stripe Secret Private Key" type="password" value={stripeSecret} onChange={e => setStripeSecret(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Razorpay Account ID" value={razorpayId} onChange={e => setRazorpayId(e.target.value)} />
-                    <Input label="Razorpay Secret Key" type="password" value={razorpaySecret} onChange={e => setRazorpaySecret(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'branding' && (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3">White-Label & DNS Configurations</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Brand Primary Theme Color (HEX)" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} />
-                    <Input label="Brand Secondary Theme Color (HEX)" value={secondaryColor} onChange={e => setSecondaryColor(e.target.value)} />
-                  </div>
-                  <Input label="White-Label Tenant Brand Logo URL" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} />
-                </div>
-              )}
-
-              {activeTab === 'security' && (
-                <div className="space-y-4">
-                  <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-3">Security & Auto-Backup Policies</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select 
-                      label="Auto-Backup Schedule" 
-                      value={backupSchedule} 
-                      onChange={e => setBackupSchedule(e.target.value)}
-                      options={[
-                        { value: 'Hourly', label: 'Every Hour' },
-                        { value: 'Daily', label: 'Daily at Midnight' },
-                        { value: 'Weekly', label: 'Weekly on Sundays' }
-                      ]} 
-                    />
-                    <Input label="Enforce Minimum Password Length" type="number" value={passwordMinLength} onChange={e => setPasswordMinLength(e.target.value)} />
-                  </div>
-                  <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-4">
-                    <input 
-                      type="checkbox" 
-                      id="mfa" 
-                      checked={mfaEnforced} 
-                      onChange={e => setMfaEnforced(e.target.checked)} 
-                      className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-                    />
-                    <label htmlFor="mfa" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                      Enforce Multi-Factor Authentication (MFA) on all Institute & SaaS admin accounts
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <div className="border-t border-slate-100 pt-4 flex justify-end">
-                <Button type="submit" variant="primary">
-                  Save Platform Configuration
-                </Button>
-              </div>
-            </form>
+      {/* Filter and Search Bar */}
+      <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-4 items-start w-full">
+          <div className="relative">
+            <Input
+              label="Search Parameters"
+              placeholder="Search setting keys or values..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              wrapperClassName="mb-0"
+            />
+            <Search size={14} className="absolute right-3 top-[38px] text-slate-400 pointer-events-none" />
           </div>
-      ) : (
-        /* Roles & Permissions Matrix View */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
-          
-          {/* Left panel: Roles List */}
-          <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-sm h-fit">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2 mb-4">User Roles Definition</h3>
-            {rolesList.map((role) => (
-              <div key={role.id} className="relative group w-full">
-                <button
-                  onClick={() => setSelectedRole(role.id)}
-                  className={`w-full text-left p-3.5 pr-10 rounded-lg border text-sm transition-all cursor-pointer block ${
-                    selectedRole === role.id
-                      ? 'border-blue-600 bg-blue-50/50 text-blue-800 font-semibold shadow-sm'
-                      : 'border-slate-100 hover:border-slate-250 bg-slate-50/30 text-slate-700'
-                  }`}
-                >
-                  <div className="font-semibold text-xs text-slate-900">{role.label}</div>
-                  <div className="text-[10px] text-slate-500 mt-1">{role.desc}</div>
-                </button>
-                
-                {!isSystemRole(role.id) && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteRole(role.id);
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                    title="Delete Role"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-            <Button 
-              variant="secondary" 
-              className="w-full justify-center flex items-center gap-1.5 mt-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700" 
-              onClick={() => setShowAddRoleModal(true)}
+
+          <Select
+            label="Status"
+            value={filterStatus}
+            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+            options={STATUS_OPTIONS}
+          />
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-transparent select-none opacity-0" aria-hidden="true">Action</span>
+            <Button
+              variant="outline"
+              onClick={handleClearFilters}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[38px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
             >
-              <span>+ Add New Role</span>
+              <RotateCcw size={14} />
+              Clear Filters
             </Button>
           </div>
-
-          {/* Right panel: Permissions Checkbox Cards */}
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* Status counter banner */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3.5 flex items-center justify-between text-xs text-blue-800 shadow-sm animate-fade-in">
-              <div className="flex items-center gap-2">
-                <span className="bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">ℹ</span>
-                <span>Select permissions to assign to this role. Changes are saved when you click "Save Permissions".</span>
-              </div>
-              <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px]">
-                {selectedCount} / {totalPermissions} selected
-              </span>
-            </div>
-
-            {/* Modules Checkbox Panels Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {modulesData.map((module) => {
-                // Calculate checked status for parent module header
-                const allChecked = module.permissions.every(p => currentPermissions[p]);
-                const someChecked = module.permissions.some(p => currentPermissions[p]) && !allChecked;
-
-                const handleToggleAllModule = () => {
-                  const targetState = !allChecked;
-                  setRolePermissions(prev => {
-                    const nextObj = { ...prev[selectedRole] };
-                    module.permissions.forEach(p => {
-                      nextObj[p] = targetState;
-                    });
-                    return {
-                      ...prev,
-                      [selectedRole]: nextObj
-                    };
-                  });
-                };
-
-                return (
-                  <div key={module.title} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                    
-                    {/* Header */}
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={allChecked}
-                          ref={el => {
-                            if (el) el.indeterminate = someChecked;
-                          }}
-                          onChange={handleToggleAllModule}
-                          className="w-4 h-4 text-blue-600 border-slate-350 rounded focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span className="font-bold text-slate-800 text-xs">{module.title}</span>
-                      </div>
-                      <span className="bg-slate-100 text-slate-600 font-bold text-[9px] px-2 py-0.2 rounded-full">
-                        {module.permissions.length}
-                      </span>
-                    </div>
-
-                    {/* Permissions list */}
-                    <div className="space-y-2">
-                      {module.permissions.map((perm) => (
-                        <div key={perm} className="flex items-center gap-2.5 hover:bg-slate-50/50 p-1.5 rounded transition">
-                          <input
-                            type="checkbox"
-                            id={`${selectedRole}-${perm}`}
-                            checked={!!currentPermissions[perm]}
-                            onChange={() => handleTogglePermission(perm)}
-                            className="w-3.5 h-3.5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-                          />
-                          <label htmlFor={`${selectedRole}-${perm}`} className="text-xs text-slate-600 cursor-pointer select-none">
-                            {perm}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-end pt-4">
-              <Button onClick={handleSave} variant="primary">
-                Save Permissions
-              </Button>
-            </div>
-
-          </div>
-
         </div>
-      )}
+      </div>
 
-      {showAddRoleModal && (
+      {/* Table Container */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Platform Settings Directory</CardTitle>
+        </CardHeader>
+
+        {isLoading && settings.length === 0 ? (
+          <div className="p-12 text-center">
+            <Loader2 size={32} className="mx-auto text-indigo-500 animate-spin mb-3" />
+            <p className="text-sm text-slate-500 font-semibold">Loading platform settings...</p>
+          </div>
+        ) : settings.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="text-slate-300 mb-3">
+              <Key className="mx-auto h-12 w-12 text-slate-300" />
+            </div>
+            <p className="text-sm text-slate-500 font-semibold">No platform setting parameters found</p>
+            <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
+          </div>
+        ) : (
+          <Table headers={['ID', 'Setting Key', 'Value', 'Category', 'Last Updated', 'Actions']} dense>
+            {settings.map((s) => {
+              const isRevealed = Boolean(showSecretsMap[s.id]);
+              const displayValue = s.is_secret && !isRevealed ? '••••••••••••••••' : (s.value || '-');
+
+              return (
+                <tr
+                  key={s.id}
+                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => handleOpenEdit(s)}
+                >
+                  <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{s.id}</td>
+                  <td className="px-3 py-3 font-mono font-bold text-blue-600 text-sm whitespace-nowrap min-w-[200px]">
+                    {s.key_name}
+                  </td>
+                  <td className="px-3 py-3 text-sm text-slate-800 font-mono max-w-xs truncate">
+                    <div className="flex items-center gap-2">
+                      <span>{displayValue}</span>
+                      {Boolean(s.is_secret) && (
+                        <button
+                          type="button"
+                          onClick={(e) => toggleSecretVisibility(s.id, e)}
+                          className="text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                          title={isRevealed ? 'Mask value' : 'Reveal value'}
+                        >
+                          {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full uppercase border bg-indigo-50 text-indigo-700 border-indigo-200">
+                      {s.category}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-normal">
+                    {new Date(s.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleOpenEdit(s)}
+                        className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleOpenDelete(s)}
+                        className="text-sm font-semibold text-red-600 hover:text-red-800 cursor-pointer transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </Table>
+        )}
+
+        {totalItems > ITEMS_PER_PAGE && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        )}
+      </Card>
+
+      {/* ADD / EDIT MODAL */}
+      {showAddEditModal && (
         <Modal
-          isOpen={showAddRoleModal}
-          onClose={() => setShowAddRoleModal(false)}
-          title="Add New Role Definition"
+          isOpen={showAddEditModal}
+          onClose={() => setShowAddEditModal(false)}
+          title={editingSetting ? 'Edit Platform Parameter' : 'Add Platform Parameter'}
+          description="Define platform configuration key and value parameters"
           size="md"
         >
-          <form onSubmit={handleCreateRole} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-4">
+            {formError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-800">
+                {formError}
+              </div>
+            )}
+
             <Input
-              label="Role Name"
-              placeholder="e.g. Center Manager, Supervisor"
+              label="Setting Key Name *"
+              value={formKeyName}
+              onChange={(e) => setFormKeyName(e.target.value)}
+              placeholder="e.g., saas_platform_name, default_gst_rate"
               required
-              value={newRoleName}
-              onChange={(e) => setNewRoleName(e.target.value)}
+              disabled={Boolean(editingSetting)}
             />
+
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Role Description
+              <label className="block text-sm font-bold text-slate-700 mb-1">
+                Setting Value *
               </label>
               <textarea
-                className="w-full border border-slate-200 rounded-xl p-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 min-h-[100px] resize-none"
-                placeholder="Describe this role's scope and access level..."
-                value={newRoleDesc}
-                onChange={(e) => setNewRoleDesc(e.target.value)}
+                rows={3}
+                value={formValue}
+                onChange={(e) => setFormValue(e.target.value)}
+                placeholder="Enter parameter value..."
+                className="w-full text-sm font-mono p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddRoleModal(false)}>
+
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-xl">
+              <input
+                type="checkbox"
+                id="is_secret"
+                checked={formIsSecret}
+                onChange={(e) => setFormIsSecret(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="is_secret" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                Mask as Secret Parameter (Encrypt / Hide in UI by default)
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddEditModal(false)}
+                className="text-sm font-semibold"
+              >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary">
-                Create Role
+              <Button type="submit" variant="primary" disabled={isLoading} className="text-sm font-bold px-5">
+                {isLoading ? <Loader2 size={16} className="animate-spin mr-1.5" /> : null}
+                {editingSetting ? 'Update Parameter' : 'Create Parameter'}
               </Button>
             </div>
           </form>
         </Modal>
       )}
 
-      {roleToDelete && (
+      {/* DELETE CONFIRMATION MODAL */}
+      {showDeleteModal && deletingSetting && (
         <Modal
-          isOpen={!!roleToDelete}
-          onClose={() => setRoleToDelete(null)}
-          title="Confirm Deletion"
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="Soft Delete Parameter"
+          description="Are you sure you want to soft-delete this parameter?"
           size="sm"
-          footer={
-            <div className="flex gap-2 justify-end w-full">
-              <Button variant="secondary" onClick={() => setRoleToDelete(null)}>
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              This action will mark parameter key <strong className="text-slate-900 font-mono">{deletingSetting.key_name}</strong> as <strong className="text-red-600">deleted</strong>.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="text-xs font-semibold">
                 Cancel
               </Button>
-              <Button 
-                variant="danger" 
-                onClick={() => performDeleteRole(roleToDelete)}
-              >
-                Delete Role
+              <Button onClick={handleDelete} disabled={isLoading} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4">
+                {isLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : null}
+                Soft Delete Parameter
               </Button>
             </div>
-          }
-        >
-          <div className="text-sm text-slate-600">
-            Are you sure you want to delete this role definition? This action cannot be undone.
           </div>
         </Modal>
       )}

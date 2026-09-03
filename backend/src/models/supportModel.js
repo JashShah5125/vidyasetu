@@ -210,6 +210,14 @@ const resolveTicket = async (ticketNumber) => {
     return getTicketByNumber(ticketNumber);
 };
 
+const updateTicketStatus = async (ticketNumber, status) => {
+    await pool.query(
+        `UPDATE support_tickets SET status = ? WHERE ticket_number = ?`,
+        [status, ticketNumber]
+    );
+    return getTicketByNumber(ticketNumber);
+};
+
 module.exports = {
     getTickets,
     getTicketByNumber,
@@ -217,5 +225,6 @@ module.exports = {
     addReply,
     updateTicket,
     deleteTicket,
-    resolveTicket
+    resolveTicket,
+    updateTicketStatus
 };

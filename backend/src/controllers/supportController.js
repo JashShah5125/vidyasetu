@@ -171,6 +171,35 @@ const resolveTicket = async (req, res) => {
     }
 };
 
+const updateTicketStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const allowedStatuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+        
+        if (!status || !allowedStatuses.includes(status)) {
+            return res.status(400).json({ 
+                status: 'error', 
+                message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}` 
+            });
+        }
+
+        const ticket = await supportService.getTicketByNumber(req.params.ticketNumber);
+        if (!ticket) {
+            return res.status(404).json({ status: 'error', message: 'Ticket not found' });
+        }
+
+        if (!getTicketAccess(req, ticket)) {
+            return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
+        }
+
+        const updated = await supportService.updateTicketStatus(req.params.ticketNumber, status);
+        res.status(200).json({ status: 'success', data: updated });
+    } catch (error) {
+        console.error('Error updating ticket status:', error);
+        res.status(500).json({ status: 'error', message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     listTickets,
     getTicket,
@@ -178,5 +207,6 @@ module.exports = {
     addReply,
     updateTicket,
     deleteTicket,
-    resolveTicket
+    resolveTicket,
+    updateTicketStatus
 };
