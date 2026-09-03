@@ -9,8 +9,9 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
-import { CourseCurriculumModal } from '../components/courses/CourseCurriculumModal';
-import { BookOpen, Plus, Search, ArrowRight, Download, Upload, Loader2, RotateCcw, Eye } from 'lucide-react';
+import {
+  BookOpen, Plus, ArrowRight, Download, Upload, Loader2, RotateCcw, Eye, EyeOff, GraduationCap, Layers, BookOpenCheck, ChevronRight, ChevronUp, Clock, Settings
+} from 'lucide-react';
 
 export const CourseSetup: React.FC = () => {
   const { currentUser, addToast } = useApp();
@@ -19,8 +20,15 @@ export const CourseSetup: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
 
-  const [selectedCourseForModal, setSelectedCourseForModal] = useState<any | null>(null);
-  const [isCurriculumModalOpen, setIsCurriculumModalOpen] = useState(false);
+  // Accordion Expansion State with Smooth Opening and Closing Transitions
+  const [selectedCourseCode, setSelectedCourseCode] = useState<string | null>(null);
+  const [activeCourseCode, setActiveCourseCode] = useState<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const [inspectorCourse, setInspectorCourse] = useState<any | null>(null);
+  const [isInspectorLoading, setIsInspectorLoading] = useState(false);
+  const [selectedProgramIdx, setSelectedProgramIdx] = useState<number | null>(null);
+  const [selectedLevelIdx, setSelectedLevelIdx] = useState<number | null>(null);
 
   const fetchCourses = async () => {
     try {
@@ -39,6 +47,33 @@ export const CourseSetup: React.FC = () => {
   useEffect(() => {
     fetchCourses();
   }, [filterStatus]);
+
+  // Fetch complete course details when a row is expanded below
+  useEffect(() => {
+    if (selectedCourseCode) {
+      fetchInspectorCourseDetails(selectedCourseCode);
+    } else {
+      setInspectorCourse(null);
+      setSelectedProgramIdx(null);
+      setSelectedLevelIdx(null);
+    }
+  }, [selectedCourseCode]);
+
+  const fetchInspectorCourseDetails = async (code: string) => {
+    try {
+      setIsInspectorLoading(true);
+      const res = await courseApi.getByCode(code);
+      if (res?.status === 'success' && res.data) {
+        setInspectorCourse(res.data);
+        setSelectedProgramIdx(null);
+        setSelectedLevelIdx(null);
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to fetch course details', 'error');
+    } finally {
+      setIsInspectorLoading(false);
+    }
+  };
 
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,14 +115,34 @@ export const CourseSetup: React.FC = () => {
     a.click();
   };
 
-  const handleOpenCurriculumModal = (course: any) => {
-    setSelectedCourseForModal(course);
-    setIsCurriculumModalOpen(true);
+  const handleRowClick = (courseCode: string) => {
+    if (selectedCourseCode === courseCode && !isClosing) {
+      handleClose();
+    } else {
+      setIsClosing(false);
+      setSelectedCourseCode(courseCode);
+      setActiveCourseCode(courseCode);
+    }
   };
 
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setSelectedCourseCode(null);
+      setActiveCourseCode(null);
+      setIsClosing(false);
+    }, 240);
+  };
+
+  const programs = inspectorCourse?.programs || [];
+  const activeProgram = selectedProgramIdx !== null ? programs[selectedProgramIdx] : null;
+  const levels = activeProgram?.levels || [];
+  const activeLevel = selectedLevelIdx !== null ? levels[selectedLevelIdx] : null;
+  const subjects = activeLevel?.subjects || [];
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Page Header matching Tenants */}
+    <div className="space-y-6 animate-fade-in pb-12">
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
@@ -110,7 +165,7 @@ export const CourseSetup: React.FC = () => {
         )}
       </div>
 
-      {/* Filter and Search Bar matching Tenants */}
+      {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
           <Input
@@ -146,8 +201,8 @@ export const CourseSetup: React.FC = () => {
         </div>
       </div>
 
-      {/* Card Table Container matching Tenants */}
-      <Card>
+      {/* Main Table Container */}
+      <Card className="shadow-sm border border-slate-200 overflow-hidden">
         <CardHeader>
           <CardTitle>Academic Courses Directory</CardTitle>
         </CardHeader>
@@ -174,51 +229,287 @@ export const CourseSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={['Course Name', 'Code', 'Programs', 'Actions']} dense>
-              {paginated.map(course => (
-                <tr
-                  key={course.code}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/courses/${course.code}`)}
-                >
-                  <td className="px-3 py-3 font-bold text-slate-900 text-sm whitespace-nowrap min-w-[200px]">
-                    {course.name}
-                  </td>
-                  <td className="px-3 py-3 font-mono font-bold text-blue-600 text-xs whitespace-nowrap uppercase">
-                    {course.code}
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {(course.programs || []).map((p: any, i: number) => (
-                        <span key={i} className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-bold uppercase">
-                          {p.name || p}
-                        </span>
-                      ))}
-                      {(!course.programs || course.programs.length === 0) && (
-                        <span className="text-xs text-slate-400 italic">No programs</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => navigate(`/courses/${course.code}/view`)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200"
-                        title="View Curriculum Overview"
-                      >
-                        <Eye size={14} /> View
-                      </button>
-                      <button
-                        onClick={() => navigate(`/courses/${course.code}`)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                      >
-                        Manage <ArrowRight size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+            <Table headers={['Course Name', 'Code', 'Programs', 'Status', 'Actions']} dense>
+              {paginated.map(course => {
+                const isSelected = selectedCourseCode === course.code;
+                const isVisible = activeCourseCode === course.code;
+                return (
+                  <React.Fragment key={course.code}>
+                    {/* Main Course Row */}
+                    <tr
+                      onClick={() => handleRowClick(course.code)}
+                      className={`cursor-pointer transition-all duration-200 ${
+                        isSelected && !isClosing
+                          ? 'bg-indigo-50/60 font-semibold text-indigo-950 border-b-0'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <td className="px-3 py-3.5 font-bold text-slate-900 text-sm whitespace-nowrap min-w-[200px]">
+                        <div className="flex items-center gap-1.5">
+                          {course.name}
+                          {isSelected && !isClosing && <ChevronUp size={16} className="text-slate-400" />}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 font-mono font-bold text-blue-600 text-xs whitespace-nowrap uppercase">
+                        {course.code}
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <div className="flex flex-wrap gap-1">
+                          {(course.programs || []).map((p: any, i: number) => (
+                            <span key={i} className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-bold uppercase">
+                              {p.name || p}
+                            </span>
+                          ))}
+                          {(!course.programs || course.programs.length === 0) && (
+                            <span className="text-xs text-slate-400 italic">No programs</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 whitespace-nowrap">
+                        {course.is_active !== false ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3">
+                          {isSelected && !isClosing ? (
+                            <button
+                              onClick={() => handleClose()}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer px-3.5 py-1.5 rounded-xl shadow-xs"
+                            >
+                              <EyeOff size={14} /> Hide Details
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleRowClick(course.code)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-3.5 py-1.5 rounded-xl border border-indigo-200"
+                            >
+                              <Eye size={14} /> View
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => navigate(`/courses/${course.code}`)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                          >
+                            Manage <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Smooth Opening & Closing Accordion Panel DIRECTLY BELOW the Selected Course */}
+                    {isVisible && (
+                      <tr className="bg-[rgb(248,249,255)]">
+                        <td colSpan={5} className="p-0">
+                          <div className={`border-t border-b border-indigo-200/90 bg-[rgb(248,249,255)] p-4 shadow-2xs ${
+                            isClosing ? 'animate-accordion-up' : 'animate-accordion-down'
+                          }`}>
+                            
+                            {/* Inner Header Card */}
+                            <div className="flex justify-between items-center bg-blue-50/40 p-3 rounded-2xl border border-blue-100/70 mb-3.5">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                                  <BookOpen size={20} />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-900 text-base">
+                                      {inspectorCourse?.name || course.name}
+                                    </span>
+                                    <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-md text-xs font-mono font-semibold uppercase">
+                                      {course.code}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                                    Manage programs, levels, and subjects for this course.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  onClick={() => navigate(`/courses/${course.code}`)}
+                                  className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                >
+                                  <Settings size={14} /> Manage Setup
+                                </button>
+                                <button
+                                  onClick={() => handleClose()}
+                                  className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                                  title="Hide Details"
+                                >
+                                  <ChevronUp size={18} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* 3 Columns Split Pane Grid with Division Lines */}
+                            {isInspectorLoading ? (
+                              <div className="py-12 text-center flex flex-col items-center justify-center space-y-2">
+                                <Loader2 size={36} className="text-indigo-600 animate-spin" />
+                                <span className="text-sm font-bold text-slate-600">Loading curriculum details...</span>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-200/90 gap-4 md:gap-0 items-start">
+                                
+                                {/* ── COLUMN 1: PROGRAMS ── */}
+                                <div className="space-y-2.5 md:pr-4">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <GraduationCap size={16} className="text-indigo-600" />
+                                    PROGRAMS ({programs.length})
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    {programs.length === 0 ? (
+                                      <div className="p-4 text-center text-xs text-slate-400 italic bg-white rounded-xl border border-slate-200">
+                                        No programs defined.
+                                      </div>
+                                    ) : (
+                                      programs.map((program: any, pIdx: number) => {
+                                        const isActive = selectedProgramIdx === pIdx;
+                                        return (
+                                          <div
+                                            key={program.id || pIdx}
+                                            onClick={() => {
+                                              setSelectedProgramIdx(pIdx);
+                                              setSelectedLevelIdx(null);
+                                            }}
+                                            className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-between cursor-pointer border ${
+                                              isActive
+                                                ? 'bg-indigo-600 text-white shadow-md border-indigo-600 font-semibold'
+                                                : 'bg-white hover:bg-slate-50 text-slate-900 border-slate-200/80 shadow-2xs'
+                                            }`}
+                                          >
+                                            <div>
+                                              <div className={`text-sm font-bold ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                                                {program.name || `Program #${pIdx + 1}`}
+                                              </div>
+                                              {program.code && (
+                                                <div className={`text-xs font-mono font-semibold mt-0.5 ${isActive ? 'text-indigo-200' : 'text-blue-600'}`}>
+                                                  {program.code}
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                                              isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                              {program.levels?.length || 0} Lvl <ChevronRight size={14} />
+                                            </span>
+                                          </div>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* ── COLUMN 2: LEVELS ── */}
+                                <div className="space-y-2.5 md:px-4">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <Layers size={16} className="text-blue-600" />
+                                    LEVELS {activeProgram ? `(${levels.length})` : ''}
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    {!activeProgram ? (
+                                      <div className="p-8 text-center flex flex-col items-center justify-center space-y-2 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200/80 min-h-[140px]">
+                                        <GraduationCap size={28} className="text-slate-300 mb-1" />
+                                        <span className="text-xs font-bold text-slate-600">Select a Program</span>
+                                        <span className="text-[11px] text-slate-400">Click a program in Col 1 to view its levels</span>
+                                      </div>
+                                    ) : levels.length === 0 ? (
+                                      <div className="p-6 text-center text-xs text-slate-400 italic bg-white rounded-xl border border-slate-200">
+                                        No academic levels added.
+                                      </div>
+                                    ) : (
+                                      levels.map((level: any, lIdx: number) => {
+                                        const isActive = selectedLevelIdx === lIdx;
+                                        return (
+                                          <div
+                                            key={level.id || lIdx}
+                                            onClick={() => setSelectedLevelIdx(lIdx)}
+                                            className={`p-3 rounded-xl transition-all duration-200 flex items-center justify-between cursor-pointer border ${
+                                              isActive
+                                                ? 'bg-blue-600 text-white shadow-md border-blue-600 font-semibold'
+                                                : 'bg-white hover:bg-slate-50 text-slate-900 border-slate-200/80 shadow-2xs'
+                                            }`}
+                                          >
+                                            <div>
+                                              <div className={`text-sm font-bold ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                                                {level.name || `Level #${lIdx + 1}`}
+                                              </div>
+                                              {level.duration && (
+                                                <div className={`text-xs flex items-center gap-1 mt-0.5 ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                  <Clock size={12} /> {level.duration}
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                                              isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                              {level.subjects?.length || 0} Subjects <ChevronRight size={14} />
+                                            </span>
+                                          </div>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* ── COLUMN 3: SUBJECTS ── */}
+                                <div className="space-y-2.5 md:pl-4">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                    <BookOpenCheck size={16} className="text-emerald-600" />
+                                    SUBJECTS {activeLevel ? `(${subjects.length})` : ''}
+                                  </div>
+
+                                  <div className="bg-white border border-slate-200/80 rounded-xl divide-y divide-slate-100 overflow-hidden shadow-2xs">
+                                    {!activeLevel ? (
+                                      <div className="p-8 text-center flex flex-col items-center justify-center space-y-2 text-slate-400 bg-white rounded-xl min-h-[140px]">
+                                        <Layers size={28} className="text-slate-300 mb-1" />
+                                        <span className="text-xs font-bold text-slate-600">Select a Level</span>
+                                        <span className="text-[11px] text-slate-400">Click a level in Col 2 to view mapped subjects</span>
+                                      </div>
+                                    ) : subjects.length === 0 ? (
+                                      <div className="p-4 text-center text-xs text-slate-400 italic">
+                                        No subjects mapped to {activeLevel.name}
+                                      </div>
+                                    ) : (
+                                      subjects.map((subject: any, sIdx: number) => (
+                                        <div
+                                          key={subject.id || sIdx}
+                                          className="p-2.5 px-3 flex items-center gap-3 hover:bg-slate-50/80 transition"
+                                        >
+                                          <BookOpen size={16} className="text-slate-400 shrink-0" />
+                                          <span className="font-bold text-slate-800 text-sm">
+                                            {subject.name}
+                                          </span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+
+                              </div>
+                            )}
+
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </Table>
+
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -231,13 +522,7 @@ export const CourseSetup: React.FC = () => {
         )}
       </Card>
 
-      {/* Curriculum Overview Split-Pane Modal */}
-      <CourseCurriculumModal
-        isOpen={isCurriculumModalOpen}
-        onClose={() => setIsCurriculumModalOpen(false)}
-        course={selectedCourseForModal}
-      />
-
+      {/* Bulk Import Modal */}
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}

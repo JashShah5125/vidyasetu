@@ -79,6 +79,44 @@
   animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes accordionDown {
+  from {
+    opacity: 0;
+    max-height: 0px;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    max-height: 900px;
+    transform: translateY(0);
+  }
+}
+
+@keyframes accordionUp {
+  from {
+    opacity: 1;
+    max-height: 900px;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    max-height: 0px;
+    transform: translateY(-8px);
+  }
+}
+
+.animate-accordion-down {
+  animation: accordionDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top;
+  overflow: hidden;
+}
+
+.animate-accordion-up {
+  animation: accordionUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top;
+  overflow: hidden;
+}
+
 /* Interactive Sortable Table Headers */
 table th {
   cursor: pointer;
