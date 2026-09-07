@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -7,158 +7,230 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { ArrowLeft, FileText, CheckCircle, Clock, Zap, Upload } from 'lucide-react';
-import type { Student } from '../data/mockData';
+import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { AddStudentForm } from '../components/students/AddStudentForm';
+import { 
+  getStudents, 
+  getStudentById, 
+  getAcademicOptions 
+} from '../services/studentApi';
+import type { 
+  StudentRosterItem, 
+  StudentDetail, 
+  AcademicOptions 
+} from '../services/studentApi';
 
 export const Students: React.FC = () => {
-  const { students: allStudents, parents, enrollments, feeRecords, documents, setDocuments, setStudents, addToast, currentUser } = useApp();
-  const students = useMemo(() => {
-    return currentUser?.role === 'branch-admin'
-      ? allStudents.filter(s => s.branch === currentUser.branch)
-      : allStudents;
-  }, [allStudents, currentUser]);
+  const { addToast } = useApp();
+
+  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState<StudentRosterItem[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const [academicOptions, setAcademicOptions] = useState<AcademicOptions | null>(null);
+
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCourse, setFilterCourse] = useState('All');
+  const [filterBranch, setFilterBranch] = useState('All');
   const [filterBatch, setFilterBatch] = useState('All');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [profileTab, setProfileTab] = useState<'overview' | 'parents' | 'fees' | 'results' | 'documents'>('overview');
-  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
-  const [docType, setDocType] = useState('Govt ID (Aadhaar / Passport)');
-  const [docFileName, setDocFileName] = useState('');
+  const [filterBundle, setFilterBundle] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
+
+  // Modals & Detailed Profile
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [profileTab, setProfileTab] = useState<'overview' | 'academic' | 'parents' | 'fees' | 'documents'>('overview');
 
-  const studentParent = useMemo(() => {
-    if (!selectedStudent) return null;
-    return parents.find(p => p.id === selectedStudent.parentId || p.childrenIds?.includes(selectedStudent.id));
-  }, [selectedStudent, parents]);
+  // Load dropdown options
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const res = await getAcademicOptions();
+        // Backend returns { status: 'success', data: { branches, courses, programs, ... } }
+        // getAcademicOptions returns response.data (the full backend response wrapper)
+        // So res.data is the actual options object
+        const data = res?.data ?? res;
+        if (data && (data.courses || data.branches)) {
+          setAcademicOptions(data);
+        } else {
+          console.warn('Academic options returned unexpected shape:', res);
+        }
+      } catch (err) {
+        console.error('Failed to load academic options:', err);
+      }
+    };
+    fetchOptions();
+  }, []);
 
-  const studentEnrollment = useMemo(() => {
-    if (!selectedStudent) return null;
-    return enrollments.find(e => e.studentId === selectedStudent.id || selectedStudent.enrollmentIds?.includes(e.id));
-  }, [selectedStudent, enrollments]);
+  // Fetch Student Roster
+  const fetchRoster = async () => {
+    try {
+      setLoading(true);
+      const res = await getStudents({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: searchTerm,
+        branchId: filterBranch,
+        batchId: filterBatch,
+        bundleId: filterBundle,
+        status: filterStatus
+      });
+      if (res.data) {
+        setStudents(res.data);
+        setTotalItems(res.pagination?.total || res.data.length);
+      }
+    } catch (err) {
+      console.error('Failed to fetch student roster:', err);
+      addToast('Failed to load student roster from server', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const studentFeeRecord = useMemo(() => {
-    if (!studentEnrollment) return null;
-    return feeRecords.find(f => f.enrollmentId === studentEnrollment.id);
-  }, [studentEnrollment, feeRecords]);
+  useEffect(() => {
+    fetchRoster();
+  }, [currentPage, searchTerm, filterBranch, filterBatch, filterBundle, filterStatus]);
 
-  const studentDocuments = useMemo(() => {
-    if (!selectedStudent) return [];
-    return documents.filter(d => d.studentId === selectedStudent.id);
-  }, [selectedStudent, documents]);
+  // Fetch Detailed Profile when a student is selected
+  useEffect(() => {
+    if (!selectedStudentId) {
+      setSelectedStudentDetail(null);
+      return;
+    }
+    const fetchDetail = async () => {
+      try {
+        setLoadingDetail(true);
+        const res = await getStudentById(selectedStudentId);
+        if (res.data) {
+          setSelectedStudentDetail(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch student profile:', err);
+        addToast('Failed to fetch student profile details', 'error');
+      } finally {
+        setLoadingDetail(false);
+      }
+    };
+    fetchDetail();
+  }, [selectedStudentId]);
 
-  // Unique lists for filtering options
-  const uniqueCourses = Array.from(new Set(students.map(s => s.course)));
-  const uniqueBatches = Array.from(new Set(students.map(s => s.batch)));
-
-  const filteredAndSortedStudents = students
-    .filter(s => {
-      const matchSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          s.studentId.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchCourse = filterCourse === 'All' || s.course === filterCourse;
-      const matchBatch = filterBatch === 'All' || s.batch === filterBatch;
-      return matchSearch && matchCourse && matchBatch;
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
 
   const handleExportCSV = () => {
-    const dataToExport = filteredAndSortedStudents.map(s => ({
-      'Student ID': s.studentId,
-      'Name': s.name,
-      'Course': s.course,
-      'Batch': s.batch,
-      'Mobile': s.mobile,
-      'Parent Contact': s.parentMobile,
-      'Total Fees': s.feePlan.total,
-      'Paid Fees': s.feePlan.paid,
-      'Pending Fees': s.feePlan.pending
+    if (students.length === 0) {
+      addToast('No student records available to export', 'error');
+      return;
+    }
+    const dataToExport = students.map(s => ({
+      'Student Code': s.student_code,
+      'Full Name': s.full_name,
+      'Branch': s.branch_name || '',
+      'Batch': s.batch_name || '',
+      'Mobile': s.mobile || '',
+      'Email': s.email || '',
+      'Status': s.status
     }));
-    
-    if (dataToExport.length === 0) return;
+
     const csvRows = [];
     const headers = Object.keys(dataToExport[0]);
     csvRows.push(headers.join(','));
-    
+
     for (const row of dataToExport) {
-      const values = headers.map(header => {
-        const val = row[header as keyof typeof row] || '';
-        const escaped = ('' + val).replace(/"/g, '\\"');
-        return `"${escaped}"`;
-      });
+      const values = headers.map(h => `"${(row[h as keyof typeof row] || '').toString().replace(/"/g, '""')}"`);
       csvRows.push(values.join(','));
     }
-    
-    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "students_directory.csv");
-    document.body.appendChild(link);
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `student_roster_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    document.body.removeChild(link);
-    addToast('Student profile records exported to CSV successfully.');
+    URL.revokeObjectURL(url);
+    addToast('Student roster exported to CSV successfully.', 'success');
   };
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
-  const paginatedStudents = filteredAndSortedStudents.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(filteredAndSortedStudents.length / itemsPerPage);
+  // Render Full-Page Create Active Student Form
+  if (isAddModalOpen) {
+    return (
+      <AddStudentForm
+        onCancel={() => setIsAddModalOpen(false)}
+        onSuccess={() => {
+          setIsAddModalOpen(false);
+          fetchRoster();
+        }}
+        academicOptions={academicOptions}
+        addToast={addToast}
+      />
+    );
+  }
 
-  if (selectedStudent) {
+  // Render Detailed Student Profile
+  if (selectedStudentId && selectedStudentDetail) {
     return (
       <div className="space-y-6 w-full animate-fade-in">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setSelectedStudent(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            onClick={() => setSelectedStudentId(null)}
+            className="flex items-center justify-center h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
           >
-            <ArrowLeft size={26} />
+            <ArrowLeft size={22} />
           </button>
           <div>
             <h2 className="text-2xl font-display font-bold text-slate-900">
-              Student Profile: {selectedStudent.name}
+              Student Profile: {selectedStudentDetail.full_name}
             </h2>
-            <p className="text-sm text-slate-500">Configure academic details, documents, and parent contacts.</p>
+            <p className="text-sm text-slate-500">
+              Student Code: <span className="font-mono font-bold text-slate-700">{selectedStudentDetail.student_code}</span> &bull; Branch: <span className="font-bold text-slate-700">{selectedStudentDetail.branch_name || 'Main Branch'}</span>
+            </p>
           </div>
         </div>
 
-        <div className="space-y-6 flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+        <div className="space-y-6 flex flex-col bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
           <div className="flex border-b border-slate-200 bg-slate-50 p-2 rounded-xl">
-            {['overview', 'parents', 'fees', 'results', 'documents'].map((tab) => (
+            {[
+              { id: 'overview', label: 'Personal Details' },
+              { id: 'academic', label: 'Batch & Subject Bundle' },
+              { id: 'parents', label: 'Parent / Guardian' },
+              { id: 'fees', label: 'Fee Plan & Invoices' },
+              { id: 'documents', label: 'Documents' }
+            ].map(tab => (
               <button
-                key={tab}
-                onClick={() => setProfileTab(tab as any)}
+                key={tab.id}
+                onClick={() => setProfileTab(tab.id as any)}
                 className={`flex-1 text-center py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer rounded-lg ${
-                  profileTab === tab 
-                    ? 'bg-white text-blue-600 shadow-sm border-blue-600 font-extrabold' 
+                  profileTab === tab.id
+                    ? 'bg-white text-blue-600 shadow-sm border-blue-600 font-extrabold'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
                 }`}
               >
-                {tab === 'overview' ? 'Personal & Academic' : 
-                 tab === 'parents' ? 'Parent / Address' : 
-                 tab === 'fees' ? 'Fee Structure' : 
-                 tab === 'results' ? 'Grades & Marks' : 
-                 'Admission Documents'}
+                {tab.label}
               </button>
             ))}
           </div>
 
           <div className="py-2">
+            {/* Overview */}
             {profileTab === 'overview' && (
               <div className="space-y-6">
                 <div className="flex items-center gap-5 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl">
                   <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-xl shadow-md">
-                    {selectedStudent.name.split(' ').map(n => n[0]).join('')}
+                    {selectedStudentDetail.full_name.split(' ').map(n => n[0]).join('')}
                   </div>
                   <div>
-                    <h4 className="font-display font-extrabold text-slate-900 text-lg">{selectedStudent.name}</h4>
+                    <h4 className="font-display font-extrabold text-slate-900 text-lg">{selectedStudentDetail.full_name}</h4>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs font-medium text-slate-500">
-                      <span>Student ID: <strong className="font-mono text-slate-700">{selectedStudent.studentId}</strong></span>
+                      <span>Status: <strong className="uppercase font-bold text-emerald-600">{selectedStudentDetail.status}</strong></span>
                       <span>&bull;</span>
-                      <span>Registered Branch: <strong className="text-slate-700">{selectedStudent.branch || 'Mumbai West'}</strong></span>
+                      <span>Category: <strong className="text-slate-700">{selectedStudentDetail.category || 'General'}</strong></span>
                       <span>&bull;</span>
-                      <span>Admission Date: <strong className="text-slate-700">{selectedStudent.admissionDate}</strong></span>
+                      <span>Enrolled Date: <strong className="text-slate-700">{selectedStudentDetail.enrolled_date ? new Date(selectedStudentDetail.enrolled_date).toLocaleDateString() : 'Active'}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -166,399 +238,421 @@ export const Students: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className="p-5 border border-slate-200/80 shadow-sm">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                      1. Personal Details
+                      Personal Details
                     </h3>
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Date of Birth</span>
-                        <strong className="text-slate-700">{selectedStudent.dob || '15-08-2008'}</strong>
+                        <strong className="text-slate-700">{selectedStudentDetail.dob ? new Date(selectedStudentDetail.dob).toLocaleDateString() : 'N/A'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Gender</span>
-                        <strong className="text-slate-700">{selectedStudent.gender || 'Male'}</strong>
+                        <strong className="text-slate-700">{selectedStudentDetail.gender || 'Male'}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Social Category</span>
-                        <strong className="text-slate-700">{selectedStudent.category || 'General'}</strong>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Mobile Contact</span>
+                        <strong className="text-slate-700 font-mono">{selectedStudentDetail.mobile || 'N/A'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Email Address</span>
-                        <strong className="text-slate-700 font-mono text-xs">{selectedStudent.email || `${selectedStudent.name.toLowerCase().replace(/\s+/g, '')}@example.com`}</strong>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Mobile Contact Number</span>
-                        <strong className="text-slate-700 font-mono">{selectedStudent.mobile}</strong>
+                        <strong className="text-slate-700 font-mono text-xs">{selectedStudentDetail.email || 'N/A'}</strong>
                       </div>
                     </div>
                   </Card>
 
                   <Card className="p-5 border border-slate-200/80 shadow-sm">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                      2. Prior Academic & School Profile
+                      School & Entrance Profile
                     </h3>
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                       <div className="col-span-2">
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Prior School Name</span>
-                        <strong className="text-slate-700">{selectedStudent.schoolName || 'St. Xavier\'s High School'}</strong>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">School Name</span>
+                        <strong className="text-slate-700">{selectedStudentDetail.school_name || 'N/A'}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Current/Standard Class</span>
-                        <strong className="text-slate-700">Class {selectedStudent.currentClass || '10'}</strong>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Current Class</span>
+                        <strong className="text-slate-700">{selectedStudentDetail.current_class || 'Class 11'}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Affiliation Board</span>
-                        <strong className="text-slate-700">{selectedStudent.board || 'CBSE Board'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Target Entrance Exam</span>
-                        <strong className="text-slate-700">{selectedStudent.targetExam || 'JEE / IIT Prep'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Year of Entrance Attempt</span>
-                        <strong className="text-slate-700">{selectedStudent.yearOfAttempt || '2028'}</strong>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Target Exam</span>
+                        <strong className="text-slate-700">{selectedStudentDetail.target_exam || 'JEE Prep'}</strong>
                       </div>
                     </div>
                   </Card>
                 </div>
+              </div>
+            )}
 
+            {/* Academic Linkage */}
+            {profileTab === 'academic' && (
+              <div className="space-y-6">
                 <Card className="p-5 border border-slate-200/80 shadow-sm">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                    3. Registered Course & Batch Details
+                    Enrolled Batch & Academic Session
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                     <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Enrolled Course</span>
-                      <strong className="text-blue-700">{selectedStudent.course || 'JEE Prep Course'}</strong>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Enrolled Batch</span>
+                      <strong className="text-blue-700 font-mono text-base">{selectedStudentDetail.batch_name || 'Not Enrolled'}</strong>
+                      {selectedStudentDetail.batch_code && (
+                        <span className="text-xs text-slate-500 font-mono block mt-0.5">Code: {selectedStudentDetail.batch_code}</span>
+                      )}
                     </div>
                     <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Program Track</span>
-                      <strong className="text-slate-700">{studentEnrollment?.program || 'Standard Regular Track'}</strong>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Academic Session Year</span>
+                      <strong className="text-slate-700">{selectedStudentDetail.academic_year_name || 'Current Year'}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Academic Level</span>
-                      <strong className="text-slate-700">{studentEnrollment?.level || 'Intermediate Level'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Assigned Batch</span>
-                      <strong className="text-emerald-700 font-mono">{selectedStudent.batch}</strong>
+                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Registered Branch</span>
+                      <strong className="text-slate-700">{selectedStudentDetail.branch_name}</strong>
                     </div>
                   </div>
+                </Card>
+
+                {/* Subject Bundle / Custom Subjects Card */}
+                <Card className="p-5 border border-slate-200/80 shadow-sm">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                    <Layers size={16} className="text-blue-600" />
+                    Mapped Curriculum & Enrolled Subjects
+                  </h3>
+                  
+                  {selectedStudentDetail.subject_selection_type === 'custom' ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                            Custom Subject Enrollment
+                          </span>
+                          <h4 className="font-bold text-indigo-950 text-base mt-1">Individual Subjects Selection</h4>
+                          <p className="text-xs text-slate-600 mt-0.5">Student has opted for customized subject combination.</p>
+                        </div>
+                        <span className="text-sm font-bold text-indigo-700 font-mono bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-xs">
+                          {selectedStudentDetail.subjectsList?.length || 0} Subjects
+                        </span>
+                      </div>
+
+                      {selectedStudentDetail.subjectsList && selectedStudentDetail.subjectsList.length > 0 ? (
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Enrolled Subjects:</span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {selectedStudentDetail.subjectsList.map((sub, idx) => (
+                              <div key={idx} className="p-3 bg-white border border-indigo-100 rounded-xl flex items-center gap-2.5 shadow-xs">
+                                <BookOpen size={16} className="text-indigo-600 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-slate-800 text-xs">{sub.name}</div>
+                                  <div className="text-[10px] font-mono text-slate-400">{sub.code}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400 italic">No custom subject list found</div>
+                      )}
+                    </div>
+                  ) : selectedStudentDetail.subjectBundle ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                            Predefined Bundle
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-blue-900 text-base mt-1">{selectedStudentDetail.subjectBundle.name}</h4>
+                        <p className="text-xs text-slate-600 mt-1">{selectedStudentDetail.subjectBundle.description || 'Core Level Bundle'}</p>
+                      </div>
+
+                      {selectedStudentDetail.subjectsList && selectedStudentDetail.subjectsList.length > 0 ? (
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Individual Subjects Included:</span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {selectedStudentDetail.subjectsList.map((sub, idx) => (
+                              <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2">
+                                <BookOpen size={16} className="text-blue-600 shrink-0" />
+                                <div>
+                                  <div className="font-semibold text-slate-800 text-xs">{sub.name}</div>
+                                  <div className="text-[10px] font-mono text-slate-400">{sub.code}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400 italic">No subject list attached</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      No active subject bundle or custom subjects mapped to this student.
+                    </div>
+                  )}
                 </Card>
               </div>
             )}
 
+            {/* Parent Info */}
             {profileTab === 'parents' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="p-5 border border-slate-200/80 shadow-sm">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                    Parent / Guardian Information
-                  </h3>
-                  <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Parent's Full Name</span>
-                      <strong className="text-slate-800">{studentParent?.name || 'Mr. Rajesh Sharma'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Relation</span>
-                      <strong className="text-slate-700">{studentParent?.relation || 'Father'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Parent Mobile</span>
-                      <strong className="text-slate-700 font-mono">{selectedStudent.parentMobile}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Parent Email ID</span>
-                      <strong className="text-slate-700 font-mono text-xs">{studentParent?.email || 'rajesh.sharma@example.com'}</strong>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Occupation</span>
-                      <strong className="text-slate-700">{studentParent?.occupation || 'Senior Business Consultant'}</strong>
-                    </div>
+              <Card className="p-5 border border-slate-200/80 shadow-sm">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                  Parent / Guardian Contact Info
+                </h3>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                  <div>
+                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Parent Full Name</span>
+                    <strong className="text-slate-800">{selectedStudentDetail.guardian_name || 'N/A'}</strong>
                   </div>
-                </Card>
-
-                <Card className="p-5 border border-slate-200/80 shadow-sm">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                    Residential Address details
-                  </h3>
-                  <div className="space-y-4 text-sm">
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Street Address</span>
-                      <strong className="text-slate-755 block">{selectedStudent.address?.street || 'Flat 402, Nilgiri Heights, Lokhandwala Complex'}</strong>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">City</span>
-                        <strong className="text-slate-700">{selectedStudent.address?.city || 'Mumbai'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">State</span>
-                        <strong className="text-slate-700">{selectedStudent.address?.state || 'Maharashtra'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Pin Code</span>
-                        <strong className="text-slate-700 font-mono">{selectedStudent.address?.pincode || '400053'}</strong>
-                      </div>
-                    </div>
+                  <div>
+                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Relation</span>
+                    <strong className="text-slate-700">{selectedStudentDetail.guardian_relation || 'Parent'}</strong>
                   </div>
-                </Card>
-              </div>
+                  <div>
+                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Parent Mobile</span>
+                    <strong className="text-slate-700 font-mono">{selectedStudentDetail.guardian_mobile || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Parent Email ID</span>
+                    <strong className="text-slate-700 font-mono text-xs">{selectedStudentDetail.guardian_email || 'N/A'}</strong>
+                  </div>
+                </div>
+              </Card>
             )}
 
+            {/* Fee Plan & Invoices */}
             {profileTab === 'fees' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="bg-slate-50 p-5 border border-slate-200 rounded-2xl">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Course Fee</span>
-                    <div className="text-3xl font-display font-extrabold text-slate-800 mt-1">₹{(studentFeeRecord?.totalFee || selectedStudent.feePlan.total).toLocaleString()}</div>
-                    <span className="text-[10px] text-slate-400 font-semibold block mt-1">Base Tuition + Registry Charges</span>
-                  </div>
-                  <div className="bg-emerald-50/50 p-5 border border-emerald-200 rounded-2xl">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Paid Received</span>
-                    <div className="text-3xl font-display font-extrabold text-emerald-700 mt-1">₹{selectedStudent.feePlan.paid.toLocaleString()}</div>
-                    <span className="text-[10px] text-slate-400 font-semibold block mt-1">Cleared Downpayment + Installments</span>
-                  </div>
-                  <div className="bg-rose-50/50 p-5 border border-rose-200 rounded-2xl">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Outstanding Balance Dues</span>
-                    <div className="text-3xl font-display font-extrabold text-rose-700 mt-1">₹{selectedStudent.feePlan.pending.toLocaleString()}</div>
-                    <span className="text-[10px] text-slate-400 font-semibold block mt-1">To Be Paid in Remaining Cycles</span>
-                  </div>
-                </div>
-
-                <Card className="p-5 border border-slate-200/80 shadow-sm">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                    Fee Installment Setup & Discounts
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Scholarship Discount</span>
-                      <strong className="text-emerald-700">₹{(studentFeeRecord?.discount || 0).toLocaleString()}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Net Payable Amount</span>
-                      <strong className="text-slate-700">₹{(studentFeeRecord?.netFee || (selectedStudent.feePlan.total - (studentFeeRecord?.discount || 0))).toLocaleString()}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Initial Downpayment</span>
-                      <strong className="text-slate-700">₹{(studentFeeRecord?.downpayment || selectedStudent.feePlan.paid).toLocaleString()}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Installment Split Plan</span>
-                      <strong className="text-slate-700">
-                        {studentFeeRecord?.installments || 12} Installments &bull; ₹{(studentFeeRecord?.installmentAmount || Math.round(selectedStudent.feePlan.pending / 12)).toLocaleString()}/mo
-                      </strong>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            )}
-
-            {profileTab === 'results' && (
-              <div className="space-y-4">
-                <Card className="border border-slate-200 shadow-sm overflow-hidden">
-                  <Table headers={['Evaluation / Assessment Name', 'Subject', 'Obtained Score', 'Percentile', 'Grade Result', 'Status']}>
-                    <tr className="hover:bg-slate-50 border-b border-slate-100">
-                      <td className="px-6 py-4 font-semibold text-slate-800">Periodic Chemistry Test #3</td>
-                      <td className="px-6 py-4 text-xs font-bold text-slate-500 font-mono">CHEMISTRY</td>
-                      <td className="px-6 py-4 font-mono font-bold text-slate-700">85 / 100</td>
-                      <td className="px-6 py-4 font-semibold text-slate-600">85.0%</td>
-                      <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 font-bold rounded bg-blue-50 text-blue-700 border border-blue-100">Grade A</span></td>
-                      <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold border border-emerald-100">COMPLETED</span></td>
-                    </tr>
-                    <tr className="hover:bg-slate-50 border-b border-slate-100">
-                      <td className="px-6 py-4 font-semibold text-slate-800">Mechanics &amp; Motion Quiz #2</td>
-                      <td className="px-6 py-4 text-xs font-bold text-slate-500 font-mono">PHYSICS</td>
-                      <td className="px-6 py-4 font-mono font-bold text-slate-700">92 / 100</td>
-                      <td className="px-6 py-4 font-semibold text-slate-600">92.0%</td>
-                      <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-100">Grade A+</span></td>
-                      <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold border border-emerald-100">COMPLETED</span></td>
-                    </tr>
-                    <tr className="hover:bg-slate-50">
-                      <td className="px-6 py-4 font-semibold text-slate-800">Calculus &amp; Functions Exam #1</td>
-                      <td className="px-6 py-4 text-xs font-bold text-slate-500 font-mono">MATHEMATICS</td>
-                      <td className="px-6 py-4 font-mono font-bold text-slate-700">78 / 100</td>
-                      <td className="px-6 py-4 font-semibold text-slate-600">78.0%</td>
-                      <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 font-bold rounded bg-slate-100 text-slate-600 border border-slate-200">Grade B+</span></td>
-                      <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold border border-emerald-100">COMPLETED</span></td>
-                    </tr>
-                  </Table>
-                </Card>
-              </div>
-            )}
-
-            {profileTab === 'documents' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-xs">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Admission Documents Directory</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">Manage govt identities, school transcripts and proof files.</p>
-                  </div>
-                  <Button variant="primary" size="sm" onClick={() => setIsDocModalOpen(true)} className="flex items-center gap-1.5 font-bold">
-                    Upload Document
-                  </Button>
-                </div>
-
-                <Card className="border border-slate-200 shadow-sm overflow-hidden">
-                  <Table headers={['Document Category / Type', 'Uploaded Filename', 'Size', 'Status Verify', 'Date Uploaded', 'Actions']}>
-                    {studentDocuments.length > 0 ? (
-                      studentDocuments.map((doc, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                          <td className="px-6 py-4 font-semibold text-slate-800">{doc.type || 'Identity Proof'}</td>
-                          <td className="px-6 py-4 text-xs text-slate-600 font-mono">{doc.fileName || 'aadhar_card_verify.pdf'}</td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">{doc.fileSize || '1.2 MB'}</td>
-                          <td className="px-6 py-4 text-xs">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
-                              Verified
+                {selectedStudentDetail.feeAssignment ? (
+                  <>
+                    {/* KPI Financial Overview */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <Card className="p-4 border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Net Fee</span>
+                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                            <IndianRupee size={18} />
+                          </div>
+                        </div>
+                        <div className="text-xl font-extrabold text-slate-900 mt-2">
+                          ₹{Number(selectedStudentDetail.feeAssignment.net_amount || 0).toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-1">
+                          Gross: ₹{Number(selectedStudentDetail.feeAssignment.gross_amount || 0).toLocaleString('en-IN')}
+                          {Number(selectedStudentDetail.feeAssignment.total_concession ?? selectedStudentDetail.feeAssignment.discount_amount ?? 0) > 0 && (
+                            <span className="text-emerald-600 font-semibold ml-1">
+                              (-₹{Number(selectedStudentDetail.feeAssignment.total_concession ?? selectedStudentDetail.feeAssignment.discount_amount ?? 0).toLocaleString('en-IN')})
                             </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">11-08-2026</td>
-                          <td className="px-6 py-4">
-                            <button className="text-xs font-bold text-blue-500 hover:text-blue-700 transition">
-                              Download File
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <>
-                        <tr className="hover:bg-slate-50 border-b border-slate-100">
-                          <td className="px-6 py-4 font-semibold text-slate-800">Aadhaar Card / Govt Identity</td>
-                          <td className="px-6 py-4 text-xs text-slate-600 font-mono">national_id_card.pdf</td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">1.1 MB</td>
-                          <td className="px-6 py-4 text-xs">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
-                              Verified
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">12-08-2026</td>
-                          <td className="px-6 py-4">
-                            <button className="text-xs font-bold text-blue-500 hover:text-blue-700 transition">
-                              Download File
-                            </button>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-slate-50 border-b border-slate-100">
-                          <td className="px-6 py-4 font-semibold text-slate-800">Prior Class Marksheet</td>
-                          <td className="px-6 py-4 text-xs text-slate-600 font-mono">class_10th_marksheet.jpg</td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">2.4 MB</td>
-                          <td className="px-6 py-4 text-xs">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
-                              Verified
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">12-08-2026</td>
-                          <td className="px-6 py-4">
-                            <button className="text-xs font-bold text-blue-500 hover:text-blue-700 transition">
-                              Download File
-                            </button>
-                          </td>
-                        </tr>
-                        <tr className="hover:bg-slate-50">
-                          <td className="px-6 py-4 font-semibold text-slate-800">School Leaving Certificate</td>
-                          <td className="px-6 py-4 text-xs text-slate-600 font-mono">leaving_cert.pdf</td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">920 KB</td>
-                          <td className="px-6 py-4 text-xs">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100">
-                              Verified
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-slate-400 font-mono">12-08-2026</td>
-                          <td className="px-6 py-4">
-                            <button className="text-xs font-bold text-blue-500 hover:text-blue-700 transition">
-                              Download File
-                            </button>
-                          </td>
-                        </tr>
-                      </>
-                    )}
-                  </Table>
-                </Card>
+                          )}
+                        </div>
+                      </Card>
 
-                {/* Upload Modal */}
-                {isDocModalOpen && (
-                  <Modal
-                    isOpen={isDocModalOpen}
-                    onClose={() => setIsDocModalOpen(false)}
-                    title="Upload Academic Document Proof"
-                    footer={
-                      <div className="flex gap-2">
-                        <Button variant="secondary" onClick={() => setIsDocModalOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button 
-                          variant="primary" 
-                          disabled={!docFileName.trim()}
-                          onClick={() => {
-                            if (!selectedStudent) return;
-                            const newDoc = {
-                              id: `DOC-${Math.floor(10000 + Math.random() * 90000)}`,
-                              studentId: selectedStudent.id,
-                              type: docType,
-                              fileName: docFileName.trim(),
-                              fileSize: `${(Math.random() * 2 + 0.5).toFixed(1)} MB`,
-                              uploadedAt: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
-                              status: 'Verified' as const
-                            };
-                            setDocuments(prev => [newDoc, ...prev]);
-                            addToast('Document uploaded and auto-verified successfully!', 'success');
-                            setIsDocModalOpen(false);
-                            setDocFileName('');
-                          }}
-                          className="flex items-center gap-1 font-bold"
-                        >
-                          Upload File
-                        </Button>
+                      <Card className="p-4 border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Downpayment</span>
+                          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                            <CreditCard size={18} />
+                          </div>
+                        </div>
+                        <div className="text-xl font-extrabold text-slate-900 mt-2">
+                          ₹{Number(selectedStudentDetail.feeAssignment.down_payment ?? selectedStudentDetail.feeAssignment.downpayment_amount ?? 0).toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-1">Initial Admission Amount</div>
+                      </Card>
+
+                      <Card className="p-4 border border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 to-white shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Paid Till Date</span>
+                          <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+                            <CheckCircle size={18} />
+                          </div>
+                        </div>
+                        <div className="text-xl font-extrabold text-emerald-700 mt-2">
+                          ₹{Number(selectedStudentDetail.feeAssignment.paid_amount || 0).toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-[11px] text-emerald-600 font-medium mt-1">
+                          {Math.round((Number(selectedStudentDetail.feeAssignment.paid_amount || 0) / (Number(selectedStudentDetail.feeAssignment.net_amount) || 1)) * 100)}% Cleared
+                        </div>
+                      </Card>
+
+                      <Card className="p-4 border border-amber-200/80 bg-gradient-to-br from-amber-50/50 to-white shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Outstanding Dues</span>
+                          <div className="p-2 bg-amber-100 text-amber-700 rounded-lg">
+                            <Clock size={18} />
+                          </div>
+                        </div>
+                        <div className="text-xl font-extrabold text-amber-700 mt-2">
+                          ₹{Number(selectedStudentDetail.feeAssignment.balance_amount ?? selectedStudentDetail.feeAssignment.balance_due ?? 0).toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-[11px] text-amber-600 font-medium mt-1">
+                          {Number(selectedStudentDetail.feeAssignment.balance_amount ?? selectedStudentDetail.feeAssignment.balance_due ?? 0) === 0 ? 'Fully Settled' : 'Pending Installments'}
+                        </div>
+                      </Card>
+                    </div>
+
+                    {/* Plan Structure Details Card */}
+                    <Card className="p-5 border border-slate-200/80 shadow-sm">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <FileText size={16} className="text-blue-600" />
+                          Agreed Master Fee Contract Plan
+                        </span>
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase ${
+                          selectedStudentDetail.feeAssignment.status === 'paid'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : selectedStudentDetail.feeAssignment.status === 'partially_paid'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          Status: {(selectedStudentDetail.feeAssignment.status || 'pending').replace('_', ' ')}
+                        </span>
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm">
+                        <div>
+                          <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Gross Course Fee</span>
+                          <strong className="text-slate-800">₹{Number(selectedStudentDetail.feeAssignment.gross_amount || 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Discount Concession</span>
+                          <strong className="text-emerald-600">₹{Number(selectedStudentDetail.feeAssignment.total_concession ?? selectedStudentDetail.feeAssignment.discount_amount ?? 0).toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Installment Plan</span>
+                          <strong className="text-slate-800">
+                            {selectedStudentDetail.feeAssignment.installment_count || 1} x ₹{Number(selectedStudentDetail.feeAssignment.installment_amount || 0).toLocaleString('en-IN')}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Contract Created Date</span>
+                          <strong className="text-slate-700">
+                            {selectedStudentDetail.feeAssignment.created_at ? new Date(selectedStudentDetail.feeAssignment.created_at).toLocaleDateString() : 'N/A'}
+                          </strong>
+                        </div>
                       </div>
-                    }
-                  >
-                    <div className="space-y-4">
-                      <Select
-                        label="Document Category / Type"
-                        options={[
-                          { value: 'Govt ID (Aadhaar / Passport)', label: 'Govt ID (Aadhaar / Passport)' },
-                          { value: 'Prior Class Marksheet', label: 'Prior Class Marksheet' },
-                          { value: 'Transfer Certificate', label: 'Transfer Certificate' },
-                          { value: 'Income Certificate / Proof', label: 'Income Certificate / Proof' },
-                          { value: 'Address Proof', label: 'Address Proof' },
-                          { value: 'Passport Photo', label: 'Passport Photo' }
-                        ]}
-                        value={docType}
-                        onChange={(e) => setDocType(e.target.value)}
-                      />
-                      <Input
-                        label="Document Filename / Name"
-                        placeholder="e.g. aadhaar_card.pdf"
-                        value={docFileName}
-                        onChange={(e) => setDocFileName(e.target.value)}
-                      />
-                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-500 leading-relaxed">
-                        Select category, type the document file name, and click Upload. The file will be cataloged and auto-linked to this student.
-                      </div>
-                    </div>
-                  </Modal>
+                    </Card>
+
+                    {/* Invoice & Payment History Timeline */}
+                    <Card className="p-5 border border-slate-200/80 shadow-sm">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <Calendar size={16} className="text-blue-600" />
+                          Invoice & Installment History ({selectedStudentDetail.invoicesList?.length || 0} Invoices)
+                        </span>
+                      </h3>
+
+                      {selectedStudentDetail.invoicesList && selectedStudentDetail.invoicesList.length > 0 ? (
+                        <Table headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status']}>
+                          {selectedStudentDetail.invoicesList.map((inv) => (
+                            <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-4 font-mono font-bold text-xs text-blue-700">
+                                {inv.invoice_number}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-semibold text-slate-700">
+                                {inv.installment_number === 0 ? 'Downpayment' : `Installment #${inv.installment_number}`}
+                              </td>
+                              <td className="px-6 py-4 text-xs text-slate-600">
+                                {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '-'}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-800">
+                                ₹{Number(inv.amount ?? inv.billed_amount ?? 0).toLocaleString('en-IN')}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-emerald-600">
+                                ₹{Number(inv.paid_amount || 0).toLocaleString('en-IN')}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-amber-600">
+                                ₹{Number(inv.balance_due || 0).toLocaleString('en-IN')}
+                              </td>
+                              <td className="px-6 py-4 text-xs text-slate-500">
+                                {inv.payment_mode ? (
+                                  <div>
+                                    <span className="font-semibold text-slate-700">{inv.payment_mode}</span>
+                                    {inv.payment_date && (
+                                      <div className="text-[10px] text-slate-400">{new Date(inv.payment_date).toLocaleDateString()}</div>
+                                    )}
+                                    {(inv.transaction_reference || inv.transaction_ref) && (
+                                      <div className="text-[10px] font-mono text-slate-400">{inv.transaction_reference || inv.transaction_ref}</div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 italic">Not paid</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 text-xs">
+                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
+                                  inv.status === 'paid'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : inv.status === 'partially_paid'
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </Table>
+                      ) : (
+                        <div className="text-sm text-slate-500 italic p-4 bg-slate-50 rounded-xl text-center">
+                          No invoices generated for this student contract yet.
+                        </div>
+                      )}
+                    </Card>
+                  </>
+                ) : (
+                  <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                    <AlertCircle size={32} className="mx-auto text-slate-400 mb-2" />
+                    <h4 className="font-bold text-slate-700 text-base">No Active Fee Plan Assigned</h4>
+                    <p className="text-xs text-slate-500 mt-1">This student has not been assigned a custom fee contract or installment plan yet.</p>
+                  </div>
                 )}
               </div>
             )}
+
+            {/* Documents */}
+            {profileTab === 'documents' && (
+              <Card className="p-5 border border-slate-200/80 shadow-sm">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
+                  Admission Proof Documents
+                </h3>
+                <Table headers={['Document Category', 'Filename', 'Status', 'Actions']}>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-semibold text-slate-800">Govt ID (Aadhaar Proof)</td>
+                    <td className="px-6 py-4 text-xs font-mono text-slate-600">aadhaar_proof.pdf</td>
+                    <td className="px-6 py-4 text-xs"><span className="inline-flex px-2 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold">Verified</span></td>
+                    <td className="px-6 py-4"><Button variant="secondary" size="sm">Download</Button></td>
+                  </tr>
+                </Table>
+              </Card>
+            )}
           </div>
 
-            <div className="flex justify-end pt-4 border-t border-slate-100 mt-6">
-              <Button type="button" variant="secondary" onClick={() => setSelectedStudent(null)}>
-                Close Profile
-              </Button>
-            </div>
+          <div className="flex justify-end pt-4 border-t border-slate-100 mt-6">
+            <Button type="button" variant="secondary" onClick={() => setSelectedStudentId(null)}>
+              Close Profile
+            </Button>
           </div>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Student Profile Directory</h2>
-          <p className="text-sm text-slate-500 mt-1">Review active student academic rosters, search details, and view payment ledgers.</p>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Student Profile Roster</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage active students, assigned batches, subject bundles, and guardian records.
+          </p>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Button 
+            variant="primary" 
+            onClick={() => setIsAddModalOpen(true)} 
+            className="flex items-center gap-1.5 font-bold"
+            style={{ backgroundColor: '#2563eb', color: 'white' }}
+          >
+            <UserPlus size={16} /> Add Active Student
+          </Button>
           <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
             <Upload size={14} /> Bulk Import
           </Button>
@@ -568,100 +662,121 @@ export const Students: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
-        <Input label="Search" placeholder="Search students by name or ID..." 
-          value={searchTerm} 
-          onChange={(e) => setSearchTerm(e.target.value)} 
+      {/* Filter Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
+        <Input
+          label="Search Roster"
+          placeholder="Search by student name, code, or mobile..."
+          value={searchTerm}
+          onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           wrapperClassName="sm:col-span-2"
         />
+
         <Select
-          label="Course"
-          value={filterCourse}
-          onChange={(e) => setFilterCourse(e.target.value)}
+          label="Filter Branch"
+          value={filterBranch}
+          onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
           options={[
-            { value: 'All', label: 'All Courses' },
-            ...uniqueCourses.map(c => ({ value: c || '', label: c || '' }))
+            { value: 'All', label: 'All Branches' },
+            ...(academicOptions?.branches || []).map(b => ({ value: b.id.toString(), label: b.name }))
           ]}
         />
+
         <Select
-          label="Batch"
+          label="Filter Batch"
           value={filterBatch}
-          onChange={(e) => setFilterBatch(e.target.value)}
+          onChange={e => { setFilterBatch(e.target.value); setCurrentPage(1); }}
           options={[
             { value: 'All', label: 'All Batches' },
-            ...uniqueBatches.map(b => ({ value: b || '', label: b || '' }))
+            ...(academicOptions?.batches || []).map(bat => ({ value: bat.id.toString(), label: bat.name }))
+          ]}
+        />
+
+        <Select
+          label="Status"
+          value={filterStatus}
+          onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+          options={[
+            { value: 'All', label: 'All Status' },
+            { value: 'active', label: 'Active Enrolled' },
+            { value: 'registration_pending', label: 'Registration Pending' },
+            { value: 'suspended', label: 'Suspended' }
           ]}
         />
       </div>
 
+      {/* Roster Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Enrolled Student Profiles</CardTitle>
+          <CardTitle>Active Enrolled Students ({totalItems})</CardTitle>
         </CardHeader>
-        <Table headers={['Student ID', 'Name', 'Course', 'Batch Name', 'Mobile', 'Pending Fees', 'Actions']}>
-          {paginatedStudents.map((s, idx) => (
-            <tr key={idx} className="hover:bg-slate-50">
-              <td className="px-6 py-4 font-mono font-bold text-xs">{s.studentId}</td>
-              <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
-              <td className="px-6 py-4 text-xs">{s.course}</td>
-              <td className="px-6 py-4">{s.batch}</td>
-              <td className="px-6 py-4 font-mono text-xs">{s.mobile}</td>
-              <td className="px-6 py-4 font-semibold text-red-500">Rs. {s.feePlan.pending}</td>
-              <td className="px-6 py-4">
-                <Button variant="secondary" size="sm" onClick={() => { setSelectedStudent(s); setProfileTab('overview'); }}>
-                  View Profile
-                </Button>
-              </td>
+
+        <Table headers={['Student Code', 'Full Name', 'Branch', 'Enrolled Batch', 'Mobile Contact', 'Status', 'Actions']}>
+          {loading ? (
+            <tr>
+              <td colSpan={7} className="px-6 py-8 text-center text-slate-400">Loading student roster...</td>
             </tr>
-          ))}
+          ) : students.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="px-6 py-8 text-center text-slate-400">No active student records found matching filters.</td>
+            </tr>
+          ) : (
+            students.map((s) => (
+              <tr key={s.id} className="hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                <td className="px-6 py-4 font-mono font-bold text-xs text-blue-600">{s.student_code}</td>
+                <td className="px-6 py-4 font-semibold text-slate-800">{s.full_name}</td>
+                <td className="px-6 py-4 text-xs text-slate-600">{s.branch_name || 'Main Branch'}</td>
+                <td className="px-6 py-4 font-mono text-xs text-emerald-700 font-bold">{s.batch_name || 'Unassigned'}</td>
+                <td className="px-6 py-4 font-mono text-xs text-slate-600">{s.mobile || 'N/A'}</td>
+                <td className="px-6 py-4 text-xs">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                    s.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                    s.status === 'registration_pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    {s.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedStudentId(s.id)}
+                    className="font-bold text-xs"
+                  >
+                    View Profile
+                  </Button>
+                </td>
+              </tr>
+            ))
+          )}
         </Table>
+
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={filteredAndSortedStudents.length}
+          totalItems={totalItems}
           pageSize={itemsPerPage}
           onPageChange={setCurrentPage}
         />
       </Card>
 
+
+
+      {/* Bulk Import Modal */}
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         title="Bulk Import Student Roster"
-        description="Select a CSV spreadsheet to import multiple student profiles at once. Columns must match the template below exactly."
-        sampleHeaders={['Student ID', 'Name', 'Mobile', 'Email', 'Course', 'Batch', 'Branch']}
+        description="Upload CSV formatted file with active student enrollment records."
+        sampleHeaders={['Full Name', 'Mobile', 'Email', 'Class', 'Branch ID', 'Batch ID']}
         sampleRows={[
-          ['STU-MUM-4501', 'Aarav Sharma', '9812457812', 'aarav.sharma@gmail.com', 'JEE Prep Course', 'JEE-Morning-A', 'Mumbai West'],
-          ['STU-PUN-3312', 'Divya Rao', '9645123078', 'divya.rao@outlook.com', 'NEET Batch Premium', 'NEET-Regular-B', 'Pune Camp']
+          ['Aarav Sharma', '9812457812', 'aarav.sharma@gmail.com', 'Class 11', '1', '1'],
+          ['Divya Rao', '9645123078', 'divya.rao@outlook.com', 'Class 12', '1', '2']
         ]}
-        onImport={(importedRows) => {
-          const newStudents = importedRows.map((row, rIdx) => {
-            const studentId = row['Student ID'] || `STU-GEN-${Math.floor(10000 + Math.random() * 90000)}`;
-            return {
-              id: `S-IMP-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
-              studentId: studentId,
-              parentId: `P-${Math.floor(10000 + Math.random() * 90000)}`,
-              enrollmentIds: [],
-              name: row['Name'] || 'Imported Student',
-              mobile: row['Mobile'] || '9999999999',
-              dob: '2010-01-01',
-              gender: 'Male',
-              email: row['Email'] || '',
-              address: { street: '', city: 'Mumbai', state: 'Maharashtra', pincode: '400001' },
-              category: 'General',
-              schoolName: '',
-              currentClass: '10',
-              board: 'CBSE',
-              targetExam: 'JEE',
-              yearOfAttempt: '2028',
-              status: 'Active Student' as const,
-              course: row['Course'] || 'JEE Prep Course',
-              batch: row['Batch'] || 'JEE-Morning-A',
-              branch: row['Branch'] || 'Mumbai West',
-              admissionDate: new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-            };
-          });
-          setStudents(prev => [...newStudents, ...prev]);
+        onImport={() => {
+          fetchRoster();
+          addToast('Bulk import processed', 'success');
         }}
       />
     </div>

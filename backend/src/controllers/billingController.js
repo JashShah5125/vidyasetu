@@ -65,10 +65,62 @@ const getRevenueByPlan = async (req, res) => {
     }
 };
 
+const handleError = (res, error, fallbackMessage) => {
+    console.error(fallbackMessage, error);
+    if (error && error.statusCode) {
+        return res.status(error.statusCode).json({ status: 'error', message: error.message });
+    }
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+};
+
+const getInvoiceById = async (req, res) => {
+    try {
+        const invoice = await billingService.getInvoiceById(req.params.id);
+        if (!invoice) {
+            return res.status(404).json({ status: 'error', message: 'Invoice not found' });
+        }
+        res.status(200).json({ status: 'success', data: invoice });
+    } catch (error) {
+        handleError(res, error, 'Error fetching invoice:');
+    }
+};
+
+const createInvoice = async (req, res) => {
+    try {
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+        const invoice = await billingService.createInvoice(req.body, userId);
+        res.status(201).json({ status: 'success', message: 'Invoice created successfully', data: invoice });
+    } catch (error) {
+        handleError(res, error, 'Error creating invoice:');
+    }
+};
+
+const updateInvoice = async (req, res) => {
+    try {
+        const invoice = await billingService.updateInvoice(req.params.id, req.body);
+        res.status(200).json({ status: 'success', message: 'Invoice updated successfully', data: invoice });
+    } catch (error) {
+        handleError(res, error, 'Error updating invoice:');
+    }
+};
+
+const deleteInvoice = async (req, res) => {
+    try {
+        const result = await billingService.deleteInvoice(req.params.id);
+        res.status(200).json({ status: 'success', message: 'Invoice deleted successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error deleting invoice:');
+    }
+};
+
 module.exports = {
     getInvoices,
     getBillingSummary,
     getRevenueTrend,
     getRevenueByMethod,
-    getRevenueByPlan
+    getRevenueByPlan,
+    getInvoiceById,
+    createInvoice,
+    updateInvoice,
+    deleteInvoice
 };

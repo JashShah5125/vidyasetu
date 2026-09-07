@@ -119,4 +119,9 @@ export const emailTemplateService = {
     const { data } = await api.patch(`/admin/email-templates/${id}/status`, { status });
     return { data: mapTemplateToFrontend(data.data), message: data.message };
   },
+
+  deleteTemplate: async (id: string) => {
+    const { data } = await api.delete(`/admin/email-templates/${id}`);
+    return data;
+  },
 };

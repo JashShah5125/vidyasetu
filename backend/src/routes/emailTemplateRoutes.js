@@ -14,5 +14,6 @@ router.get('/:id', requirePermission('email_template.view'), emailTemplateContro
 router.post('/', requirePermission('email_template.create'), validate(createTemplateSchema), emailTemplateController.createTemplate);
 router.put('/:id', requirePermission('email_template.update'), validate(updateTemplateSchema), emailTemplateController.updateTemplate);
 router.patch('/:id/status', requirePermission('email_template.update'), validate(statusSchema), emailTemplateController.updateTemplateStatus);
+router.delete('/:id', requirePermission('email_template.update'), emailTemplateController.deleteTemplate);
 
 module.exports = router;

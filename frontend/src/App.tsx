@@ -61,6 +61,8 @@ import { EmailTemplates } from './pages/saas/EmailTemplates';
 import { SmsTemplates } from './pages/saas/SmsTemplates';
 import { WhatsAppTemplates } from './pages/saas/WhatsAppTemplates';
 import { BillingRevenue } from './pages/saas/BillingRevenue';
+import { InvoiceFormPage } from './pages/saas/InvoiceFormPage';
+import { InvoiceDetailsPage } from './pages/saas/InvoiceDetailsPage';
 import { ProductAnalytics } from './pages/saas/ProductAnalytics';
 import { SystemConfiguration } from './pages/saas/SystemConfiguration';
 import { EmailConfiguration } from './pages/saas/EmailConfiguration';
@@ -323,6 +325,9 @@ const ContentRouter = () => {
       <Route path="/sms-templates" element={<SmsTemplates />} />
       <Route path="/whatsapp-templates" element={<WhatsAppTemplates />} />
       <Route path="/billing" element={<BillingRevenue />} />
+      <Route path="/billing/invoices/new" element={<InvoiceFormPage />} />
+      <Route path="/billing/invoices/:id" element={<InvoiceDetailsPage />} />
+      <Route path="/billing/invoices/:id/edit" element={<InvoiceFormPage />} />
       <Route path="/analytics" element={<ProductAnalytics />} />
       <Route path="/system-config" element={<SystemConfiguration />} />
       <Route path="/system-settings/email" element={<EmailConfiguration />} />

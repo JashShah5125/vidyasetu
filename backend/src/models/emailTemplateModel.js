@@ -133,6 +133,12 @@ const updateStatus = async (id, status) => {
     return result.affectedRows > 0;
 };
 
+const remove = async (id) => {
+    const query = `UPDATE email_templates SET deleted_at = CURRENT_TIMESTAMP, status = 'INACTIVE', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL`;
+    const [result] = await pool.query(query, [id]);
+    return result.affectedRows > 0;
+};
+
 module.exports = {
     getAll,
     getTotalCount,
@@ -141,5 +147,6 @@ module.exports = {
     getByTemplateKey,
     create,
     update,
-    updateStatus
+    updateStatus,
+    remove
 };

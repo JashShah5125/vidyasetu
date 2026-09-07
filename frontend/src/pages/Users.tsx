@@ -13,6 +13,144 @@ import type { Staff } from '../data/mockData';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { staffApi } from '../services/staffApi';
 
+export type StaffColumnKey =
+  | 'contact_number'
+  | 'official_email'
+  | 'department'
+  | 'designation'
+  | 'joining_date'
+  | 'employment_type'
+  | 'employment_status'
+  | 'qualification'
+  | 'experience'
+  | 'salary_amount'
+  | 'salary_type'
+  | 'personal_email'
+  | 'location'
+  | 'gender_blood'
+  | 'dob'
+  | 'marital_status'
+  | 'aadhaar_number'
+  | 'pan_number'
+  | 'bank_details'
+  | 'emergency_contact'
+  | 'reporting_manager'
+  | 'max_lectures';
+
+const STAFF_COLUMN_OPTIONS: Array<{ value: StaffColumnKey; label: string; header: string }> = [
+  { value: 'contact_number', label: 'Contact Mobile', header: 'Contact Mobile' },
+  { value: 'official_email', label: 'Official Email', header: 'Official Email' },
+  { value: 'department', label: 'Department', header: 'Department' },
+  { value: 'designation', label: 'Designation', header: 'Designation' },
+  { value: 'joining_date', label: 'Joining Date', header: 'Date of Joining' },
+  { value: 'employment_type', label: 'Employment Type', header: 'Employment Type' },
+  { value: 'employment_status', label: 'Employment Status', header: 'Employment Status' },
+  { value: 'qualification', label: 'Qualification', header: 'Qualification' },
+  { value: 'experience', label: 'Experience (Years)', header: 'Experience' },
+  { value: 'salary_amount', label: 'Salary Amount (₹)', header: 'Salary Amount' },
+  { value: 'salary_type', label: 'Salary Type', header: 'Salary Type' },
+  { value: 'personal_email', label: 'Personal Email', header: 'Personal Email' },
+  { value: 'location', label: 'City & State', header: 'Location' },
+  { value: 'gender_blood', label: 'Gender & Blood Group', header: 'Gender / Blood' },
+  { value: 'dob', label: 'Date of Birth', header: 'Date of Birth' },
+  { value: 'marital_status', label: 'Marital Status', header: 'Marital Status' },
+  { value: 'aadhaar_number', label: 'Aadhaar Number', header: 'Aadhaar No.' },
+  { value: 'pan_number', label: 'PAN Number', header: 'PAN No.' },
+  { value: 'bank_details', label: 'Bank Account & Name', header: 'Bank Details' },
+  { value: 'emergency_contact', label: 'Emergency Contact', header: 'Emergency Contact' },
+  { value: 'reporting_manager', label: 'Reporting Manager', header: 'Reporting Manager' },
+  { value: 'max_lectures', label: 'Max Lectures (Day / Wk)', header: 'Max Lectures' },
+];
+
+const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
+  switch (colKey) {
+    case 'contact_number':
+      return <span className="font-mono text-xs text-slate-700">{s.contact_number || s.mobile || '—'}</span>;
+    case 'official_email':
+      return <span className="font-mono text-xs text-slate-700">{s.email || '—'}</span>;
+    case 'department':
+      return <span className="text-xs font-semibold text-slate-800">{s.department || '—'}</span>;
+    case 'designation':
+      return <span className="text-xs font-medium text-slate-700">{s.designation || '—'}</span>;
+    case 'joining_date':
+      return <span className="text-xs text-slate-600">{s.joining_date ? new Date(s.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : (s.joiningDate || '—')}</span>;
+    case 'employment_type':
+      return <span className="capitalize text-xs font-medium text-slate-700">{(s.employment_type || '').replace(/_/g, ' ') || 'Full Time'}</span>;
+    case 'employment_status':
+      return <span className="capitalize text-xs font-medium text-slate-700">{s.employment_status || 'Confirmed'}</span>;
+    case 'qualification':
+      return <span className="text-xs text-slate-700">{s.qualification || '—'}</span>;
+    case 'experience':
+      return <span className="text-xs text-slate-700">{s.experience ? `${s.experience} Years` : '—'}</span>;
+    case 'salary_amount':
+      return <span className="font-mono font-semibold text-xs text-emerald-700">{s.salary_amount ? `₹${Number(s.salary_amount).toLocaleString('en-IN')}` : (s.monthlySalary ? `₹${Number(s.monthlySalary).toLocaleString('en-IN')}` : '—')}</span>;
+    case 'salary_type':
+      return <span className="capitalize text-xs text-slate-700">{s.salary_type || s.salaryType || 'Monthly'}</span>;
+    case 'personal_email':
+      return <span className="font-mono text-xs text-slate-600">{s.personal_email || '—'}</span>;
+    case 'location':
+      return <span className="text-xs text-slate-700">{[s.city, s.state].filter(Boolean).join(', ') || s.address || '—'}</span>;
+    case 'gender_blood':
+      return <span className="text-xs text-slate-700">{[s.gender, s.blood_group].filter(Boolean).join(' • ') || '—'}</span>;
+    case 'dob':
+      return <span className="text-xs text-slate-600">{s.dob ? new Date(s.dob).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>;
+    case 'marital_status':
+      return <span className="capitalize text-xs text-slate-700">{s.marital_status || '—'}</span>;
+    case 'aadhaar_number':
+      return <span className="font-mono text-xs text-slate-700">{s.aadhaar_number || '—'}</span>;
+    case 'pan_number':
+      return <span className="font-mono uppercase text-xs text-slate-700">{s.pan_number || '—'}</span>;
+    case 'bank_details':
+      return (
+        <div className="text-xs">
+          <span className="font-semibold text-slate-800 block">{s.bank_name || s.bankName || 'Bank'}</span>
+          <span className="font-mono text-[11px] text-slate-500">{s.bank_account_number || s.accountNumber || '—'}</span>
+        </div>
+      );
+    case 'emergency_contact':
+      return (
+        <div className="text-xs">
+          <span className="font-semibold text-slate-800 block">{s.emergency_contact_name || '—'}</span>
+          <span className="font-mono text-[11px] text-slate-500">{s.emergency_contact_number || ''}</span>
+        </div>
+      );
+    case 'reporting_manager':
+      return <span className="text-xs text-slate-700">{s.reporting_manager || '—'}</span>;
+    case 'max_lectures':
+      return <span className="text-xs text-slate-700">{s.max_lectures_per_day ? `${s.max_lectures_per_day}/day • ${s.max_lectures_per_week || '—'}/wk` : '—'}</span>;
+    default:
+      return <span className="text-xs text-slate-400">—</span>;
+  }
+};
+
+const getColumnTextValue = (s: any, colKey: StaffColumnKey): string => {
+  switch (colKey) {
+    case 'contact_number': return s.contact_number || s.mobile || '';
+    case 'official_email': return s.email || '';
+    case 'department': return s.department || '';
+    case 'designation': return s.designation || '';
+    case 'joining_date': return s.joining_date ? new Date(s.joining_date).toISOString().split('T')[0] : (s.joiningDate || '');
+    case 'employment_type': return (s.employment_type || '').replace(/_/g, ' ');
+    case 'employment_status': return s.employment_status || '';
+    case 'qualification': return s.qualification || '';
+    case 'experience': return s.experience ? `${s.experience} Years` : '';
+    case 'salary_amount': return s.salary_amount ? `${s.salary_amount}` : (s.monthlySalary || '');
+    case 'salary_type': return s.salary_type || s.salaryType || '';
+    case 'personal_email': return s.personal_email || '';
+    case 'location': return [s.city, s.state].filter(Boolean).join(', ');
+    case 'gender_blood': return [s.gender, s.blood_group].filter(Boolean).join(' / ');
+    case 'dob': return s.dob ? new Date(s.dob).toISOString().split('T')[0] : '';
+    case 'marital_status': return s.marital_status || '';
+    case 'aadhaar_number': return s.aadhaar_number || '';
+    case 'pan_number': return s.pan_number || '';
+    case 'bank_details': return `${s.bank_name || ''} ${s.bank_account_number || ''}`;
+    case 'emergency_contact': return `${s.emergency_contact_name || ''} ${s.emergency_contact_number || ''}`;
+    case 'reporting_manager': return s.reporting_manager || '';
+    case 'max_lectures': return s.max_lectures_per_day ? `${s.max_lectures_per_day}/day` : '';
+    default: return '';
+  }
+};
+
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff, currentUser, addToast } = useApp();
   const navigate = useNavigate();
@@ -25,12 +163,13 @@ export const Users: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
   const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
+  const [selectedCustomColumn, setSelectedCustomColumn] = useState<StaffColumnKey>('contact_number');
 
   const [loading, setLoading] = useState(false);
   const [apiStaff, setApiStaff] = useState<any[]>([]);
   const [totalStaff, setTotalStaff] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
+  const itemsPerPage = 10;
 
   const fetchStaff = async () => {
     setLoading(true);
@@ -39,7 +178,7 @@ export const Users: React.FC = () => {
         page: currentPage,
         limit: itemsPerPage,
         search: searchTerm,
-        branchId: filterBranch !== 'All' ? filterBranch : undefined, // Actually needs branch IDs, this might be tricky since mock uses names
+        branchId: filterBranch !== 'All' ? filterBranch : undefined,
       };
       const res = await staffApi.list(filters);
       setApiStaff(res.data);
@@ -61,12 +200,15 @@ export const Users: React.FC = () => {
   const filteredAndSortedStaff = apiStaff;
 
   const handleExportCSV = () => {
+    const selectedColDef = STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0];
     const dataToExport = filteredAndSortedStaff.map(s => ({
-      'Name': s.name,
-      'Email': s.email,
-      'Role': s.role,
-      'Branch': s.branch,
-      'Status': s.status
+      'Employee ID': (s as any).employee_id || s.id || '',
+      'Name': s.first_name + ' ' + (s.last_name || ''),
+      'Official Email': s.email || '',
+      'Primary Branch': s.primary_branch_name || s.branch || '',
+      [selectedColDef.header]: getColumnTextValue(s, selectedCustomColumn),
+      'Role': s.employee_type || s.role || 'Staff',
+      'Status': s.status || ''
     }));
 
     if (dataToExport.length === 0) return;
@@ -87,7 +229,7 @@ export const Users: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "staff_directory.csv");
+    link.setAttribute("download", `staff_directory_${selectedCustomColumn}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -615,8 +757,8 @@ export const Users: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">User &amp; Staff Directory</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage personnel profile records, assign security role boundaries, and allocate active branch hubs.</p>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Staff Members Directory</h2>
+          <p className="text-base text-slate-500 mt-2">Manage personnel profile records, assign security role boundaries, and allocate active branch hubs.</p>
         </div>
         <div className="flex gap-2 shrink-0">
           <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
@@ -625,87 +767,139 @@ export const Users: React.FC = () => {
           <Button variant="secondary" onClick={handleExportCSV}>
             Export CSV
           </Button>
-          <Button variant="primary" style={{ gap: '6.5px' }} onClick={() => navigate('/staff/new')}>
-            <Plus size={16} /> Add Staff
+          <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={() => navigate('/staff/new')}>
+            <Plus size={18} /> Add Staff
           </Button>
         </div>
       </div>
 
-      {/* Search, Filter, Sort Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-end">
-        <Input
-          label="Search"
-          placeholder="Search staff by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          wrapperClassName="sm:col-span-2"
-        />
-        <Select
-          label="Role"
-          value={filterRole}
-          onChange={(e) => setFilterRole(e.target.value)}
-          options={[
-            { value: 'All', label: 'All Roles' },
-            ...uniqueRoles.map(r => ({ value: r || '', label: r || '' }))
-          ]}
-        />
-        <Select
-          label="Branch"
-          value={filterBranch}
-          onChange={(e) => setFilterBranch(e.target.value)}
-          options={[
-            { value: 'All', label: 'All Branches' },
-            ...uniqueBranches.map(b => ({ value: b || '', label: b || '' }))
-          ]}
-          disabled={currentUser?.role === 'branch-admin'}
-        />
+      {/* Search, Filter, Sort Controls & Export CSV */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
+          <Input
+            label="Search"
+            placeholder="Search by ID, name, email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <Select
+            label="Role"
+            value={filterRole}
+            onChange={(e) => setFilterRole(e.target.value)}
+            options={[
+              { value: 'All', label: 'All Roles' },
+              ...uniqueRoles.map(r => ({ value: r || '', label: r || '' }))
+            ]}
+          />
+          <Select
+            label="Branch"
+            value={filterBranch}
+            onChange={(e) => setFilterBranch(e.target.value)}
+            options={[
+              { value: 'All', label: 'All Branches' },
+              ...uniqueBranches.map(b => ({ value: b || '', label: b || '' }))
+            ]}
+            disabled={currentUser?.role === 'branch-admin'}
+          />
+          <Select
+            label="Display Column"
+            value={selectedCustomColumn}
+            onChange={(e) => setSelectedCustomColumn(e.target.value as StaffColumnKey)}
+            options={STAFF_COLUMN_OPTIONS.map(opt => ({
+              value: opt.value,
+              label: opt.label
+            }))}
+          />
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSearchTerm('');
+              setFilterRole('All');
+              setFilterBranch('All');
+              setCurrentPage(1);
+            }}
+            className="text-slate-500 hover:text-slate-700"
+          >
+            Clear
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Staff Members {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}</CardTitle>
+          <CardTitle>
+            Staff Directory Registry {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}
+          </CardTitle>
         </CardHeader>
-        <Table headers={['Staff Name', 'Official Email', 'Primary Branch', 'Assigned Role', 'Status', 'Actions']}>
+        <Table dense headers={[
+          'ID',
+          'Staff Name',
+          'Primary Branch',
+          (STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0]).header,
+          'Assigned Role',
+          'Status',
+          'Actions'
+        ]}>
           {paginatedStaff.map((s, idx) => {
-            const nameStr = s.first_name + ' ' + (s.last_name || '');
-            const emailStr = s.email;
+            const nameStr = (s.first_name || '') + ' ' + (s.last_name || '');
+            const empId = (s as any).employee_id || s.id || `EMP-${idx + 1}`;
             const branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
             const roleStr = s.employee_type || 'Staff';
+            const statusStr = (s.status || 'Active').toLowerCase();
             
+            let statusBadgeClass = 'bg-red-50 text-red-600';
+            if (statusStr === 'active') {
+              statusBadgeClass = 'bg-emerald-50 text-emerald-600';
+            } else if (statusStr === 'inactive' || statusStr === 'suspended') {
+              statusBadgeClass = 'bg-amber-50 text-amber-600';
+            }
+
             return (
-            <tr key={idx} className="hover:bg-slate-50">
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-xs font-bold font-display border border-slate-200">
-                    {nameStr.split(' ').map((n: string) => n[0]).join('')}
+              <tr 
+                key={idx} 
+                className="hover:bg-slate-50 cursor-pointer transition-colors"
+                onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}
+              >
+                <td className="px-3 py-3 font-bold text-sm text-slate-700 whitespace-nowrap font-mono">
+                  {empId}
+                </td>
+                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[180px]">
+                  {nameStr.trim() || 'Personnel Member'}
+                </td>
+                <td className="px-3 py-3 text-sm font-semibold text-slate-800 whitespace-nowrap">
+                  {branchStr}
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  {renderCustomColumnCell(s, selectedCustomColumn)}
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  <span className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold border ${roleBadgeColors(roleStr)}`}>
+                    {roleStr}
+                  </span>
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold capitalize ${statusBadgeClass}`}>
+                    {s.status || 'Active'}
+                  </span>
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="py-1 px-3 text-xs" 
+                      onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}
+                    >
+                      Manage
+                    </Button>
                   </div>
-                  <div>
-                    <span className="font-semibold text-slate-800 block">{nameStr}</span>
-                    <span className="text-[10px] font-mono text-slate-400">EMP-{(s as any).employee_id || s.id || '2938'}</span>
-                  </div>
-                </div>
-              </td>
-              <td className="px-6 py-4 font-mono text-xs">{emailStr}</td>
-              <td className="px-6 py-4 text-xs font-medium text-slate-700">{branchStr}</td>
-              <td className="px-6 py-4">
-                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold border ${roleBadgeColors(roleStr)}`}>
-                  {roleStr}
-                </span>
-              </td>
-              <td className="px-6 py-4">
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${s.status?.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                  {s.status}
-                </span>
-              </td>
-              <td className="px-6 py-4">
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" className="py-1" onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}>
-                    Manage
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          )})}
+                </td>
+              </tr>
+            );
+          })}
         </Table>
         <Pagination
           currentPage={currentPage}

@@ -417,7 +417,7 @@ export const WhatsAppTemplates: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
           </div>
         ) : (
-          <Table headers={['ID', 'Template Name', 'Category', 'Features', 'Status', 'Actions']} dense>
+          <Table headers={['ID', 'Template Name', 'Category', 'Features', 'Status', 'Actions']} dense colWidths={['44px', '24%', '13%', '24%', '10%', '140px']}>
             {templates.map((t) => (
               <tr
                 key={t.id}
@@ -425,7 +425,7 @@ export const WhatsAppTemplates: React.FC = () => {
                 onClick={() => handleOpenPreview(t)}
               >
                 <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{t.id}</td>
-                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[220px]">
+                <td className="px-3 py-3 font-semibold text-slate-900 text-base">
                   <div className="flex items-center gap-2">
                     <MessageCircle size={18} className="text-emerald-600 shrink-0" />
                     <div>
@@ -472,24 +472,27 @@ export const WhatsAppTemplates: React.FC = () => {
                   </button>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleOpenPreview(t)}
-                      className="text-sm font-semibold text-slate-500 hover:text-emerald-600 cursor-pointer transition flex items-center gap-1"
+                      title="Preview template"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition"
                     >
-                      <Eye size={15} /> Preview
+                      <Eye size={13} /> Preview
                     </button>
                     <button
                       onClick={() => handleOpenEdit(t)}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
+                      title="Edit template"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleOpenDelete(t)}
-                      className="text-sm font-semibold text-red-600 hover:text-red-800 cursor-pointer transition"
+                      title="Delete template"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 cursor-pointer transition"
                     >
-                      Delete
+                      <Trash2 size={13} /> Delete
                     </button>
                   </div>
                 </td>

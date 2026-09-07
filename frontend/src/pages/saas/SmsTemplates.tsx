@@ -366,7 +366,7 @@ export const SmsTemplates: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
           </div>
         ) : (
-          <Table headers={['ID', 'Name', 'DLT Template ID', 'Category', 'Status', 'Actions']} dense>
+          <Table headers={['ID', 'Name', 'DLT Template ID', 'Category', 'Status', 'Actions']} dense colWidths={['44px', '22%', '18%', '13%', '10%', '140px']}>
             {templates.map((t) => (
               <tr
                 key={t.id}
@@ -374,7 +374,7 @@ export const SmsTemplates: React.FC = () => {
                 onClick={() => handleOpenPreview(t)}
               >
                 <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{t.id}</td>
-                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[200px]">
+                <td className="px-3 py-3 font-semibold text-slate-900 text-base">
                   <div>{t.template_name}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
                     Created: {new Date(t.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -397,24 +397,27 @@ export const SmsTemplates: React.FC = () => {
                   </button>
                 </td>
                 <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleOpenPreview(t)}
-                      className="text-sm font-semibold text-slate-500 hover:text-indigo-600 cursor-pointer transition flex items-center gap-1"
+                      title="Preview template"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition"
                     >
-                      <Eye size={15} /> Preview
+                      <Eye size={13} /> Preview
                     </button>
                     <button
                       onClick={() => handleOpenEdit(t)}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
+                      title="Edit template"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleOpenDelete(t)}
-                      className="text-sm font-semibold text-red-600 hover:text-red-800 cursor-pointer transition"
+                      title="Delete template"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 cursor-pointer transition"
                     >
-                      Delete
+                      <Trash2 size={13} /> Delete
                     </button>
                   </div>
                 </td>

@@ -201,7 +201,7 @@ router.get('/saas-revenue', async (req, res) => {
                 MONTH(COALESCE(i.payment_date, i.created_at)) AS mo,
                 SUM(i.total_amount) AS rev
             FROM saas_invoices i
-            WHERE i.status = 'paid'
+            WHERE i.status = 'paid' AND i.deleted_at IS NULL
             GROUP BY YEAR(COALESCE(i.payment_date, i.created_at)), MONTH(COALESCE(i.payment_date, i.created_at))
         `);
 

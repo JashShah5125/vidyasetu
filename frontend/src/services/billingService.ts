@@ -4,12 +4,16 @@ import api from './api';
 const mapInvoiceToFrontend = (row: any) => {
   const effectiveDate = row.payment_date || row.billing_period_start || row.created_at || '';
   return {
+    dbId: typeof row.id === 'number' ? row.id : Number(row.id) || 0,
     id: row.invoice_number || String(row.id),
+    tenantId: row.tenant_id,
+    planId: row.plan_id,
     tenantName: row.tenant_name || 'Unknown',
     planName: row.plan_name || '',
     billingCycle: row.billing_cycle || '',
     amount: parseFloat(row.subtotal ?? row.plan_amount) || 0,
     tax: parseFloat(row.tax_amount) || 0,
+    taxRate: parseFloat(row.tax_rate) || 0,
     total: parseFloat(row.total_amount) || 0,
     date: effectiveDate ? String(effectiveDate).substring(0, 10) : '',
     dueDate: row.billing_period_end ? String(row.billing_period_end).substring(0, 10) : '',
@@ -55,6 +59,26 @@ export const billingService = {
 
   getRevenueByPlan: async (startDate?: string, endDate?: string) => {
     const { data } = await api.get('/admin/billing/revenue-by-plan', { params: { startDate, endDate } });
+    return data;
+  },
+
+  getInvoiceById: async (dbId: number) => {
+    const { data } = await api.get(`/admin/billing/invoices/${dbId}`);
+    return data.data;
+  },
+
+  createInvoice: async (payload: any) => {
+    const { data } = await api.post('/admin/billing/invoices', payload);
+    return data;
+  },
+
+  updateInvoice: async (dbId: number, payload: any) => {
+    const { data } = await api.put(`/admin/billing/invoices/${dbId}`, payload);
+    return data;
+  },
+
+  deleteInvoice: async (dbId: number) => {
+    const { data } = await api.delete(`/admin/billing/invoices/${dbId}`);
     return data;
   }
 };

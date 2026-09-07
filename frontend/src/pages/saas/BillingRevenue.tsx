@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { billingService } from '../../services/billingService';
+import { useApp } from '../../context/AppContext';
+import { BulkImportModal } from '../../components/ui/BulkImportModal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
@@ -11,10 +14,12 @@ import {
 } from 'recharts';
 import {
   Download, TrendingUp, Banknote, CheckCircle, AlertOctagon,
-  Layers, Loader2, Wallet, FileText, Calendar, RotateCcw, Search, Filter
+  Layers, Loader2, Wallet, FileText, Calendar, RotateCcw, Search, Filter,
+  Plus, Eye, Edit2, Trash2, Upload
 } from 'lucide-react';
 
 interface Invoice {
+  dbId: number;
   id: string;
   tenantName: string;
   planName: string;
@@ -51,6 +56,7 @@ const formatINR = (n: number) => {
 };
 
 export const BillingRevenue: React.FC = () => {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [trend, setTrend] = useState<any[]>([]);
@@ -76,6 +82,9 @@ export const BillingRevenue: React.FC = () => {
     () => periodYear !== 'all' || Boolean(periodStartDate) || Boolean(periodEndDate),
     [periodYear, periodStartDate, periodEndDate]
   );
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const { addToast } = useApp();
 
   const uniqueTenants = useMemo(
     () => Array.from(new Set(invoices.map(inv => inv.tenantName))),
@@ -154,6 +163,32 @@ export const BillingRevenue: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const openCreateInvoice = () => {
+    navigate('/billing/invoices/new');
+  };
+
+  const openEditInvoice = (inv: Invoice) => {
+    navigate(`/billing/invoices/${inv.dbId}/edit`);
+  };
+
+  const handleDeleteInvoice = async (inv: Invoice) => {
+    if (!window.confirm(`Delete invoice ${inv.id}? It will be removed from all billing views but retained in the database for audit.`)) return;
+    try {
+      await billingService.deleteInvoice(inv.dbId);
+      addToast(`Invoice ${inv.id} deleted`, 'success');
+      loadData();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to delete invoice', 'error');
+    }
+  };
+
+  // Bulk import — backend not wired yet; parse + hand rows to a placeholder handler.
+  const handleBulkImport = (rows: any[]) => {
+    if (rows.length === 0) return;
+    console.log('Invoices bulk import payload (backend pending):', rows);
+    addToast(`Parsed ${rows.length} invoice rows. Bulk import endpoint not built yet.`, 'warning');
+  };
+
   const planChartData = useMemo(
     () => byPlan.map(p => ({ name: p.plan_name, collected: p.collected, outstanding: p.outstanding })),
     [byPlan]
@@ -193,6 +228,12 @@ export const BillingRevenue: React.FC = () => {
           </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer shrink-0">
             <Download size={16} /> Export CSV
+          </Button>
+          <Button variant="outline" onClick={() => setShowImportModal(true)} className="flex items-center gap-1.5 cursor-pointer shrink-0">
+            <Upload size={16} /> Bulk Import
+          </Button>
+          <Button onClick={openCreateInvoice} className="flex items-center gap-1.5 cursor-pointer shrink-0">
+            <Plus size={16} /> Create Invoice
           </Button>
         </div>
       </div>
@@ -443,23 +484,51 @@ export const BillingRevenue: React.FC = () => {
             No invoices match the specified period or table filters.
           </div>
         ) : (
-          <Table headers={['Invoice No', 'Tenant', 'Plan / Cycle', 'Start Date', 'Due Date', 'Total (INR)', 'Method', 'Status']}>
+          <Table dense headers={['Invoice No', 'Tenant', 'Plan / Cycle', 'Start Date', 'Due Date', 'Total (INR)', 'Status', '']}>
             {invoices.map((inv) => (
-              <tr key={inv.id} className="hover:bg-slate-50 transition">
-                <td className="px-3 py-3 font-mono text-xs font-bold text-indigo-600">{inv.id}</td>
-                <td className="px-3 py-3 font-bold text-slate-900 text-sm">{inv.tenantName}</td>
-                <td className="px-3 py-3 text-xs text-slate-600">
-                  <span className="font-semibold">{inv.planName}</span>
-                  <span className="text-slate-400 capitalize block">{inv.billingCycle}</span>
+              <tr
+                key={inv.id}
+                onClick={() => openEditInvoice(inv)}
+                className="hover:bg-slate-50 cursor-pointer transition-colors"
+              >
+                <td className="px-3 py-3 font-mono text-xs font-bold text-indigo-600 whitespace-nowrap">{inv.id}</td>
+                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[180px]">{inv.tenantName}</td>
+                <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">
+                  <span className="font-semibold text-slate-800">{inv.planName}</span>
+                  <span className="text-slate-400 capitalize block text-xs">{inv.billingCycle}</span>
                 </td>
-                <td className="px-3 py-3 text-xs text-slate-600 font-medium whitespace-nowrap">{inv.date || '-'}</td>
-                <td className="px-3 py-3 text-xs text-slate-600 font-medium whitespace-nowrap">{inv.dueDate || '-'}</td>
+                <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">{inv.date || '-'}</td>
+                <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">{inv.dueDate || '-'}</td>
                 <td className="px-3 py-3 font-bold text-slate-900 text-sm whitespace-nowrap">{formatINR(inv.total)}</td>
-                <td className="px-3 py-3 text-xs text-slate-600 capitalize font-medium">{inv.paymentMethod || '-'}</td>
                 <td className="px-3 py-3 whitespace-nowrap">
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColors[inv.status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                     {inv.status}
                   </span>
+                </td>
+                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => navigate(`/billing/invoices/${inv.dbId}`)}
+                      title="View invoice"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                    >
+                      <Eye size={14} />
+                    </button>
+                    <button
+                      onClick={() => openEditInvoice(inv)}
+                      title="Edit invoice"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteInvoice(inv)}
+                      title="Delete invoice"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -476,6 +545,35 @@ export const BillingRevenue: React.FC = () => {
           />
         )}
       </Card>
+
+      <BulkImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleBulkImport}
+        title="Bulk Import Invoices"
+        description="Upload a CSV of SaaS invoices to create them in bulk. Each row is validated and inserted as a new invoice."
+        sampleHeaders={[
+          'tenant_name',
+          'plan_code',
+          'billing_cycle',
+          'billing_period_start',
+          'billing_period_end',
+          'plan_amount',
+          'setup_fee',
+          'discount_percent',
+          'tax_rate',
+          'currency',
+          'status',
+          'payment_date',
+          'payment_method',
+          'payment_reference',
+          'notes'
+        ]}
+        sampleRows={[
+          ['Allen Career Institute', 'GROWTH', 'yearly', '2026-04-01', '2027-03-31', '120000', '2500', '10', '18', 'INR', 'unpaid', '', '', '', 'Imported invoice'],
+          ['Aakash Institute', 'PRO', 'quarterly', '2026-07-01', '2026-09-30', '45000', '0', '0', '18', 'INR', 'paid', '2026-07-01', 'Razorpay', 'pay_123456', 'Imported invoice']
+        ]}
+      />
     </div>
   );
 };

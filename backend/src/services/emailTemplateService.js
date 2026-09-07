@@ -45,10 +45,21 @@ const updateTemplateStatus = async (id, status) => {
     return await emailTemplateModel.getById(id);
 };
 
+const deleteTemplate = async (id) => {
+    const existing = await emailTemplateModel.getById(id);
+    if (!existing) return null;
+
+    const success = await emailTemplateModel.remove(id);
+    if (!success) return null;
+
+    return { id: Number(id) };
+};
+
 module.exports = {
     getTemplates,
     getTemplateById,
     createTemplate,
     updateTemplate,
-    updateTemplateStatus
+    updateTemplateStatus,
+    deleteTemplate
 };

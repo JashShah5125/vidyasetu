@@ -36,6 +36,8 @@ const whatsappTemplateRoutes = require('./routes/whatsappTemplateRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const branchRoutes = require('./routes/branchRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const bundleRoutes = require('./routes/bundleRoutes');
+const feeRoutes = require('./routes/feeRoutes');
 const classroomRoutes = require('./routes/classroomRoutes');
 const instituteRoutes = require('./routes/instituteRoutes');
 const staffRoutes = require('./routes/staffRoutes');
@@ -47,6 +49,8 @@ const supportRoutes = require('./routes/supportRoutes');
 const userRoutes = require('./routes/userRoutes');
 const roleRoutes = require('./routes/roleRoutes');
 const platformSettingsRoutes = require('./routes/platformSettingsRoutes');
+const studentRoutes = require('./routes/studentRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -66,9 +70,13 @@ app.use('/api/admin/platform-settings', platformSettingsRoutes);
 app.use('/api/admin/courses', courseRoutes);
 app.use('/api/admin/branches', branchRoutes);
 app.use('/api/admin/subjects', subjectRoutes);
+app.use('/api/admin/bundles', bundleRoutes);
+app.use('/api/admin/fee-plans', feeRoutes);
 app.use('/api/admin/classrooms', classroomRoutes);
 app.use('/api/admin/staff', staffRoutes);
 app.use('/api/admin/batches', batchRoutes);
+app.use('/api/admin/students', studentRoutes);
+app.use('/api/admin/payments', paymentRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/settings', settingRoutes);
 app.use('/api/admin/system-configurations', systemConfigurationRoutes);
@@ -90,4 +98,4 @@ app.use((err, req, res, next) => {
 
 module.exports = app;
 
-// force restart
+// force restart trigger 2

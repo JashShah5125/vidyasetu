@@ -77,10 +77,25 @@ const updateTemplateStatus = async (req, res) => {
     }
 };
 
+const deleteTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deleted = await emailTemplateService.deleteTemplate(id);
+        if (!deleted) {
+            return res.status(404).json({ status: 'error', message: 'Email template not found' });
+        }
+        res.status(200).json({ status: 'success', message: 'Email template deleted successfully', data: deleted });
+    } catch (error) {
+        console.error('Error deleting email template:', error);
+        res.status(500).json({ status: 'error', message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     getTemplates,
     getTemplateById,
     createTemplate,
     updateTemplate,
-    updateTemplateStatus
+    updateTemplateStatus,
+    deleteTemplate
 };

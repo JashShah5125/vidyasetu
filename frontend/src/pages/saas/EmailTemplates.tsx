@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Eye, Search, Loader2, RotateCcw, Copy, Code, FileText } from 'lucide-react';
+import { ArrowLeft, Eye, Search, Loader2, RotateCcw, Copy, Code, FileText, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -41,6 +41,9 @@ export const EmailTemplates: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showPreview, setShowPreview] = useState(false);
   const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingTemplate, setDeletingTemplate] = useState<EmailTemplate | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -207,6 +210,28 @@ export const EmailTemplates: React.FC = () => {
     }
   };
 
+  const handleOpenDelete = (template: EmailTemplate) => {
+    setDeletingTemplate(template);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingTemplate) return;
+    setDeleting(true);
+    try {
+      await emailTemplateService.deleteTemplate(deletingTemplate.id);
+      setToast('Email template deleted successfully.');
+      setShowDeleteModal(false);
+      setDeletingTemplate(null);
+      fetchTemplates();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Failed to delete template.');
+      setShowDeleteModal(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Dynamically extract placeholders from currently active template
   const getDynamicPlaceholders = (template: EmailTemplate | null) => {
     if (!template) return [];
@@ -338,7 +363,7 @@ export const EmailTemplates: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
               </div>
             ) : (
-              <Table headers={['ID', 'Name', 'Key', 'Subject', 'Category', 'Status', 'Actions']} dense>
+              <Table headers={['ID', 'Name', 'Subject', 'Category', 'Status', 'Actions']} dense colWidths={['44px', '22%', '28%', '13%', '10%', '150px']}>
                 {templates.map((template) => (
                   <tr
                     key={template.id}
@@ -346,14 +371,13 @@ export const EmailTemplates: React.FC = () => {
                     onClick={() => openEditor(template)}
                   >
                     <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{template.id}</td>
-                    <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[180px]">
-                      <div>{template.name}</div>
+                    <td className="px-3 py-3 font-semibold text-slate-900 text-base">
+                      <div className="leading-snug">{template.name}</div>
                       {template.description && (
-                        <div className="text-xs text-slate-500 font-normal mt-0.5 max-w-xs truncate">{template.description}</div>
+                        <div className="text-xs text-slate-500 font-normal mt-0.5 truncate">{template.description}</div>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-sm font-semibold text-blue-600 whitespace-nowrap font-mono">{template.template_key}</td>
-                    <td className="px-3 py-3 text-sm text-slate-600 max-w-xs truncate">{template.subject}</td>
+                    <td className="px-3 py-3 text-sm text-slate-600">{template.subject}</td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase border ${CATEGORY_BADGE[template.category] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                         {template.category}
@@ -368,21 +392,30 @@ export const EmailTemplates: React.FC = () => {
                       </button>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => {
                             setSelectedTemplate(template);
                             setShowPreview(true);
                           }}
-                          className="text-sm font-semibold text-slate-500 hover:text-indigo-600 cursor-pointer transition flex items-center gap-1"
+                          title="Preview template"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition"
                         >
-                          <Eye size={15} /> Preview
+                          <Eye size={13} /> Preview
                         </button>
                         <button
                           onClick={() => openEditor(template)}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
+                          title="Edit template"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleOpenDelete(template)}
+                          title="Delete template"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 cursor-pointer transition"
+                        >
+                          <Trash2 size={13} /> Delete
                         </button>
                       </div>
                     </td>
@@ -543,6 +576,39 @@ export const EmailTemplates: React.FC = () => {
               <Button onClick={() => setShowPreview(false)} variant="secondary" className="text-xs font-bold">
                 Close Preview
               </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showDeleteModal && deletingTemplate && (
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="Delete Email Template"
+          size="md"
+          footer={
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="text-xs font-semibold">
+                Cancel
+              </Button>
+              <Button onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4">
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete Template
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex items-start gap-3 text-sm">
+            <div className="p-2 bg-red-50 text-red-600 rounded-lg shrink-0">
+              <AlertTriangle size={20} />
+            </div>
+            <div className="space-y-1 text-slate-600">
+              <p className="font-semibold text-slate-800">Are you sure you want to delete this template?</p>
+              <p>
+                This will soft-delete <strong className="text-slate-900">{deletingTemplate.name}</strong> (key:{' '}
+                <span className="font-mono text-blue-600">{deletingTemplate.template_key}</span>). It will no longer appear
+                in the template list, but the record is retained for audit.
+              </p>
             </div>
           </div>
         </Modal>

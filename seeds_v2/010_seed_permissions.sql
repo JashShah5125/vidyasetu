@@ -56,6 +56,13 @@ INSERT IGNORE INTO permissions (module, action, code, description) VALUES
 ('course', 'update', 'course.update', 'Edit a course and its programs/levels'),
 ('course', 'delete', 'course.delete', 'Soft-delete a course');
 
+-- Insert Subject Bundle permissions
+INSERT IGNORE INTO permissions (module, action, code, description) VALUES
+('bundle', 'view', 'bundle.view', 'View subject bundles for a level'),
+('bundle', 'create', 'bundle.create', 'Create a subject bundle'),
+('bundle', 'update', 'bundle.update', 'Edit a subject bundle and its subjects'),
+('bundle', 'delete', 'bundle.delete', 'Soft-delete a subject bundle');
+
 -- Insert Branch permissions
 INSERT IGNORE INTO permissions (module, action, code, description) VALUES
 ('branch', 'view', 'branch.view', 'View branches and their details'),
