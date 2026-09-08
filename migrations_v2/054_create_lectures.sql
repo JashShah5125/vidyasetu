@@ -11,7 +11,6 @@ CREATE TABLE lectures (
     subject_id INT NOT NULL,
     teacher_user_id INT NOT NULL,
     classroom_id INT,
-    recurring_rule_id INT,
     lecture_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
@@ -30,8 +29,7 @@ CREATE TABLE lectures (
     FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE RESTRICT,
     FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT,
     FOREIGN KEY (teacher_user_id) REFERENCES users(id),
-    FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
-    FOREIGN KEY (recurring_rule_id) REFERENCES recurring_schedule_rules(id)
+    FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
 );
 CREATE INDEX idx_lectures_batch_date ON lectures(batch_id, lecture_date);
 CREATE INDEX idx_lectures_teacher_date ON lectures(teacher_user_id, lecture_date);

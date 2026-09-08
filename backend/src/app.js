@@ -51,6 +51,8 @@ const roleRoutes = require('./routes/roleRoutes');
 const platformSettingsRoutes = require('./routes/platformSettingsRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const timetableRoutes = require('./routes/timetableRoutes');
+const homeworkRoutes = require('./routes/homeworkRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -75,8 +77,11 @@ app.use('/api/admin/fee-plans', feeRoutes);
 app.use('/api/admin/classrooms', classroomRoutes);
 app.use('/api/admin/staff', staffRoutes);
 app.use('/api/admin/batches', batchRoutes);
+app.use('/api/admin/homeworks', homeworkRoutes.teacherRouter);
+app.use('/api/student/homework', homeworkRoutes.studentRouter);
 app.use('/api/admin/students', studentRoutes);
 app.use('/api/admin/payments', paymentRoutes);
+app.use('/api/admin/timetable', timetableRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/settings', settingRoutes);
 app.use('/api/admin/system-configurations', systemConfigurationRoutes);

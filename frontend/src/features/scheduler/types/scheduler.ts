@@ -21,21 +21,33 @@ export interface Lecture {
   programId?: string;
   levelId?: string;
   batchId: string;
+  batchName?: string;
+  batchCode?: string;
 
   activityType?: 'Lecture' | 'Break';
   subjectId?: string;
+  subjectName?: string;
+  subjectCode?: string;
   teacherId?: string;
+  teacherName?: string;
   roomId?: string;
+  roomName?: string;
+  roomNumber?: string;
 
   date: string;       // YYYY-MM-DD
   startTime: string;  // HH:MM
   endTime: string;    // HH:MM
 
   lectureType?: LectureType;
+  slotLabel?: string;
+  topic?: string;
 
   publishStatus: PublishStatus;
   status: LectureStatus;
 
+  isDefault?: number;
+  isModifiedFromDefault?: boolean;
+  cancellationReason?: string;
   isOverride?: boolean; // True if this lecture has special substitution/override notes
 
   createdAt: string;
@@ -49,10 +61,16 @@ export interface DefaultTimetableSlot {
   startTime: string; // '09:00'
   endTime: string;   // '10:30'
   subjectId: string;
+  subjectName?: string;
+  subjectCode?: string;
   teacherId: string;
+  teacherName?: string;
   roomId: string;
+  roomName?: string;
+  roomNumber?: string;
   lectureType?: LectureType;
   activityType?: 'Lecture' | 'Break';
+  slotLabel?: string;
 }
 
 export interface DefaultTimetable {

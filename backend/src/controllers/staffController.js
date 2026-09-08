@@ -28,13 +28,14 @@ const createStaff = async (req, res) => {
 const getStaffList = async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || 2;
-        const { page = 1, limit = 50, search, branchId, employeeType, department } = req.query;
+        const { page = 1, limit = 50, search, branchId, employeeType, department, role } = req.query;
 
         const filters = {
             search,
             branchId,
             employeeType,
             department,
+            role,
             limit: parseInt(limit, 10),
             offset: (parseInt(page, 10) - 1) * parseInt(limit, 10)
         };
@@ -57,6 +58,26 @@ const getStaffList = async (req, res) => {
     }
 };
 
+const getStaffById = async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || 2;
+        const staffId = req.params.id;
+
+        const staff = await staffModel.getStaffById(tenantId, staffId);
+        if (!staff) {
+            return res.status(404).json({ message: 'Staff member not found.' });
+        }
+
+        res.status(200).json({
+            message: 'Staff member retrieved successfully.',
+            data: staff
+        });
+    } catch (error) {
+        console.error('Error fetching staff member:', error);
+        res.status(500).json({ message: 'Internal server error while fetching staff member.', error: error.message });
+    }
+};
+
 const updateStaff = async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || 2;
@@ -75,8 +96,26 @@ const updateStaff = async (req, res) => {
     }
 };
 
+const deleteStaff = async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || 2;
+        const staffId = req.params.id;
+
+        const result = await staffModel.deleteStaff(tenantId, staffId);
+        res.status(200).json({
+            message: 'Staff member deleted successfully.',
+            data: result
+        });
+    } catch (error) {
+        console.error('Error deleting staff:', error);
+        res.status(500).json({ message: 'Internal server error while deleting staff.', error: error.message });
+    }
+};
+
 module.exports = {
     createStaff,
     getStaffList,
-    updateStaff
+    getStaffById,
+    updateStaff,
+    deleteStaff
 };

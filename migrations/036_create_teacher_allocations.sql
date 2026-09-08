@@ -4,12 +4,11 @@ CREATE TABLE teacher_allocations (
     branch_id VARCHAR(36) NOT NULL REFERENCES branches(id),
     academic_year_id VARCHAR(36) NOT NULL REFERENCES academic_years(id),
     batch_id VARCHAR(36) NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
-    subject_id VARCHAR(36) NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     teacher_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
     created_by INT,
     updated_by INT,
-    UNIQUE(batch_id, subject_id, teacher_user_id)
+    UNIQUE(batch_id, teacher_user_id)
 );

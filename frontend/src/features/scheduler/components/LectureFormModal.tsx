@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
@@ -10,32 +10,17 @@ import { detectConflicts } from '../utils/schedulerUtils';
 import courseHierarchy from '../../../data/courseHierarchy.json';
 import teachersList from '../../../data/teachers.json';
 
-const parseLocalDate = (dateStr: string): Date => {
-  if (dateStr.includes('T')) {
-    dateStr = dateStr.split('T')[0];
-  }
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    const [year, month, day] = parts.map(Number);
-    return new Date(year, month - 1, day);
-  }
-  return new Date(dateStr);
-};
-
-const getSubjectsForBatch = (batchId: string): string[] => {
-  for (const course of courseHierarchy) {
-    for (const program of course.programs) {
-      for (const level of program.levels) {
-        if (level.batches.includes(batchId)) {
-          return level.subjects || [];
-        }
-      }
+const getBatchMetadata = (batchId: string, optionsBatches?: any[]) => {
+  if (optionsBatches) {
+    const matched = optionsBatches.find(b => String(b.id) === String(batchId) || b.name === batchId || b.code === batchId);
+    if (matched) {
+      return {
+        batchName: matched.name,
+        batchCode: matched.code
+      };
     }
   }
-  return [];
-};
 
-const getBatchMetadata = (batchId: string) => {
   for (const course of courseHierarchy) {
     for (const program of course.programs) {
       for (const level of program.levels) {
@@ -43,13 +28,14 @@ const getBatchMetadata = (batchId: string) => {
           return {
             courseName: course.courseName,
             programName: program.programName,
-            levelName: level.levelName
+            levelName: level.levelName,
+            batchName: batchId
           };
         }
       }
     }
   }
-  return null;
+  return { batchName: batchId };
 };
 
 const TEMPLATE_DAYS = [
@@ -77,14 +63,14 @@ interface LectureFormModalProps {
 export const LectureFormModal: React.FC<LectureFormModalProps> = ({
   isOpen, onClose, branchId, batchId, existingLecture, initialDate, isTemplate = false, onSave, onDelete
 }) => {
-  const { staff, branches, addToast } = useApp();
-  const { rooms, lectures, addLectures, updateLecture, cancelLecture } = useScheduler();
+  const { branches } = useApp();
+  const { rooms, lectures, options, addLectures, updateLecture, cancelLecture } = useScheduler();
 
-  const branchName = branches.find(b => b.id === branchId || b.code === branchId)?.name || branchId;
-  const metadata = getBatchMetadata(batchId);
+  const branchName = branches.find(b => String(b.id) === String(branchId) || b.code === branchId || b.name === branchId)?.name || branchId;
+  const metadata = getBatchMetadata(batchId, options?.batches);
 
   const [formData, setFormData] = useState({
-    academicYearId: 'AY26',
+    academicYearId: '1',
     subjectId: '',
     teacherId: '',
     roomId: '',
@@ -92,7 +78,9 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
     startTime: '09:00',
     endTime: '10:30',
     lectureType: 'Regular' as LectureType,
-    activityType: 'Lecture' as 'Lecture' | 'Break'
+    activityType: 'Lecture' as 'Lecture' | 'Break',
+    topic: '',
+    slotLabel: ''
   });
 
   const [conflicts, setConflicts] = useState<{ message: string; severity: string }[]>([]);
@@ -100,19 +88,20 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
   useEffect(() => {
     if (existingLecture) {
       setFormData({
-        academicYearId: existingLecture.academicYearId || 'AY26',
-        subjectId: existingLecture.subjectId || '',
-        teacherId: existingLecture.teacherId || '',
-        roomId: existingLecture.roomId || '',
+        academicYearId: String(existingLecture.academicYearId || '1'),
+        subjectId: String(existingLecture.subjectId || ''),
+        teacherId: String(existingLecture.teacherId || ''),
+        roomId: String(existingLecture.roomId || ''),
         date: existingLecture.date,
         startTime: existingLecture.startTime || '09:00',
         endTime: existingLecture.endTime || '10:30',
         lectureType: existingLecture.lectureType || 'Regular',
-        activityType: existingLecture.activityType || 'Lecture'
+        activityType: (existingLecture.activityType || 'Lecture') as any,
+        topic: existingLecture.topic || '',
+        slotLabel: existingLecture.slotLabel || ''
       });
     } else {
-      // Defaults
-      const targetDate = initialDate || new Date().toISOString().split('T')[0];
+      const targetDate = initialDate || (isTemplate ? '2026-01-05' : new Date().toISOString().split('T')[0]);
       setFormData(prev => ({
         ...prev,
         date: targetDate,
@@ -121,10 +110,12 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
         roomId: '',
         teacherId: '',
         subjectId: '',
-        activityType: 'Lecture'
+        activityType: 'Lecture',
+        topic: '',
+        slotLabel: ''
       }));
     }
-  }, [existingLecture, isOpen, batchId, initialDate]);
+  }, [existingLecture, isOpen, batchId, initialDate, isTemplate]);
 
   useEffect(() => {
     if (batchId && formData.date && formData.startTime && formData.endTime && (formData.activityType === 'Break' || formData.teacherId)) {
@@ -132,7 +123,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
         ...formData,
         batchId,
         branchId,
-        id: existingLecture?.id
+        id: String(existingLecture?.id || '')
       }, lectures);
       setConflicts(detected.map(c => ({ message: c.message, severity: c.severity })));
     } else {
@@ -144,59 +135,170 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent, publishStatus: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED') => {
+  const resolvedBatchObj = useMemo(() => {
+    if (!batchId) return null;
+    return options?.batches?.find(b => String(b.id) === String(batchId) || b.name === batchId || b.code === batchId) || null;
+  }, [batchId, options]);
+
+  const resolvedBatchId = resolvedBatchObj?.id || batchId;
+  const resolvedLevelId = resolvedBatchObj?.level_id;
+
+  // 1. Available subjects: Filtered to only subjects assigned to this batch's level
+  const availableSubjects = useMemo(() => {
+    if (!options?.subjects || options.subjects.length === 0) {
+      return [
+        { value: 'Physics', label: 'Physics' },
+        { value: 'Chemistry', label: 'Chemistry' },
+        { value: 'Mathematics', label: 'Mathematics' },
+        { value: 'Biology', label: 'Biology' },
+        { value: 'English', label: 'English' }
+      ];
+    }
+
+    if (resolvedLevelId && options.levelSubjects && options.levelSubjects.length > 0) {
+      const levelSubjectIds = options.levelSubjects
+        .filter(ls => String(ls.level_id) === String(resolvedLevelId))
+        .map(ls => Number(ls.subject_id));
+
+      if (levelSubjectIds.length > 0) {
+        const filtered = options.subjects.filter(s => levelSubjectIds.includes(Number(s.id)));
+        if (filtered.length > 0) {
+          return filtered.map(s => ({ value: String(s.id), label: s.name }));
+        }
+      }
+    }
+
+    return options.subjects.map(s => ({ value: String(s.id), label: s.name }));
+  }, [options, resolvedLevelId]);
+
+  // 2. Available teachers: Filtered to teachers allocated to this batch for the selected subject
+  const availableTeachers = useMemo(() => {
+    if (!options?.teachers || options.teachers.length === 0) {
+      return teachersList.map(t => ({ value: String(t.id), label: t.name }));
+    }
+
+    const selectedSubjectId = options.subjects?.find(
+      s => String(s.id) === String(formData.subjectId) || s.name === formData.subjectId
+    )?.id || (formData.subjectId && !isNaN(Number(formData.subjectId)) ? Number(formData.subjectId) : undefined);
+
+    // Faculty allocated to this batch
+    const batchTeacherIds = (options.teacherAllocations || [])
+      .filter(ta => String(ta.batch_id) === String(resolvedBatchId))
+      .map(ta => Number(ta.teacher_user_id));
+
+    // Faculty mapped to this subject
+    const subjectTeacherIds = (options.teacherSubjects || [])
+      .filter(ts => selectedSubjectId !== undefined && Number(ts.subject_id) === Number(selectedSubjectId))
+      .map(ts => Number(ts.teacher_user_id));
+
+    // Priority 1: Teachers allocated to this batch who ALSO teach this subject
+    if (selectedSubjectId !== undefined && subjectTeacherIds.length > 0 && batchTeacherIds.length > 0) {
+      const exactMatchTeachers = options.teachers.filter(
+        t => batchTeacherIds.includes(Number(t.id)) && subjectTeacherIds.includes(Number(t.id))
+      );
+
+      if (exactMatchTeachers.length > 0) {
+        const otherSubjectTeachers = options.teachers.filter(
+          t => !batchTeacherIds.includes(Number(t.id)) && subjectTeacherIds.includes(Number(t.id))
+        );
+
+        if (otherSubjectTeachers.length > 0) {
+          return [
+            ...exactMatchTeachers.map(t => ({
+              value: String(t.id),
+              label: `${t.full_name || t.name} (Assigned to Batch)`
+            })),
+            ...otherSubjectTeachers.map(t => ({
+              value: String(t.id),
+              label: `${t.full_name || t.name} (Other Faculty)`
+            }))
+          ];
+        }
+
+        return exactMatchTeachers.map(t => ({
+          value: String(t.id),
+          label: t.full_name || t.name || `Teacher #${t.id}`
+        }));
+      }
+    }
+
+    // Fallback: If only batch teachers exist
+    if (batchTeacherIds.length > 0) {
+      const batchTeachers = options.teachers.filter(t => batchTeacherIds.includes(Number(t.id)));
+      if (batchTeachers.length > 0) {
+        return batchTeachers.map(t => ({
+          value: String(t.id),
+          label: t.full_name || t.name || `Teacher #${t.id}`
+        }));
+      }
+    }
+
+    // Fallback: If only subject teachers exist
+    if (selectedSubjectId !== undefined && subjectTeacherIds.length > 0) {
+      const subjectTeachers = options.teachers.filter(t => subjectTeacherIds.includes(Number(t.id)));
+      if (subjectTeachers.length > 0) {
+        return subjectTeachers.map(t => ({
+          value: String(t.id),
+          label: t.full_name || t.name || `Teacher #${t.id}`
+        }));
+      }
+    }
+
+    // Fallback: All teachers
+    return options.teachers.map(t => ({
+      value: String(t.id),
+      label: t.full_name || t.name || `Teacher #${t.id}`
+    }));
+  }, [options, resolvedBatchId, formData.subjectId]);
+
+  // Available classrooms from backend options or scheduler rooms
+  const availableRooms = useMemo(() => {
+    if (rooms && rooms.length > 0) {
+      return rooms.map(r => ({
+        value: String(r.id),
+        label: r.name ? `${r.name} ${r.room_number ? `(${r.room_number})` : ''}` : `Room #${r.id}`
+      }));
+    }
+    return [];
+  }, [rooms]);
+
+  const handleSubmit = async (e: React.FormEvent, publishStatus: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED') => {
     e.preventDefault();
     if (conflicts.some(c => c.severity === 'BLOCKING')) return;
 
+    const subjectObj = options?.subjects?.find(s => String(s.id) === String(formData.subjectId));
+    const teacherObj = options?.teachers?.find(t => String(t.id) === String(formData.teacherId));
+    const roomObj = rooms?.find(r => String(r.id) === String(formData.roomId));
+
+    const enrichedData = {
+      ...formData,
+      subjectName: subjectObj?.name || formData.subjectId,
+      teacherName: teacherObj?.full_name || teacherObj?.name || formData.teacherId,
+      roomName: roomObj?.name || '',
+      roomNumber: roomObj?.room_number || ''
+    };
+
     if (onSave) {
       onSave({
-        id: existingLecture?.id,
-        branchId,
-        academicYearId: formData.academicYearId,
+        ...enrichedData,
         batchId,
-        subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
-        teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
-        roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-        date: formData.date,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        lectureType: formData.lectureType,
-        activityType: formData.activityType,
-        isOverride: false,
-        publishStatus: publishStatus,
-        status: 'SCHEDULED'
+        branchId,
+        id: existingLecture?.id,
+        publishStatus,
+        status: existingLecture?.status || 'SCHEDULED'
       });
     } else {
       if (existingLecture) {
-        updateLecture(existingLecture.id, {
-          subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
-          teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
-          roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-          date: formData.date,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          lectureType: formData.lectureType,
-          activityType: formData.activityType,
-          isOverride: false
+        await updateLecture(existingLecture.id, {
+          ...enrichedData,
+          publishStatus
         });
-        if (publishStatus === 'PUBLISHED') {
-           updateLecture(existingLecture.id, { publishStatus });
-        }
       } else {
-        addLectures([{
-          branchId,
-          academicYearId: formData.academicYearId,
+        await addLectures([{
+          ...enrichedData,
           batchId,
-          subjectId: formData.activityType === 'Break' ? undefined : formData.subjectId,
-          teacherId: formData.activityType === 'Break' ? undefined : formData.teacherId,
-          roomId: formData.activityType === 'Break' ? undefined : formData.roomId,
-          date: formData.date,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          lectureType: formData.lectureType,
-          activityType: formData.activityType,
-          isOverride: false,
-          publishStatus: publishStatus
+          branchId,
+          publishStatus
         }]);
       }
     }
@@ -215,26 +317,22 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
       <form onSubmit={(e) => handleSubmit(e, 'PUBLISHED')} className="p-6 space-y-6">
 
         {/* Prefilled Filter Information (Read Only) */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-xs">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-xs">
           <div>
             <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Branch</span>
             <span className="font-bold text-slate-800">{branchName}</span>
           </div>
           <div>
-            <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Course</span>
-            <span className="font-bold text-slate-800">{metadata?.courseName || 'N/A'}</span>
-          </div>
-          <div>
-            <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Program</span>
-            <span className="font-bold text-slate-800">{metadata?.programName || 'N/A'}</span>
-          </div>
-          <div>
-            <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Level</span>
-            <span className="font-bold text-slate-800">{metadata?.levelName || 'N/A'}</span>
-          </div>
-          <div>
             <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Batch</span>
-            <span className="font-bold text-blue-600">{batchId}</span>
+            <span className="font-bold text-blue-600">{metadata?.batchName || batchId}</span>
+          </div>
+          <div>
+            <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Schedule Type</span>
+            <span className="font-bold text-emerald-700">{isTemplate ? 'Recurring Weekly Template' : 'Calendar Lecture'}</span>
+          </div>
+          <div>
+            <span className="block font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Timing</span>
+            <span className="font-bold text-slate-700">{formData.startTime} – {formData.endTime}</span>
           </div>
         </div>
 
@@ -247,46 +345,33 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
         </div>
 
         {/* Detail Group */}
-        {formData.activityType === 'Lecture' && (() => {
-          const availableSubjects = getSubjectsForBatch(batchId);
-          const filteredTeachers = formData.subjectId
-            ? teachersList.filter(t => 
-                t.subject.toLowerCase() === formData.subjectId.toLowerCase() && 
-                t.batches.includes(batchId)
-              )
-            : [];
-          return (
-            <div className="grid grid-cols-2 gap-4 border-b border-slate-200 pb-4">
-              <Select
-                label="Subject" required
-                options={[{ value: '', label: 'Select Subject' }, ...availableSubjects.map(sub => ({ value: sub, label: sub }))]}
-                value={formData.subjectId} onChange={(e) => {
-                  handleChange('subjectId', e.target.value);
-                  handleChange('teacherId', '');
-                }}
-              />
-              <Select
-                label="Teacher" required
-                options={[{ value: '', label: 'Select Teacher' }, ...filteredTeachers.map(t => ({ value: t.id, label: t.name }))]}
-                value={formData.teacherId} onChange={(e) => handleChange('teacherId', e.target.value)}
-                disabled={!formData.subjectId}
-              />
-              <Select
-                label="Room"
-                options={[{ value: '', label: 'Select Room' }, ...rooms.filter(r => !r.branchId || r.branchId === branchId || r.branchId === 'B1' || r.branchId === 'MUM-WEST').map(r => ({ value: r.id, label: r.name }))]}
-                value={formData.roomId} onChange={(e) => handleChange('roomId', e.target.value)}
-              />
-              <Select
-                label="Lecture Type"
-                options={['Regular', 'Tutorial', 'Practical', 'Lab', 'Doubt Session', 'Revision', 'Test Preparation'].map(t => ({ value: t, label: t }))}
-                value={formData.lectureType} onChange={(e) => handleChange('lectureType', e.target.value)}
-              />
-            </div>
-          );
-        })()}
+        {formData.activityType === 'Lecture' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-slate-200 pb-4">
+            <Select
+              label="Subject" required
+              options={[{ value: '', label: 'Select Subject' }, ...availableSubjects]}
+              value={formData.subjectId} onChange={(e) => handleChange('subjectId', e.target.value)}
+            />
+            <Select
+              label="Teacher" required
+              options={[{ value: '', label: 'Select Teacher' }, ...availableTeachers]}
+              value={formData.teacherId} onChange={(e) => handleChange('teacherId', e.target.value)}
+            />
+            <Select
+              label="Room / Classroom"
+              options={[{ value: '', label: 'Select Room (Optional)' }, ...availableRooms]}
+              value={formData.roomId} onChange={(e) => handleChange('roomId', e.target.value)}
+            />
+            <Select
+              label="Lecture Type"
+              options={['Regular', 'Tutorial', 'Practical', 'Lab', 'Doubt Session', 'Revision', 'Test Preparation'].map(t => ({ value: t, label: t }))}
+              value={formData.lectureType} onChange={(e) => handleChange('lectureType', e.target.value)}
+            />
+          </div>
+        )}
 
-        {/* Schedule Group */}
-        <div className="grid grid-cols-3 gap-4 pb-4">
+        {/* Schedule Timing Group */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-4">
           {isTemplate ? (
             <Select
               label="Day of Week" required
@@ -295,56 +380,74 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
             />
           ) : (
             <Input
-              type="date" label="Date" required
+              label="Lecture Date" type="date" required
               value={formData.date} onChange={(e) => handleChange('date', e.target.value)}
             />
           )}
           <Input
-            type="time" label="Start Time" required
+            label="Start Time" type="time" required
             value={formData.startTime} onChange={(e) => handleChange('startTime', e.target.value)}
           />
           <Input
-            type="time" label="End Time" required
+            label="End Time" type="time" required
             value={formData.endTime} onChange={(e) => handleChange('endTime', e.target.value)}
           />
         </div>
 
+        {!isTemplate && (
+          <div>
+            <Input
+              label="Planned Topic / Syllabus Unit (Optional)"
+              placeholder="e.g. Chapter 4: Newton's Laws of Motion - Part 2"
+              value={formData.topic}
+              onChange={(e) => handleChange('topic', e.target.value)}
+            />
+          </div>
+        )}
+
+        {/* Conflicts Banner */}
         {conflicts.length > 0 && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm space-y-1">
-            <p className="font-bold">Conflicts Detected:</p>
-            <ul className="list-disc pl-5">
-              {conflicts.map((c, idx) => (
-                <li key={idx}>{c.message}</li>
+          <div className={`p-4 rounded-xl border ${isBlocking ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+            <h4 className="font-bold text-xs uppercase tracking-wider mb-1">
+              {isBlocking ? 'Scheduling Conflict Detected' : 'Schedule Notice'}
+            </h4>
+            <ul className="text-xs space-y-1 list-disc list-inside">
+              {conflicts.map((c, i) => (
+                <li key={i}>{c.message}</li>
               ))}
             </ul>
           </div>
         )}
 
-        <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+        {/* Actions Footer */}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-200">
           <div>
             {existingLecture && (
               <Button
                 type="button"
-                variant="ghost"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                variant="danger"
+                size="sm"
                 onClick={() => {
-                  if (onDelete) {
-                    onDelete(existingLecture.id);
-                  } else {
-                    cancelLecture(existingLecture.id);
+                  if (confirm('Are you sure you want to delete this lecture slot?')) {
+                    if (onDelete && existingLecture.id) {
+                      onDelete(String(existingLecture.id));
+                    } else if (existingLecture.id) {
+                      cancelLecture(existingLecture.id, 'Deleted by user');
+                    }
+                    onClose();
                   }
-                  addToast('Activity deleted successfully.', 'success');
-                  onClose();
                 }}
               >
-                Delete
+                Delete Slot
               </Button>
             )}
           </div>
-          <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
             <Button type="submit" variant="primary" disabled={isBlocking}>
-              {existingLecture ? 'Save' : 'Add'}
+              {existingLecture ? 'Update Slot' : 'Save Slot'}
             </Button>
           </div>
         </div>

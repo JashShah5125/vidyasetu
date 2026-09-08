@@ -27,7 +27,7 @@ export const Table: React.FC<TableProps> = ({ headers, children, className = '',
                   <th
                     key={i}
                     className={`${paddingClass} text-xs font-bold text-slate-500 uppercase tracking-wider select-none whitespace-nowrap bg-slate-50 ${
-                      h.toLowerCase() === 'academic year' ? 'text-center' : 'text-left'
+                      h.toLowerCase() === 'academic year' || h.toLowerCase() === 'action' || h.toLowerCase() === 'actions' ? 'text-center' : 'text-left'
                     }`}
                   >
                     {h}
@@ -47,7 +47,7 @@ export const Table: React.FC<TableProps> = ({ headers, children, className = '',
                   <th
                     key={i}
                     className={`${paddingClass} text-xs font-bold text-slate-500 uppercase tracking-wider select-none whitespace-nowrap bg-slate-50 ${
-                      h.toLowerCase() === 'academic year' ? 'text-center' : 'text-left'
+                      h.toLowerCase() === 'academic year' || h.toLowerCase() === 'action' || h.toLowerCase() === 'actions' ? 'text-center' : 'text-left'
                     }`}
                   >
                     {h}

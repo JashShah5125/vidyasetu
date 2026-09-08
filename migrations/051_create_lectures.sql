@@ -7,7 +7,6 @@ CREATE TABLE lectures (
     subject_id VARCHAR(36) NOT NULL REFERENCES subjects(id) ON DELETE RESTRICT,
     teacher_user_id INT NOT NULL REFERENCES users(id),
     classroom_id VARCHAR(36) REFERENCES classrooms(id),
-    recurring_rule_id VARCHAR(36) REFERENCES recurring_schedule_rules(id),
     lecture_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,

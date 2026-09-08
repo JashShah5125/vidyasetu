@@ -1,316 +1,686 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Card } from '../ui/Card';
+import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Table } from '../ui/Table';
 import { Pagination } from '../ui/Pagination';
-import { 
-  Plus, 
-  ArrowLeft, 
-  BookOpen, 
-  ClipboardList, 
-  CheckCircle2, 
-  Edit3, 
-  Eye, 
-  FileText, 
-  Trash2, 
+import { Modal } from '../ui/Modal';
+import { BulkImportModal } from '../ui/BulkImportModal';
+import {
+  Plus,
+  ArrowLeft,
+  BookOpen,
+  ClipboardList,
+  ClipboardCheck,
+  CheckCircle2,
+  Edit3,
+  Eye,
+  FileText,
+  Trash2,
   XCircle,
-  Search
+  Loader2,
+  Upload,
+  Download,
+  Paperclip,
+  Send,
+  Check,
+  X,
+  Layers,
+  Calendar,
+  Award,
+  Star,
+  Search,
+  Users,
+  Clock,
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
-import type { AssignmentItem, ExamItem } from '../../data/mockData';
-import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
-import teachersList from '../../data/teachers.json';
-import courseHierarchy from '../../data/courseHierarchy.json';
+import type { ExamItem } from '../../data/mockData';
+import { assignmentApi } from '../../services/assignmentApi';
+import type { HomeworkItem, HomeworkScoping, HomeworkSubmission, ScopingOption } from '../../services/assignmentApi';
+import { subjectApi } from '../../services/subjectApi';
+
+interface HomeworkFormState {
+  id?: string;
+  title: string;
+  description: string;
+  assignmentType: string;
+  branchId: number;
+  academicYearId: number;
+  subjectId: number;
+  batchIds: number[];
+  dueDate: string;
+  maxMarks: string;
+  existingFiles: string[];
+}
+
+const EMPTY_HW_FORM: HomeworkFormState = {
+  title: '',
+  description: '',
+  assignmentType: 'assignment',
+  branchId: 0,
+  academicYearId: 0,
+  subjectId: 0,
+  batchIds: [],
+  dueDate: '',
+  maxMarks: '',
+  existingFiles: []
+};
+
+const TYPE_OPTIONS = [
+  { value: 'assignment', label: 'Assignment' },
+  { value: 'homework', label: 'Homework' },
+  { value: 'exam', label: 'Exam' }
+];
+
+const getTypeBadgeColor = (type: string) => {
+  switch (type?.toLowerCase()) {
+    case 'exam': return 'bg-purple-50 text-purple-700 border-purple-200';
+    case 'homework': return 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'assignment':
+    default: return 'bg-blue-50 text-blue-700 border-blue-200';
+  }
+};
+
+const getStatusBadgeColor = (status: string) => {
+  switch (status) {
+    case 'Draft': return 'bg-gray-100 text-gray-800';
+    case 'Published':
+    case 'Scheduled': return 'bg-blue-100 text-blue-800';
+    case 'Closed':
+    case 'Completed': return 'bg-green-100 text-green-800';
+    case 'Cancelled': return 'bg-red-100 text-red-800';
+    case 'Marks Published': return 'bg-purple-100 text-purple-800';
+    case 'Marks Pending': return 'bg-orange-100 text-orange-800';
+    case 'In Progress': return 'bg-teal-100 text-teal-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const typeLabel = (value: string) => {
+  const found = TYPE_OPTIONS.find(t => t.value === value);
+  return found ? found.label : (value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Assignment');
+};
 
 export const TeacherAssignments: React.FC = () => {
-  const { 
-    batches, 
-    branches, 
-    courses, 
-    exams, 
+  const {
+    exams,
     setExams,
-    assignments,
-    setAssignments,
-    currentUser, 
+    currentUser,
     sendNotification,
-    addToast
+    addToast,
+    batches
   } = useApp();
 
-  // Find logged-in teacher from teachers.json
-  const currentTeacher = useMemo(() => {
-    return teachersList.find(t =>
-      t.id === currentUser?.id ||
-      t.name === currentUser?.name ||
-      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
-    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
-  }, [currentUser]);
-
-  const teacherAssignedBatches = useMemo(() => {
-    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
-      return currentTeacher.batches;
-    }
-    return TEACHER_ASSIGNED_BATCHES;
-  }, [currentTeacher]);
-  
-  // Navigation Tabs state
   const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'exams'>('homework');
   const [activeSubTab, setActiveSubTab] = useState<'active' | 'drafts'>('active');
 
-  // Hierarchy Filters State
+  const [scoping, setScoping] = useState<HomeworkScoping | null>(null);
+  const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [actionBusy, setActionBusy] = useState<boolean>(false);
+
+  const [filterType, setFilterType] = useState<string>('All');
   const [filterBranch, setFilterBranch] = useState<string>('All');
-  const [filterCourse, setFilterCourse] = useState<string>('All');
-  const [filterProgram, setFilterProgram] = useState<string>('All');
-  const [filterLevel, setFilterLevel] = useState<string>('All');
-  const [filterAcademicYear, setFilterAcademicYear] = useState<string>('All');
   const [filterBatch, setFilterBatch] = useState<string>('All');
   const [filterSubject, setFilterSubject] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 8;
 
-  // Forms / Modals / Full-Page View state
-  const [showAssignForm, setShowAssignForm] = useState<boolean>(false);
+  const [showHwForm, setShowHwForm] = useState<boolean>(false);
+  const [hwForm, setHwForm] = useState<HomeworkFormState>(EMPTY_HW_FORM);
+  const [cascade, setCascade] = useState<{ course: number; program: number; level: number }>({ course: 0, program: 0, level: 0 });
+  const [batchPick, setBatchPick] = useState<number>(0);
+  const [levelSubjectOptions, setLevelSubjectOptions] = useState<ScopingOption[]>([]);
+  const [subjectsLoadedForLevel, setSubjectsLoadedForLevel] = useState(false);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [showHwDetail, setShowHwDetail] = useState<HomeworkItem | null>(null);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
+  const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
+  const [gradeInputs, setGradeInputs] = useState<Record<string, { marks: string; feedback: string }>>({});
+  const [gradingId, setGradingId] = useState<string | null>(null);
+
+  // Evaluate roster
+  interface RosterStudent {
+    studentId: string;
+    studentName: string;
+    studentCode: string;
+    batchId: string;
+    batchName: string;
+    submissionId: string | null;
+    submissionStatus: string | null;
+    responseText: string;
+    files: string[];
+    marksObtained: number | null;
+    feedback: string;
+    submittedAt: string | null;
+    gradedAt: string | null;
+  }
+  const [showEvaluate, setShowEvaluate] = useState<HomeworkItem | null>(null);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterStudents, setRosterStudents] = useState<RosterStudent[]>([]);
+  const [evalInputs, setEvalInputs] = useState<Record<string, { marks: string; feedback: string }>>({});
+  const [evalGradingId, setEvalGradingId] = useState<string | null>(null);
+  const [evalSearch, setEvalSearch] = useState<string>('');
+  const [evalBatchFilter, setEvalBatchFilter] = useState<string>('All');
+  const [evalStatusFilter, setEvalStatusFilter] = useState<string>('All');
+  const [selectedStudent, setSelectedStudent] = useState<RosterStudent | null>(null);
+  const [evalCurrentPage, setEvalCurrentPage] = useState<number>(1);
+  const evalItemsPerPage = 10;
+  const [isEvalImportModalOpen, setIsEvalImportModalOpen] = useState<boolean>(false);
+
   const [showExamForm, setShowExamForm] = useState<boolean>(false);
-  const [assignForm, setAssignForm] = useState<Partial<AssignmentItem>>({});
   const [examForm, setExamForm] = useState<Partial<ExamItem>>({});
-  
-  // Side Drawers for Details
-  const [showAssignDetails, setShowAssignDetails] = useState<AssignmentItem | null>(null);
   const [showExamDetails, setShowExamDetails] = useState<ExamItem | null>(null);
 
-  // Scroll to top when entering full-page view
+  const loadScoping = useCallback(async () => {
+    try {
+      const data = await assignmentApi.getScoping();
+      setScoping(data);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to load your scope', 'error');
+    }
+  }, [addToast]);
+
+  const loadHomeworks = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await assignmentApi.getHomeworks();
+      setHomeworks(data);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to load homework', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
+
   useEffect(() => {
-    if (showAssignForm || showExamForm) {
+    loadScoping();
+    loadHomeworks();
+  }, [loadScoping, loadHomeworks]);
+
+  useEffect(() => {
+    if (showHwForm || showExamForm) {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
-  }, [showAssignForm, showExamForm]);
+  }, [showHwForm, showExamForm]);
 
-  // Dynamic hierarchy options derived from courseHierarchy.json
-  const availableCourses = useMemo(() => {
-    return (courseHierarchy as any).courses || [];
-  }, []);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activePrimaryTab, activeSubTab, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
 
-  const availablePrograms = useMemo(() => {
-    if (filterCourse === 'All') return [];
-    const found = availableCourses.find((c: any) => c.name === filterCourse);
-    return found ? found.programs : [];
-  }, [filterCourse, availableCourses]);
+  useEffect(() => {
+    if (!cascade.level) {
+      setLevelSubjectOptions([]);
+      setSubjectsLoadedForLevel(false);
+      return;
+    }
+    let alive = true;
+    setSubjectsLoadedForLevel(false);
+    subjectApi.list({ levelId: String(cascade.level), limit: 500, status: 'active' })
+      .then((res: any) => {
+        if (!alive) return;
+        const list: any[] = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+        const teacherIds = new Set((scoping?.subjects || []).map(s => Number(s.id)));
+        const filtered = list
+          .filter(s => teacherIds.has(Number(s.id)))
+          .map(s => ({ id: String(s.id), name: s.name, code: s.code || '' }));
+        setLevelSubjectOptions(filtered);
+        setSubjectsLoadedForLevel(true);
+        setHwForm(prev => {
+          if (prev.subjectId && !filtered.some(s => Number(s.id) === prev.subjectId)) {
+            return { ...prev, subjectId: 0 };
+          }
+          return prev;
+        });
+      })
+      .catch(() => {
+        if (alive) {
+          setLevelSubjectOptions([]);
+          setSubjectsLoadedForLevel(true);
+        }
+      });
+    return () => { alive = false; };
+  }, [cascade.level, scoping]);
 
-  const availableLevels = useMemo(() => {
-    if (filterProgram === 'All') return [];
-    const found = availablePrograms.find((p: any) => p.name === filterProgram);
-    return found ? found.levels : [];
-  }, [filterProgram, availablePrograms]);
-
-  const availableAcademicYears = useMemo(() => {
-    if (filterLevel === 'All') return [];
-    const found = availableLevels.find((l: any) => l.name === filterLevel);
-    return found ? found.academicYears : [];
-  }, [filterLevel, availableLevels]);
-
-  const teacherBatches = useMemo(() => {
-    return batches.filter(b => teacherAssignedBatches.includes(b.name));
-  }, [batches, teacherAssignedBatches]);
-
-  const filteredBatches = useMemo(() => {
-    return teacherBatches.filter(b => {
-      if (filterBranch !== 'All' && b.branch !== filterBranch) return false;
-      if (filterCourse !== 'All' && b.course !== filterCourse) return false;
-      if (filterProgram !== 'All' && b.program !== filterProgram) return false;
-      if (filterLevel !== 'All' && b.level !== filterLevel) return false;
-      if (filterAcademicYear !== 'All' && b.academicYear !== filterAcademicYear) return false;
-      return true;
-    });
-  }, [teacherBatches, filterBranch, filterCourse, filterProgram, filterLevel, filterAcademicYear]);
-
-  // Reset dependent filters
-  const handleCourseChange = (val: string) => {
-    setFilterCourse(val);
-    setFilterProgram('All');
-    setFilterLevel('All');
-    setFilterAcademicYear('All');
-    setFilterBatch('All');
-  };
-
-  const handleProgramChange = (val: string) => {
-    setFilterProgram(val);
-    setFilterLevel('All');
-    setFilterAcademicYear('All');
-    setFilterBatch('All');
-  };
-
-  const handleLevelChange = (val: string) => {
-    setFilterLevel(val);
-    setFilterAcademicYear('All');
-    setFilterBatch('All');
-  };
-
-  const handleAcademicYearChange = (val: string) => {
-    setFilterAcademicYear(val);
-    setFilterBatch('All');
-  };
-
-  // Filtered Homework / Assignments
-  const filteredAssignments = useMemo(() => {
-    return assignments.filter(item => {
-      const isTeacherBatch = teacherAssignedBatches.includes(item.batch);
-      if (!isTeacherBatch) return false;
-
+  const filteredHomeworks = useMemo(() => {
+    return homeworks.filter(item => {
       if (activeSubTab === 'active' && item.status === 'Draft') return false;
       if (activeSubTab === 'drafts' && item.status !== 'Draft') return false;
 
-      const batchObj = batches.find(b => b.name === item.batch);
-      if (filterBranch !== 'All' && batchObj?.branch !== filterBranch) return false;
-      if (filterCourse !== 'All' && batchObj?.course !== filterCourse) return false;
-      if (filterProgram !== 'All' && batchObj?.program !== filterProgram) return false;
-      if (filterLevel !== 'All' && batchObj?.level !== filterLevel) return false;
-      if (filterAcademicYear !== 'All' && batchObj?.academicYear !== filterAcademicYear) return false;
-      if (filterBatch !== 'All' && item.batch !== filterBatch) return false;
-
-      if (filterSubject !== 'All' && item.subject !== filterSubject) return false;
+      if (filterType !== 'All' && item.assignmentType !== filterType) return false;
+      if (filterBranch !== 'All' && item.branchName !== filterBranch) return false;
+      if (filterBatch !== 'All' && !item.batchNames.includes(filterBatch)) return false;
+      if (filterSubject !== 'All' && item.subjectName !== filterSubject) return false;
       if (filterStatus !== 'All' && item.status !== filterStatus) return false;
 
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchTitle = item.title.toLowerCase().includes(query);
-        const matchSubj = item.subject.toLowerCase().includes(query);
-        const matchBatch = item.batch.toLowerCase().includes(query);
+        const q = searchQuery.toLowerCase();
+        const matchTitle = item.title.toLowerCase().includes(q);
+        const matchSubj = item.subjectName.toLowerCase().includes(q);
+        const matchBatch = item.batchNames.some(n => n.toLowerCase().includes(q));
         if (!matchTitle && !matchSubj && !matchBatch) return false;
       }
-
       return true;
     });
-  }, [assignments, teacherAssignedBatches, activeSubTab, batches, filterBranch, filterCourse, filterProgram, filterLevel, filterAcademicYear, filterBatch, filterSubject, filterStatus, searchQuery]);
+  }, [homeworks, activeSubTab, filterType, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
 
-  // Filtered Exams / Assessments
   const filteredExams = useMemo(() => {
     return exams.filter(item => {
-      const isTeacherBatch = teacherAssignedBatches.includes(item.batch);
-      if (!isTeacherBatch) return false;
-
       if (activeSubTab === 'active' && item.status === 'Draft') return false;
       if (activeSubTab === 'drafts' && item.status !== 'Draft') return false;
-
-      const batchObj = batches.find(b => b.name === item.batch);
-      if (filterBranch !== 'All' && batchObj?.branch !== filterBranch) return false;
-      if (filterCourse !== 'All' && batchObj?.course !== filterCourse) return false;
-      if (filterProgram !== 'All' && batchObj?.program !== filterProgram) return false;
-      if (filterLevel !== 'All' && batchObj?.level !== filterLevel) return false;
-      if (filterAcademicYear !== 'All' && batchObj?.academicYear !== filterAcademicYear) return false;
+      if (filterBranch !== 'All') return false;
       if (filterBatch !== 'All' && item.batch !== filterBatch) return false;
-
       if (filterSubject !== 'All' && item.subject !== filterSubject) return false;
       if (filterStatus !== 'All' && item.status !== filterStatus) return false;
-
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchName = item.name.toLowerCase().includes(query);
-        const matchSubj = item.subject.toLowerCase().includes(query);
-        const matchBatch = item.batch.toLowerCase().includes(query);
+        const q = searchQuery.toLowerCase();
+        const matchName = item.name.toLowerCase().includes(q);
+        const matchSubj = item.subject.toLowerCase().includes(q);
+        const matchBatch = item.batch.toLowerCase().includes(q);
         if (!matchName && !matchSubj && !matchBatch) return false;
       }
-
       return true;
     });
-  }, [exams, teacherAssignedBatches, activeSubTab, batches, filterBranch, filterCourse, filterProgram, filterLevel, filterAcademicYear, filterBatch, filterSubject, filterStatus, searchQuery]);
+  }, [exams, activeSubTab, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
 
-  const currentData = activePrimaryTab === 'homework' ? filteredAssignments : filteredExams;
+  const currentData = activePrimaryTab === 'homework' ? filteredHomeworks : filteredExams;
   const totalPages = Math.ceil(currentData.length / itemsPerPage);
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return currentData.slice(start, start + itemsPerPage);
   }, [currentData, currentPage, itemsPerPage]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activePrimaryTab, activeSubTab, filterBranch, filterCourse, filterProgram, filterLevel, filterAcademicYear, filterBatch, filterSubject, filterStatus, searchQuery]);
-
-  // ----------------------------------------------------
-  // ACTIONS (WITH TOAST NOTIFICATIONS)
-  // ----------------------------------------------------
-  const handleSaveAssignDraft = () => {
-    if (!assignForm.title || !assignForm.batch) {
-      addToast('Title and Target Batch are required to save draft.', 'error');
-      return;
-    }
-    const newId = assignForm.id || `A-${Date.now()}`;
-    const newAssign: AssignmentItem = {
-      ...(assignForm as AssignmentItem),
-      type: assignForm.type || 'Homework',
-      id: newId,
-      status: 'Draft',
-      assignedDate: '',
-      dueDate: assignForm.dueDate || 'Not Set'
-    };
-    
-    if (assignForm.id) {
-      setAssignments(prev => prev.map(a => a.id === newId ? newAssign : a));
-      addToast(`Assignment "${newAssign.title}" updated in drafts.`, 'success');
-    } else {
-      setAssignments(prev => [newAssign, ...prev]);
-      addToast(`Assignment "${newAssign.title}" saved as draft.`, 'success');
-    }
-    setShowAssignForm(false);
-  };
-
-  const handlePublishAssign = () => {
-    if (!assignForm.title || !assignForm.batch || !assignForm.dueDate) {
-      addToast('Please fill in Assignment Title, Target Batch, and Due Date.', 'error');
-      return;
-    }
-    
-    const isEditing = Boolean(assignForm.id);
-    const newId = assignForm.id || `A-${Date.now()}`;
-    const newAssign: AssignmentItem = {
-      ...(assignForm as AssignmentItem),
-      type: assignForm.type || 'Homework',
-      id: newId,
-      status: 'Published',
-      assignedDate: assignForm.assignedDate || new Date().toISOString().split('T')[0]
-    };
-    
-    if (isEditing) {
-      setAssignments(prev => prev.map(a => a.id === newId ? newAssign : a));
-      addToast(`Assignment "${newAssign.title}" updated successfully!`, 'success');
-    } else {
-      setAssignments(prev => [newAssign, ...prev]);
-      addToast(`Assignment "${newAssign.title}" published to ${newAssign.batch}!`, 'success');
-    }
-
-    sendNotification({
-      id: `N-${Date.now()}`,
-      title: `Assignment: ${newAssign.title}`,
-      message: `An assignment has been published for ${newAssign.batch}. Due Date: ${newAssign.dueDate}`,
-      category: 'Academic',
-      sender: currentUser?.name || 'Teacher',
-      senderRole: 'Teacher',
-      createdAt: new Date().toISOString(),
-      direction: 'Outgoing',
-      status: 'Unread',
-      recipients: [{ type: 'Batch', id: newAssign.batch, name: newAssign.batch }]
+  const openCreateForm = () => {
+    setHwForm({
+      ...EMPTY_HW_FORM,
+      branchId: scoping?.branches?.[0] ? Number(scoping.branches[0].id) : 0,
+      academicYearId: scoping?.academicYears?.[0] ? Number(scoping.academicYears[0].id) : 0,
+      subjectId: scoping?.subjects?.[0] ? Number(scoping.subjects[0].id) : 0,
+      dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
     });
-
-    setShowAssignForm(false);
-    setActiveSubTab('active');
+    setCascade({ course: 0, program: 0, level: 0 });
+    setBatchPick(0);
+    setNewFiles([]);
+    setShowHwForm(true);
   };
 
-  const handleCloseAssign = (id: string) => {
-    const item = assignments.find(a => a.id === id);
-    setAssignments(prev => prev.map(a => a.id === id ? { ...a, status: 'Closed' } : a));
-    setShowAssignDetails(null);
-    addToast(`Assignment "${item?.title || ''}" closed successfully.`, 'info');
+  const openEditForm = (item: HomeworkItem | null) => {
+    if (!item) return;
+    setHwForm({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      assignmentType: item.assignmentType,
+      branchId: Number(item.branchId),
+      academicYearId: Number(item.academicYearId),
+      subjectId: Number(item.subjectId),
+      batchIds: item.batchIds,
+      dueDate: item.dueDate || new Date().toISOString().split('T')[0],
+      maxMarks: item.maxMarks !== null && item.maxMarks !== undefined ? String(item.maxMarks) : '',
+      existingFiles: item.files || []
+    });
+    const firstBatch = (batches || []).find(b => item.batchIds.includes(Number(b.id)));
+    setCascade({
+      course: firstBatch?.courseId ? Number(firstBatch.courseId) : 0,
+      program: firstBatch?.programId ? Number(firstBatch.programId) : 0,
+      level: firstBatch?.levelId ? Number(firstBatch.levelId) : 0
+    });
+    setBatchPick(0);
+    setNewFiles([]);
+    setShowHwForm(true);
   };
 
-  const handleDeleteAssign = (id: string) => {
-    const item = assignments.find(a => a.id === id);
-    setAssignments(prev => prev.filter(a => a.id !== id));
-    setShowAssignDetails(null);
-    addToast(`Assignment "${item?.title || ''}" deleted successfully.`, 'success');
+  // ─── Course → Program → Level cascade against the teacher's allocated batches ───
+  const allocatedBatches = useMemo(() => {
+    const scopeIds = new Set((scoping?.batches || []).map(sb => Number(sb.id)));
+    return (batches || []).filter(b => scopeIds.has(Number(b.id)));
+  }, [batches, scoping]);
+
+  const candidateBatches = useMemo(
+    () => allocatedBatches.filter(b =>
+      (hwForm.branchId === 0 || Number(b.branchId) === hwForm.branchId) &&
+      (hwForm.academicYearId === 0 || Number(b.academicYearId) === hwForm.academicYearId)
+    ),
+    [allocatedBatches, hwForm.branchId, hwForm.academicYearId]
+  );
+
+  const cascadeCourses = useMemo(() => {
+    const seen = new Map<number, string>();
+    candidateBatches.forEach(b => {
+      const id = Number(b.courseId);
+      if (id) seen.set(id, b.courseName || `Course ${id}`);
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [candidateBatches]);
+
+  const cascadePrograms = useMemo(() => {
+    const seen = new Map<number, string>();
+    candidateBatches.forEach(b => {
+      if (cascade.course && Number(b.courseId) === cascade.course) {
+        const id = Number(b.programId);
+        if (id) seen.set(id, b.programName || `Program ${id}`);
+      }
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [candidateBatches, cascade.course]);
+
+  const cascadeLevels = useMemo(() => {
+    const seen = new Map<number, string>();
+    candidateBatches.forEach(b => {
+      if (cascade.course && Number(b.courseId) === cascade.course && cascade.program && Number(b.programId) === cascade.program) {
+        const id = Number(b.levelId);
+        if (id) seen.set(id, b.levelName || `Level ${id}`);
+      }
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [candidateBatches, cascade.course, cascade.program]);
+
+  const hasCascadeMeta = cascadeCourses.length > 0;
+
+  const levelBatches = useMemo(
+    () => candidateBatches.filter(b =>
+      cascade.course && Number(b.courseId) === cascade.course &&
+      cascade.program && Number(b.programId) === cascade.program &&
+      cascade.level && Number(b.levelId) === cascade.level
+    ),
+    [candidateBatches, cascade.course, cascade.program, cascade.level]
+  );
+
+  const batchNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    allocatedBatches.forEach(b => m.set(Number(b.id), b.name));
+    return m;
+  }, [allocatedBatches]);
+
+  const subjectOptions = useMemo(() => {
+    if (cascade.level && subjectsLoadedForLevel) return levelSubjectOptions;
+    return scoping?.subjects || [];
+  }, [cascade.level, subjectsLoadedForLevel, levelSubjectOptions, scoping]);
+
+  const addTargetBatch = (batchId: number) => {
+    if (!batchId) return;
+    setHwForm(prev => prev.batchIds.includes(batchId) ? prev : { ...prev, batchIds: [...prev.batchIds, batchId] });
   };
 
+  const removeTargetBatch = (batchId: number) => {
+    setHwForm(prev => ({ ...prev, batchIds: prev.batchIds.filter(x => x !== batchId) }));
+  };
+
+  const changeBranch = (branchId: number) => {
+    setHwForm(prev => ({ ...prev, branchId, batchIds: [] }));
+    setCascade({ course: 0, program: 0, level: 0 });
+    setBatchPick(0);
+  };
+
+  const changeAcademicYear = (academicYearId: number) => {
+    setHwForm(prev => ({ ...prev, academicYearId, batchIds: [] }));
+    setCascade({ course: 0, program: 0, level: 0 });
+    setBatchPick(0);
+  };
+
+  const changeCourse = (course: number) => {
+    setCascade(prev => ({ ...prev, course, program: 0, level: 0 }));
+    setHwForm(prev => ({ ...prev, batchIds: [] }));
+    setBatchPick(0);
+  };
+
+  const changeProgram = (program: number) => {
+    setCascade(prev => ({ ...prev, program, level: 0 }));
+    setHwForm(prev => ({ ...prev, batchIds: [] }));
+    setBatchPick(0);
+  };
+
+  const changeLevel = (level: number) => {
+    setCascade(prev => ({ ...prev, level }));
+    if (!level) setHwForm(prev => ({ ...prev, batchIds: [], subjectId: 0 }));
+    setBatchPick(0);
+  };
+
+  const submitHomeworkForm = async (mode: 'draft' | 'publish') => {
+    if (!hwForm.title.trim() || hwForm.batchIds.length === 0 || !hwForm.dueDate) {
+      addToast('Title, at least one target batch, and due date are required.', 'error');
+      return;
+    }
+    if (!hwForm.subjectId || !hwForm.branchId || !hwForm.academicYearId) {
+      addToast('Please choose a subject, branch, and academic year.', 'error');
+      return;
+    }
+
+    setActionBusy(true);
+    try {
+      const payload = {
+        title: hwForm.title.trim(),
+        description: hwForm.description,
+        branchId: hwForm.branchId,
+        academicYearId: hwForm.academicYearId,
+        subjectId: hwForm.subjectId,
+        assignmentType: hwForm.assignmentType,
+        batchIds: hwForm.batchIds,
+        dueDate: hwForm.dueDate,
+        maxMarks: hwForm.maxMarks ? Number(hwForm.maxMarks) : null,
+        existingFiles: hwForm.existingFiles
+      };
+
+      let id = hwForm.id;
+      if (id) {
+        await assignmentApi.updateHomework(id, payload, newFiles);
+        addToast(`Homework "${payload.title}" updated.`, 'success');
+      } else {
+        const res = await assignmentApi.createHomework(payload, newFiles);
+        id = res.id;
+        addToast(`Homework "${payload.title}" saved as draft.`, 'success');
+      }
+
+      if (mode === 'publish' && id) {
+        await assignmentApi.publishHomework(id);
+        addToast(`Homework "${payload.title}" published!`, 'success');
+        sendNotification({
+          id: `N-${Date.now()}`,
+          title: `Assignment: ${payload.title}`,
+          message: `An assignment has been published. Due Date: ${hwForm.dueDate}`,
+          category: 'Academic',
+          sender: currentUser?.name || 'Teacher',
+          senderRole: 'Teacher',
+          createdAt: new Date().toISOString(),
+          direction: 'Outgoing',
+          status: 'Unread',
+          recipients: [{ type: 'Batch', id: id, name: 'Assigned batches' }]
+        });
+        setActiveSubTab('active');
+      }
+
+      setShowHwForm(false);
+      await loadHomeworks();
+    } catch (err: any) {
+      addToast(err.message || 'Failed to save homework.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleCloseAssign = async (item: HomeworkItem) => {
+    setActionBusy(true);
+    try {
+      await assignmentApi.closeHomework(item.id);
+      addToast(`Assignment "${item.title}" closed successfully.`, 'info');
+      setShowHwDetail(null);
+      await loadHomeworks();
+    } catch (err: any) {
+      addToast(err.message || 'Failed to close assignment.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleDeleteAssign = async (item: HomeworkItem) => {
+    if (!window.confirm(`Delete assignment "${item.title}"? ${item.status === 'Published' ? 'Published assignments must be closed first.' : ''}`)) return;
+    setActionBusy(true);
+    try {
+      await assignmentApi.deleteHomework(item.id);
+      addToast(`Assignment "${item.title}" deleted successfully.`, 'success');
+      setShowHwDetail(null);
+      await loadHomeworks();
+    } catch (err: any) {
+      addToast(err.message || 'Failed to delete assignment.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const openEvaluate = async (item: HomeworkItem) => {
+    setShowEvaluate(item);
+    setSelectedStudent(null);
+    setEvalCurrentPage(1);
+    setRosterStudents([]);
+    setEvalInputs({});
+    setEvalSearch('');
+    setEvalBatchFilter('All');
+    setEvalStatusFilter('All');
+    setRosterLoading(true);
+    try {
+      const data = await assignmentApi.getEvaluationRoster(item.id);
+      setRosterStudents(data.students);
+      const initial: Record<string, { marks: string; feedback: string }> = {};
+      data.students.forEach(s => {
+        initial[s.studentId] = {
+          marks: s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '',
+          feedback: s.feedback || ''
+        };
+      });
+      setEvalInputs(initial);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to load evaluation roster.', 'error');
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+
+  const handleEvalGrade = async (student: RosterStudent) => {
+    if (!showEvaluate) return;
+    const input = evalInputs[student.studentId] || { marks: '', feedback: '' };
+    if (!input.marks && input.marks !== '0') {
+      addToast('Please enter marks before saving.', 'error');
+      return;
+    }
+    const marksNum = Number(input.marks);
+    if (isNaN(marksNum) || marksNum < 0) {
+      addToast('Please enter a valid positive number for marks.', 'error');
+      return;
+    }
+    if (showEvaluate.maxMarks && marksNum > showEvaluate.maxMarks) {
+      addToast(`Marks cannot exceed max marks (${showEvaluate.maxMarks}).`, 'error');
+      return;
+    }
+    setEvalGradingId(student.studentId);
+    try {
+      await assignmentApi.gradeSubmission(showEvaluate.id, student.submissionId || student.studentId, {
+        marksObtained: marksNum,
+        feedback: input.feedback,
+        studentId: student.studentId
+      });
+      addToast(`Grade saved for ${student.studentName}.`, 'success');
+      setRosterStudents(prev => prev.map(s =>
+        s.studentId === student.studentId
+          ? { ...s, submissionStatus: 'Graded', marksObtained: marksNum, feedback: input.feedback }
+          : s
+      ));
+      setSelectedStudent(prev => prev && prev.studentId === student.studentId
+        ? { ...prev, submissionStatus: 'Graded', marksObtained: marksNum, feedback: input.feedback }
+        : prev
+      );
+      await loadHomeworks();
+    } catch (err: any) {
+      addToast(err.message || 'Failed to save grade.', 'error');
+    } finally {
+      setEvalGradingId(null);
+    }
+  };
+
+  const handleExportEvaluationCSV = () => {
+    if (rosterStudents.length === 0) {
+      addToast('No student records available to export', 'error');
+      return;
+    }
+
+    const dataToExport = rosterStudents.map(s => ({
+      'Student Name': s.studentName,
+      'Roll No / ID': s.studentCode || '',
+      'Batch': s.batchName || '',
+      'Status': s.submissionStatus || 'Not Submitted',
+      'Submitted On': s.submittedAt ? s.submittedAt.slice(0, 16).replace('T', ' ') : '',
+      'Marks Obtained': s.marksObtained !== null && s.marksObtained !== undefined ? s.marksObtained : '',
+      'Max Marks': showEvaluate?.maxMarks ?? '',
+      'Teacher Feedback': s.feedback || ''
+    }));
+
+    const headers = Object.keys(dataToExport[0]);
+    const csvRows: string[] = [headers.join(',')];
+
+    for (const row of dataToExport) {
+      const values = headers.map(h => `"${(row[h as keyof typeof row] ?? '').toString().replace(/"/g, '""')}"`);
+      csvRows.push(values.join(','));
+    }
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeTitle = (showEvaluate?.title || 'evaluation').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `${safeTitle}_evaluation_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    addToast('Evaluation roster exported successfully', 'success');
+  };
+
+  const openDetail = async (item: HomeworkItem) => {
+    setShowHwDetail(item);
+    if (item.status !== 'Published' && item.status !== 'Closed') {
+      setSubmissions([]);
+      return;
+    }
+    setDetailLoading(true);
+    setSubmissions([]);
+    setGradeInputs({});
+    try {
+      const res = await assignmentApi.getSubmissions(item.id);
+      setSubmissions(res.submissions);
+      const initial: Record<string, { marks: string; feedback: string }> = {};
+      res.submissions.forEach(s => {
+        initial[s.id] = { marks: s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '', feedback: s.feedback || '' };
+      });
+      setGradeInputs(initial);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to load submissions.', 'error');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleGrade = async (submission: HomeworkSubmission) => {
+    const input = gradeInputs[submission.id];
+    const marks = input ? Number(input.marks) : NaN;
+    if (isNaN(marks) || !input || input.marks.trim() === '') {
+      addToast('Enter marks before grading.', 'error');
+      return;
+    }
+    setGradingId(submission.id);
+    try {
+      await assignmentApi.gradeSubmission(submission.homeworkId, submission.id, marks, input.feedback || '');
+      addToast(`Graded ${submission.studentName}.`, 'success');
+      if (showHwDetail) await openDetail(showHwDetail);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to grade submission.', 'error');
+    } finally {
+      setGradingId(null);
+    }
+  };
+
+  // ─── Exam (mock) actions ──────────────────────────────────────────────────
   const handleSaveExamDraft = () => {
     if (!examForm.name || !examForm.batch) {
       addToast('Test title and Target Batch are required.', 'error');
@@ -327,7 +697,6 @@ export const TeacherAssignments: React.FC = () => {
       passingMarks: examForm.passingMarks || 40,
       average: ''
     };
-    
     if (examForm.id) {
       setExams(prev => prev.map(e => e.id === newId ? newExam : e));
       addToast(`Exam "${newExam.name}" updated in drafts.`, 'success');
@@ -343,7 +712,6 @@ export const TeacherAssignments: React.FC = () => {
       addToast('Please fill in Test Name, Target Batch, and Exam Date.', 'error');
       return;
     }
-    
     const isEditing = Boolean(examForm.id);
     const newId = examForm.id || `EX-${Date.now()}`;
     const newExam: ExamItem = {
@@ -355,7 +723,6 @@ export const TeacherAssignments: React.FC = () => {
       passingMarks: examForm.passingMarks || 40,
       average: ''
     };
-    
     if (isEditing) {
       setExams(prev => prev.map(e => e.id === newId ? newExam : e));
       addToast(`Exam "${newExam.name}" updated successfully!`, 'success');
@@ -363,7 +730,6 @@ export const TeacherAssignments: React.FC = () => {
       setExams(prev => [newExam, ...prev]);
       addToast(`Exam "${newExam.name}" scheduled for ${newExam.batch}!`, 'success');
     }
-
     sendNotification({
       id: `N-${Date.now()}`,
       title: `Upcoming Exam: ${newExam.name}`,
@@ -376,7 +742,6 @@ export const TeacherAssignments: React.FC = () => {
       status: 'Unread',
       recipients: [{ type: 'Batch', id: newExam.batch, name: newExam.batch }]
     });
-
     setShowExamForm(false);
     setActiveSubTab('active');
   };
@@ -395,162 +760,1113 @@ export const TeacherAssignments: React.FC = () => {
     addToast(`Exam draft "${item?.name || ''}" deleted.`, 'success');
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    switch(status) {
-      case 'Draft': return 'bg-gray-100 text-gray-800';
-      case 'Published': 
-      case 'Scheduled': return 'bg-blue-100 text-blue-800';
-      case 'Closed': 
-      case 'Completed': return 'bg-green-100 text-green-800';
-      case 'Cancelled': return 'bg-red-100 text-red-800';
-      case 'Marks Published': return 'bg-purple-100 text-purple-800';
-      case 'Marks Pending': return 'bg-orange-100 text-orange-800';
-      case 'In Progress': return 'bg-teal-100 text-teal-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // ----------------------------------------------------
-  // FULL PAGE VIEW: ASSIGNMENT CREATE / EDIT
-  // ----------------------------------------------------
-  if (showAssignForm) {
+  // ─── Full page: Assignment detail (view only) ───────────────────────────────
+  if (showHwDetail) {
+    const item = showHwDetail;
     return (
-      <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fade-in pb-12">
-        {/* Header with Back button */}
-        <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
-          <button
-            onClick={() => setShowAssignForm(false)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">
-              {assignForm.id ? `Edit Assignment: ${assignForm.title}` : 'Create New Assignment'}
-            </h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {assignForm.id
-                ? 'Update assignment curriculum, instructions, target batch, and submission due date.'
-                : 'Configure homework, practice worksheets, or revision tasks for your batches.'}
-            </p>
+      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
+        {/* Top nav */}
+        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowHwDetail(null)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-slate-900">{item.title}</h2>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(item.status)}`}>
+                  {item.status}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">{item.subjectName} · {item.batchNames.join(', ') || 'No batches'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {item.status === 'Draft' && (
+              <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} className="cursor-pointer" onClick={() => { openEditForm(item); setShowHwDetail(null); }}>
+                <Edit3 className="w-4 h-4 mr-1.5" /> Edit Assignment
+              </Button>
+            )}
+            {item.status === 'Published' && (
+              <Button variant="secondary" className="cursor-pointer" onClick={() => handleCloseAssign(item)} disabled={actionBusy}>
+                <XCircle className="w-4 h-4 mr-1.5" /> Close Assignment
+              </Button>
+            )}
+            {(item.status === 'Published' || item.status === 'Closed') && (
+              <Button
+                variant="primary"
+                style={{ backgroundColor: '#7c3aed', color: 'white' }}
+                className="cursor-pointer font-semibold"
+                onClick={() => { setShowHwDetail(null); openEvaluate(item); }}
+              >
+                <ClipboardCheck className="w-4 h-4 mr-1.5" /> Evaluate
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Full-Page Form Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-8 space-y-6">
-          {/* Basic Info */}
-          <div>
-            <h3 className="font-semibold text-sm text-blue-800 mb-4 uppercase tracking-wider flex items-center gap-2">
-              <BookOpen size={16} className="text-blue-600" /> Basic Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+        {/* Detail body */}
+        <div className="px-6 md:px-10 py-8 space-y-6">
+
+          {/* ── Meta grid ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <BookOpen size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Assignment Details</h3>
+            </div>
+            <div className="p-6">
+              <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-5">
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Type</dt>
+                  <dd>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${getTypeBadgeColor(item.assignmentType)}`}>
+                      {typeLabel(item.assignmentType)}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Subject</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{item.subjectName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Branch</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{item.branchName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Academic Year</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{item.academicYearName || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Due Date</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{item.dueDate || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Max Marks</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{item.maxMarks ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Submissions</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{item.submittedCount} / {item.totalCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Status</dt>
+                  <dd>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(item.status)}`}>
+                      {item.status}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          {/* ── Target Batches ── */}
+          {item.batchNames.length > 0 && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                <Layers size={16} className="text-blue-600" />
+                <h3 className="font-bold text-sm text-slate-700">Target Batches</h3>
+                <span className="ml-1 text-xs text-slate-400">({item.batchNames.length})</span>
+              </div>
+              <div className="p-6">
+                <div className="flex flex-wrap gap-2.5">
+                  {item.batchNames.map((name, i) => (
+                    <span key={i} className="inline-flex items-center bg-blue-50 border border-blue-200 text-blue-900 text-xs font-semibold rounded-lg px-3 py-1.5">
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Instructions ── */}
+          {item.description && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                <FileText size={16} className="text-blue-600" />
+                <h3 className="font-bold text-sm text-slate-700">Instructions / Description</h3>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{item.description}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Attachments ── */}
+          {item.files.length > 0 && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                <Paperclip size={16} className="text-blue-600" />
+                <h3 className="font-bold text-sm text-slate-700">Attachments</h3>
+                <span className="ml-1 text-xs text-slate-400">({item.files.length} file{item.files.length !== 1 ? 's' : ''})</span>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {item.files.map((f, i) => (
+                    <a
+                      key={i}
+                      href={f}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl px-4 py-3 text-sm transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                        <Paperclip size={15} />
+                      </div>
+                      <span className="truncate text-slate-700 group-hover:text-blue-700 font-medium">{f.split('/').pop()}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="flex items-center justify-between py-2">
+            <Button variant="secondary" className="cursor-pointer" onClick={() => setShowHwDetail(null)}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to List
+            </Button>
+            {item.status === 'Draft' && (
+              <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} className="cursor-pointer font-semibold px-5" onClick={() => { openEditForm(item); setShowHwDetail(null); }}>
+                <Edit3 className="w-4 h-4 mr-1.5" /> Edit Assignment
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Full page: Individual Student Evaluation ──────────────────────────────
+  if (showEvaluate && selectedStudent) {
+    const item = showEvaluate;
+    const student = selectedStudent;
+    const isGraded = student.submissionStatus === 'Graded';
+    const isSaving = evalGradingId === student.studentId;
+
+    return (
+      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
+        {/* Top nav */}
+        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSelectedStudent(null)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-slate-900">{student.studentName}</h2>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${student.submissionStatus === 'Graded'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : student.submissionStatus === 'Submitted'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                  }`}>
+                  {student.submissionStatus || 'Not Submitted'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {item.title} · <span className="font-semibold text-blue-700">{student.batchName}</span> · Roll No / ID: <span className="font-mono font-medium text-slate-700">{student.studentCode || '—'}</span> · Max Marks: {item.maxMarks ?? '—'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button variant="secondary" className="cursor-pointer" onClick={() => setSelectedStudent(null)}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Roster
+            </Button>
+            <Button
+              variant="primary"
+              style={{ backgroundColor: '#7c3aed', color: 'white' }}
+              className="cursor-pointer font-semibold shadow-sm px-5"
+              onClick={() => handleEvalGrade(student)}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-1.5" /> {isGraded ? 'Update Grade' : 'Save Grade'}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Full-page Body */}
+        <div className="px-6 md:px-10 py-8 space-y-6">
+
+          {/* Student & Submission Info Header Banner */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-lg flex-shrink-0">
+                {student.studentName.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{student.studentName}</h3>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  {student.studentCode && (
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                      ID: {student.studentCode}
+                    </span>
+                  )}
+                  {student.batchName && (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      {student.batchName}
+                    </span>
+                  )}
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${isGraded
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : student.submissionStatus === 'Submitted'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}>
+                    {student.submissionStatus || 'Not Submitted'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {student.submittedAt && (
+              <div className="text-right md:border-l md:border-slate-100 md:pl-6">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Submitted On</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  {student.submittedAt.slice(0, 16).replace('T', ' ')}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Submission Details Card */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <FileText size={16} className="text-purple-600" />
+              <h3 className="font-bold text-sm text-slate-700">Student Submitted Content</h3>
+            </div>
+            <div className="p-6 space-y-5">
+              {student.responseText ? (
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide block mb-2">Student Response / Solution Notes:</span>
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                    {student.responseText}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-400 italic">
+                  No text response or notes were submitted by the student.
+                </div>
+              )}
+
+              {student.files && student.files.length > 0 ? (
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide block mb-2">
+                    Submitted Files & Attachments ({student.files.length}):
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {student.files.map((fileUrl, idx) => (
+                      <a
+                        key={idx}
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 p-3.5 bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs text-purple-700 font-semibold group transition-all"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
+                          <Paperclip size={15} />
+                        </div>
+                        <span className="truncate flex-1">{fileUrl.split('/').pop()}</span>
+                        <ExternalLink size={14} className="text-slate-400 group-hover:text-purple-600 flex-shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-400 italic flex items-center gap-2">
+                  <Paperclip size={14} /> No attachment files uploaded for this assignment.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Grading & Feedback Card */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Award size={16} className="text-purple-600" />
+                <h3 className="font-bold text-sm text-slate-700">Evaluation & Grading</h3>
+              </div>
+              {item.maxMarks !== null && item.maxMarks !== undefined && (
+                <span className="text-xs text-slate-500 font-medium">
+                  Maximum Marks: <strong className="text-slate-800">{item.maxMarks}</strong>
+                </span>
+              )}
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Marks Obtained <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max={item.maxMarks ?? 100}
+                    value={evalInputs[student.studentId]?.marks ?? ''}
+                    onChange={e => setEvalInputs(prev => ({
+                      ...prev,
+                      [student.studentId]: {
+                        marks: e.target.value,
+                        feedback: prev[student.studentId]?.feedback ?? ''
+                      }
+                    }))}
+                    placeholder={`0 - ${item.maxMarks ?? 100}`}
+                    className="font-bold text-base"
+                  />
+                  {item.maxMarks !== null && item.maxMarks !== undefined && (
+                    <p className="text-[11px] text-slate-400 mt-1">Out of {item.maxMarks} marks</p>
+                  )}
+                </div>
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Teacher Remarks & Feedback
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={evalInputs[student.studentId]?.feedback ?? ''}
+                    onChange={e => setEvalInputs(prev => ({
+                      ...prev,
+                      [student.studentId]: {
+                        marks: prev[student.studentId]?.marks ?? '',
+                        feedback: e.target.value
+                      }
+                    }))}
+                    placeholder="Enter detailed feedback or remarks for the student..."
+                    className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Action row inside card */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <Button variant="secondary" className="cursor-pointer" onClick={() => setSelectedStudent(null)}>
+                  <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to Roster
+                </Button>
+                <Button
+                  variant="primary"
+                  style={{ backgroundColor: '#7c3aed', color: 'white' }}
+                  className="cursor-pointer font-semibold shadow-sm px-6"
+                  onClick={() => handleEvalGrade(student)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> Saving Grade...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 mr-1.5" /> {isGraded ? 'Update Grade' : 'Save Grade'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Full page: Evaluate Roster & Submissions ───────────────────────────────
+  if (showEvaluate) {
+    const item = showEvaluate;
+    const totalStudents = rosterStudents.length;
+    const submittedCount = rosterStudents.filter(s => s.submissionStatus === 'Submitted' || s.submissionStatus === 'Graded').length;
+    const gradedCount = rosterStudents.filter(s => s.submissionStatus === 'Graded').length;
+    const pendingCount = rosterStudents.filter(s => s.submissionStatus !== 'Graded').length;
+
+    const uniqueBatches = Array.from(new Set(rosterStudents.map(s => s.batchName).filter(Boolean)));
+
+    const filteredRoster = rosterStudents.filter(s => {
+      if (evalBatchFilter !== 'All' && s.batchName !== evalBatchFilter) return false;
+      if (evalStatusFilter === 'Graded' && s.submissionStatus !== 'Graded') return false;
+      if (evalStatusFilter === 'Submitted' && s.submissionStatus !== 'Submitted') return false;
+      if (evalStatusFilter === 'Not Submitted' && (s.submissionStatus === 'Submitted' || s.submissionStatus === 'Graded')) return false;
+      if (evalSearch.trim()) {
+        const q = evalSearch.toLowerCase();
+        const matchName = s.studentName.toLowerCase().includes(q);
+        const matchCode = s.studentCode.toLowerCase().includes(q);
+        const matchBatch = s.batchName.toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchBatch) return false;
+      }
+      return true;
+    });
+
+    return (
+      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
+        {/* Top nav */}
+        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowEvaluate(null)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-slate-900">Evaluate: {item.title}</h2>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(item.status)}`}>
+                  {item.status}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {item.subjectName} · {item.batchNames.join(', ') || 'No batches'} · Due: {item.dueDate || '—'} · Max Marks: {item.maxMarks ?? '—'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="secondary"
+              onClick={() => setIsEvalImportModalOpen(true)}
+              className="flex items-center gap-1.5 font-bold cursor-pointer"
+            >
+              <Upload size={14} /> Bulk Import
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleExportEvaluationCSV}
+              className="flex items-center gap-1.5 font-bold cursor-pointer"
+            >
+              <Download size={14} /> Export CSV
+            </Button>
+            <Button variant="secondary" className="cursor-pointer" onClick={() => setShowEvaluate(null)}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to List
+            </Button>
+          </div>
+        </div>
+
+        {/* Evaluation Body */}
+        <div className="px-6 md:px-10 py-8 space-y-6">
+
+          {/* ── Summary Stats ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <Users size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Enrolled</p>
+                <p className="text-2xl font-bold text-slate-900 mt-0.5">{totalStudents}</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Submitted</p>
+                <p className="text-2xl font-bold text-slate-900 mt-0.5">{submittedCount}</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+                <Award size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Graded</p>
+                <p className="text-2xl font-bold text-slate-900 mt-0.5">{gradedCount}</p>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+                <Clock size={24} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Evaluation</p>
+                <p className="text-2xl font-bold text-slate-900 mt-0.5">{pendingCount}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Search & Filter toolbar ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={evalSearch}
+                onChange={e => setEvalSearch(e.target.value)}
+                placeholder="Search students by name, roll no or student code..."
+                className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50/50"
+              />
+            </div>
+            {uniqueBatches.length > 1 && (
+              <div className="w-full sm:w-48">
+                <Select
+                  value={evalBatchFilter}
+                  onChange={e => setEvalBatchFilter(e.target.value)}
+                  options={[{ value: 'All', label: 'All Batches' }, ...uniqueBatches.map(b => ({ value: b, label: b }))]}
+                />
+              </div>
+            )}
+            <div className="w-full sm:w-48">
+              <Select
+                value={evalStatusFilter}
+                onChange={e => setEvalStatusFilter(e.target.value)}
+                options={[
+                  { value: 'All', label: 'All Statuses' },
+                  { value: 'Graded', label: 'Graded' },
+                  { value: 'Submitted', label: 'Submitted (Needs Grading)' },
+                  { value: 'Not Submitted', label: 'Not Submitted' }
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* ── Students Table (Matching Tenants Table Design) ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Enrolled Students Roster ({filteredRoster.length})</CardTitle>
+            </CardHeader>
+            {rosterLoading ? (
+              <div className="py-20 flex flex-col items-center justify-center text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-600 mb-3" />
+                <p className="text-sm font-medium">Loading enrolled students roster...</p>
+              </div>
+            ) : filteredRoster.length === 0 ? (
+              <div className="py-16 text-center text-slate-500">
+                <Users className="mx-auto text-slate-300 mb-3" size={36} />
+                <div className="font-semibold text-slate-700">No students match your filter.</div>
+                <p className="text-xs text-slate-400 mt-1">Try resetting the search or status filter.</p>
+              </div>
+            ) : (
+              <Table
+                dense
+                headers={[
+                  'Student Name',
+                  'Roll No / ID',
+                  'Batch',
+                  'Status',
+                  'Submitted On',
+                  'Marks',
+                  'Action'
+                ]}
+                colWidths={['26%', '13%', '14%', '13%', '14%', '10%', '10%']}
+              >
+                {filteredRoster.slice((evalCurrentPage - 1) * evalItemsPerPage, evalCurrentPage * evalItemsPerPage).map(student => {
+                  const isGraded = student.submissionStatus === 'Graded';
+                  const isSubmitted = student.submissionStatus === 'Submitted';
+
+                  return (
+                    <tr key={student.studentId} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-3 py-3 font-semibold text-slate-900 text-sm">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs shrink-0">
+                            {student.studentName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="truncate">{student.studentName}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
+                        {student.studentCode ? (
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                            {student.studentCode}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-xs font-medium">
+                          {student.batchName || '—'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${isGraded
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : isSubmitted
+                            ? 'bg-blue-50 text-blue-600'
+                            : 'bg-slate-100 text-slate-600'
+                          }`}>
+                          {isGraded && <CheckCircle2 size={11} />}
+                          {student.submissionStatus || 'Not Submitted'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+                        {student.submittedAt ? student.submittedAt.slice(0, 16).replace('T', ' ') : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-sm whitespace-nowrap">
+                        {student.marksObtained !== null && student.marksObtained !== undefined ? (
+                          <span className="font-bold text-slate-900">
+                            {student.marksObtained} <span className="text-xs text-slate-400 font-normal">/ {item.maxMarks ?? '—'}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Pending</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedStudent(student)}
+                          className="cursor-pointer hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 font-semibold text-xs py-1 px-3 inline-flex items-center"
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1 text-purple-600" /> View
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            )}
+
+            {filteredRoster.length > 0 && (
+              <Pagination
+                currentPage={evalCurrentPage}
+                totalPages={Math.max(1, Math.ceil(filteredRoster.length / evalItemsPerPage))}
+                totalItems={filteredRoster.length}
+                pageSize={evalItemsPerPage}
+                onPageChange={setEvalCurrentPage}
+              />
+            )}
+          </Card>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between py-2">
+            <Button variant="secondary" className="cursor-pointer" onClick={() => setShowEvaluate(null)}>
+              <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to List
+            </Button>
+          </div>
+
+        </div>
+
+        {/* ── Bulk Import Modal for Grades ── */}
+        <BulkImportModal
+          isOpen={isEvalImportModalOpen}
+          onClose={() => setIsEvalImportModalOpen(false)}
+          title={`Bulk Import Grades: ${item.title}`}
+          description={`Upload a CSV file containing Student Roll No / ID, Marks Obtained (Max: ${item.maxMarks ?? '—'}), and optional Teacher Remarks.`}
+          sampleHeaders={['Roll No / ID', 'Marks Obtained', 'Remarks']}
+          sampleRows={[
+            ['STU-2-1-915212', String(item.maxMarks ? Math.min(22, item.maxMarks) : 22), 'Well explained solution steps'],
+            ['STU-2-1-890201', String(item.maxMarks ? Math.min(20, item.maxMarks) : 20), 'Good attempt, review question 3']
+          ]}
+          onImport={async (importedData) => {
+            if (!importedData || importedData.length === 0) return;
+            try {
+              const result = await assignmentApi.bulkGradeHomework(item.id, importedData);
+              if (result.successCount > 0) {
+                addToast(`Successfully assigned marks to ${result.successCount} student(s)!`, 'success');
+                // Reload evaluation roster
+                const data = await assignmentApi.getEvaluationRoster(item.id);
+                setRosterStudents(data.students);
+                const initial: Record<string, { marks: string; feedback: string }> = {};
+                data.students.forEach(s => {
+                  initial[s.studentId] = {
+                    marks: s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '',
+                    feedback: s.feedback || ''
+                  };
+                });
+                setEvalInputs(initial);
+                await loadHomeworks();
+              }
+              if (result.errorCount > 0) {
+                addToast(`${result.errorCount} row(s) had errors: ${result.errors.slice(0, 3).join(' | ')}`, 'warning');
+              }
+            } catch (err: any) {
+              addToast(err.message || 'Failed to process bulk grading', 'error');
+            }
+          }}
+        />
+
+      </div>
+    );
+  }
+
+  // ─── Full page: Homework create / edit ──────────────────────────────────────
+  if (showHwForm) {
+    const isEdit = Boolean(hwForm.id);
+    return (
+      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
+        {/* Top nav */}
+        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setShowHwForm(false)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-slate-900">
+                  {isEdit ? `Edit Assignment: ${hwForm.title || 'Untitled'}` : 'Create New Assignment'}
+                </h2>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                  {isEdit ? 'Editing' : 'New'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {isEdit ? 'Update assignment details, batches, and due date.' : 'Configure homework or practice tasks for your allocated batches.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button type="button" variant="secondary" onClick={() => setShowHwForm(false)} className="cursor-pointer">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => submitHomeworkForm('draft')}
+              disabled={actionBusy}
+            >
+              {actionBusy && !isEdit ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Check className="w-4 h-4 mr-1.5" />}
+              Save Draft
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              style={{ backgroundColor: '#2563eb', color: 'white' }}
+              className="cursor-pointer font-semibold shadow-sm px-5"
+              onClick={() => submitHomeworkForm('publish')}
+              disabled={actionBusy}
+            >
+              {actionBusy && isEdit ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Send className="w-4 h-4 mr-1.5" />}
+              {isEdit ? 'Save & Update' : 'Publish Assignment'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Form body */}
+        <div className="px-6 md:px-10 py-8 space-y-6">
+
+          {/* ── Section 1: Basic Information ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <BookOpen size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Basic Information</h3>
+              <p className="text-xs text-slate-400 ml-2">— Title, type, subject, branch & academic year</p>
+            </div>
+            <div className="p-6 space-y-5">
+              {/* Full-width title */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
                   Assignment Title <span className="text-red-500">*</span>
                 </label>
                 <Input
-                  value={assignForm.title || ''}
-                  onChange={e => setAssignForm({ ...assignForm, title: e.target.value })}
-                  placeholder="e.g. Kinematics Problem Set #4"
-                  className="w-full"
+                  value={hwForm.title}
+                  onChange={e => setHwForm({ ...hwForm, title: e.target.value })}
+                  placeholder="e.g. Definite Integration Problem Set #3"
+                  className="w-full text-base font-medium"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Assignment Type</label>
-                <select
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  value={assignForm.type || 'Homework'}
-                  onChange={e => setAssignForm({ ...assignForm, type: e.target.value })}
-                >
-                  <option value="Homework">Homework</option>
-                  <option value="Worksheet">Worksheet</option>
-                  <option value="Practice set">Practice set</option>
-                  <option value="Reading task">Reading task</option>
-                  <option value="Revision work">Revision work</option>
-                </select>
+
+              {/* Row: Type + Subject */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Assignment Type</label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={hwForm.assignmentType}
+                    onChange={e => setHwForm({ ...hwForm, assignmentType: e.target.value })}
+                  >
+                    {TYPE_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Subject <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={hwForm.subjectId}
+                    onChange={e => setHwForm({ ...hwForm, subjectId: Number(e.target.value) })}
+                  >
+                    <option value={0}>
+                      {cascade.level && subjectsLoadedForLevel && levelSubjectOptions.length === 0
+                        ? 'No subjects mapped to this level'
+                        : 'Select a subject...'}
+                    </option>
+                    {subjectOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Subject</label>
-                <Input
-                  value={assignForm.subject || ''}
-                  onChange={e => setAssignForm({ ...assignForm, subject: e.target.value })}
-                  placeholder="e.g. Physics"
-                />
+
+              {/* Row: Branch + Academic Year */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Branch</label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={hwForm.branchId}
+                    onChange={e => changeBranch(Number(e.target.value))}
+                  >
+                    <option value={0}>Select a branch...</option>
+                    {(scoping?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Academic Year</label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={hwForm.academicYearId}
+                    onChange={e => changeAcademicYear(Number(e.target.value))}
+                  >
+                    <option value={0}>Select academic year...</option>
+                    {(scoping?.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
+                  </select>
+                </div>
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Instructions / Description</label>
+            </div>
+          </div>
+
+          {/* ── Section 2: Target Batch Allocation ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <Layers size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Target Batch Allocation</h3>
+              <p className="text-xs text-slate-400 ml-2">— Filter by Course → Program → Level, then add batches</p>
+            </div>
+            <div className="p-6 space-y-5">
+              {/* Step 1: cascade filters */}
+              <div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Step 1 — Narrow by hierarchy</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Course</label>
+                    <select
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
+                      value={cascade.course}
+                      onChange={e => changeCourse(Number(e.target.value))}
+                      disabled={!hasCascadeMeta}
+                    >
+                      <option value={0}>{hasCascadeMeta ? 'All courses...' : 'No batch data'}</option>
+                      {cascadeCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Program</label>
+                    <select
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
+                      value={cascade.program}
+                      onChange={e => changeProgram(Number(e.target.value))}
+                      disabled={!hasCascadeMeta || !cascade.course}
+                    >
+                      <option value={0}>{!cascade.course ? 'Select course first' : 'Select program...'}</option>
+                      {cascadePrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Level</label>
+                    <select
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
+                      value={cascade.level}
+                      onChange={e => changeLevel(Number(e.target.value))}
+                      disabled={!hasCascadeMeta || !cascade.program}
+                    >
+                      <option value={0}>{!cascade.program ? 'Select program first' : 'Select level...'}</option>
+                      {cascadeLevels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: pick & add batch */}
+              <div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Step 2 — Add batch</div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <select
+                    className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
+                    value={batchPick}
+                    onChange={e => setBatchPick(Number(e.target.value))}
+                    disabled={!hasCascadeMeta || !cascade.level}
+                  >
+                    <option value={0}>
+                      {!cascade.level ? 'Complete the filter above to see batches' : 'Select a batch to add...'}
+                    </option>
+                    {levelBatches.map(b => {
+                      const added = hwForm.batchIds.includes(Number(b.id));
+                      return (
+                        <option key={b.id} value={b.id} disabled={added}>
+                          {b.name}{added ? ' ✓ Added' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    style={{ backgroundColor: '#2563eb', color: 'white' }}
+                    className="cursor-pointer font-semibold px-5 whitespace-nowrap shadow-sm disabled:opacity-40"
+                    onClick={() => { addTargetBatch(batchPick); setBatchPick(0); }}
+                    disabled={!batchPick || hwForm.batchIds.includes(batchPick)}
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" /> Add Batch
+                  </Button>
+                </div>
+              </div>
+
+              {/* Allocated batch chips */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Allocated Batches ({hwForm.batchIds.length}) <span className="text-red-500">*</span>
+                  </span>
+                  {hwForm.batchIds.length > 0 && (
+                    <button type="button" onClick={() => setHwForm(prev => ({ ...prev, batchIds: [] }))} className="text-xs text-red-500 hover:underline cursor-pointer">
+                      Clear all
+                    </button>
+                  )}
+                </div>
+                {hwForm.batchIds.length > 0 ? (
+                  <div className="flex flex-wrap gap-2.5 p-3.5 bg-blue-50/40 border border-blue-100 rounded-xl min-h-[48px]">
+                    {hwForm.batchIds.map(id => (
+                      <span key={id} className="inline-flex items-center gap-2 bg-white border border-blue-200 text-blue-900 text-xs font-semibold rounded-lg px-3 py-1.5">
+                        {batchNameById.get(id) || `Batch #${id}`}
+                        <button type="button" className="text-slate-400 hover:text-red-500 cursor-pointer" onClick={() => removeTargetBatch(id)}><X size={13} /></button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                    <p className="text-xs text-slate-400">No batches added yet. Use the filter above to find and add batches.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Section 3: Submission Schedule & Scoring ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <Calendar size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Submission Schedule & Scoring</h3>
+              <p className="text-xs text-slate-400 ml-2">— Deadline date and maximum marks</p>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Submission Due Date <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={hwForm.dueDate}
+                    onChange={e => setHwForm({ ...hwForm, dueDate: e.target.value })}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-slate-400 block mt-1">Students must submit before end of this date.</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Max Marks / Score</label>
+                  <Input
+                    type="number"
+                    value={hwForm.maxMarks}
+                    onChange={e => setHwForm({ ...hwForm, maxMarks: e.target.value })}
+                    placeholder="e.g. 50"
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-slate-400 block mt-1">Leave blank if this assignment is not graded.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Section 4: Instructions & Attachments ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <FileText size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Instructions & Attachments</h3>
+              <p className="text-xs text-slate-400 ml-2">— Task description and reference materials</p>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Instructions / Task Description</label>
                 <textarea
-                  rows={4}
-                  className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  value={assignForm.description || ''}
-                  onChange={e => setAssignForm({ ...assignForm, description: e.target.value })}
-                  placeholder="Enter detailed instructions, problem numbers, or reference book chapters..."
+                  rows={5}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all leading-relaxed"
+                  value={hwForm.description}
+                  onChange={e => setHwForm({ ...hwForm, description: e.target.value })}
+                  placeholder="Enter assignment requirements, question numbers, textbook chapters, or submission guidelines..."
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Attachment Files</label>
+                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/20 rounded-xl py-8 px-4 text-sm text-slate-500 transition-all cursor-pointer bg-slate-50/50">
+                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Upload size={20} />
+                  </div>
+                  <div className="text-center">
+                    <span className="font-semibold text-blue-600">Click to upload files</span> or drag and drop
+                    <p className="text-xs text-slate-400 mt-0.5">PDF, doc, xls, images, zip — up to 20 MB each</p>
+                  </div>
+                  <input type="file" multiple className="hidden" onChange={e => setNewFiles(Array.from(e.target.files || []))} />
+                </label>
+
+                {(hwForm.existingFiles.length > 0 || newFiles.length > 0) && (
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {hwForm.existingFiles.map((f, i) => (
+                      <div key={`e-${i}`} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                        <span className="flex items-center gap-2.5 text-slate-700 truncate font-medium">
+                          <Paperclip size={15} className="text-slate-400 flex-shrink-0" />
+                          <span className="truncate">{f.split('/').pop()}</span>
+                        </span>
+                        <button type="button" className="text-slate-400 hover:text-red-500 p-1 cursor-pointer" onClick={() => setHwForm(prev => ({ ...prev, existingFiles: prev.existingFiles.filter((_, idx) => idx !== i) }))}>
+                          <XCircle size={17} />
+                        </button>
+                      </div>
+                    ))}
+                    {newFiles.map((f, i) => (
+                      <div key={`n-${i}`} className="flex items-center justify-between bg-blue-50/60 border border-blue-200 rounded-xl px-3.5 py-2.5 text-sm">
+                        <span className="flex items-center gap-2.5 text-blue-800 truncate font-medium">
+                          <Paperclip size={15} className="text-blue-500 flex-shrink-0" />
+                          <span className="truncate">{f.name}</span>
+                          <span className="text-[11px] text-blue-500/80 font-normal">({(f.size / 1024).toFixed(1)} KB)</span>
+                        </span>
+                        <button type="button" className="text-blue-400 hover:text-red-500 p-1 cursor-pointer" onClick={() => setNewFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                          <XCircle size={17} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Academic Target & Schedule */}
-          <div className="pt-6 border-t border-slate-100">
-            <h3 className="font-semibold text-sm text-blue-800 mb-4 uppercase tracking-wider flex items-center gap-2">
-              <ClipboardList size={16} className="text-blue-600" /> Target Batch & Schedule
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Target Batch <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  value={assignForm.batch || ''}
-                  onChange={e => setAssignForm({ ...assignForm, batch: e.target.value })}
-                >
-                  <option value="">Select a batch...</option>
-                  {teacherBatches.map(b => (
-                    <option key={b.name} value={b.name}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Due Date <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="date"
-                  value={assignForm.dueDate === 'Not Set' ? '' : (assignForm.dueDate || '')}
-                  onChange={e => setAssignForm({ ...assignForm, dueDate: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Form Actions Footer */}
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setShowAssignForm(false)}
-              className="cursor-pointer"
-            >
+          {/* Footer actions */}
+          <div className="flex items-center justify-between py-2">
+            <Button type="button" variant="secondary" onClick={() => setShowHwForm(false)} className="cursor-pointer">
               Cancel
             </Button>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSaveAssignDraft}
-                className="cursor-pointer"
-              >
+            <div className="flex items-center gap-2.5">
+              <Button type="button" variant="outline" className="cursor-pointer" onClick={() => submitHomeworkForm('draft')} disabled={actionBusy}>
+                {actionBusy && !isEdit ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Check className="w-4 h-4 mr-1.5" />}
                 Save Draft
               </Button>
               <Button
                 type="button"
                 variant="primary"
-                onClick={handlePublishAssign}
                 style={{ backgroundColor: '#2563eb', color: 'white' }}
                 className="cursor-pointer font-semibold shadow-sm px-6"
+                onClick={() => submitHomeworkForm('publish')}
+                disabled={actionBusy}
               >
-                {assignForm.id ? 'Save & Update Assignment' : 'Publish Assignment'}
+                {actionBusy && isEdit ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Send className="w-4 h-4 mr-1.5" />}
+                {isEdit ? 'Save & Update Assignment' : 'Publish Assignment'}
               </Button>
             </div>
           </div>
@@ -559,178 +1875,188 @@ export const TeacherAssignments: React.FC = () => {
     );
   }
 
-  // ----------------------------------------------------
-  // FULL PAGE VIEW: EXAM CREATE / EDIT
-  // ----------------------------------------------------
+  // ─── Full page: Exam create / edit (mock) ───────────────────────────────────
   if (showExamForm) {
     return (
-      <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fade-in pb-12">
-        {/* Header with Back button */}
-        <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
-          <button
-            onClick={() => setShowExamForm(false)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">
-              {examForm.id ? `Edit Test: ${examForm.name}` : 'Schedule Examination / Test'}
-            </h2>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {examForm.id
-                ? 'Update examination schedule, target batch, marks, and evaluation parameters.'
-                : 'Configure unit tests, mock exams, or chapter evaluations for your students.'}
-            </p>
+      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
+        {/* Top nav bar */}
+        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setShowExamForm(false)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+              title="Go back"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-display font-bold text-slate-900">
+                  {examForm.id ? `Edit Test: ${examForm.name || 'Untitled'}` : 'Schedule Examination / Test'}
+                </h2>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                  {examForm.id ? 'Editing' : 'New Test'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {examForm.id ? 'Update examination details and evaluation parameters.' : 'Configure unit tests, mock exams, or chapter evaluations.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button type="button" variant="secondary" onClick={() => setShowExamForm(false)} className="cursor-pointer">
+              Cancel
+            </Button>
+            <Button type="button" variant="outline" onClick={handleSaveExamDraft} className="cursor-pointer">
+              <Check className="w-4 h-4 mr-1.5" /> Save Draft
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              style={{ backgroundColor: '#2563eb', color: 'white' }}
+              className="cursor-pointer font-semibold shadow-sm px-5"
+              onClick={handleScheduleExam}
+            >
+              <Send className="w-4 h-4 mr-1.5" />
+              {examForm.id ? 'Save & Update Exam' : 'Schedule Exam'}
+            </Button>
           </div>
         </div>
 
-        {/* Full-Page Form Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-8 space-y-6">
-          {/* Basic Info */}
-          <div>
-            <h3 className="font-semibold text-sm text-blue-800 mb-4 uppercase tracking-wider flex items-center gap-2">
-              <ClipboardList size={16} className="text-blue-600" /> Basic Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <div className="sm:col-span-3">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+        {/* Form body */}
+        <div className="px-6 md:px-10 py-8 space-y-6">
+
+          {/* Section 1: Basic Information */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <ClipboardList size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Basic Information</h3>
+              <p className="text-xs text-slate-400 ml-2">— Test name, type, subject, and target class</p>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
                   Test Title <span className="text-red-500">*</span>
                 </label>
                 <Input
                   value={examForm.name || ''}
                   onChange={e => setExamForm({ ...examForm, name: e.target.value })}
-                  placeholder="e.g. Periodic Chemistry Evaluation #2"
-                  className="w-full"
+                  placeholder="e.g. Unit Test 2 — Periodic Table & Chemical Bonding"
+                  className="w-full text-base font-medium"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Test Type</label>
-                <select
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  value={examForm.type || 'Unit Test'}
-                  onChange={e => setExamForm({ ...examForm, type: e.target.value })}
-                >
-                  <option value="Unit Test">Unit Test</option>
-                  <option value="Chapter Test">Chapter Test</option>
-                  <option value="Weekly Test">Weekly Test</option>
-                  <option value="Mock Test">Mock Test</option>
-                  <option value="Term Examination">Term Examination</option>
-                  <option value="Internal Assessment">Internal Assessment</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Subject</label>
-                <Input
-                  value={examForm.subject || ''}
-                  onChange={e => setExamForm({ ...examForm, subject: e.target.value })}
-                  placeholder="e.g. Chemistry"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Target Batch <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                  value={examForm.batch || ''}
-                  onChange={e => setExamForm({ ...examForm, batch: e.target.value })}
-                >
-                  <option value="">Select a batch...</option>
-                  {teacherBatches.map(b => (
-                    <option key={b.name} value={b.name}>{b.name}</option>
-                  ))}
-                </select>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Test Type</label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={examForm.type || 'Unit Test'}
+                    onChange={e => setExamForm({ ...examForm, type: e.target.value })}
+                  >
+                    <option value="Unit Test">Unit Test</option>
+                    <option value="Chapter Test">Chapter Test</option>
+                    <option value="Weekly Test">Weekly Test</option>
+                    <option value="Mock Test">Mock Test</option>
+                    <option value="Term Examination">Term Examination</option>
+                    <option value="Internal Assessment">Internal Assessment</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Subject</label>
+                  <Input
+                    value={examForm.subject || ''}
+                    onChange={e => setExamForm({ ...examForm, subject: e.target.value })}
+                    placeholder="e.g. Chemistry"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Target Batch <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={examForm.batch || ''}
+                    onChange={e => setExamForm({ ...examForm, batch: e.target.value })}
+                  >
+                    <option value="">Select a batch...</option>
+                    {(scoping?.batches || []).map(b => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Schedule & Timing */}
-          <div className="pt-6 border-t border-slate-100">
-            <h3 className="font-semibold text-sm text-blue-800 mb-4 uppercase tracking-wider flex items-center gap-2">
-              <BookOpen size={16} className="text-blue-600" /> Exam Schedule & Timing
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Exam Date <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="date"
-                  value={examForm.examDate === 'Not Set' ? '' : (examForm.examDate || '')}
-                  onChange={e => setExamForm({ ...examForm, examDate: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Start Time</label>
-                <Input
-                  type="time"
-                  value={examForm.startTime || ''}
-                  onChange={e => setExamForm({ ...examForm, startTime: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Duration</label>
-                <Input
-                  value={examForm.duration || ''}
-                  onChange={e => setExamForm({ ...examForm, duration: e.target.value })}
-                  placeholder="e.g. 90 mins"
-                />
+          {/* Section 2: Exam Schedule & Evaluation */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <Award size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Schedule & Evaluation</h3>
+              <p className="text-xs text-slate-400 ml-2">— Exam date, total marks, and passing threshold</p>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Exam Date <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    value={examForm.examDate === 'Not Set' ? '' : (examForm.examDate || '')}
+                    onChange={e => setExamForm({ ...examForm, examDate: e.target.value })}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-slate-400 block mt-1">The date students will sit the exam.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Total Marks</label>
+                  <Input
+                    type="number"
+                    value={examForm.totalMarks || 100}
+                    onChange={e => setExamForm({ ...examForm, totalMarks: parseInt(e.target.value) || 0 })}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-slate-400 block mt-1">Full marks achievable in this test.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Passing Threshold</label>
+                  <Input
+                    type="number"
+                    value={examForm.passingMarks || 40}
+                    onChange={e => setExamForm({ ...examForm, passingMarks: parseInt(e.target.value) || 0 })}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-slate-400 block mt-1">Minimum marks required to pass.</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Evaluation Rules */}
-          <div className="pt-6 border-t border-slate-100">
-            <h3 className="font-semibold text-sm text-blue-800 mb-4 uppercase tracking-wider flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-blue-600" /> Evaluation & Marks
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Total Marks</label>
-                <Input
-                  type="number"
-                  value={examForm.totalMarks || 100}
-                  onChange={e => setExamForm({ ...examForm, totalMarks: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">Passing Threshold</label>
-                <Input
-                  type="number"
-                  value={examForm.passingMarks || 40}
-                  onChange={e => setExamForm({ ...examForm, passingMarks: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Form Actions Footer */}
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setShowExamForm(false)}
-              className="cursor-pointer"
-            >
+          {/* Footer action bar */}
+          <div className="flex items-center justify-between py-2">
+            <Button type="button" variant="secondary" onClick={() => setShowExamForm(false)} className="cursor-pointer">
               Cancel
             </Button>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSaveExamDraft}
-                className="cursor-pointer"
-              >
-                Save Draft
+            <div className="flex items-center gap-2.5">
+              <Button type="button" variant="outline" onClick={handleSaveExamDraft} className="cursor-pointer">
+                <Check className="w-4 h-4 mr-1.5" /> Save Draft
               </Button>
               <Button
                 type="button"
                 variant="primary"
-                onClick={handleScheduleExam}
                 style={{ backgroundColor: '#2563eb', color: 'white' }}
                 className="cursor-pointer font-semibold shadow-sm px-6"
+                onClick={handleScheduleExam}
               >
+                <Send className="w-4 h-4 mr-1.5" />
                 {examForm.id ? 'Save & Update Exam' : 'Schedule Exam'}
               </Button>
             </div>
@@ -740,505 +2066,328 @@ export const TeacherAssignments: React.FC = () => {
     );
   }
 
+  // ─── Main list view ──────────────────────────────────────────────────────
+  const handleResetFilters = () => {
+    setFilterType('All');
+    setFilterBranch('All');
+    setFilterBatch('All');
+    setFilterSubject('All');
+    setFilterStatus('All');
+    setSearchQuery('');
+    setCurrentPage(1);
+  };
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Assignment and Exams</h1>
-          <p className="text-gray-600 mt-1">Manage homework, practice sets, and classroom evaluations</p>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Homeworks and Exams</h2>
+          <p className="text-sm text-slate-500 mt-1">Manage homework, practice sets, and classroom evaluations</p>
         </div>
-        <div>
-          {activePrimaryTab === 'homework' ? (
-            <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => {
-              setAssignForm({});
-              setShowAssignForm(true);
-            }}>
-              <Plus className="w-4 h-4 mr-2" /> Create Assignment
-            </Button>
-          ) : (
-            <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => {
-              setExamForm({});
-              setShowExamForm(true);
-            }}>
-              <Plus className="w-4 h-4 mr-2" /> Schedule Test
-            </Button>
-          )}
-        </div>
+        {activePrimaryTab === 'homework' ? (
+          <Button className="bg-blue-600 text-white cursor-pointer" onClick={openCreateForm}>
+            <Plus className="w-4 h-4 mr-2" /> Create Assignment
+          </Button>
+        ) : (
+          <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => { setExamForm({}); setShowExamForm(true); }}>
+            <Plus className="w-4 h-4 mr-2" /> Schedule Test
+          </Button>
+        )}
       </div>
 
       {/* Primary Tabs */}
-      <div className="flex space-x-1 border-b mb-6">
+      <div className="flex border-b border-slate-200 overflow-x-auto hide-scrollbar">
         <button
-          className={`py-3 px-6 font-medium text-sm flex items-center border-b-2 transition-colors cursor-pointer ${activePrimaryTab === 'homework' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
           onClick={() => { setActivePrimaryTab('homework'); setActiveSubTab('active'); }}
+          className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'homework'
+            ? 'border-blue-600 text-blue-700'
+            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
         >
-          <BookOpen className="w-4 h-4 mr-2" />
-          Homework & Assignments
+          <BookOpen size={16} />
+          Homeworks
         </button>
         <button
-          className={`py-3 px-6 font-medium text-sm flex items-center border-b-2 transition-colors cursor-pointer ${activePrimaryTab === 'exams' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
           onClick={() => { setActivePrimaryTab('exams'); setActiveSubTab('active'); }}
+          className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'exams'
+            ? 'border-blue-600 text-blue-700'
+            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
         >
-          <ClipboardList className="w-4 h-4 mr-2" />
-          Exams & Assessments
-        </button>
-      </div>
-
-      {/* Sub Tabs */}
-      <div className="flex space-x-4 mb-6">
-        <button
-          className={`px-4 py-2 text-sm font-medium rounded-md cursor-pointer ${activeSubTab === 'active' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-700'}`}
-          onClick={() => setActiveSubTab('active')}
-        >
-          {activePrimaryTab === 'homework' ? 'Active Homework' : 'Scheduled & Completed'} ({activePrimaryTab === 'homework' ? filteredAssignments.length : filteredExams.length})
+          <ClipboardList size={16} />
+          Exams & Assignments
         </button>
         <button
-          className={`px-4 py-2 text-sm font-medium rounded-md cursor-pointer ${activeSubTab === 'drafts' ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveSubTab('drafts')}
+          className={`ml-auto flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${activeSubTab === 'drafts'
+            ? 'border-blue-600 text-blue-700'
+            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
         >
-          Drafts ({activePrimaryTab === 'homework' ? assignments.filter(a => a.status === 'Draft' && teacherAssignedBatches.includes(a.batch)).length : exams.filter(e => e.status === 'Draft' && teacherAssignedBatches.includes(e.batch)).length})
+          Drafts ({activePrimaryTab === 'homework' ? homeworks.filter(a => a.status === 'Draft').length : exams.filter(e => e.status === 'Draft').length})
         </button>
       </div>
 
-      {/* Filters Bar */}
-      <Card className="mb-6 bg-slate-50 border border-slate-200">
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {/* Branch */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Branch</label>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
-                <option value="All">All Branches</option>
-                {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-              </select>
-            </div>
-
-            {/* Course */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Course</label>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterCourse} onChange={(e) => handleCourseChange(e.target.value)}>
-                <option value="All">All Courses</option>
-                {availableCourses.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
-              </select>
-            </div>
-
-            {/* Program */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Program</label>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterProgram} onChange={(e) => handleProgramChange(e.target.value)}>
-                <option value="All">All Programs</option>
-                {availablePrograms.map((p: any) => <option key={p.name} value={p.name}>{p.name}</option>)}
-              </select>
-            </div>
-
-            {/* Level */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Level</label>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterLevel} onChange={(e) => handleLevelChange(e.target.value)}>
-                <option value="All">All Levels</option>
-                {availableLevels.map((l: any) => <option key={l.name} value={l.name}>{l.name}</option>)}
-              </select>
-            </div>
-
-            {/* Academic Year */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Academic Year</label>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterAcademicYear} onChange={(e) => handleAcademicYearChange(e.target.value)}>
-                <option value="All">All Years</option>
-                {availableAcademicYears.map((y: any) => <option key={y.name} value={y.name}>{y.name}</option>)}
-              </select>
-            </div>
-
-            {/* Batch */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Batch</label>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none" value={filterBatch} onChange={(e) => setFilterBatch(e.target.value)}>
-                <option value="All">All Batches</option>
-                {filteredBatches.map(b => {
-                  const name = typeof b.name === 'string' ? b.name : (b.name as any)?.name || 'Unknown';
-                  return <option key={b.id || name} value={name}>{name}</option>;
-                })}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-200">
-            {/* Search */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-              <Input
-                className="pl-9 bg-white"
-                placeholder={activePrimaryTab === 'homework' ? "Search assignments..." : "Search tests..."}
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            {/* Subject */}
-            <div>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
-                <option value="All">All Subjects</option>
-                <option value="Physics">Physics</option>
-                <option value="Chemistry">Chemistry</option>
-                <option value="Mathematics">Mathematics</option>
-                <option value="Biology">Biology</option>
-              </select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <select className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                <option value="All">All Statuses</option>
-                {activeSubTab === 'drafts' ? (
-                  <option value="Draft">Draft</option>
-                ) : activePrimaryTab === 'homework' ? (
-                  <>
-                    <option value="Published">Published</option>
-                    <option value="Closed">Closed</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Marks Pending">Marks Pending</option>
-                    <option value="Marks Published">Marks Published</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </>
-                )}
-              </select>
-            </div>
-          </div>
+      {/* Scope & Filters */}
+      <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm space-y-4">
+        <div className="flex justify-between items-center">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Scope &amp; Filters</div>
+          <Button variant="secondary" size="sm" onClick={handleResetFilters}>Reset Filters</Button>
         </div>
-      </Card>
+        <Input
+          label="Search"
+          placeholder={activePrimaryTab === 'homework' ? 'Search assignments by title...' : 'Search tests by name...'}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Select
+            label="Type"
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            options={[
+              { value: 'All', label: 'All Types' },
+              { value: 'assignment', label: 'Assignment' },
+              { value: 'homework', label: 'Homework' },
+              { value: 'exam', label: 'Exam' }
+            ]}
+          />
+          <Select
+            label="Branch"
+            value={filterBranch}
+            onChange={e => setFilterBranch(e.target.value)}
+            options={[{ value: 'All', label: 'All Branches' }, ...(scoping?.branches || []).map(b => ({ value: b.name, label: b.name }))]}
+          />
+          <Select
+            label="Batch"
+            value={filterBatch}
+            onChange={e => setFilterBatch(e.target.value)}
+            options={[{ value: 'All', label: 'All Batches' }, ...(scoping?.batches || []).map(b => ({ value: b.name, label: b.name }))]}
+          />
+          <Select
+            label="Subject"
+            value={filterSubject}
+            onChange={e => setFilterSubject(e.target.value)}
+            options={[{ value: 'All', label: 'All Subjects' }, ...(scoping?.subjects || []).map(s => ({ value: s.name, label: s.name }))]}
+          />
+          <Select
+            label="Status"
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            options={[{ value: 'All', label: 'All Statuses' }, ...(activeSubTab === 'drafts' ? (
+              [{ value: 'Draft', label: 'Draft' }]
+            ) : activePrimaryTab === 'homework' ? (
+              [{ value: 'Published', label: 'Published' }, { value: 'Closed', label: 'Closed' }]
+            ) : (
+              [
+                { value: 'Scheduled', label: 'Scheduled' },
+                { value: 'In Progress', label: 'In Progress' },
+                { value: 'Completed', label: 'Completed' },
+                { value: 'Marks Pending', label: 'Marks Pending' },
+                { value: 'Marks Published', label: 'Marks Published' },
+                { value: 'Cancelled', label: 'Cancelled' }
+              ]
+            ))]}
+          />
+        </div>
+      </div>
 
       {/* Main Table */}
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto min-h-[300px]">
-          {activePrimaryTab === 'homework' ? (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Assignment</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Target Batch</th>
-                  {activeSubTab === 'active' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Assigned</th>}
-                  {activeSubTab === 'drafts' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Updated</th>}
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Due Date</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {(paginatedData as AssignmentItem[]).length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-gray-500">
-                      <div className="flex flex-col items-center justify-center">
-                        <FileText className="w-10 h-10 text-gray-300 mb-3" />
-                        <p>No {activeSubTab === 'active' ? 'active assignments' : 'assignment drafts'} found.</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  (paginatedData as AssignmentItem[]).map((assign) => (
-                    <tr key={assign.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-gray-900">{assign.title}</div>
-                        <div className="text-xs text-gray-500">{assign.type}</div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{assign.subject}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{assign.batch}</td>
-                      {activeSubTab === 'active' && <td className="py-3 px-4 text-sm text-gray-600">{assign.assignedDate || '-'}</td>}
-                      {activeSubTab === 'drafts' && <td className="py-3 px-4 text-sm text-gray-600">Today</td>}
-                      <td className="py-3 px-4 text-sm text-gray-600">{assign.dueDate}</td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(assign.status)}`}>
-                          {assign.status}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="py-16 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
+            <p className="text-sm">Loading homework...</p>
+          </div>
+        ) : activePrimaryTab === 'homework' ? (
+          <Table headers={[
+            'Assignment',
+            'Subject',
+            'Target Batch',
+            'Due Date',
+            ...(activeSubTab === 'active' ? ['Submissions'] : []),
+            'Status',
+            'Actions'
+          ]}>
+            {(paginatedData as HomeworkItem[]).length === 0 ? (
+              <tr>
+                <td colSpan={activeSubTab === 'active' ? 8 : 7} className="px-6 py-12 text-center text-slate-500">
+                  <FileText className="mx-auto text-slate-300 mb-3" size={32} />
+                  <div className="font-medium">No {activeSubTab === 'active' ? 'active assignments' : 'assignment drafts'} found.</div>
+                </td>
+              </tr>
+            ) : (
+              (paginatedData as HomeworkItem[]).map((assign) => (
+                <tr key={assign.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-900">{assign.title}</div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider ${getTypeBadgeColor(assign.assignmentType)}`}>
+                        {typeLabel(assign.assignmentType)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-slate-700">{assign.subjectName}</td>
+                  <td className="px-6 py-4 text-slate-600">{assign.batchNames.join(', ')}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-600">{assign.dueDate}</td>
+                  {activeSubTab === 'active' && (
+                    <td className="px-6 py-4 text-slate-600">
+                      {assign.status === 'Draft' ? '—' : (
+                        <span className={`font-bold ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                          {assign.submittedCount}
                         </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm" onClick={() => setShowAssignDetails(assign)} title="View Details" className="cursor-pointer hover:bg-slate-100">
-                            <Eye className="w-4 h-4 text-gray-500" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            setAssignForm({ ...assign });
-                            setShowAssignForm(true);
-                          }} title="Edit Assignment" className="cursor-pointer hover:bg-blue-50">
-                            <Edit3 className="w-4 h-4 text-blue-600" />
-                          </Button>
-                          {assign.status === 'Published' && (
-                            <Button variant="ghost" size="sm" onClick={() => handleCloseAssign(assign.id)} title="Close Assignment" className="cursor-pointer hover:bg-amber-50">
-                              <XCircle className="w-4 h-4 text-amber-600" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteAssign(assign.id)} title="Delete Assignment" className="cursor-pointer hover:bg-red-50">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Test Name</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Subject</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Target Batch</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Exam Date</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Marks</th>
-                  {activeSubTab === 'active' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Average</th>}
-                  {activeSubTab === 'drafts' && <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Last Updated</th>}
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {(paginatedData as ExamItem[]).length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-12 text-center text-gray-500">
-                       <div className="flex flex-col items-center justify-center">
-                        <ClipboardList className="w-10 h-10 text-gray-300 mb-3" />
-                        <p>No {activeSubTab === 'active' ? 'scheduled examinations' : 'examination drafts'} found.</p>
-                      </div>
+                      )} / {assign.totalCount > 0 ? assign.totalCount : '—'}
                     </td>
-                  </tr>
-                ) : (
-                  (paginatedData as ExamItem[]).map((exam) => (
-                    <tr key={exam.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-gray-900">{exam.name}</div>
-                        <div className="text-xs text-gray-500">{exam.type}</div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{exam.subject}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{exam.batch}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {exam.examDate}
-                        {exam.startTime && <div className="text-xs text-gray-400">{exam.startTime}</div>}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {exam.totalMarks} <span className="text-xs text-gray-400">(Pass: {exam.passingMarks})</span>
-                      </td>
-                      {activeSubTab === 'active' && (
-                        <td className="py-3 px-4 text-sm text-gray-600">
-                          {exam.average || <span className="text-gray-400 italic">Not available</span>}
-                        </td>
+                  )}
+                  <td className="px-6 py-4">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(assign.status)}`}>
+                      {assign.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <div className="flex space-x-2">
+                      <Button variant="ghost" size="sm" onClick={() => openDetail(assign)} title="View Details" className="cursor-pointer hover:bg-slate-100">
+                        <Eye className="w-4 h-4 text-slate-500" />
+                      </Button>
+                      {(assign.status === 'Published' || assign.status === 'Closed') && (
+                        <Button variant="ghost" size="sm" onClick={() => openEvaluate(assign)} title="Evaluate Submissions" className="cursor-pointer hover:bg-purple-50">
+                          <ClipboardCheck className="w-4 h-4 text-purple-600" />
+                        </Button>
                       )}
-                      {activeSubTab === 'drafts' && <td className="py-3 px-4 text-sm text-gray-600">Today</td>}
-                      <td className="py-3 px-4">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(exam.status)}`}>
-                          {exam.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm" onClick={() => setShowExamDetails(exam)} title="View Details" className="cursor-pointer hover:bg-slate-100">
-                            <Eye className="w-4 h-4 text-gray-500" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            setExamForm({ ...exam });
-                            setShowExamForm(true);
-                          }} title="Edit Exam" className="cursor-pointer hover:bg-blue-50">
-                            <Edit3 className="w-4 h-4 text-blue-600" />
-                          </Button>
-                          {exam.status === 'Scheduled' && (
-                            <Button variant="ghost" size="sm" onClick={() => handleCancelExam(exam.id)} title="Cancel Exam" className="cursor-pointer hover:bg-amber-50">
-                              <XCircle className="w-4 h-4 text-amber-600" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteExam(exam.id)} title="Delete Exam" className="cursor-pointer hover:bg-red-50">
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-        {totalPages > 1 && (
-          <div className="p-4 border-t">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              totalItems={currentData.length}
-              pageSize={itemsPerPage}
-            />
-          </div>
+                      <Button variant="ghost" size="sm" onClick={() => openEditForm(assign)} title="Edit Assignment" className="cursor-pointer hover:bg-blue-50">
+                        <Edit3 className="w-4 h-4 text-blue-600" />
+                      </Button>
+                      {assign.status === 'Published' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleCloseAssign(assign)} title="Close Assignment" className="cursor-pointer hover:bg-amber-50">
+                          <XCircle className="w-4 h-4 text-amber-600" />
+                        </Button>
+                      )}
+                      {assign.status !== 'Published' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteAssign(assign)} title="Delete Assignment" className="cursor-pointer hover:bg-red-50">
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </Table>
+        ) : (
+          <Table headers={[
+            'Test Name',
+            'Subject',
+            'Target Batch',
+            'Exam Date',
+            'Marks',
+            ...(activeSubTab === 'active' ? ['Average'] : []),
+            'Status',
+            'Actions'
+          ]}>
+            {(paginatedData as ExamItem[]).length === 0 ? (
+              <tr>
+                <td colSpan={activeSubTab === 'active' ? 9 : 8} className="px-6 py-12 text-center text-slate-500">
+                  <ClipboardList className="mx-auto text-slate-300 mb-3" size={32} />
+                  <div className="font-medium">No {activeSubTab === 'active' ? 'scheduled examinations' : 'examination drafts'} found.</div>
+                </td>
+              </tr>
+            ) : (
+              (paginatedData as ExamItem[]).map((exam) => (
+                <tr key={exam.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-900">{exam.name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{exam.type}</div>
+                  </td>
+                  <td className="px-6 py-4 text-slate-700">{exam.subject}</td>
+                  <td className="px-6 py-4 text-slate-600">{exam.batch}</td>
+                  <td className="px-6 py-4 text-slate-600">
+                    {exam.examDate}
+                    {exam.startTime && <div className="text-xs text-slate-400 mt-0.5">{exam.startTime}</div>}
+                  </td>
+                  <td className="px-6 py-4 text-slate-600">
+                    {exam.totalMarks} <span className="text-xs text-slate-400">(Pass: {exam.passingMarks})</span>
+                  </td>
+                  {activeSubTab === 'active' && (
+                    <td className="px-6 py-4 text-slate-600">
+                      {exam.average || <span className="text-slate-400 italic">Not available</span>}
+                    </td>
+                  )}
+                  <td className="px-6 py-4">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(exam.status)}`}>
+                      {exam.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <div className="flex space-x-2">
+                      <Button variant="ghost" size="sm" onClick={() => setShowExamDetails(exam)} title="View Details" className="cursor-pointer hover:bg-slate-100">
+                        <Eye className="w-4 h-4 text-slate-500" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setExamForm({ ...exam }); setShowExamForm(true); }} title="Edit Exam" className="cursor-pointer hover:bg-blue-50">
+                        <Edit3 className="w-4 h-4 text-blue-600" />
+                      </Button>
+                      {exam.status === 'Scheduled' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleCancelExam(exam.id)} title="Cancel Exam" className="cursor-pointer hover:bg-amber-50">
+                          <XCircle className="w-4 h-4 text-amber-600" />
+                        </Button>
+                      )}
+                      {exam.status === 'Draft' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteExam(exam.id)} title="Delete Draft" className="cursor-pointer hover:bg-red-50">
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </Table>
         )}
-      </Card>
 
-      {/* Side-Sheets for Details */}
-      {showAssignDetails && (
-        <div className="fixed inset-y-0 right-0 w-[450px] bg-white shadow-2xl z-50 border-l flex flex-col transform transition-transform duration-300">
-          <div className="flex items-center justify-between p-6 border-b bg-gray-50">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <FileText className="w-5 h-5 mr-2 text-blue-600" />
-              Assignment Details
-            </h2>
-            <Button variant="ghost" size="sm" onClick={() => setShowAssignDetails(null)}><XCircle className="w-5 h-5 text-gray-500" /></Button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="mb-6">
-              <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusBadgeColor(showAssignDetails.status)}`}>
-                {showAssignDetails.status}
-              </span>
-            </div>
-            
-            <h3 className="text-xl font-bold text-gray-900 mb-1">{showAssignDetails.title}</h3>
-            <p className="text-sm text-gray-500 mb-6">{showAssignDetails.type} • {showAssignDetails.subject}</p>
+        {currentData.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={currentData.length}
+            pageSize={itemsPerPage}
+            onPageChange={setCurrentPage}
+          />
+        )}
+      </div>
 
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Academic Mapping</h4>
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-gray-500 block">Target Batch</span><span className="font-medium text-gray-900">{showAssignDetails.batch}</span></div>
-                    <div><span className="text-gray-500 block">Created By</span><span className="font-medium text-gray-900">{currentUser?.name}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-gray-500 block">Assigned On</span><span className="font-medium text-gray-900">{showAssignDetails.assignedDate || '-'}</span></div>
-                    <div><span className="text-gray-500 block">Due Date</span><span className="font-medium text-gray-900">{showAssignDetails.dueDate}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Instructions</h4>
-                <p className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg border whitespace-pre-wrap">
-                  {showAssignDetails.description || 'No detailed instructions provided.'}
-                </p>
-              </div>
-
-              {showAssignDetails.attachmentName && (
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Attachments</h4>
-                  <div className="flex items-center p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-700 text-sm">
-                    <FileText className="w-4 h-4 mr-2" />
-                    {showAssignDetails.attachmentName}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="p-4 border-t bg-gray-50 flex gap-3">
-            {showAssignDetails.status === 'Draft' && (
-              <>
-                <Button className="flex-1 bg-blue-600 text-white" onClick={() => {
-                  setAssignForm(showAssignDetails);
-                  setShowAssignDetails(null);
-                  setShowAssignForm(true);
-                }}>Edit & Publish</Button>
-              </>
-            )}
-            {showAssignDetails.status === 'Published' && (
-              <Button className="flex-1 bg-yellow-500 text-white" onClick={() => {
-                handleCloseAssign(showAssignDetails.id);
-                setShowAssignDetails(null);
-              }}>Close Assignment</Button>
-            )}
-            <Button variant="outline" className="flex-1" onClick={() => setShowAssignDetails(null)}>Close View</Button>
-          </div>
-        </div>
-      )}
-
+      {/* Exam Details Modal */}
       {showExamDetails && (
-        <div className="fixed inset-y-0 right-0 w-[450px] bg-white shadow-2xl z-50 border-l flex flex-col transform transition-transform duration-300">
-          <div className="flex items-center justify-between p-6 border-b bg-gray-50">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <ClipboardList className="w-5 h-5 mr-2 text-blue-600" />
-              Examination Details
-            </h2>
-            <Button variant="ghost" size="sm" onClick={() => setShowExamDetails(null)}><XCircle className="w-5 h-5 text-gray-500" /></Button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="mb-6">
-              <span className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusBadgeColor(showExamDetails.status)}`}>
-                {showExamDetails.status}
-              </span>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowExamDetails(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-900">{showExamDetails.name}</h3>
+              <button onClick={() => setShowExamDetails(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+                <XCircle size={22} />
+              </button>
             </div>
-            
-            <h3 className="text-xl font-bold text-gray-900 mb-1">{showExamDetails.name}</h3>
-            <p className="text-sm text-gray-500 mb-6">{showExamDetails.type} • {showExamDetails.subject}</p>
-
-            <div className="space-y-6">
-              {showExamDetails.status === 'Marks Published' && (
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                  <div className="text-sm text-blue-700 font-semibold mb-1">Class Average</div>
-                  <div className="text-2xl font-bold text-blue-900">{showExamDetails.average}</div>
-                </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="font-medium">{showExamDetails.type}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Subject</span><span className="font-medium">{showExamDetails.subject}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Target Batch</span><span className="font-medium">{showExamDetails.batch}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Exam Date</span><span className="font-medium">{showExamDetails.examDate} {showExamDetails.startTime || ''}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Marks</span><span className="font-medium">{showExamDetails.totalMarks} (Pass: {showExamDetails.passingMarks})</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-medium">{showExamDetails.status}</span></div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              {showExamDetails.status === 'Scheduled' && (
+                <Button variant="secondary" className="cursor-pointer" onClick={() => handleCancelExam(showExamDetails.id)}>
+                  Cancel Exam
+                </Button>
               )}
-
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Academic Mapping</h4>
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-gray-500 block">Target Batch</span><span className="font-medium text-gray-900">{showExamDetails.batch}</span></div>
-                    <div><span className="text-gray-500 block">Created By</span><span className="font-medium text-gray-900">{currentUser?.name}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Schedule</h4>
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="col-span-2"><span className="text-gray-500 block">Exam Date</span><span className="font-medium text-gray-900">{showExamDetails.examDate}</span></div>
-                    <div><span className="text-gray-500 block">Start Time</span><span className="font-medium text-gray-900">{showExamDetails.startTime || '-'}</span></div>
-                    <div><span className="text-gray-500 block">Duration</span><span className="font-medium text-gray-900">{showExamDetails.duration || '-'}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Evaluation Rules</h4>
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-gray-500 block">Total Marks</span><span className="font-medium text-gray-900">{showExamDetails.totalMarks}</span></div>
-                    <div><span className="text-gray-500 block">Passing Threshold</span><span className="font-medium text-gray-900">{showExamDetails.passingMarks}</span></div>
-                  </div>
-                </div>
-              </div>
+              <Button
+                className="bg-blue-600 text-white cursor-pointer"
+                onClick={() => { setExamForm({ ...showExamDetails }); setShowExamDetails(null); setShowExamForm(true); }}
+              >
+                Edit Exam
+              </Button>
             </div>
-          </div>
-          <div className="p-4 border-t bg-gray-50 flex gap-3">
-            {showExamDetails.status === 'Draft' && (
-              <Button className="flex-1 bg-blue-600 text-white" onClick={() => {
-                setExamForm(showExamDetails);
-                setShowExamDetails(null);
-                setShowExamForm(true);
-              }}>Edit & Schedule</Button>
-            )}
-            {showExamDetails.status === 'Scheduled' && (
-              <Button className="flex-1 bg-red-500 text-white" onClick={() => {
-                  handleCancelExam(showExamDetails.id);
-                  addToast('Exam cancelled', 'info');
-                  setShowExamDetails(null);
-              }}>Cancel Exam</Button>
-            )}
-            {(showExamDetails.status === 'Completed' || showExamDetails.status === 'Marks Published') && (
-              <Button className="flex-1 bg-green-600 text-white" onClick={() => {
-                 window.location.href = '/teacher/grades'; 
-              }}>View Results</Button>
-            )}
-            <Button variant="outline" className="flex-1" onClick={() => setShowExamDetails(null)}>Close View</Button>
           </div>
         </div>
       )}
-      
     </div>
   );
 };

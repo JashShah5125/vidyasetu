@@ -7,14 +7,16 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar } from 'lucide-react';
+import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { AddStudentForm } from '../components/students/AddStudentForm';
 import { 
   getStudents, 
   getStudentById, 
-  getAcademicOptions 
+  getAcademicOptions,
+  deleteStudent
 } from '../services/studentApi';
+import type { CreateStudentPayload } from '../services/studentApi';
 import type { 
   StudentRosterItem, 
   StudentDetail, 
@@ -46,6 +48,15 @@ export const Students: React.FC = () => {
   const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [profileTab, setProfileTab] = useState<'overview' | 'academic' | 'parents' | 'fees' | 'documents'>('overview');
+
+  // Edit & Delete state
+  const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
+  const [editingInitialData, setEditingInitialData] = useState<Partial<CreateStudentPayload> | null>(null);
+  const [editingCourseId, setEditingCourseId] = useState<number | undefined>(undefined);
+  const [editingProgramId, setEditingProgramId] = useState<number | undefined>(undefined);
+  const [editingLevelId, setEditingLevelId] = useState<number | undefined>(undefined);
+  const [deletingStudent, setDeletingStudent] = useState<StudentRosterItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load dropdown options
   useEffect(() => {
@@ -156,6 +167,93 @@ export const Students: React.FC = () => {
     addToast('Student roster exported to CSV successfully.', 'success');
   };
 
+  const handleEditStudent = (studentId: number) => {
+    const fetchEditDetail = async () => {
+      try {
+        const res = await getStudentById(studentId);
+        if (res.data) {
+          const d = res.data as StudentDetail;
+
+          let courseId: number | undefined;
+          let programId: number | undefined;
+          let levelId: number | undefined;
+
+          // Resolve cascade hierarchy from the student's enrolled batch
+          const batch = (academicOptions?.batches || []).find(b => Number(b.id) === Number(d.batch_id));
+          if (batch) {
+            levelId = Number(batch.level_id);
+            const level = (academicOptions?.levels || []).find(l => Number(l.id) === Number(batch.level_id));
+            if (level) {
+              courseId = level.course_id ? Number(level.course_id) : undefined;
+              programId = level.program_id ? Number(level.program_id) : undefined;
+            }
+          }
+
+          setEditingInitialData({
+            primary_branch_id: d.primary_branch_id,
+            full_name: d.full_name,
+            mobile: d.mobile,
+            email: d.email,
+            dob: d.dob,
+            gender: d.gender,
+            blood_group: d.blood_group,
+            street: d.street,
+            city: d.city,
+            state: d.state,
+            pincode: d.pincode,
+            category: d.category,
+            school_name: d.school_name,
+            current_class: d.current_class,
+            target_exam: d.target_exam,
+            year_of_attempt: d.year_of_attempt,
+            status: d.status,
+            guardian_name: d.guardian_name,
+            guardian_mobile: d.guardian_mobile,
+            guardian_relation: d.guardian_relation,
+            guardian_email: d.guardian_email,
+            academic_year_id: d.academic_year_id,
+            batch_id: d.batch_id,
+            bundle_id: d.bundle_id ?? undefined,
+            subject_selection_type: d.subject_selection_type || 'bundle',
+            custom_subject_ids: d.custom_subject_ids ?? [],
+            gross_amount: d.feeAssignment?.gross_amount ?? d.total_fees_gross ?? '',
+            discount_amount: d.feeAssignment?.total_concession ?? d.feeAssignment?.discount_amount ?? d.total_concession ?? '',
+            downpayment_amount: d.feeAssignment?.down_payment ?? d.feeAssignment?.downpayment_amount ?? d.down_payment ?? '',
+            installment_count: d.feeAssignment?.installment_count || 1
+          });
+          setEditingCourseId(courseId);
+          setEditingProgramId(programId);
+          setEditingLevelId(levelId);
+          setEditingStudentId(studentId);
+        }
+      } catch (err) {
+        console.error('Failed to fetch student for edit:', err);
+        addToast('Failed to load student details for editing', 'error');
+      }
+    };
+    fetchEditDetail();
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!deletingStudent) return;
+    setDeleting(true);
+    try {
+      const res = await deleteStudent(deletingStudent.id);
+      if (res?.status === 'success') {
+        addToast('Student removed from roster (soft delete).', 'success');
+        setDeletingStudent(null);
+        fetchRoster();
+      } else {
+        addToast(res?.message || 'Failed to delete student', 'error');
+      }
+    } catch (err: any) {
+      console.error('Failed to delete student:', err);
+      addToast(err?.response?.data?.message || 'Failed to delete student', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Render Full-Page Create Active Student Form
   if (isAddModalOpen) {
     return (
@@ -163,6 +261,32 @@ export const Students: React.FC = () => {
         onCancel={() => setIsAddModalOpen(false)}
         onSuccess={() => {
           setIsAddModalOpen(false);
+          fetchRoster();
+        }}
+        academicOptions={academicOptions}
+        addToast={addToast}
+      />
+    );
+  }
+
+  // Render Full-Page Edit Student Form (same form, pre-filled)
+  if (editingStudentId && editingInitialData) {
+    return (
+      <AddStudentForm
+        key={editingStudentId}
+        mode="edit"
+        studentId={editingStudentId}
+        initialData={editingInitialData}
+        initialCourseId={editingCourseId}
+        initialProgramId={editingProgramId}
+        initialLevelId={editingLevelId}
+        onCancel={() => {
+          setEditingStudentId(null);
+          setEditingInitialData(null);
+        }}
+        onSuccess={() => {
+          setEditingStudentId(null);
+          setEditingInitialData(null);
           fetchRoster();
         }}
         academicOptions={academicOptions}
@@ -738,14 +862,30 @@ export const Students: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setSelectedStudentId(s.id)}
-                    className="font-bold text-xs"
-                  >
-                    View Profile
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setSelectedStudentId(s.id)}
+                      className="font-bold text-xs"
+                    >
+                      View Profile
+                    </Button>
+                    <button
+                      onClick={() => handleEditStudent(s.id)}
+                      className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all cursor-pointer"
+                      title="Edit Student"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => setDeletingStudent(s)}
+                      className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all cursor-pointer"
+                      title="Delete Student"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))
@@ -779,6 +919,46 @@ export const Students: React.FC = () => {
           addToast('Bulk import processed', 'success');
         }}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!deletingStudent}
+        onClose={() => setDeletingStudent(null)}
+        title="Delete Student"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeletingStudent(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteStudent}
+              disabled={deleting}
+              className="flex items-center gap-1.5 font-bold"
+            >
+              {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {deleting ? 'Deleting...' : 'Yes, Delete'}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 rounded-full bg-red-50 text-red-500 shrink-0">
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <p className="text-sm text-slate-700">
+              Are you sure you want to delete{' '}
+              <strong className="text-slate-900">{deletingStudent?.full_name}</strong> from the roster?
+            </p>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              This is a <strong>soft delete</strong> — the record will be hidden from the roster but its historical
+              data (enrollments, fees, documents) will be preserved. This action cannot be undone from this screen.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

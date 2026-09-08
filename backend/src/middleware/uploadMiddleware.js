@@ -67,6 +67,66 @@ const uploadSupportAttachment = multer({
     }
 });
 
+// Homework attachments (teacher uploads alongside a homework).
+const homeworkStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, '../../uploads/homework');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const baseName = (file.originalname || 'attachment').replace(/[^\w.\- ]/g, '').replace(/\s+/g, '-').slice(0, 100);
+        cb(null, baseName + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const homeworkFileFilter = (req, file, cb) => {
+    const allowedMimeTypes = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'application/pdf',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv',
+        'application/zip', 'application/x-zip-compressed'
+    ];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('Invalid file type. Allowed: images, PDF, DOC/XLS, TXT/CSV and ZIP files.'));
+    }
+};
+
+const uploadHomeworkFiles = multer({
+    storage: homeworkStorage,
+    limits: { fileSize: 20 * 1024 * 1024, files: 5 }, // 20MB each, up to 5 files
+    fileFilter: homeworkFileFilter
+}).array('files', 5);
+
+// Student homework submissions.
+const submissionStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, '../../uploads/homework-submissions');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const baseName = (file.originalname || 'submission').replace(/[^\w.\- ]/g, '').replace(/\s+/g, '-').slice(0, 100);
+        cb(null, baseName + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const uploadSubmissionFiles = multer({
+    storage: submissionStorage,
+    limits: { fileSize: 20 * 1024 * 1024, files: 5 }, // 20MB each, up to 5 files
+    fileFilter: homeworkFileFilter
+}).array('files', 5);
+
 const verifyFileSignature = (req, res, next) => {
     if (!req.file) return next();
 
@@ -101,4 +161,4 @@ const verifyFileSignature = (req, res, next) => {
     next();
 };
 
-module.exports = { uploadLogo, uploadSupportAttachment, verifyFileSignature };
+module.exports = { uploadLogo, uploadSupportAttachment, verifyFileSignature, uploadHomeworkFiles, uploadSubmissionFiles };

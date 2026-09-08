@@ -1,15 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '../../../components/ui/Button';
-import { Select } from '../../../components/ui/Select';
 import { useApp } from '../../../context/AppContext';
+import { useScheduler } from '../context/SchedulerContext';
 import { TimetableGrid } from './TimetableGrid';
 import { LectureFormModal } from './LectureFormModal';
 import type { Lecture } from '../types/scheduler';
-import defaultTimetablesData from '../../../data/defaultTimetables.json';
-import { Edit, ChevronLeft, BookmarkCheck, Save, Sparkles, Calendar } from 'lucide-react';
+import { timetableApi } from '../../../services/timetableApi';
+import { Edit, ChevronLeft, BookmarkCheck, Calendar, Loader2 } from 'lucide-react';
 
 // Reference Monday date used for standard 6-day template grid (Mon–Sat)
 const TEMPLATE_WEEK_START = '2026-01-05';
+
+const dayToDateStr = (dayOfWeek: number): string => {
+  const dayOffset = Math.max(0, Math.min(6, (dayOfWeek || 1) - 1));
+  const d = new Date(2026, 0, 5 + dayOffset);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `2026-${m}-${day}`;
+};
+
+const dateStrToDayOfWeek = (dateStr: string): number => {
+  if (!dateStr) return 1;
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  return day === 0 ? 7 : day; // 1=Mon .. 7=Sun
+};
 
 interface DefaultTimetableTabProps {
   currentBatch?: string;
@@ -19,6 +34,7 @@ interface DefaultTimetableTabProps {
   level?: string;
   availableBatches?: string[];
   onSelectBatch?: (batchId: string) => void;
+  onSaved?: () => void;
 }
 
 export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
@@ -27,33 +43,66 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
   course = '',
   program = '',
   level = '',
-  availableBatches = [],
-  onSelectBatch
+  onSaved
 }) => {
-  const { addToast } = useApp();
+  const { addToast, branches, batches } = useApp();
+  const { options } = useScheduler();
 
-  // Active batch selection directly from global filter
-  const selectedBatch = currentBatch;
+  // Resolve numerical batchId
+  const resolvedBatch = useMemo(() => {
+    if (!currentBatch) return null;
+    const fromOptions = options?.batches?.find(b => String(b.id) === String(currentBatch) || b.name === currentBatch || b.code === currentBatch);
+    if (fromOptions) return fromOptions;
+    const fromContext = batches.find(b => String(b.id) === String(currentBatch) || b.name === currentBatch);
+    return fromContext || null;
+  }, [currentBatch, options, batches]);
 
-  // Load master default timetables dictionary from localStorage or defaultTimetables.json
-  const [defaultStore, setDefaultStore] = useState<Record<string, Lecture[]>>(() => {
-    const saved = localStorage.getItem('vs_default_timetables');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed === 'object' && parsed !== null) {
-          return parsed;
-        }
-      } catch {}
+  const resolvedBatchId = resolvedBatch?.id || currentBatch;
+
+  // Saved default lectures from backend
+  const [savedLectures, setSavedLectures] = useState<Lecture[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Load from API whenever resolvedBatchId changes
+  const loadDefaultTimetable = useCallback(async () => {
+    if (!resolvedBatchId) {
+      setSavedLectures([]);
+      return;
     }
-    return (defaultTimetablesData as Record<string, Lecture[]>) || {};
-  });
+    setLoading(true);
+    try {
+      const slots = await timetableApi.getDefaultTimetable(resolvedBatchId);
+      const mappedLectures: Lecture[] = slots.map(slot => ({
+        id: String(slot.id),
+        batchId: String(resolvedBatchId),
+        branchId: currentBranch || String(resolvedBatch?.branch_id || '1'),
+        subjectId: String(slot.subjectId),
+        subjectName: slot.subjectName,
+        teacherId: String(slot.teacherId),
+        teacherName: slot.teacherName,
+        roomId: slot.roomId ? String(slot.roomId) : '',
+        roomName: slot.roomName,
+        roomNumber: slot.roomNumber,
+        date: dayToDateStr(slot.dayOfWeek),
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        lectureType: slot.lectureType || 'Regular',
+        activityType: (slot.activityType || 'Lecture') as any,
+        slotLabel: slot.slotLabel,
+        publishStatus: 'PUBLISHED',
+        status: 'SCHEDULED'
+      }));
+      setSavedLectures(mappedLectures);
+    } catch (err) {
+      console.warn('Could not load default timetable from API:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [resolvedBatchId, currentBranch, resolvedBatch]);
 
-  // Saved default lectures for the selected batch
-  const savedLectures = useMemo(() => {
-    const data = defaultStore[selectedBatch];
-    return Array.isArray(data) ? data : [];
-  }, [defaultStore, selectedBatch]);
+  useEffect(() => {
+    loadDefaultTimetable();
+  }, [loadDefaultTimetable]);
 
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -71,28 +120,38 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
   };
 
   // When clicking Save Default Timetable
-  const handleSaveDefaultTimetable = () => {
-    const updatedStore = {
-      ...defaultStore,
-      [selectedBatch]: localLectures.map(l => ({
-        ...l,
-        batchId: selectedBatch,
-        branchId: currentBranch || l.branchId || 'MUM-WEST',
-        publishStatus: 'PUBLISHED' as const,
-        status: 'SCHEDULED' as const,
-        updatedAt: new Date().toISOString()
-      }))
-    };
+  const handleSaveDefaultTimetable = async () => {
+    if (!resolvedBatchId) return;
 
-    setDefaultStore(updatedStore);
-    localStorage.setItem('vs_default_timetables', JSON.stringify(updatedStore));
-    setIsEditing(false);
-    addToast(`Default timetable for "${selectedBatch}" saved successfully!`, 'success');
+    const slots = localLectures.map(l => ({
+      day_of_week: dateStrToDayOfWeek(l.date),
+      start_time: l.startTime.length === 5 ? `${l.startTime}:00` : l.startTime,
+      end_time: l.endTime.length === 5 ? `${l.endTime}:00` : l.endTime,
+      subject_id: l.subjectId,
+      teacher_user_id: l.teacherId,
+      classroom_id: l.roomId || null,
+      lecture_type: l.lectureType || 'Regular',
+      activity_type: l.activityType || 'Lecture',
+      slot_label: l.slotLabel || null
+    }));
+
+    try {
+      const branchIdNum = resolvedBatch?.branch_id || (branches.find(b => b.code === currentBranch || b.name === currentBranch)?.id) || 1;
+      await timetableApi.saveDefaultTimetable(resolvedBatchId, slots, branchIdNum, resolvedBatch?.academic_year_id || 1);
+      
+      setIsEditing(false);
+      await loadDefaultTimetable();
+      onSaved?.();
+      addToast(`Default timetable for "${currentBatch}" saved successfully!`, 'success');
+    } catch (err: any) {
+      console.error('Failed to save default timetable to backend:', err);
+      addToast(err?.response?.data?.message || 'Failed to save default timetable.', 'error');
+    }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* EDIT MODE (EXACT SAME FULL-SCREEN / CONTAINER TIMETABLE EDITOR VIEW) */}
+      {/* EDIT MODE */}
       {isEditing ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-100px)]">
           {/* Editor Header */}
@@ -113,7 +172,7 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
                     DEFAULT TIMETABLE (MASTER TEMPLATE)
                   </h2>
                   <span className="font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-md text-xs tracking-tight">
-                    {selectedBatch}
+                    {currentBatch}
                   </span>
                 </div>
                 <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
@@ -169,7 +228,7 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
           </div>
         </div>
       ) : (
-        /* VIEW MODE (SAME BLANK/SAVED TIMETABLE GRID WITH EDIT BUTTON) */
+        /* VIEW MODE */
         currentBatch ? (
           <div className="space-y-6">
             {/* Header Row with Batch Title and Edit Button */}
@@ -181,27 +240,32 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
                     Default Timetable ({currentBatch})
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Standard recurring weekly schedule for this batch. Click "Edit" to configure and save default slots.
+                    Standard recurring weekly schedule for this batch. Click "Edit" to configure and save default slots to database.
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <Button variant="primary" onClick={handleStartEdit}>
-                  <Edit className="w-4 h-4 mr-2" /> Edit
+                <Button variant="primary" onClick={handleStartEdit} disabled={loading}>
+                  <Edit className="w-4 h-4 mr-2" /> Edit Template
                 </Button>
               </div>
             </div>
 
-            {/* View Mode Grid: Displays Saved Lectures or Clean Blank Timetable Grid */}
-            <TimetableGrid
-              lectures={savedLectures}
-              viewMode="week"
-              onEditLecture={() => { }} // Disabled in view mode
-              selectedWeekStart={TEMPLATE_WEEK_START}
-              readOnly={true}
-              hideDates={true}
-            />
+            {loading ? (
+              <div className="p-12 text-center text-slate-400 flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" /> Loading default timetable...
+              </div>
+            ) : (
+              <TimetableGrid
+                lectures={savedLectures}
+                viewMode="week"
+                onEditLecture={() => { }}
+                selectedWeekStart={TEMPLATE_WEEK_START}
+                readOnly={true}
+                hideDates={true}
+              />
+            )}
           </div>
         ) : (
           <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-16 text-center">
@@ -217,8 +281,8 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
         <LectureFormModal
           isOpen={isFormOpen}
           onClose={() => setIsFormOpen(false)}
-          branchId={currentBranch || 'MUM-WEST'}
-          batchId={selectedBatch}
+          branchId={currentBranch || String(resolvedBatch?.branch_id || '1')}
+          batchId={String(resolvedBatchId)}
           existingLecture={editingLecture}
           initialDate={initialDate}
           isTemplate={true}

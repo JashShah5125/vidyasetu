@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Repeat, Plus } from 'lucide-react';
 import type { Lecture } from '../types/scheduler';
+import { useScheduler } from '../context/SchedulerContext';
 import { timeToMinutes } from '../utils/schedulerUtils';
 import teachersList from '../../../data/teachers.json';
 import classroomsList from '../../../data/classrooms.json';
@@ -22,18 +23,6 @@ const formatLocalDate = (d: Date): string => {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-};
-
-const getTeacherName = (id?: string) => {
-  if (!id) return '';
-  const teacher = teachersList.find(t => t.id === id);
-  return teacher ? teacher.name : id;
-};
-
-const getRoomName = (id?: string) => {
-  if (!id) return '';
-  const room = classroomsList.find(r => r.id === id);
-  return room ? room.name : id;
 };
 
 interface TimetableGridProps {
@@ -59,6 +48,58 @@ const getLectureColor = (type?: string, isOverride?: boolean) => {
 };
 
 export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode, onEditLecture, selectedWeekStart, readOnly = false, hideDates = false }) => {
+  const { options, rooms } = useScheduler();
+
+  const getSubjectDisplayName = (lecture: Lecture) => {
+    if (lecture.subjectName) return lecture.subjectName;
+    if (lecture.subjectId && options?.subjects) {
+      const found = options.subjects.find(s => String(s.id) === String(lecture.subjectId) || s.name === lecture.subjectId || s.code === lecture.subjectId);
+      if (found) return found.name;
+    }
+    return lecture.subjectId || 'Subject TBA';
+  };
+
+  const getTeacherDisplayName = (lecture: Lecture) => {
+    if (lecture.teacherName) return lecture.teacherName;
+    if (lecture.teacherId) {
+      if (options?.teachers) {
+        const found = options.teachers.find(t => String(t.id) === String(lecture.teacherId) || t.name === lecture.teacherId);
+        if (found) return found.full_name || found.name;
+      }
+      const staticTeacher = teachersList.find(t => t.id === lecture.teacherId || t.name === lecture.teacherId);
+      if (staticTeacher) return staticTeacher.name;
+      return `Teacher #${lecture.teacherId}`;
+    }
+    return 'Faculty TBA';
+  };
+
+  const getRoomDisplayName = (lecture: Lecture) => {
+    if (lecture.roomName) return lecture.roomName;
+    if (lecture.roomNumber) return `Room ${lecture.roomNumber}`;
+    if (lecture.roomId) {
+      if (options?.classrooms) {
+        const found = options.classrooms.find(c => String(c.id) === String(lecture.roomId) || c.name === lecture.roomId || c.room_number === lecture.roomId);
+        if (found) return found.name || (found.room_number ? `Room ${found.room_number}` : null) || `Room #${found.id}`;
+      }
+      if (rooms && rooms.length > 0) {
+        const foundRoom = rooms.find(r => String(r.id) === String(lecture.roomId));
+        if (foundRoom) return foundRoom.name;
+      }
+      const staticRoom = classroomsList.find(r => r.id === lecture.roomId || r.name === lecture.roomId);
+      if (staticRoom) return staticRoom.name;
+      return `Room ${lecture.roomId}`;
+    }
+    return 'Room TBA';
+  };
+
+  const getBatchDisplayName = (lecture: Lecture) => {
+    if (lecture.batchName) return lecture.batchName;
+    if (lecture.batchId && options?.batches) {
+      const found = options.batches.find(b => String(b.id) === String(lecture.batchId) || b.name === lecture.batchId || b.code === lecture.batchId);
+      if (found) return found.name;
+    }
+    return lecture.batchId || '';
+  };
 
   if (viewMode === 'list') {
     let filteredLectures = lectures;
@@ -96,13 +137,13 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                     <div className="font-medium text-slate-900">{parseLocalDate(l.date).toLocaleDateString()}</div>
                     <div className="text-xs text-slate-500">{l.startTime} - {l.endTime}</div>
                   </td>
-                  <td className="p-3 font-medium text-slate-800">{l.batchId}</td>
+                  <td className="p-3 font-medium text-slate-800">{getBatchDisplayName(l)}</td>
                   <td className="p-3">
-                    <div className="font-medium text-blue-700">{l.subjectId}</div>
+                    <div className="font-medium text-blue-700">{getSubjectDisplayName(l)}</div>
                     <div className="text-xs text-slate-500">{l.lectureType}</div>
                   </td>
-                  <td className="p-3 text-slate-700">{getTeacherName(l.teacherId)}</td>
-                  <td className="p-3 text-slate-600">{getRoomName(l.roomId) || 'Unassigned'}</td>
+                  <td className="p-3 text-slate-700">{getTeacherDisplayName(l)}</td>
+                  <td className="p-3 text-slate-600">{getRoomDisplayName(l)}</td>
                   <td className="p-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                       l.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
@@ -186,10 +227,15 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                         className={`p-2 sm:p-2.5 border rounded-lg transition-all relative ${!readOnly ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''} ${getLectureColor(lecture.lectureType, lecture.isOverride)}`}
                       >
                         <div className="text-[10px] sm:text-[11px] font-bold text-slate-600 opacity-80 leading-tight mb-1">{lecture.startTime} - {lecture.endTime}</div>
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm leading-snug truncate" title={lecture.subjectId}>{lecture.subjectId}</div>
-                        <div className="text-slate-600 text-[11px] truncate mt-0.5 leading-tight" title={getTeacherName(lecture.teacherId)}>{getTeacherName(lecture.teacherId)}</div>
-                        <div className="text-slate-500 text-[10px] truncate leading-tight mt-0.5" title={getRoomName(lecture.roomId) || 'Room TBA'}>{getRoomName(lecture.roomId) || 'Room TBA'}</div>
-                        <div className="flex items-center gap-1 mt-1">
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm leading-snug truncate" title={getSubjectDisplayName(lecture)}>{getSubjectDisplayName(lecture)}</div>
+                        <div className="text-slate-600 text-[11px] truncate mt-0.5 leading-tight" title={getTeacherDisplayName(lecture)}>{getTeacherDisplayName(lecture)}</div>
+                        <div className="text-slate-500 text-[10px] truncate leading-tight mt-0.5" title={getRoomDisplayName(lecture)}>{getRoomDisplayName(lecture)}</div>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {getBatchDisplayName(lecture) && (
+                            <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 leading-none">
+                              {getBatchDisplayName(lecture)}
+                            </span>
+                          )}
                           <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-500 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60 leading-none">
                             {lecture.lectureType || 'Regular'}
                           </span>
@@ -251,8 +297,8 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({ lectures, viewMode
                   <div className="font-semibold text-slate-600">Break</div>
                 ) : (
                   <>
-                    <div className="font-bold text-slate-800">{lecture.subjectId}</div>
-                    <div className="text-sm text-slate-600 mt-1">{getTeacherName(lecture.teacherId)} • {getRoomName(lecture.roomId) || 'Room TBA'}</div>
+                    <div className="font-bold text-slate-800">{getSubjectDisplayName(lecture)}</div>
+                    <div className="text-sm text-slate-600 mt-1">{getTeacherDisplayName(lecture)} • {getRoomDisplayName(lecture)}</div>
                   </>
                 )}
               </div>

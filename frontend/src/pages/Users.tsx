@@ -15,6 +15,7 @@ import { staffApi } from '../services/staffApi';
 
 export type StaffColumnKey =
   | 'contact_number'
+  | 'email'
   | 'official_email'
   | 'department'
   | 'designation'
@@ -25,21 +26,19 @@ export type StaffColumnKey =
   | 'experience'
   | 'salary_amount'
   | 'salary_type'
-  | 'personal_email'
+  | 'subjects_taught'
   | 'location'
-  | 'gender_blood'
+  | 'gender'
   | 'dob'
-  | 'marital_status'
   | 'aadhaar_number'
   | 'pan_number'
   | 'bank_details'
-  | 'emergency_contact'
-  | 'reporting_manager'
   | 'max_lectures';
 
 const STAFF_COLUMN_OPTIONS: Array<{ value: StaffColumnKey; label: string; header: string }> = [
   { value: 'contact_number', label: 'Contact Mobile', header: 'Contact Mobile' },
-  { value: 'official_email', label: 'Official Email', header: 'Official Email' },
+  { value: 'email', label: 'Email Address', header: 'Email' },
+  { value: 'subjects_taught', label: 'Subjects Taught', header: 'Subjects' },
   { value: 'department', label: 'Department', header: 'Department' },
   { value: 'designation', label: 'Designation', header: 'Designation' },
   { value: 'joining_date', label: 'Joining Date', header: 'Date of Joining' },
@@ -49,16 +48,12 @@ const STAFF_COLUMN_OPTIONS: Array<{ value: StaffColumnKey; label: string; header
   { value: 'experience', label: 'Experience (Years)', header: 'Experience' },
   { value: 'salary_amount', label: 'Salary Amount (₹)', header: 'Salary Amount' },
   { value: 'salary_type', label: 'Salary Type', header: 'Salary Type' },
-  { value: 'personal_email', label: 'Personal Email', header: 'Personal Email' },
-  { value: 'location', label: 'City & State', header: 'Location' },
-  { value: 'gender_blood', label: 'Gender & Blood Group', header: 'Gender / Blood' },
+  { value: 'location', label: 'Address & City', header: 'Location' },
+  { value: 'gender', label: 'Gender', header: 'Gender' },
   { value: 'dob', label: 'Date of Birth', header: 'Date of Birth' },
-  { value: 'marital_status', label: 'Marital Status', header: 'Marital Status' },
   { value: 'aadhaar_number', label: 'Aadhaar Number', header: 'Aadhaar No.' },
   { value: 'pan_number', label: 'PAN Number', header: 'PAN No.' },
   { value: 'bank_details', label: 'Bank Account & Name', header: 'Bank Details' },
-  { value: 'emergency_contact', label: 'Emergency Contact', header: 'Emergency Contact' },
-  { value: 'reporting_manager', label: 'Reporting Manager', header: 'Reporting Manager' },
   { value: 'max_lectures', label: 'Max Lectures (Day / Wk)', header: 'Max Lectures' },
 ];
 
@@ -66,8 +61,11 @@ const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
   switch (colKey) {
     case 'contact_number':
       return <span className="font-mono text-xs text-slate-700">{s.contact_number || s.mobile || '—'}</span>;
+    case 'email':
     case 'official_email':
       return <span className="font-mono text-xs text-slate-700">{s.email || '—'}</span>;
+    case 'subjects_taught':
+      return <span className="text-xs font-medium text-blue-700">{s.subjects_taught || (Array.isArray(s.subjects) ? s.subjects.join(', ') : '') || '—'}</span>;
     case 'department':
       return <span className="text-xs font-semibold text-slate-800">{s.department || '—'}</span>;
     case 'designation':
@@ -86,16 +84,12 @@ const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
       return <span className="font-mono font-semibold text-xs text-emerald-700">{s.salary_amount ? `₹${Number(s.salary_amount).toLocaleString('en-IN')}` : (s.monthlySalary ? `₹${Number(s.monthlySalary).toLocaleString('en-IN')}` : '—')}</span>;
     case 'salary_type':
       return <span className="capitalize text-xs text-slate-700">{s.salary_type || s.salaryType || 'Monthly'}</span>;
-    case 'personal_email':
-      return <span className="font-mono text-xs text-slate-600">{s.personal_email || '—'}</span>;
     case 'location':
-      return <span className="text-xs text-slate-700">{[s.city, s.state].filter(Boolean).join(', ') || s.address || '—'}</span>;
-    case 'gender_blood':
-      return <span className="text-xs text-slate-700">{[s.gender, s.blood_group].filter(Boolean).join(' • ') || '—'}</span>;
+      return <span className="text-xs text-slate-700">{s.address || [s.city, s.state].filter(Boolean).join(', ') || '—'}</span>;
+    case 'gender':
+      return <span className="text-xs text-slate-700">{s.gender || '—'}</span>;
     case 'dob':
       return <span className="text-xs text-slate-600">{s.dob ? new Date(s.dob).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>;
-    case 'marital_status':
-      return <span className="capitalize text-xs text-slate-700">{s.marital_status || '—'}</span>;
     case 'aadhaar_number':
       return <span className="font-mono text-xs text-slate-700">{s.aadhaar_number || '—'}</span>;
     case 'pan_number':
@@ -107,15 +101,6 @@ const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
           <span className="font-mono text-[11px] text-slate-500">{s.bank_account_number || s.accountNumber || '—'}</span>
         </div>
       );
-    case 'emergency_contact':
-      return (
-        <div className="text-xs">
-          <span className="font-semibold text-slate-800 block">{s.emergency_contact_name || '—'}</span>
-          <span className="font-mono text-[11px] text-slate-500">{s.emergency_contact_number || ''}</span>
-        </div>
-      );
-    case 'reporting_manager':
-      return <span className="text-xs text-slate-700">{s.reporting_manager || '—'}</span>;
     case 'max_lectures':
       return <span className="text-xs text-slate-700">{s.max_lectures_per_day ? `${s.max_lectures_per_day}/day • ${s.max_lectures_per_week || '—'}/wk` : '—'}</span>;
     default:
@@ -126,7 +111,9 @@ const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
 const getColumnTextValue = (s: any, colKey: StaffColumnKey): string => {
   switch (colKey) {
     case 'contact_number': return s.contact_number || s.mobile || '';
+    case 'email':
     case 'official_email': return s.email || '';
+    case 'subjects_taught': return s.subjects_taught || (Array.isArray(s.subjects) ? s.subjects.join(', ') : '');
     case 'department': return s.department || '';
     case 'designation': return s.designation || '';
     case 'joining_date': return s.joining_date ? new Date(s.joining_date).toISOString().split('T')[0] : (s.joiningDate || '');
@@ -136,23 +123,19 @@ const getColumnTextValue = (s: any, colKey: StaffColumnKey): string => {
     case 'experience': return s.experience ? `${s.experience} Years` : '';
     case 'salary_amount': return s.salary_amount ? `${s.salary_amount}` : (s.monthlySalary || '');
     case 'salary_type': return s.salary_type || s.salaryType || '';
-    case 'personal_email': return s.personal_email || '';
-    case 'location': return [s.city, s.state].filter(Boolean).join(', ');
-    case 'gender_blood': return [s.gender, s.blood_group].filter(Boolean).join(' / ');
+    case 'location': return s.address || [s.city, s.state].filter(Boolean).join(', ');
+    case 'gender': return s.gender || '';
     case 'dob': return s.dob ? new Date(s.dob).toISOString().split('T')[0] : '';
-    case 'marital_status': return s.marital_status || '';
     case 'aadhaar_number': return s.aadhaar_number || '';
     case 'pan_number': return s.pan_number || '';
     case 'bank_details': return `${s.bank_name || ''} ${s.bank_account_number || ''}`;
-    case 'emergency_contact': return `${s.emergency_contact_name || ''} ${s.emergency_contact_number || ''}`;
-    case 'reporting_manager': return s.reporting_manager || '';
     case 'max_lectures': return s.max_lectures_per_day ? `${s.max_lectures_per_day}/day` : '';
     default: return '';
   }
 };
 
 export const Users: React.FC = () => {
-  const { staff, addStaff, setStaff, currentUser, addToast } = useApp();
+  const { staff, addStaff, setStaff, currentUser, addToast, branches } = useApp();
   const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
@@ -177,8 +160,9 @@ export const Users: React.FC = () => {
       const filters = {
         page: currentPage,
         limit: itemsPerPage,
-        search: searchTerm,
+        search: searchTerm || undefined,
         branchId: filterBranch !== 'All' ? filterBranch : undefined,
+        role: filterRole !== 'All' ? filterRole : undefined,
       };
       const res = await staffApi.list(filters);
       setApiStaff(res.data);
@@ -194,8 +178,24 @@ export const Users: React.FC = () => {
     fetchStaff();
   }, [currentPage, searchTerm, filterBranch, filterRole]);
 
-  const uniqueRoles = Array.from(new Set(staff.map(s => s.role)));
-  const uniqueBranches = Array.from(new Set(staff.map(s => s.branch)));
+  const ROLE_FILTER_OPTIONS = [
+    { value: 'All', label: 'All Roles' },
+    { value: 'Teacher', label: 'Teacher / Faculty' },
+    { value: 'Branch Admin', label: 'Branch Admin' },
+    { value: 'Institute Admin', label: 'Institute Admin' },
+    { value: 'Counsellor', label: 'Counsellor' },
+    { value: 'Finance', label: 'Finance Staff' },
+    { value: 'Teaching', label: 'Teaching Staff' },
+    { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
+  ];
+
+  const branchFilterOptions = [
+    { value: 'All', label: 'All Branches' },
+    ...(branches && branches.length > 0 
+      ? branches.map(b => ({ value: b.name, label: b.name }))
+      : Array.from(new Set(staff.map(s => s.branch))).filter(Boolean).map(b => ({ value: b as string, label: b as string }))
+    )
+  ];
 
   const filteredAndSortedStaff = apiStaff;
 
@@ -432,27 +432,25 @@ export const Users: React.FC = () => {
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Gender</span>
-                        <strong className="text-slate-700">{selectedStaff.gender || 'Male'}</strong>
+                        <strong className="text-slate-700">{selectedStaff.gender || '—'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Date of Birth</span>
-                        <strong className="text-slate-700">{selectedStaff.dob || '10-05-1988'}</strong>
+                        <strong className="text-slate-700">{selectedStaff.dob || '—'}</strong>
                       </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Blood Group</span>
-                        <strong className="text-slate-700">{selectedStaff.bloodGroup || 'B+'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Marital Status</span>
-                        <strong className="text-slate-700">{selectedStaff.maritalStatus || 'Married'}</strong>
-                      </div>
+                      {(selectedStaff as any).subjects_taught && (
+                        <div className="col-span-2">
+                          <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Subjects Taught</span>
+                          <strong className="text-blue-700">{(selectedStaff as any).subjects_taught}</strong>
+                        </div>
+                      )}
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Aadhaar Card No</span>
-                        <strong className="text-slate-700 font-mono">{selectedStaff.aadhaar || 'XXXX-XXXX-8839'}</strong>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.aadhaar || (selectedStaff as any).aadhaar_number || '—'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">PAN Card No</span>
-                        <strong className="text-slate-700 font-mono uppercase">{selectedStaff.pan || 'DDFPX8823K'}</strong>
+                        <strong className="text-slate-700 font-mono uppercase">{selectedStaff.pan || (selectedStaff as any).pan_number || '—'}</strong>
                       </div>
                     </div>
                   </Card>
@@ -460,72 +458,44 @@ export const Users: React.FC = () => {
                   {/* Contact details */}
                   <Card className="p-5 border border-slate-200/80 shadow-sm">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2">
-                      2. Contact &amp; Emergency Details
+                      2. Contact Details
                     </h3>
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Official Email</span>
+                      <div className="col-span-2">
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Email Address</span>
                         <strong className="text-slate-750 font-mono text-xs block truncate">{selectedStaff.email}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Personal Email</span>
-                        <strong className="text-slate-700 font-mono text-xs block truncate">{selectedStaff.personalEmail || 'personal.mail@example.com'}</strong>
-                      </div>
-                      <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Primary Mobile</span>
-                        <strong className="text-slate-700 font-mono">{selectedStaff.mobile || '9876543210'}</strong>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.mobile || (selectedStaff as any).contact_number || '—'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Alternate Mobile</span>
-                        <strong className="text-slate-700 font-mono">{selectedStaff.alternateMobile || '9822345511'}</strong>
-                      </div>
-                      <div className="col-span-2 border-t border-slate-50 pt-2">
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Emergency Contact Person</span>
-                        <strong className="text-slate-700">Mrs. Priya Sen (Spouse) &bull; 9866113322</strong>
+                        <strong className="text-slate-700 font-mono">{selectedStaff.alternateMobile || '—'}</strong>
                       </div>
                     </div>
                   </Card>
                 </div>
 
-                {/* Addresses */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="p-5 border border-slate-200/80 shadow-sm">
-                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Current Address</span>
-                    <strong className="text-slate-700 font-medium block mb-2">{selectedStaff.currentAddress || 'Flat A-202, Regency Park, Pune Road'}</strong>
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">City</span>
-                        <strong className="text-slate-600">{selectedStaff.city || 'Pune'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">State</span>
-                        <strong className="text-slate-600">{selectedStaff.state || 'Maharashtra'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">Pin Code</span>
-                        <strong className="text-slate-600 font-mono">{selectedStaff.pinCode || '411001'}</strong>
-                      </div>
+                {/* Address */}
+                <Card className="p-5 border border-slate-200/80 shadow-sm">
+                  <span className="text-slate-400 text-xs font-semibold uppercase block mb-1">Residential Address</span>
+                  <strong className="text-slate-700 font-medium block mb-3">{selectedStaff.address || (selectedStaff as any).currentAddress || '—'}</strong>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-slate-400 text-[10px] font-semibold uppercase block">City</span>
+                      <strong className="text-slate-600">{selectedStaff.city || '—'}</strong>
                     </div>
-                  </Card>
-                  <Card className="p-5 border border-slate-200/80 shadow-sm">
-                    <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Permanent Address</span>
-                    <strong className="text-slate-700 font-medium block mb-2">{selectedStaff.permanentAddress || 'Same as current address'}</strong>
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">City</span>
-                        <strong className="text-slate-600">{selectedStaff.city || 'Pune'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">State</span>
-                        <strong className="text-slate-600">{selectedStaff.state || 'Maharashtra'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-[10px] font-semibold uppercase block">Pin Code</span>
-                        <strong className="text-slate-600 font-mono">{selectedStaff.pinCode || '411001'}</strong>
-                      </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] font-semibold uppercase block">State</span>
+                      <strong className="text-slate-600">{selectedStaff.state || '—'}</strong>
                     </div>
-                  </Card>
-                </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] font-semibold uppercase block">Pin Code</span>
+                      <strong className="text-slate-600 font-mono">{selectedStaff.pinCode || (selectedStaff as any).pin_code || '—'}</strong>
+                    </div>
+                  </div>
+                </Card>
               </div>
             )}
 
@@ -544,27 +514,27 @@ export const Users: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Department</span>
-                        <strong className="text-slate-750">{selectedStaff.department || 'Science & Academics'}</strong>
+                        <strong className="text-slate-750">{selectedStaff.department || 'Academics'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Joining Date</span>
-                        <strong className="text-slate-700">{selectedStaff.joiningDate || '11-06-2022'}</strong>
+                        <strong className="text-slate-700">{selectedStaff.joiningDate || (selectedStaff as any).joining_date || '—'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Employment Model</span>
-                        <strong className="text-slate-700">{selectedStaff.employmentType || 'Full-Time'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Reporting Manager</span>
-                        <strong className="text-slate-700">{selectedStaff.reportingManager || 'Academic Director'}</strong>
+                        <strong className="text-slate-700">{selectedStaff.employmentType || (selectedStaff as any).employment_type || 'Full-Time'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Work Experience</span>
-                        <strong className="text-slate-700">{selectedStaff.experience || '6 Years'}</strong>
+                        <strong className="text-slate-700">{selectedStaff.experience ? `${selectedStaff.experience} Years` : '—'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Employment Status</span>
+                        <strong className="text-slate-700">{selectedStaff.employmentStatus || (selectedStaff as any).employment_status || 'Active'}</strong>
                       </div>
                       <div className="col-span-2">
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Qualifications</span>
-                        <strong className="text-slate-700 block">{selectedStaff.qualification || 'M.Sc. in Organic Chemistry'}</strong>
+                        <strong className="text-slate-700 block">{selectedStaff.qualification || '—'}</strong>
                       </div>
                     </div>
                   </Card>
@@ -693,14 +663,6 @@ export const Users: React.FC = () => {
                     </h3>
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                       <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Provident Fund (PF) No</span>
-                        <strong className="text-slate-700 font-mono">{selectedStaff.pfNumber || 'MH/PUN/0092837/000'}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">ESIC Account No</span>
-                        <strong className="text-slate-700 font-mono">{selectedStaff.esicNumber || '31-88-293847-001-0293'}</strong>
-                      </div>
-                      <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Professional Tax (PT)</span>
                         <strong className="text-emerald-700">PT Deductible</strong>
                       </div>
@@ -780,25 +742,28 @@ export const Users: React.FC = () => {
             label="Search"
             placeholder="Search by ID, name, email..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
           />
           <Select
             label="Role"
             value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            options={[
-              { value: 'All', label: 'All Roles' },
-              ...uniqueRoles.map(r => ({ value: r || '', label: r || '' }))
-            ]}
+            onChange={(e) => {
+              setFilterRole(e.target.value);
+              setCurrentPage(1);
+            }}
+            options={ROLE_FILTER_OPTIONS}
           />
           <Select
             label="Branch"
             value={filterBranch}
-            onChange={(e) => setFilterBranch(e.target.value)}
-            options={[
-              { value: 'All', label: 'All Branches' },
-              ...uniqueBranches.map(b => ({ value: b || '', label: b || '' }))
-            ]}
+            onChange={(e) => {
+              setFilterBranch(e.target.value);
+              setCurrentPage(1);
+            }}
+            options={branchFilterOptions}
             disabled={currentUser?.role === 'branch-admin'}
           />
           <Select
@@ -837,7 +802,7 @@ export const Users: React.FC = () => {
         <Table dense headers={[
           'ID',
           'Staff Name',
-          'Primary Branch',
+          'Branch / Hubs',
           (STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0]).header,
           'Assigned Role',
           'Status',
@@ -846,8 +811,22 @@ export const Users: React.FC = () => {
           {paginatedStaff.map((s, idx) => {
             const nameStr = (s.first_name || '') + ' ' + (s.last_name || '');
             const empId = (s as any).employee_id || s.id || `EMP-${idx + 1}`;
-            const branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
-            const roleStr = s.employee_type || 'Staff';
+            
+            let branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
+            if (s.branch_ids) {
+              try {
+                const bIds = Array.isArray(s.branch_ids) ? s.branch_ids : JSON.parse(s.branch_ids);
+                const names = bIds.map((id: any) => {
+                  const b = (branches || []).find(branch => String(branch.id) === String(id));
+                  return b ? b.name : null;
+                }).filter(Boolean);
+                if (names.length > 0) {
+                  branchStr = names.join(', ');
+                }
+              } catch (e) {}
+            }
+
+            const roleStr = s.role_name || (s.employee_type === 'Teaching' ? 'Teacher' : (s.designation || s.employee_type || 'Staff'));
             const statusStr = (s.status || 'Active').toLowerCase();
             
             let statusBadgeClass = 'bg-red-50 text-red-600';
@@ -904,7 +883,7 @@ export const Users: React.FC = () => {
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={filteredAndSortedStaff.length}
+          totalItems={totalStaff}
           pageSize={itemsPerPage}
           onPageChange={setCurrentPage}
         />
@@ -948,12 +927,11 @@ export const Users: React.FC = () => {
 };
 
 const roleBadgeColors = (role: string) => {
-  switch (role.toLowerCase()) {
-    case 'superadmin': return 'bg-purple-50 text-purple-700 border-purple-200';
-    case 'admin': return 'bg-blue-50 text-blue-700 border-blue-200';
-    case 'counsellor': return 'bg-amber-50 text-amber-700 border-amber-200';
-    case 'teacher': return 'bg-orange-50 text-orange-700 border-orange-200';
-    case 'finance': return 'bg-pink-50 text-pink-700 border-pink-200';
-    default: return 'bg-slate-50 text-slate-700 border-slate-200';
-  }
+  const r = (role || '').toLowerCase();
+  if (r.includes('superadmin') || r.includes('saas')) return 'bg-purple-50 text-purple-700 border-purple-200';
+  if (r.includes('admin') || r.includes('institute') || r.includes('branch')) return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (r.includes('counsellor')) return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (r.includes('teacher') || r.includes('teaching') || r.includes('faculty')) return 'bg-orange-50 text-orange-700 border-orange-200';
+  if (r.includes('finance')) return 'bg-pink-50 text-pink-700 border-pink-200';
+  return 'bg-slate-50 text-slate-700 border-slate-200';
 };

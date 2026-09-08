@@ -19,25 +19,33 @@ interface TeacherRequestsTabProps {
   currentBranch?: string;
 }
 
-const getTeacherName = (id?: string) => {
-  if (!id) return '';
-  const teacher = teachersList.find(t => t.id === id || t.name === id);
-  return teacher ? teacher.name : id;
-};
-
-const getRoomName = (id?: string) => {
-  if (!id) return '';
-  const room = classroomsList.find(r => r.id === id || r.name === id);
-  return room ? room.name : id;
-};
-
 export const TeacherRequestsTab: React.FC<TeacherRequestsTabProps> = ({
   onSolveRequest,
   currentBatch,
   currentBranch
 }) => {
   const { addToast } = useApp();
-  const { lectures } = useScheduler();
+  const { lectures, options } = useScheduler();
+
+  const getTeacherName = (id?: string | number) => {
+    if (!id) return '';
+    if (options?.teachers) {
+      const found = options.teachers.find(t => String(t.id) === String(id) || t.name === id);
+      if (found) return found.full_name || found.name;
+    }
+    const teacher = teachersList.find(t => t.id === String(id) || t.name === String(id));
+    return teacher ? teacher.name : String(id);
+  };
+
+  const getRoomName = (id?: string | number) => {
+    if (!id) return '';
+    if (options?.classrooms) {
+      const found = options.classrooms.find(r => String(r.id) === String(id) || r.name === id || r.room_number === id);
+      if (found) return found.name || `Room ${found.room_number}`;
+    }
+    const room = classroomsList.find(r => r.id === String(id) || r.name === String(id));
+    return room ? room.name : String(id);
+  };
 
   // Requests state linked to localStorage & scheduleRequests.json
   const [requests, setRequests] = useState<ScheduleChange[]>(() => {

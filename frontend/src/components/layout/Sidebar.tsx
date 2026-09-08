@@ -47,7 +47,9 @@ const roleLabels: Record<string, string> = {
   'branch-admin': 'Branch Admin',
   'counsellor': 'Counsellor',
   'teacher': 'Teacher',
-  'finance': 'Finance Staff'
+  'finance': 'Finance Staff',
+  'parent': 'Parent',
+  'student': 'Student'
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
@@ -184,8 +186,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
-              { name: 'Exam Grading', label: 'Evaluations & Grading', path: '/exams', icon: ClipboardList }
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen }
             ]
           },
           {
@@ -239,8 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Mark Attendance', label: 'Class Attendance', path: '/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
-              { name: 'Assignment and Exams', label: 'Home Assignments', path: '/assignments', icon: BookOpen },
-              { name: 'Exam Grading', label: 'Exams Evaluation', path: '/exams', icon: ClipboardList }
+              { name: 'Assignment and Exams', label: 'Home Assignments', path: '/assignments', icon: BookOpen }
             ]
           },
           {
@@ -325,6 +325,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Settings',
             links: [
               { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
+            ]
+          }
+        ];
+
+      case 'student':
+      case 'parent':
+        return [
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          {
+            title: 'Learning',
+            links: [
+              { name: 'Homework', label: 'My Homework', path: '/homework', icon: BookOpen }
+            ]
+          },
+          {
+            title: 'Settings',
+            links: [
+              { name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }
             ]
           }
         ];

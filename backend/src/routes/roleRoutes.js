@@ -3,18 +3,18 @@ const router = express.Router();
 const roleController = require('../controllers/roleController');
 const { requireAuth, requireSaasAdmin, requirePermission } = require('../middleware/authMiddleware');
 
-// All role management routes require authentication and SaaS Admin privileges
+// All role routes require authentication
 router.use(requireAuth);
-router.use(requireSaasAdmin);
 
 // Permissions matrix helper endpoint
-router.get('/permissions', requirePermission('role.view'), roleController.getAllPermissions);
+router.get('/permissions', roleController.getAllPermissions);
 
 // Role CRUD endpoints
-router.get('/', requirePermission('role.view'), roleController.listRoles);
-router.get('/:id', requirePermission('role.view'), roleController.getRoleDetails);
-router.post('/', requirePermission('role.create'), roleController.createRole);
-router.put('/:id', requirePermission('role.update'), roleController.updateRole);
-router.delete('/:id', requirePermission('role.delete'), roleController.deleteRole);
+// List roles is accessible to all authenticated staff/admins for dropdowns and role assignment
+router.get('/', roleController.listRoles);
+router.get('/:id', roleController.getRoleDetails);
+router.post('/', requireSaasAdmin, roleController.createRole);
+router.put('/:id', requireSaasAdmin, roleController.updateRole);
+router.delete('/:id', requireSaasAdmin, roleController.deleteRole);
 
 module.exports = router;

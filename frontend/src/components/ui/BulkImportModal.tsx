@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { Upload, FileSpreadsheet, AlertCircle, Check, Info } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, AlertCircle, Check, Info } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 interface BulkImportModalProps {
@@ -29,6 +29,37 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleDownloadTemplate = () => {
+    try {
+      const csvRows: string[] = [];
+      // Headers
+      csvRows.push(sampleHeaders.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+
+      // Sample rows if available
+      if (sampleRows && sampleRows.length > 0) {
+        sampleRows.forEach(row => {
+          csvRows.push(row.map(val => `"${(val ?? '').toString().replace(/"/g, '""')}"`).join(','));
+        });
+      } else {
+        csvRows.push(sampleHeaders.map(() => '""').join(','));
+      }
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const sanitizedTitle = (title || 'template')
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_+/g, '_');
+      link.download = `${sanitizedTitle}_template.csv`;
+      link.click();
+      addToast('Template CSV downloaded successfully!', 'success');
+    } catch (err: any) {
+      addToast('Failed to download template CSV', 'error');
+    }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -277,19 +308,29 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
         {/* Instructions & Template preview */}
         <div className="space-y-3">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
               Expected CSV Template Columns
             </h5>
-            {!selectedFile && (
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={handleLoadSample}
-                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition"
+                onClick={handleDownloadTemplate}
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
+                title="Download CSV template matching required columns"
               >
-                Load Sample Template Data
+                <Download size={13} /> Download Template (.csv)
               </button>
-            )}
+              {!selectedFile && (
+                <button
+                  type="button"
+                  onClick={handleLoadSample}
+                  className="text-[11px] font-medium text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                >
+                  Load Sample Data
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="overflow-x-auto border border-slate-200 rounded-lg shadow-2xs">

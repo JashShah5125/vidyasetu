@@ -10,7 +10,6 @@ import teachersList from '../../../data/teachers.json';
 import { TimetableGrid } from './TimetableGrid';
 import { LectureFormModal } from './LectureFormModal';
 import { CreateTimetableWizard } from './CreateTimetableWizard';
-import { ReplicateWeekModal } from './ReplicateWeekModal';
 import { TeacherRequestsTab } from './TeacherRequestsTab';
 import { DefaultTimetableTab } from './DefaultTimetableTab';
 import type { CreateTimetableContext } from './CreateTimetableWizard';
@@ -45,7 +44,7 @@ const formatLocalDate = (d: Date): string => {
 
 export const LectureScheduler = () => {
   const { currentUser, branches, batches, addToast } = useApp();
-  const { lectures, rooms, syncLectures, addLectures, updateLecture, cancelLecture } = useScheduler();
+  const { lectures, rooms, options, fetchWeeklyLectures, syncLectures, addLectures, updateLecture, cancelLecture } = useScheduler();
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -107,7 +106,6 @@ export const LectureScheduler = () => {
 
   // UI State
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [isReplicateModalOpen, setIsReplicateModalOpen] = useState(false);
   const [editorContext, setEditorContext] = useState<CreateTimetableContext | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLecture, setEditingLecture] = useState<Lecture | undefined>(undefined);
@@ -194,39 +192,142 @@ export const LectureScheduler = () => {
 
   // Derived options
   const availableBatches = useMemo(() => {
+    if (options?.batches && options.batches.length > 0) {
+      return options.batches.filter(b => {
+        if (branch) {
+          const bBranch = options?.branches?.find(br => br.id === b.branch_id);
+          if (bBranch && bBranch.code !== branch && bBranch.name !== branch && String(bBranch.id) !== branch) return false;
+        }
+        return true;
+      }).map(b => ({ id: String(b.id), name: b.name, code: b.code, branch: String(b.branch_id) }));
+    }
     return batches.filter(b => {
       if (branch && b.branch !== branch && b.branch !== (branches.find(br => br.code === branch)?.name || '')) return false;
       return true;
     });
-  }, [batches, branch, branches]);
+  }, [batches, branch, branches, options]);
 
-  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
+  // Load weekly lectures from API whenever filters, activeTab, or selectedWeekStart change
+  useEffect(() => {
+    const endD = parseLocalDate(selectedWeekStart);
+    endD.setDate(endD.getDate() + 6);
+    const selectedWeekEnd = formatLocalDate(endD);
+
+    const resolvedBatchObj = options?.batches?.find(b => String(b.id) === batch || b.name === batch || b.code === batch);
+    const resolvedBatchId = resolvedBatchObj?.id || (batch && !isNaN(Number(batch)) ? Number(batch) : undefined);
+    const resolvedBranchId = resolvedBatchObj?.branch_id || (branch ? (options?.branches?.find(b => b.code === branch || b.name === branch)?.id || branch) : undefined);
+
+    if (activeTab === 'batch') {
+      fetchWeeklyLectures({
+        branchId: resolvedBranchId,
+        batchId: resolvedBatchId,
+        startDate: selectedWeekStart,
+        endDate: selectedWeekEnd
+      });
+    } else if (activeTab === 'teacher') {
+      fetchWeeklyLectures({
+        branchId: resolvedBranchId,
+        teacherId: selectedTeacher || undefined,
+        startDate: selectedWeekStart,
+        endDate: selectedWeekEnd
+      });
+    } else if (activeTab === 'room') {
+      fetchWeeklyLectures({
+        branchId: resolvedBranchId,
+        roomId: selectedRoom || undefined,
+        startDate: selectedWeekStart,
+        endDate: selectedWeekEnd
+      });
+    }
+  }, [activeTab, branch, batch, selectedTeacher, selectedRoom, selectedWeekStart, fetchWeeklyLectures, options]);
+
+  const uniqueCourses = useMemo(() => {
+    if (options?.courses && options.courses.length > 0) {
+      return options.courses.map(c => c.name);
+    }
+    return courseHierarchy.map(c => c.courseName);
+  }, [options]);
+
   const availablePrograms = useMemo(() => {
+    if (options?.programs && options.programs.length > 0) {
+      const selectedCourse = options.courses.find(c => c.name === course);
+      if (selectedCourse) {
+        return options.programs.filter(p => p.course_id === selectedCourse.id).map(p => p.name);
+      }
+    }
     const c = courseHierarchy.find(x => x.courseName === course);
     return c ? c.programs.map(p => p.programName) : [];
-  }, [course]);
+  }, [course, options]);
+
   const availableLevels = useMemo(() => {
+    if (options?.levels && options.levels.length > 0) {
+      const selectedProgram = options.programs?.find(p => p.name === program);
+      if (selectedProgram) {
+        return options.levels.filter(l => l.program_id === selectedProgram.id).map(l => ({ levelId: l.name, levelName: l.name }));
+      }
+    }
     const c = courseHierarchy.find(x => x.courseName === course);
     const p = c?.programs.find(x => x.programName === program);
     return p ? p.levels : [];
-  }, [course, program]);
+  }, [course, program, options]);
+
   const availableBatchNames = useMemo(() => {
+    if (options?.batches && options.batches.length > 0) {
+      const selectedLevel = options.levels?.find(l => l.name === level);
+      if (selectedLevel) {
+        return options.batches.filter(b => b.level_id === selectedLevel.id).map(b => b.name);
+      }
+    }
     const c = courseHierarchy.find(x => x.courseName === course);
     const p = c?.programs.find(x => x.programName === program);
     const l = p?.levels.find(x => x.levelId === level);
     if (!l) return [];
     return l.batches.filter(batchName => availableBatches.some(b => b.name === batchName));
-  }, [course, program, level, availableBatches]);
+  }, [course, program, level, availableBatches, options]);
 
   // Main View Batch Lectures
   const batchLectures = useMemo(() => {
-    return lectures.filter(l => l.batchId === batch);
-  }, [lectures, batch]);
+    if (!batch) return [];
+    const resolvedBatchObj = options?.batches?.find(b => String(b.id) === String(batch) || b.name === batch || b.code === batch);
+    const resolvedBatchId = resolvedBatchObj?.id;
+    return lectures.filter(l => 
+      String(l.batchId) === String(batch) || 
+      (resolvedBatchId !== undefined && String(l.batchId) === String(resolvedBatchId)) ||
+      (l.batchName && (l.batchName === batch || l.batchCode === batch))
+    );
+  }, [lectures, batch, options]);
 
   // Teacher / Room Views
-  const allTeachers = useMemo(() => Array.from(new Set(lectures.map(l => l.teacherId).filter(Boolean))), [lectures]);
-  const teacherLectures = useMemo(() => lectures.filter(l => l.teacherId === selectedTeacher), [lectures, selectedTeacher]);
-  const roomLectures = useMemo(() => lectures.filter(l => l.roomId === selectedRoom), [lectures, selectedRoom]);
+  const allTeachers = useMemo(() => {
+    if (options?.teachers && options.teachers.length > 0) {
+      return options.teachers.map(t => ({
+        id: String(t.id),
+        name: t.full_name || t.name || `Teacher #${t.id}`
+      }));
+    }
+    return teachersList.map(t => ({ id: t.id, name: t.name }));
+  }, [options]);
+
+  const resolveTeacherName = (id?: string | number) => {
+    if (!id) return '';
+    if (options?.teachers) {
+      const found = options.teachers.find(t => String(t.id) === String(id) || t.name === id);
+      if (found) return found.full_name || found.name;
+    }
+    const staticTeacher = teachersList.find(t => t.id === String(id) || t.name === String(id));
+    if (staticTeacher) return staticTeacher.name;
+    return `Teacher #${id}`;
+  };
+
+  const teacherLectures = useMemo(() => {
+    if (!selectedTeacher) return lectures;
+    return lectures.filter(l => String(l.teacherId) === String(selectedTeacher));
+  }, [lectures, selectedTeacher]);
+
+  const roomLectures = useMemo(() => {
+    if (!selectedRoom) return lectures;
+    return lectures.filter(l => String(l.roomId) === String(selectedRoom));
+  }, [lectures, selectedRoom]);
 
   if (!currentUser) return null;
 
@@ -239,56 +340,59 @@ export const LectureScheduler = () => {
   };
 
   // Apply master default timetable to the current editor week
-  const handleUseDefaultTimetable = () => {
+  const handleUseDefaultTimetable = async () => {
     if (!editorContext) return;
 
-    const saved = localStorage.getItem('vs_default_timetables');
-    let defaultStore: Record<string, Lecture[]> = {};
-    if (saved) {
-      try {
-        defaultStore = JSON.parse(saved);
-      } catch {}
-    }
+    const resolvedBatchId = options?.batches?.find(b => String(b.id) === editorContext.batchId || b.name === editorContext.batchId || b.code === editorContext.batchId)?.id || editorContext.batchId;
 
-    const batchDefaultLectures = defaultStore[editorContext.batchId];
-    if (!batchDefaultLectures || !Array.isArray(batchDefaultLectures) || batchDefaultLectures.length === 0) {
-      addToast(`No default timetable found for batch "${editorContext.batchId}". Please configure it in the Default Timetable tab first.`, 'warning');
-      return;
-    }
-
-    // Calculate target dates for the target week
-    const targetMon = parseLocalDate(editorContext.weekStartDate);
-    const templateMon = parseLocalDate('2026-01-05');
-
-    const instantiatedLectures: Lecture[] = batchDefaultLectures.map(l => {
-      let dayOffset = 0;
-      if (l.date) {
-        const slotDate = parseLocalDate(l.date);
-        dayOffset = Math.round((slotDate.getTime() - templateMon.getTime()) / (1000 * 60 * 60 * 24));
-        if (isNaN(dayOffset) || dayOffset < 0 || dayOffset > 6) {
-          dayOffset = (slotDate.getDay() === 0 ? 6 : slotDate.getDay() - 1);
-        }
+    try {
+      const { timetableApi } = await import('../../../services/timetableApi');
+      const defaultSlots = await timetableApi.getDefaultTimetable(resolvedBatchId);
+      
+      if (!defaultSlots || defaultSlots.length === 0) {
+        addToast(`No default timetable found for batch "${editorContext.batchId}". Please configure it in the Default Timetable tab first.`, 'warning');
+        return;
       }
 
-      const targetDate = new Date(targetMon);
-      targetDate.setDate(targetDate.getDate() + dayOffset);
-      const targetDateStr = formatLocalDate(targetDate);
+      // Calculate target dates for the target week
+      const targetMon = parseLocalDate(editorContext.weekStartDate);
 
-      return {
-        ...l,
-        id: `TEMP-${Math.floor(10000 + Math.random() * 90000)}`,
-        batchId: editorContext.batchId,
-        branchId: editorContext.branchId || l.branchId || 'MUM-WEST',
-        date: targetDateStr,
-        publishStatus: 'DRAFT',
-        status: 'SCHEDULED',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-    });
+      const instantiatedLectures: Lecture[] = defaultSlots.map(slot => {
+        const dayOffset = Math.max(0, Math.min(6, (slot.dayOfWeek || 1) - 1));
+        const targetDate = new Date(targetMon);
+        targetDate.setDate(targetDate.getDate() + dayOffset);
+        const targetDateStr = formatLocalDate(targetDate);
 
-    setLocalLectures(instantiatedLectures);
-    addToast(`Default timetable loaded for week of ${new Date(editorContext.weekStartDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. Click "Publish" to save.`, 'info');
+        return {
+          id: `TEMP-${Math.floor(10000 + Math.random() * 90000)}`,
+          batchId: editorContext.batchId,
+          branchId: editorContext.branchId || '1',
+          subjectId: String(slot.subjectId),
+          subjectName: slot.subjectName,
+          teacherId: String(slot.teacherId),
+          teacherName: slot.teacherName,
+          roomId: slot.roomId ? String(slot.roomId) : '',
+          roomName: slot.roomName,
+          roomNumber: slot.roomNumber,
+          date: targetDateStr,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          lectureType: slot.lectureType || 'Regular',
+          activityType: (slot.activityType || 'Lecture') as any,
+          slotLabel: slot.slotLabel,
+          publishStatus: 'DRAFT',
+          status: 'SCHEDULED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      });
+
+      setLocalLectures(instantiatedLectures);
+      addToast(`Default timetable loaded for week of ${new Date(editorContext.weekStartDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}. Click "Publish" to save.`, 'info');
+    } catch (err) {
+      console.error('Failed to load default timetable:', err);
+      addToast('Failed to load default timetable from server.', 'error');
+    }
   };
 
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -391,14 +495,6 @@ export const LectureScheduler = () => {
                 className="text-xs font-semibold hover:text-blue-600 hover:border-blue-300 px-3 py-1.5"
               >
                 <BookmarkCheck className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> Use Default
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsReplicateModalOpen(true)}
-                className="text-xs font-semibold hover:text-blue-600 hover:border-blue-300 px-3 py-1.5"
-              >
-                <Copy className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> Replicate Previous
               </Button>
               <Button
                 variant="secondary"
@@ -628,7 +724,7 @@ export const LectureScheduler = () => {
                     </div>
                   </div>
                   {selectedTeacher && (
-                    <Button variant="secondary" onClick={() => handleExportTimetable(teacherLectures, selectedWeekStart, getTeacherName(selectedTeacher))} className="cursor-pointer">
+                    <Button variant="secondary" onClick={() => handleExportTimetable(teacherLectures, selectedWeekStart, resolveTeacherName(selectedTeacher))} className="cursor-pointer">
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
                   )}
@@ -636,7 +732,7 @@ export const LectureScheduler = () => {
 
                 {/* Dropdown Filter */}
                 <div className="max-w-xs">
-                   <Select label="Select Teacher" options={[{ value: '', label: 'Select Teacher...' }, ...allTeachers.map(t => ({ value: t as string, label: getTeacherName(t as string) }))]} value={selectedTeacher} onChange={(e) => setSelectedTeacher(e.target.value)} />
+                   <Select label="Select Teacher" options={[{ value: '', label: 'Select Teacher...' }, ...allTeachers.map(t => ({ value: t.id, label: t.name }))]} value={selectedTeacher} onChange={(e) => setSelectedTeacher(e.target.value)} />
                 </div>
                   {selectedTeacher ? (
                       <TimetableGrid
@@ -719,6 +815,20 @@ export const LectureScheduler = () => {
                 level={level}
                 availableBatches={availableBatchNames}
                 onSelectBatch={(b) => updateFilter('batch', b)}
+                onSaved={() => {
+                  const endD = parseLocalDate(selectedWeekStart);
+                  endD.setDate(endD.getDate() + 6);
+                  const selectedWeekEnd = formatLocalDate(endD);
+                  const resolvedBatchObj = options?.batches?.find(b => String(b.id) === batch || b.name === batch || b.code === batch);
+                  const resolvedBatchId = resolvedBatchObj?.id || (batch && !isNaN(Number(batch)) ? Number(batch) : undefined);
+                  const resolvedBranchId = resolvedBatchObj?.branch_id || (branch ? (options?.branches?.find(b => b.code === branch || b.name === branch)?.id || branch) : undefined);
+                  fetchWeeklyLectures({
+                    branchId: resolvedBranchId,
+                    batchId: resolvedBatchId,
+                    startDate: selectedWeekStart,
+                    endDate: selectedWeekEnd
+                  });
+                }}
               />
             )}
 
@@ -732,30 +842,6 @@ export const LectureScheduler = () => {
         onClose={() => setIsWizardOpen(false)}
         onComplete={handleWizardComplete}
         initialContext={{ branchId: branch, courseId: course, programId: program, levelId: level, batchId: batch, weekStartDate: selectedWeekStart }}
-      />
-
-      <ReplicateWeekModal
-        isOpen={isReplicateModalOpen}
-        onClose={() => setIsReplicateModalOpen(false)}
-        batchId={editorContext ? editorContext.batchId : batch}
-        branchId={editorContext ? editorContext.branchId : branch}
-        targetWeekStart={editorContext ? editorContext.weekStartDate : selectedWeekStart}
-        onReplicate={(replicatedLectures) => {
-          const targetBatch = editorContext ? editorContext.batchId : batch;
-          const targetBranch = editorContext ? editorContext.branchId : branch;
-          const targetWeek = editorContext ? editorContext.weekStartDate : selectedWeekStart;
-          
-          setEditorContext({
-            branchId: targetBranch,
-            courseId: course,
-            programId: program,
-            levelId: level,
-            batchId: targetBatch,
-            weekStartDate: targetWeek,
-            initialLectures: replicatedLectures
-          });
-          setLocalLectures(replicatedLectures);
-        }}
       />
 
       {isFormOpen && (

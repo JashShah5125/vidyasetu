@@ -1,4 +1,4 @@
-export type Role = 'saas-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance';
+export type Role = 'saas-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance' | 'parent' | 'student';
 
 export interface UserProfile {
   id?: string;
@@ -221,6 +221,7 @@ export interface Staff {
   alternateMobile?: string;
   email: string;
   personalEmail?: string;
+  address?: string;
   currentAddress?: string;
   permanentAddress?: string;
   city?: string;
@@ -285,11 +286,6 @@ export interface Staff {
   permissionProfile?: string;
   forcePasswordReset?: boolean;
   mobileApp?: boolean;
-
-  // Emergency
-  emergencyContact?: string;
-  emergencyRelationship?: string;
-  emergencyMobile?: string;
 
   status: 'Active' | 'Inactive';
 }

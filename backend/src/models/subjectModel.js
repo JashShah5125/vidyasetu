@@ -23,6 +23,7 @@ const getSubjects = async (tenantId, { search = '', status = 'all', courseId, pr
         joinClause = `
             JOIN level_subjects ls ON ls.subject_id = s.id
             JOIN levels l ON l.id = ls.level_id
+            LEFT JOIN programs p ON p.id = l.program_id
         `;
         if (levelId) {
             where += ` AND l.id = ?`;
@@ -31,7 +32,7 @@ const getSubjects = async (tenantId, { search = '', status = 'all', courseId, pr
             where += ` AND l.program_id = ?`;
             params.push(programId);
         } else if (courseId) {
-            where += ` AND l.course_id = ?`;
+            where += ` AND p.course_id = ?`;
             params.push(courseId);
         }
     }

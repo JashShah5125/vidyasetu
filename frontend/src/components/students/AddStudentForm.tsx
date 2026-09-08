@@ -3,7 +3,7 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { createStudent, getAcademicOptions } from '../../services/studentApi';
+import { createStudent, updateStudent, getAcademicOptions } from '../../services/studentApi';
 import type { CreateStudentPayload } from '../../services/studentApi';
 import { 
   ArrowLeft, User, Shield, GraduationCap, IndianRupee, MapPin, 
@@ -30,6 +30,12 @@ interface AddStudentFormProps {
   onSuccess: () => void;
   academicOptions: AcademicData | null; // from parent, used as initial data
   addToast: (msg: string, type?: 'success' | 'error') => void;
+  mode?: 'create' | 'edit';
+  studentId?: number;
+  initialData?: Partial<CreateStudentPayload>;
+  initialCourseId?: number;
+  initialProgramId?: number;
+  initialLevelId?: number;
 }
 
 const EMPTY_FORM: CreateStudentPayload = {
@@ -69,7 +75,13 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
   onCancel,
   onSuccess,
   academicOptions: parentOptions,
-  addToast
+  addToast,
+  mode = 'create',
+  studentId,
+  initialData,
+  initialCourseId,
+  initialProgramId,
+  initialLevelId
 }) => {
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('personal');
@@ -80,11 +92,13 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
   const [optionsError, setOptionsError] = useState<string | null>(null);
 
   // Sequential cascading selection state
-  const [selectedCourseId, setSelectedCourseId] = useState<number | ''>('');
-  const [selectedProgramId, setSelectedProgramId] = useState<number | ''>('');
-  const [selectedLevelId, setSelectedLevelId] = useState<number | ''>('');
+  const [selectedCourseId, setSelectedCourseId] = useState<number | ''>(initialCourseId ?? '');
+  const [selectedProgramId, setSelectedProgramId] = useState<number | ''>(initialProgramId ?? '');
+  const [selectedLevelId, setSelectedLevelId] = useState<number | ''>(initialLevelId ?? '');
 
-  const [formData, setFormData] = useState<CreateStudentPayload>(EMPTY_FORM);
+  const [formData, setFormData] = useState<CreateStudentPayload>(
+    initialData ? { ...EMPTY_FORM, ...initialData } : EMPTY_FORM
+  );
 
   // Load academic options directly inside this form (self-sufficient)
   const loadOptions = async () => {
@@ -289,11 +303,16 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
         downpayment_amount: Number(formData.downpayment_amount) || 0,
         installment_count: Math.max(1, Number(formData.installment_count) || 1),
       };
-      await createStudent(sanitizedPayload);
-      addToast('Student registered successfully with fee contract!', 'success');
+      if (mode === 'edit' && studentId) {
+        await updateStudent(studentId, sanitizedPayload);
+        addToast('Student information updated successfully with fee contract!', 'success');
+      } else {
+        await createStudent(sanitizedPayload);
+        addToast('Student registered successfully with fee contract!', 'success');
+      }
       onSuccess();
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Failed to register student', 'error');
+      addToast(err.response?.data?.message || (mode === 'edit' ? 'Failed to update student' : 'Failed to register student'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -321,9 +340,13 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
             <ArrowLeft size={22} />
           </button>
           <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Register Active Student</h2>
+            <h2 className="text-2xl font-display font-bold text-slate-900">
+              {mode === 'edit' ? 'Edit Student Details' : 'Register Active Student'}
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Complete all 4 steps: Personal → Parent → Course/Batch → Fee Contract
+              {mode === 'edit'
+                ? 'Update all 4 steps: Personal → Parent → Course/Batch → Fee Contract'
+                : 'Complete all 4 steps: Personal → Parent → Course/Batch → Fee Contract'}
             </p>
           </div>
         </div>
@@ -334,7 +357,9 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
             className="flex items-center gap-2 font-bold px-5"
             style={{ backgroundColor: '#10b981', color: 'white' }}>
             <CheckCircle size={18} />
-            {submitting ? 'Registering...' : 'Register Student'}
+            {submitting
+              ? (mode === 'edit' ? 'Saving...' : 'Registering...')
+              : (mode === 'edit' ? 'Save Changes' : 'Register Student')}
           </Button>
         </div>
       </div>
@@ -1054,7 +1079,9 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
                 className="flex items-center gap-2 font-bold px-6"
                 style={{ backgroundColor: '#10b981', color: 'white' }}>
                 <CheckCircle size={18} />
-                {submitting ? 'Registering...' : 'Complete & Register Student'}
+                {submitting
+                  ? (mode === 'edit' ? 'Saving...' : 'Registering...')
+                  : (mode === 'edit' ? 'Save Changes' : 'Complete & Register Student')}
               </Button>
             </div>
           </div>

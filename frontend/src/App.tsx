@@ -33,7 +33,6 @@ import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
 import { Assignments } from './pages/Assignments';
-import { ExamMarks } from './pages/ExamMarks';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
 import { TenantsManager } from './pages/TenantsManager';
@@ -46,6 +45,7 @@ import { TenantDetails } from './pages/TenantDetails';
 import { TeacherDashboard } from './components/teacher/TeacherDashboard';
 import { TeacherAttendance } from './components/teacher/TeacherAttendance';
 import { TeacherAssignments } from './components/teacher/TeacherAssignments';
+import { StudentHomework } from './pages/StudentHomework';
 import { TeacherDoubts } from './components/teacher/TeacherDoubts';
 import { TeacherStudents } from './components/teacher/TeacherStudents';
 import { TeacherSchedule } from './components/teacher/TeacherSchedule';
@@ -366,8 +366,8 @@ const ContentRouter = () => {
       <Route path="/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
-      <Route path="/assignments" element={isTeacher ? <TeacherAssignments /> : <Assignments />} />
-      <Route path="/exams" element={isTeacher ? <Navigate to="/assignments" replace /> : <ExamMarks />} />
+      <Route path="/assignments" element={isTeacher || currentUser?.role === 'inst-admin' || currentUser?.role === 'branch-admin' ? <TeacherAssignments /> : <Assignments />} />
+      <Route path="/homework" element={<StudentHomework />} />
       <Route path="/teacher-notifications" element={<TeacherNotifications />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
       <Route path="/fees-master" element={<FeesMaster />} />

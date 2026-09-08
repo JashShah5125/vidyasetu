@@ -6,10 +6,15 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import {
   User, Phone, Briefcase, GitBranch, BookOpen,
-  DollarSign, FileText, Shield, AlertTriangle, CheckCircle,
-  ChevronRight, ChevronLeft, ArrowLeft, Check, Loader2
+  DollarSign, FileText, Shield, CheckCircle,
+  ChevronRight, ChevronLeft, ArrowLeft, Check, Loader2,
+  Filter, Search, X, Layers, AlertTriangle
 } from 'lucide-react';
 import { staffApi } from '../services/staffApi';
+import { subjectApi } from '../services/subjectApi';
+import { branchApi } from '../services/branchApi';
+import { roleApi, type RoleItem } from '../services/roleApi';
+import { batchApi, type Batch } from '../services/batchApi';
 
 // ─── Tab Config ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -20,14 +25,10 @@ const TABS = [
   { id: 'teacher', label: 'Teacher Info', icon: BookOpen },
   { id: 'salary', label: 'Salary & Payroll', icon: DollarSign },
   { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'access', label: 'System Access', icon: Shield },
-  { id: 'emergency', label: 'Emergency', icon: AlertTriangle },
   { id: 'review', label: 'Review & Create', icon: CheckCircle },
 ];
 
-const SYSTEM_ROLES = ['Teacher', 'Academic Coordinator', 'Branch Admin', 'Counsellor', 'Finance Staff', 'Receptionist', 'HR', 'Super Admin'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -38,43 +39,34 @@ const FieldGrid: React.FC<{ cols?: number; children: React.ReactNode }> = ({ col
   <div className={`grid grid-cols-1 md:grid-cols-${cols} gap-4`}>{children}</div>
 );
 
-const Checkbox: React.FC<{ label: string; checked: boolean; onChange: (v: boolean) => void }> = ({ label, checked, onChange }) => (
-  <label className="flex items-center gap-2.5 cursor-pointer select-none group">
-    <div
-      onClick={() => onChange(!checked)}
-      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white group-hover:border-blue-400'}`}
-    >
-      {checked && <Check size={11} className="text-white" strokeWidth={3} />}
-    </div>
-    <span className="text-sm text-slate-700">{label}</span>
-  </label>
-);
-
 const MultiSelect: React.FC<{
   label: string;
   options: string[];
   selected: string[];
   onChange: (v: string[]) => void;
-}> = ({ label, options, selected, onChange }) => {
+}> = ({ label, options = [], selected = [], onChange }) => {
   const toggle = (v: string) =>
     onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
       <div className="flex flex-wrap gap-2 p-3 border border-slate-200 rounded-lg bg-white min-h-[42px]">
-        {options.map(opt => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => toggle(opt)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${selected.includes(opt)
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
-              }`}
-          >
-            {opt}
-          </button>
-        ))}
+        {options.map((opt, optIdx) => {
+          const strVal = typeof opt === 'string' ? opt : ((opt as any)?.name || (opt as any)?.label || String(opt || ''));
+          return (
+            <button
+              key={`${strVal}-${optIdx}`}
+              type="button"
+              onClick={() => toggle(strVal)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${selected.includes(strVal)
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
+                }`}
+            >
+              {strVal}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -88,71 +80,428 @@ export const StaffCreate: React.FC = () => {
   const staffData = state?.staffData;
   const isEditMode = !!id;
 
-  const { addStaff, branches, courses } = useApp();
+  const { branches } = useApp();
   const [activeTab, setActiveTab] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [dbSubjects, setDbSubjects] = useState<Array<{ id: number; name: string; code?: string; type?: string; description?: string }>>([]);
+  const [filteredDbSubjects, setFilteredDbSubjects] = useState<Array<{ id: number; name: string; code?: string; type?: string; description?: string }>>([]);
+  const [dbBranches, setDbBranches] = useState<Array<{ id: number; name: string; code?: string; city?: string }>>([]);
+  const [dbRoles, setDbRoles] = useState<RoleItem[]>([]);
+  const [dbBatches, setDbBatches] = useState<Batch[]>([]);
+
+  // Batch Mapping Filter States
+  const [courseFilter, setCourseFilter] = useState('');
+  const [programFilter, setProgramFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [batchSearch, setBatchSearch] = useState('');
+
+  // Subject Mapping Filter States
+  const [subjectCourseFilter, setSubjectCourseFilter] = useState('');
+  const [subjectProgramFilter, setSubjectProgramFilter] = useState('');
+  const [subjectLevelFilter, setSubjectLevelFilter] = useState('');
+  const [subjectSearch, setSubjectSearch] = useState('');
 
   const [form, setForm] = useState({
     firstName: '', middleName: '', lastName: '', gender: '', dob: '',
-    bloodGroup: '', maritalStatus: '', aadhaar: '', pan: '',
-    mobile: '', alternateMobile: '', email: '', personalEmail: '',
-    currentAddress: '', permanentAddress: '', city: '', state: '', country: 'India', pinCode: '',
+    aadhaar: '', pan: '',
+    mobile: '', alternateMobile: '', email: '',
+    address: '', city: '', state: '', country: 'India', pinCode: '',
     employeeType: 'Teaching' as 'Teaching' | 'Non-Teaching',
     designation: '', department: '', joiningDate: '', employmentType: 'Full-Time' as any,
-    reportingManager: '', employmentStatus: 'Active' as any, experience: '', qualification: '',
-    primaryBranch: '', additionalBranches: [] as string[],
-    roles: [] as string[], workingDays: [] as string[], defaultShift: '',
-    subjects: [] as string[], coursesAssigned: [] as string[],
-    programsAssigned: [] as string[], academicLevels: [] as string[],
+    employmentStatus: 'Active' as any, experience: '', qualification: '',
+    assignedBranchIds: [] as number[],
+    primaryBranchId: null as number | null,
+    roles: [] as string[],
+    workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as string[],
+    subjects: [] as string[],
+    allocatedBatchIds: [] as number[],
     preferredBatches: [] as string[], maxLecturesPerDay: '', maxLecturesPerWeek: '',
-    preferredWorkingHours: '', unavailableDays: [] as string[], preferredBreakTime: '',
-    teachingMode: [] as string[], biometricMandatory: false,
+    preferredWorkingHours: '',
     salaryType: 'Monthly' as any, monthlySalary: '', hourlyRate: '', contractAmount: '',
     bankName: '', accountHolder: '', accountNumber: '', ifsc: '', upiId: '',
-    pfNumber: '', esicNumber: '', professionalTax: false, tdsApplicable: false,
-    createLogin: true, username: '', mobileLogin: false, tempPassword: '',
-    permissionProfile: '', forcePasswordReset: true, mobileApp: false, accountStatus: 'Active',
-    emergencyContact: '', emergencyRelationship: '', emergencyMobile: '',
   });
 
+  // Fetch batches from API for teacher mapping
   useEffect(() => {
-    if (staffData && isEditMode) {
+    batchApi.list({ limit: 500 })
+      .then(res => {
+        const list = res?.data?.batches || res?.data || (Array.isArray(res) ? res : []);
+        if (Array.isArray(list)) {
+          setDbBatches(list);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch batches in StaffCreate:', err);
+      });
+  }, []);
+
+  // Fetch roles from API (only existing roles from roles table)
+  useEffect(() => {
+    roleApi.list()
+      .then(res => {
+        const list = Array.isArray(res) ? res : [];
+        setDbRoles(list);
+      })
+      .catch(err => {
+        console.error('Failed to fetch roles in StaffCreate:', err);
+      });
+  }, []);
+
+  // Fetch branches from API
+  useEffect(() => {
+    branchApi.list({ limit: 100 })
+      .then(res => {
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        if (Array.isArray(list) && list.length > 0) {
+          setDbBranches(list.map((b: any) => ({
+            id: Number(b.id),
+            name: b.name || b.branch_name || `Branch ${b.id}`,
+            code: b.code || b.branch_code || '',
+            city: b.city || ''
+          })));
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch branches in StaffCreate:', err);
+      });
+  }, []);
+
+  // Fetch all available subjects from API for fallback and lookup
+  useEffect(() => {
+    subjectApi.list({ limit: 500 })
+      .then(res => {
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        if (Array.isArray(list) && list.length > 0) {
+          const mapped = list.map((s: any) => ({
+            id: Number(s.id),
+            name: s.name,
+            code: s.code || '',
+            type: s.type || 'core',
+            description: s.description || ''
+          }));
+          setDbSubjects(mapped);
+          setFilteredDbSubjects(mapped);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch subjects in StaffCreate:', err);
+      });
+  }, []);
+
+  // Fetch filtered subjects whenever subject filters change
+  useEffect(() => {
+    subjectApi.list({
+      limit: 500,
+      courseId: subjectCourseFilter || undefined,
+      programId: subjectProgramFilter || undefined,
+      levelId: subjectLevelFilter || undefined,
+      search: subjectSearch || undefined
+    })
+      .then(res => {
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        if (Array.isArray(list)) {
+          setFilteredDbSubjects(list.map((s: any) => ({
+            id: Number(s.id),
+            name: s.name,
+            code: s.code || '',
+            type: s.type || 'core',
+            description: s.description || ''
+          })));
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch filtered subjects:', err);
+      });
+  }, [subjectCourseFilter, subjectProgramFilter, subjectLevelFilter, subjectSearch]);
+
+  // Filter out non-staff roles (student, parent, saas_admin)
+  const availableRoles = (dbRoles.length > 0
+    ? dbRoles.filter(r => !['student', 'parent', 'saas_admin'].includes(r.code?.toLowerCase()))
+    : []
+  ).map(r => r.name);
+
+  const availableBranches = (dbBranches.length > 0
+    ? dbBranches
+    : (branches || []).map((b: any, idx: number) => ({
+        id: Number(b.id || idx + 1),
+        name: typeof b === 'string' ? b : (b.name || (b as any).branch_name || `Branch ${idx + 1}`),
+        code: typeof b === 'string' ? '' : (b.code || ''),
+        city: typeof b === 'string' ? '' : (b.city || '')
+      }))).filter(b => b.name);
+
+  // Derived unique dropdown filter options for Batches
+  const availableCourseOptions = Array.from(
+    new Map(
+      dbBatches
+        .filter(b => b.courseId && b.courseName)
+        .map(b => [b.courseId, { value: b.courseId, label: b.courseName }])
+    ).values()
+  );
+
+  const availableProgramOptions = Array.from(
+    new Map(
+      dbBatches
+        .filter(b => b.programId && b.programName && (!courseFilter || b.courseId === courseFilter))
+        .map(b => [b.programId, { value: b.programId, label: b.programName }])
+    ).values()
+  );
+
+  const availableLevelOptions = Array.from(
+    new Map(
+      dbBatches
+        .filter(b => b.levelId && b.levelName && (!courseFilter || b.courseId === courseFilter) && (!programFilter || b.programId === programFilter))
+        .map(b => [b.levelId, { value: b.levelId, label: b.levelName }])
+    ).values()
+  );
+
+  // Derived unique dropdown filter options for Subjects
+  const availableSubjectCourseOptions = availableCourseOptions;
+
+  const availableSubjectProgramOptions = Array.from(
+    new Map(
+      dbBatches
+        .filter(b => b.programId && b.programName && (!subjectCourseFilter || b.courseId === subjectCourseFilter))
+        .map(b => [b.programId, { value: b.programId, label: b.programName }])
+    ).values()
+  );
+
+  const availableSubjectLevelOptions = Array.from(
+    new Map(
+      dbBatches
+        .filter(b => b.levelId && b.levelName && (!subjectCourseFilter || b.courseId === subjectCourseFilter) && (!subjectProgramFilter || b.programId === subjectProgramFilter))
+        .map(b => [b.levelId, { value: b.levelId, label: b.levelName }])
+    ).values()
+  );
+
+  const filteredBatches = dbBatches.filter(b => {
+    if (courseFilter && b.courseId !== courseFilter) return false;
+    if (programFilter && b.programId !== programFilter) return false;
+    if (levelFilter && b.levelId !== levelFilter) return false;
+    if (batchSearch) {
+      const q = batchSearch.toLowerCase();
+      const matchName = b.name?.toLowerCase().includes(q);
+      const matchCode = b.code?.toLowerCase().includes(q);
+      const matchCourse = b.courseName?.toLowerCase().includes(q);
+      const matchBranch = b.branchName?.toLowerCase().includes(q);
+      if (!matchName && !matchCode && !matchCourse && !matchBranch) return false;
+    }
+    return true;
+  });
+
+  const toggleBatchAllocation = (batchId: number) => {
+    setForm(prev => ({
+      ...prev,
+      allocatedBatchIds: prev.allocatedBatchIds.includes(batchId)
+        ? prev.allocatedBatchIds.filter(id => id !== batchId)
+        : [...prev.allocatedBatchIds, batchId]
+    }));
+  };
+
+  const toggleSubject = (subjectName: string) => {
+    setForm(prev => ({
+      ...prev,
+      subjects: prev.subjects.includes(subjectName)
+        ? prev.subjects.filter(s => s !== subjectName)
+        : [...prev.subjects, subjectName]
+    }));
+  };
+
+  // Auto-select first branch for new staff if none assigned yet
+  useEffect(() => {
+    if (!isEditMode && availableBranches.length > 0 && form.assignedBranchIds.length === 0) {
       setForm(prev => ({
         ...prev,
-        firstName: staffData.first_name || staffData.name?.split(' ')[0] || '',
-        lastName: staffData.last_name || staffData.name?.split(' ')[1] || '',
-        gender: staffData.gender || '',
-        mobile: staffData.contact_number || '',
-        email: staffData.email || '',
-        employeeType: staffData.employee_type || 'Teaching',
-        designation: staffData.designation || '',
-        department: staffData.department || '',
-        primaryBranch: staffData.primary_branch_name || '',
-        employmentType: staffData.employment_type || 'Full-Time',
-        maxLecturesPerDay: staffData.max_lectures_per_day?.toString() || '',
-        roles: staffData.role ? [staffData.role] : (staffData.employee_type === 'Teaching' ? ['Teacher'] : []),
-        employmentStatus: staffData.status === 'active' ? 'Active' : 'Inactive'
+        assignedBranchIds: [availableBranches[0].id],
+        primaryBranchId: availableBranches[0].id
       }));
     }
-  }, [staffData, isEditMode]);
+  }, [availableBranches, isEditMode]);
+
+  const populateFormData = (data: any) => {
+    if (!data) return;
+    
+    // Parse branch IDs
+    let parsedBranchIds: number[] = [];
+    if (Array.isArray(data.branch_ids)) {
+      parsedBranchIds = data.branch_ids.map(Number).filter(Boolean);
+    } else if (typeof data.branch_ids === 'string') {
+      try {
+        const parsed = JSON.parse(data.branch_ids);
+        if (Array.isArray(parsed)) {
+          parsedBranchIds = parsed.map(Number).filter(Boolean);
+        }
+      } catch (e) {
+        console.error('Error parsing branch_ids', e);
+      }
+    }
+
+    if (parsedBranchIds.length === 0 && data.branch_id) {
+      parsedBranchIds = [Number(data.branch_id)];
+    }
+
+    const primaryId = parsedBranchIds[0] || (availableBranches[0]?.id) || 1;
+
+    // Parse subjects
+    let staffSubjects: string[] = [];
+    if (Array.isArray(data.subjects) && data.subjects.length > 0) {
+      staffSubjects = data.subjects;
+    } else if (data.subjects_taught && typeof data.subjects_taught === 'string') {
+      staffSubjects = data.subjects_taught.split(', ').filter(Boolean);
+    }
+
+    // Parse working days
+    let staffWorkingDays: string[] = [];
+    if (Array.isArray(data.working_days) && data.working_days.length > 0) {
+      staffWorkingDays = data.working_days;
+    } else if (typeof data.working_days === 'string') {
+      try {
+        const parsed = JSON.parse(data.working_days);
+        if (Array.isArray(parsed) && parsed.length > 0) staffWorkingDays = parsed;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // Parse allocated batch IDs
+    let staffAllocatedBatchIds: number[] = [];
+    if (Array.isArray(data.allocated_batch_ids)) {
+      staffAllocatedBatchIds = data.allocated_batch_ids.map(Number).filter(Boolean);
+    } else if (Array.isArray(data.allocated_batches)) {
+      staffAllocatedBatchIds = data.allocated_batches.map((b: any) => Number(b.batch_id || b.id)).filter(Boolean);
+    } else if (typeof data.allocated_batch_ids === 'string') {
+      try {
+        const parsed = JSON.parse(data.allocated_batch_ids);
+        if (Array.isArray(parsed)) staffAllocatedBatchIds = parsed.map(Number).filter(Boolean);
+      } catch (e) {}
+    }
+
+    setForm(prev => ({
+      ...prev,
+      firstName: data.first_name || data.name?.split(' ')[0] || '',
+      middleName: data.middle_name || '',
+      lastName: data.last_name || data.name?.split(' ').slice(1).join(' ') || '',
+      gender: data.gender || '',
+      dob: data.dob ? new Date(data.dob).toISOString().split('T')[0] : '',
+      aadhaar: data.aadhaar_number || '',
+      pan: data.pan_number || '',
+      mobile: data.contact_number || data.mobile || '',
+      alternateMobile: data.alternate_mobile || '',
+      email: data.email || '',
+      address: data.address || data.current_address || data.permanent_address || '',
+      city: data.city || '',
+      state: data.state || '',
+      pinCode: data.pincode || '',
+      employeeType: data.employee_type || 'Teaching',
+      designation: data.designation || '',
+      department: data.department || '',
+      joiningDate: data.joining_date ? new Date(data.joining_date).toISOString().split('T')[0] : '',
+      employmentType: data.employment_type || 'Full-Time',
+      employmentStatus: (data.status || 'Active').toLowerCase() === 'active' ? 'Active' : 'Inactive',
+      experience: data.experience || '',
+      qualification: data.qualification || '',
+      assignedBranchIds: parsedBranchIds.length > 0 ? parsedBranchIds : [primaryId],
+      primaryBranchId: primaryId,
+      roles: data.role_name ? data.role_name.split(', ') : (data.role ? [data.role] : (data.employee_type === 'Teaching' ? ['Teacher'] : [])),
+      workingDays: staffWorkingDays.length > 0 ? staffWorkingDays : prev.workingDays,
+      subjects: staffSubjects.length > 0 ? staffSubjects : prev.subjects,
+      allocatedBatchIds: staffAllocatedBatchIds.length > 0 ? staffAllocatedBatchIds : prev.allocatedBatchIds,
+      maxLecturesPerDay: data.max_lectures_per_day?.toString() || '',
+      maxLecturesPerWeek: data.max_lectures_per_week?.toString() || '',
+      salaryType: data.salary_type || 'Monthly',
+      monthlySalary: data.salary_amount ? String(data.salary_amount) : '',
+      hourlyRate: data.salary_type === 'Hourly' && data.salary_amount ? String(data.salary_amount) : '',
+      contractAmount: data.salary_type === 'Contract' && data.salary_amount ? String(data.salary_amount) : '',
+      bankName: data.bank_name || '',
+      accountNumber: data.bank_account_number || '',
+      ifsc: data.bank_ifsc || '',
+    }));
+  };
+
+  useEffect(() => {
+    if (!isEditMode) return;
+
+    if (staffData) {
+      populateFormData(staffData);
+    } else if (id) {
+      staffApi.getById(id)
+        .then(res => {
+          if (res?.data) {
+            populateFormData(res.data);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch staff by id:', err);
+        });
+    }
+  }, [staffData, isEditMode, id]);
 
   const set = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
-  const isTeacher = form.roles.includes('Teacher');
+  const isTeacher = form.roles.includes('Teacher') || form.employeeType === 'Teaching';
   const tabList = TABS.filter(t => t.id !== 'teacher' || isTeacher);
   const currentTabId = tabList[activeTab]?.id;
 
-  const branchOptions = branches.map(b => ({ value: b.name, label: b.name }));
-  const courseOptions = courses.map(c => c.name);
-  const allPrograms = courses.flatMap(c => c.programs || []);
-  const uniquePrograms = Array.from(new Set(allPrograms));
+  const toggleBranch = (branchId: number) => {
+    setForm(prev => {
+      const current = prev.assignedBranchIds;
+      let next: number[];
+      let nextPrimary = prev.primaryBranchId;
 
-  const allSubjects: string[] = [
-    'Physics (Mechanics)', 'Physics (Electromagnetism)', 'Chemistry (Physical)',
-    'Chemistry (Organic)', 'Mathematics (Algebra)', 'Mathematics (Calculus)',
-    'Botany', 'Zoology', 'English', 'Social Science', 'Advanced Math', 'Science Foundations'
-  ];
+      if (current.includes(branchId)) {
+        next = current.filter(id => id !== branchId);
+        if (nextPrimary === branchId) {
+          nextPrimary = next[0] || null;
+        }
+      } else {
+        next = [...current, branchId];
+        if (!nextPrimary) {
+          nextPrimary = branchId;
+        }
+      }
+
+      return {
+        ...prev,
+        assignedBranchIds: next,
+        primaryBranchId: nextPrimary
+      };
+    });
+  };
+
+  const setPrimaryBranch = (branchId: number) => {
+    setForm(prev => ({
+      ...prev,
+      assignedBranchIds: prev.assignedBranchIds.includes(branchId) ? prev.assignedBranchIds : [...prev.assignedBranchIds, branchId],
+      primaryBranchId: branchId
+    }));
+  };
+
+  const selectAllBranches = () => {
+    setForm(prev => {
+      const allIds = availableBranches.map(b => b.id);
+      return {
+        ...prev,
+        assignedBranchIds: allIds,
+        primaryBranchId: prev.primaryBranchId || allIds[0] || null
+      };
+    });
+  };
+
+  const clearAllBranches = () => {
+    setForm(prev => ({
+      ...prev,
+      assignedBranchIds: [],
+      primaryBranchId: null
+    }));
+  };
+
+  const subjectOptions: string[] = dbSubjects.length > 0
+    ? dbSubjects.map(s => s.name)
+    : [
+        'Physics', 'Mathematics', 'Chemistry', 'Biology', 'Zoology', 'Botany',
+        'Science', 'Social Studies', 'English', 'Hindi', 'Marathi', 'Environmental Science',
+        'Computer Science', 'Commerce', 'Economics'
+      ];
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -160,46 +509,67 @@ export const StaffCreate: React.FC = () => {
     const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
     const empId = `EMP-${String(Date.now()).slice(-5)}`;
     
-    // Fallback branch mapping if you don't have IDs
-    const primaryBranchObj = branches.find(b => b.name === form.primaryBranch);
-    const primaryBranchId = primaryBranchObj?.id || 1;
+    // Multi-branch mapping
+    const branchIds = form.assignedBranchIds.length > 0
+      ? form.assignedBranchIds
+      : (form.primaryBranchId ? [form.primaryBranchId] : (availableBranches[0] ? [availableBranches[0].id] : [1]));
+    const primaryBranchId = form.primaryBranchId || branchIds[0] || 1;
+
+    // Map selected subject names to subjectIds
+    const subjectIds = form.subjects
+      .map(sName => {
+        const found = dbSubjects.find(s => s.name.toLowerCase() === sName.toLowerCase());
+        return found ? found.id : null;
+      })
+      .filter(Boolean);
+
+    // Map selected role names to roleIds from roles table
+    const roleIds = form.roles
+      .map(rName => {
+        const found = dbRoles.find(
+          r => r.name.toLowerCase() === rName.toLowerCase() ||
+               r.code.toLowerCase() === rName.toLowerCase().replace(/[\s-]+/g, '_')
+        );
+        return found ? found.id : null;
+      })
+      .filter(Boolean);
 
     try {
       const payload = {
-        employeeId: isEditMode ? staffData.employee_id || empId : empId,
+        employeeId: isEditMode ? (staffData?.employee_id || empId) : empId,
         firstName: form.firstName, middleName: form.middleName, lastName: form.lastName,
-        name: fullName, gender: form.gender, dob: form.dob,
-        bloodGroup: form.bloodGroup, maritalStatus: form.maritalStatus,
+        name: fullName, gender: form.gender, dob: form.dob || null,
         aadhaar: form.aadhaar, pan: form.pan,
         mobile: form.mobile, alternateMobile: form.alternateMobile,
-        email: form.email, personalEmail: form.personalEmail,
-        currentAddress: form.currentAddress, permanentAddress: form.permanentAddress,
+        email: form.email,
+        address: form.address,
         city: form.city, state: form.state, pinCode: form.pinCode,
         employeeType: form.employeeType, designation: form.designation,
-        department: form.department, joiningDate: form.joiningDate,
-        employmentType: form.employmentType, reportingManager: form.reportingManager,
+        department: form.department, joiningDate: form.joiningDate || null,
+        employmentType: form.employmentType,
         employmentStatus: form.employmentStatus, experience: form.experience,
         qualification: form.qualification,
         primaryBranchId,
-        roles: form.roles, role: form.roles[0] || '',
-        maxLecturesPerDay: isTeacher && form.maxLecturesPerDay ? Number(form.maxLecturesPerDay) : undefined,
-        maxLecturesPerWeek: isTeacher && form.maxLecturesPerWeek ? Number(form.maxLecturesPerWeek) : undefined,
-        biometricMandatory: isTeacher ? form.biometricMandatory : undefined,
+        branchIds,
+        branch_ids: branchIds,
+        roles: form.roles,
+        roleIds,
+        role: form.roles[0] || (form.employeeType === 'Teaching' ? 'Teacher' : ''),
+        workingDays: form.workingDays,
+        working_days: form.workingDays,
+        subjects: form.subjects,
+        subjectIds,
+        allocatedBatchIds: form.allocatedBatchIds,
+        batchIds: form.allocatedBatchIds,
+        maxLecturesPerDay: isTeacher && form.maxLecturesPerDay ? Number(form.maxLecturesPerDay) : null,
+        maxLecturesPerWeek: isTeacher && form.maxLecturesPerWeek ? Number(form.maxLecturesPerWeek) : null,
         salaryType: form.salaryType,
-        monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : undefined,
-        hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : undefined,
-        contractAmount: form.contractAmount ? Number(form.contractAmount) : undefined,
+        monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : null,
+        hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : null,
+        contractAmount: form.contractAmount ? Number(form.contractAmount) : null,
         bankName: form.bankName, accountHolder: form.accountHolder,
         accountNumber: form.accountNumber, ifsc: form.ifsc, upiId: form.upiId,
-        pfNumber: form.pfNumber, esicNumber: form.esicNumber,
-        professionalTax: form.professionalTax, tdsApplicable: form.tdsApplicable,
-        createLogin: form.createLogin, username: form.username,
-        mobileLogin: form.mobileLogin, tempPassword: form.tempPassword,
-        permissionProfile: form.permissionProfile, forcePasswordReset: form.forcePasswordReset,
-        mobileApp: form.mobileApp,
-        emergencyContact: form.emergencyContact, emergencyRelationship: form.emergencyRelationship,
-        emergencyMobile: form.emergencyMobile,
-        status: 'Active',
+        status: form.employmentStatus || 'Active',
       };
 
       if (isEditMode) {
@@ -267,7 +637,7 @@ export const StaffCreate: React.FC = () => {
             >
               <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-blue-600 text-white' : isDone ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'
                 } text-[10px] font-bold`}>
-                {isDone ? <Check size={10} strokeWidth={3} /> : idx + 1}
+              {isDone ? <Check size={10} strokeWidth={3} /> : idx + 1}
               </div>
               <span className={`text-xs font-semibold ${isActive ? 'text-blue-700' : isDone ? 'text-slate-600' : 'text-slate-500'}`}>{tab.label}</span>
             </button>
@@ -298,16 +668,10 @@ export const StaffCreate: React.FC = () => {
                 <Input label="Middle Name" value={form.middleName} onChange={e => set('middleName', e.target.value)} placeholder="Optional" />
                 <Input label="Last Name *" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="e.g. Kelkar" />
               </FieldGrid>
-              <FieldGrid>
+              <FieldGrid cols={2}>
                 <Select label="Gender *" value={form.gender} onChange={e => set('gender', e.target.value)}
                   options={[{ value: '', label: 'Select' }, { value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }, { value: 'Other', label: 'Other' }]} />
                 <Input label="Date of Birth *" type="date" value={form.dob} onChange={e => set('dob', e.target.value)} />
-                <Select label="Blood Group (Optional)" value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}
-                  options={[{ value: '', label: 'Select' }, ...BLOOD_GROUPS.map(b => ({ value: b, label: b }))]} />
-              </FieldGrid>
-              <FieldGrid cols={2}>
-                <Select label="Marital Status" value={form.maritalStatus} onChange={e => set('maritalStatus', e.target.value)}
-                  options={[{ value: '', label: 'Select' }, { value: 'Single', label: 'Single' }, { value: 'Married', label: 'Married' }, { value: 'Divorced', label: 'Divorced' }, { value: 'Widowed', label: 'Widowed' }]} />
               </FieldGrid>
               <SectionTitle>Identity Documents</SectionTitle>
               <FieldGrid cols={2}>
@@ -324,23 +688,13 @@ export const StaffCreate: React.FC = () => {
               <FieldGrid>
                 <Input label="Mobile Number *" type="tel" value={form.mobile} onChange={e => set('mobile', e.target.value)} placeholder="10-digit number" />
                 <Input label="Alternate Mobile" type="tel" value={form.alternateMobile} onChange={e => set('alternateMobile', e.target.value)} placeholder="Optional" />
-                <Input label="Official Email *" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@institute.com" />
+                <Input label="Email Address *" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@institute.com" />
               </FieldGrid>
-              <FieldGrid cols={2}>
-                <Input label="Personal Email" type="email" value={form.personalEmail} onChange={e => set('personalEmail', e.target.value)} placeholder="Optional" />
-              </FieldGrid>
-              <SectionTitle>Address</SectionTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Current Address</label>
-                  <textarea rows={3} value={form.currentAddress} onChange={e => set('currentAddress', e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none" placeholder="Flat, Building, Street..." />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Permanent Address</label>
-                  <textarea rows={3} value={form.permanentAddress} onChange={e => set('permanentAddress', e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none" placeholder="If same as current, leave blank" />
-                </div>
+              <SectionTitle>Address Details</SectionTitle>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Address</label>
+                <textarea rows={3} value={form.address} onChange={e => set('address', e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 resize-none" placeholder="House/Flat No, Building, Street, Area..." />
               </div>
               <FieldGrid>
                 <Input label="City" value={form.city} onChange={e => set('city', e.target.value)} placeholder="e.g. Mumbai" />
@@ -372,8 +726,7 @@ export const StaffCreate: React.FC = () => {
                 <Select label="Employment Status" value={form.employmentStatus} onChange={e => set('employmentStatus', e.target.value)}
                   options={[{ value: 'Active', label: 'Active' }, { value: 'On Leave', label: 'On Leave' }, { value: 'Resigned', label: 'Resigned' }, { value: 'Terminated', label: 'Terminated' }]} />
               </FieldGrid>
-              <FieldGrid>
-                <Input label="Reporting Manager" value={form.reportingManager} onChange={e => set('reportingManager', e.target.value)} placeholder="Name or Employee ID" />
+              <FieldGrid cols={2}>
                 <Input label="Experience (Years)" value={form.experience} onChange={e => set('experience', e.target.value)} placeholder="e.g. 5" />
                 <Input label="Qualification" value={form.qualification} onChange={e => set('qualification', e.target.value)} placeholder="e.g. M.Sc Physics, B.Ed" />
               </FieldGrid>
@@ -382,18 +735,117 @@ export const StaffCreate: React.FC = () => {
 
           {/* BRANCH & ROLE */}
           {currentTabId === 'branch' && (
-            <div className="space-y-5">
-              <SectionTitle>Branch Assignment</SectionTitle>
-              <FieldGrid cols={2}>
-                <Select label="Primary Branch *" value={form.primaryBranch} onChange={e => set('primaryBranch', e.target.value)}
-                  options={[{ value: '', label: 'Select branch' }, ...branchOptions]} />
-              </FieldGrid>
-              <MultiSelect label="Additional Branches" options={branches.map(b => b.name)} selected={form.additionalBranches} onChange={v => set('additionalBranches', v)} />
+            <div className="space-y-6">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div>
+                    <SectionTitle>Branch Assignment</SectionTitle>
+                    <p className="text-xs text-slate-500 -mt-2">
+                      Assign all branches where this staff member operates. Click to select multiple branches and designate one as the Primary Branch.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                      form.assignedBranchIds.length > 0
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}>
+                      {form.assignedBranchIds.length} {form.assignedBranchIds.length === 1 ? 'Branch' : 'Branches'} Assigned
+                    </span>
+                    <button
+                      type="button"
+                      onClick={selectAllBranches}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAllBranches}
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1 rounded border border-slate-200 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-3">
+                  {availableBranches.map(branch => {
+                    const isSelected = form.assignedBranchIds.includes(branch.id);
+                    const isPrimary = form.primaryBranchId === branch.id || (!form.primaryBranchId && form.assignedBranchIds[0] === branch.id);
+
+                    return (
+                      <div
+                        key={branch.id}
+                        onClick={() => toggleBranch(branch.id)}
+                        className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between gap-3 ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/40 shadow-sm ring-1 ring-blue-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-slate-900 leading-snug truncate">{branch.name}</h4>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              {branch.code && (
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                  {branch.code}
+                                </span>
+                              )}
+                              {branch.city && (
+                                <span className="text-xs text-slate-500">{branch.city}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <div className="pt-2 border-t border-blue-100 flex items-center justify-between">
+                            {isPrimary ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                ★ Primary Branch
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPrimaryBranch(branch.id);
+                                }}
+                                className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                Set as Primary
+                              </button>
+                            )}
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Assigned</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {form.assignedBranchIds.length === 0 && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+                    <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
+                    <span>Please assign at least one branch for this employee.</span>
+                  </div>
+                )}
+              </div>
+
               <SectionTitle>System Role Assignment</SectionTitle>
               <p className="text-xs text-slate-500 -mt-3 mb-2">
                 One employee can have multiple roles. Adding "Teacher" reveals the Teacher Information tab.
               </p>
-              <MultiSelect label="System Roles *" options={SYSTEM_ROLES} selected={form.roles} onChange={v => set('roles', v)} />
+              <MultiSelect label="System Roles *" options={availableRoles} selected={form.roles} onChange={v => set('roles', v)} />
               {isTeacher && (
                 <div className="flex items-center gap-2 p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-700">
                   <Check size={13} strokeWidth={3} /> Teacher role detected — Teacher Information tab is now visible in the sidebar.
@@ -401,39 +853,473 @@ export const StaffCreate: React.FC = () => {
               )}
               <SectionTitle>Schedule</SectionTitle>
               <MultiSelect label="Working Days" options={DAYS} selected={form.workingDays} onChange={v => set('workingDays', v)} />
-              <FieldGrid cols={2}>
-                <Select label="Default Shift" value={form.defaultShift} onChange={e => set('defaultShift', e.target.value)}
-                  options={[{ value: '', label: 'Select' }, { value: 'Morning', label: 'Morning (7am–1pm)' }, { value: 'Afternoon', label: 'Afternoon (1pm–7pm)' }, { value: 'Evening', label: 'Evening (3pm–9pm)' }, { value: 'Full Day', label: 'Full Day' }]} />
-              </FieldGrid>
             </div>
           )}
 
           {/* TEACHER INFO */}
           {currentTabId === 'teacher' && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <BookOpen size={16} className="text-blue-600" />
+                <BookOpen size={16} className="text-blue-600 flex-shrink-0" />
                 <p className="text-xs text-blue-700 font-medium">This section appears because "Teacher" is assigned as a system role.</p>
               </div>
-              <SectionTitle>Academic Information</SectionTitle>
-              <MultiSelect label="Subjects Taught" options={allSubjects} selected={form.subjects} onChange={v => set('subjects', v)} />
-              <MultiSelect label="Courses Assigned" options={courseOptions} selected={form.coursesAssigned} onChange={v => set('coursesAssigned', v)} />
-              <MultiSelect label="Programs Assigned" options={uniquePrograms} selected={form.programsAssigned} onChange={v => set('programsAssigned', v)} />
-              <MultiSelect label="Academic Levels" options={['Class 8', 'Class 9', 'Class 10', 'Year 1 (11th)', 'Year 2 (12th)', 'Repeater']} selected={form.academicLevels} onChange={v => set('academicLevels', v)} />
-              <SectionTitle>Timetable Preferences</SectionTitle>
-              <FieldGrid>
-                <Input label="Max Lectures / Day" type="number" value={form.maxLecturesPerDay} onChange={e => set('maxLecturesPerDay', e.target.value)} placeholder="e.g. 4" />
-                <Input label="Max Lectures / Week" type="number" value={form.maxLecturesPerWeek} onChange={e => set('maxLecturesPerWeek', e.target.value)} placeholder="e.g. 20" />
-                <Input label="Preferred Working Hours" value={form.preferredWorkingHours} onChange={e => set('preferredWorkingHours', e.target.value)} placeholder="e.g. 9 AM – 4 PM" />
-              </FieldGrid>
-              <MultiSelect label="Unavailable Days" options={DAYS} selected={form.unavailableDays} onChange={v => set('unavailableDays', v)} />
-              <FieldGrid cols={2}>
-                <Input label="Preferred Break Time" value={form.preferredBreakTime} onChange={e => set('preferredBreakTime', e.target.value)} placeholder="e.g. 1 PM – 2 PM" />
-              </FieldGrid>
-              <SectionTitle>Teaching Mode</SectionTitle>
-              <MultiSelect label="Preferred Modes" options={['Online', 'Offline', 'Hybrid']} selected={form.teachingMode} onChange={v => set('teachingMode', v)} />
-              <SectionTitle>Attendance</SectionTitle>
-              <Checkbox label="Biometric attendance is mandatory for this teacher" checked={form.biometricMandatory} onChange={v => set('biometricMandatory', v)} />
+
+              {/* Teacher-to-Subject Mapping Section */}
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                  <div>
+                    <SectionTitle>Teacher to Subject Mapping</SectionTitle>
+                    <p className="text-xs text-slate-500 -mt-3">
+                      Filter by Course, Program, and Academic Level to assign subjects taught by this teacher across any stream.
+                    </p>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold self-start sm:self-auto ${
+                    form.subjects.length > 0
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}>
+                    {form.subjects.length} {form.subjects.length === 1 ? 'Subject' : 'Subjects'} Mapped
+                  </span>
+                </div>
+
+                {/* Dropdown Filters & Search */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mt-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    <Filter size={14} className="text-blue-600" />
+                    <span>Filter Subjects</span>
+                    {(subjectCourseFilter || subjectProgramFilter || subjectLevelFilter || subjectSearch) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSubjectCourseFilter('');
+                          setSubjectProgramFilter('');
+                          setSubjectLevelFilter('');
+                          setSubjectSearch('');
+                        }}
+                        className="ml-auto text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center gap-1"
+                      >
+                        <X size={12} /> Clear Filters
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    <Select
+                      label="Course"
+                      value={subjectCourseFilter}
+                      onChange={e => {
+                        setSubjectCourseFilter(e.target.value);
+                        setSubjectProgramFilter('');
+                        setSubjectLevelFilter('');
+                      }}
+                      options={[{ value: '', label: 'All Courses' }, ...availableSubjectCourseOptions]}
+                    />
+                    <Select
+                      label="Program"
+                      value={subjectProgramFilter}
+                      onChange={e => {
+                        setSubjectProgramFilter(e.target.value);
+                        setSubjectLevelFilter('');
+                      }}
+                      options={[{ value: '', label: 'All Programs' }, ...availableSubjectProgramOptions]}
+                    />
+                    <Select
+                      label="Academic Level"
+                      value={subjectLevelFilter}
+                      onChange={e => setSubjectLevelFilter(e.target.value)}
+                      options={[{ value: '', label: 'All Levels' }, ...availableSubjectLevelOptions]}
+                    />
+                    <Input
+                      label="Search Subjects"
+                      value={subjectSearch}
+                      onChange={e => setSubjectSearch(e.target.value)}
+                      placeholder="Subject name, code, etc."
+                    />
+                  </div>
+                </div>
+
+                {/* Selected Subjects Chips Summary */}
+                {form.subjects.length > 0 && (
+                  <div className="mt-4 p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <BookOpen size={13} className="text-blue-600" />
+                        Selected Subjects ({form.subjects.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, subjects: [] }))}
+                        className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline"
+                      >
+                        Clear All Mapped Subjects
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {form.subjects.map(sName => {
+                        const sub = dbSubjects.find(s => s.name.toLowerCase() === sName.toLowerCase());
+                        return (
+                          <div
+                            key={sName}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-200 text-blue-900 rounded-lg text-xs shadow-xs font-medium"
+                          >
+                            <span className="font-bold">{sName}</span>
+                            {sub?.code && (
+                              <span className="text-[10px] text-slate-500 font-mono">({sub.code})</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleSubject(sName)}
+                              className="text-slate-400 hover:text-red-600 transition-colors ml-1"
+                              title="Remove subject mapping"
+                            >
+                              <X size={13} strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Matching Subjects List */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-600">
+                      Showing {filteredDbSubjects.length} {filteredDbSubjects.length === 1 ? 'subject' : 'subjects'}
+                    </span>
+                    {filteredDbSubjects.length > 0 && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const names = filteredDbSubjects.map(s => s.name);
+                            setForm(prev => ({
+                              ...prev,
+                              subjects: Array.from(new Set([...prev.subjects, ...names]))
+                            }));
+                          }}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors"
+                        >
+                          Select All Visible
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const names = filteredDbSubjects.map(s => s.name);
+                            setForm(prev => ({
+                              ...prev,
+                              subjects: prev.subjects.filter(name => !names.includes(name))
+                            }));
+                          }}
+                          className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1 rounded border border-slate-200 transition-colors"
+                        >
+                          Deselect Visible
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {filteredDbSubjects.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <BookOpen size={28} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-sm font-semibold text-slate-700">No subjects match the selected filters</p>
+                      <p className="text-xs text-slate-400 mt-1">Try selecting different Course, Program, or Level filters above.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                      {filteredDbSubjects.map(sub => {
+                        const isSelected = form.subjects.includes(sub.name);
+                        return (
+                          <div
+                            key={sub.id || sub.name}
+                            onClick={() => toggleSubject(sub.name)}
+                            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between gap-2.5 ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-50/40 shadow-xs'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className={`mt-0.5 w-4.5 h-4.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
+                                }`}
+                              >
+                                {isSelected && <Check size={11} className="text-white" strokeWidth={3} />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <h4 className="text-xs font-bold text-slate-900 truncate">{sub.name}</h4>
+                                  {sub.code && (
+                                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                      {sub.code}
+                                    </span>
+                                  )}
+                                </div>
+                                {sub.description && (
+                                  <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{sub.description}</p>
+                                )}
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                  {sub.type && (
+                                    <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                                      {sub.type}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                              <span className={isSelected ? 'text-blue-700 font-bold uppercase tracking-wider' : 'text-slate-400'}>
+                                {isSelected ? 'Mapped to Teacher' : 'Click to map'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Teacher-to-Batch Mapping Section */}
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                  <div>
+                    <SectionTitle>Teacher to Batch Mapping</SectionTitle>
+                    <p className="text-xs text-slate-500 -mt-3">
+                      Filter by Course, Program, and Academic Level to assign this teacher to multiple batches across any stream.
+                    </p>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold self-start sm:self-auto ${
+                    form.allocatedBatchIds.length > 0
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}>
+                    {form.allocatedBatchIds.length} {form.allocatedBatchIds.length === 1 ? 'Batch' : 'Batches'} Mapped
+                  </span>
+                </div>
+
+                {/* Dropdown Filters & Search */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 mt-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    <Filter size={14} className="text-blue-600" />
+                    <span>Filter Batches</span>
+                    {(courseFilter || programFilter || levelFilter || batchSearch) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCourseFilter('');
+                          setProgramFilter('');
+                          setLevelFilter('');
+                          setBatchSearch('');
+                        }}
+                        className="ml-auto text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center gap-1"
+                      >
+                        <X size={12} /> Clear Filters
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    <Select
+                      label="Course"
+                      value={courseFilter}
+                      onChange={e => {
+                        setCourseFilter(e.target.value);
+                        setProgramFilter('');
+                        setLevelFilter('');
+                      }}
+                      options={[{ value: '', label: 'All Courses' }, ...availableCourseOptions]}
+                    />
+                    <Select
+                      label="Program"
+                      value={programFilter}
+                      onChange={e => {
+                        setProgramFilter(e.target.value);
+                        setLevelFilter('');
+                      }}
+                      options={[{ value: '', label: 'All Programs' }, ...availableProgramOptions]}
+                    />
+                    <Select
+                      label="Academic Level"
+                      value={levelFilter}
+                      onChange={e => setLevelFilter(e.target.value)}
+                      options={[{ value: '', label: 'All Levels' }, ...availableLevelOptions]}
+                    />
+                    <Input
+                      label="Search Batches"
+                      value={batchSearch}
+                      onChange={e => setBatchSearch(e.target.value)}
+                      placeholder="Batch name, code, etc."
+                    />
+                  </div>
+                </div>
+
+                {/* Selected Batches Chips Summary */}
+                {form.allocatedBatchIds.length > 0 && (
+                  <div className="mt-4 p-3.5 bg-blue-50/50 border border-blue-100 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers size={13} className="text-blue-600" />
+                        Selected Batches ({form.allocatedBatchIds.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, allocatedBatchIds: [] }))}
+                        className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline"
+                      >
+                        Clear All Mapped Batches
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {form.allocatedBatchIds.map(batchId => {
+                        const batch = dbBatches.find(b => Number(b.id) === batchId);
+                        return (
+                          <div
+                            key={batchId}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-200 text-blue-900 rounded-lg text-xs shadow-xs font-medium"
+                          >
+                            <span className="font-bold">{batch?.name || `Batch #${batchId}`}</span>
+                            {batch?.courseName && (
+                              <span className="text-[10px] text-slate-500">({batch.courseName})</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleBatchAllocation(batchId)}
+                              className="text-slate-400 hover:text-red-600 transition-colors ml-1"
+                              title="Remove batch mapping"
+                            >
+                              <X size={13} strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Matching Batches List */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-600">
+                      Showing {filteredBatches.length} {filteredBatches.length === 1 ? 'batch' : 'batches'}
+                    </span>
+                    {filteredBatches.length > 0 && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filteredIds = filteredBatches.map(b => Number(b.id));
+                            setForm(prev => ({
+                              ...prev,
+                              allocatedBatchIds: Array.from(new Set([...prev.allocatedBatchIds, ...filteredIds]))
+                            }));
+                          }}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors"
+                        >
+                          Select All Visible
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filteredIds = filteredBatches.map(b => Number(b.id));
+                            setForm(prev => ({
+                              ...prev,
+                              allocatedBatchIds: prev.allocatedBatchIds.filter(id => !filteredIds.includes(id))
+                            }));
+                          }}
+                          className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1 rounded border border-slate-200 transition-colors"
+                        >
+                          Deselect Visible
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {filteredBatches.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <Layers size={28} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-sm font-semibold text-slate-700">No batches match the selected filters</p>
+                      <p className="text-xs text-slate-400 mt-1">Try selecting different Course, Program, or Level filters above.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
+                      {filteredBatches.map(batch => {
+                        const batchId = Number(batch.id);
+                        const isAllocated = form.allocatedBatchIds.includes(batchId);
+                        return (
+                          <div
+                            key={batch.id}
+                            onClick={() => toggleBatchAllocation(batchId)}
+                            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between gap-2.5 ${
+                              isAllocated
+                                ? 'border-blue-600 bg-blue-50/40 shadow-xs'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <div
+                                className={`mt-0.5 w-4.5 h-4.5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  isAllocated ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
+                                }`}
+                              >
+                                {isAllocated && <Check size={11} className="text-white" strokeWidth={3} />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <h4 className="text-xs font-bold text-slate-900 truncate">{batch.name}</h4>
+                                  {batch.code && (
+                                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                      {batch.code}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
+                                  {batch.courseName && (
+                                    <div className="truncate font-medium text-slate-700">📚 {batch.courseName}</div>
+                                  )}
+                                  {(batch.programName || batch.levelName) && (
+                                    <div className="truncate text-[10px] text-slate-500">
+                                      {[batch.programName, batch.levelName].filter(Boolean).join(' • ')}
+                                    </div>
+                                  )}
+                                  {batch.branchName && (
+                                    <div className="truncate text-[10px] text-slate-400">
+                                      🏢 {batch.branchName}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                              <span className={isAllocated ? 'text-blue-700 font-bold uppercase tracking-wider' : 'text-slate-400'}>
+                                {isAllocated ? 'Mapped to Teacher' : 'Click to map'}
+                              </span>
+                              {batch.status && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-100 text-slate-600">
+                                  {batch.status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Timetable Preferences */}
+              <div>
+                <SectionTitle>Timetable Preferences</SectionTitle>
+                <FieldGrid>
+                  <Input label="Max Lectures / Day" type="number" value={form.maxLecturesPerDay} onChange={e => set('maxLecturesPerDay', e.target.value)} placeholder="e.g. 4" />
+                  <Input label="Max Lectures / Week" type="number" value={form.maxLecturesPerWeek} onChange={e => set('maxLecturesPerWeek', e.target.value)} placeholder="e.g. 20" />
+                  <Input label="Preferred Working Hours" value={form.preferredWorkingHours} onChange={e => set('preferredWorkingHours', e.target.value)} placeholder="e.g. 9 AM – 4 PM" />
+                </FieldGrid>
+              </div>
             </div>
           )}
 
@@ -458,16 +1344,6 @@ export const StaffCreate: React.FC = () => {
                 <Input label="IFSC Code" value={form.ifsc} onChange={e => set('ifsc', e.target.value)} placeholder="e.g. HDFC0001234" />
                 <Input label="UPI ID (Optional)" value={form.upiId} onChange={e => set('upiId', e.target.value)} placeholder="name@upi" />
               </FieldGrid>
-              <SectionTitle>Statutory (Optional)</SectionTitle>
-              <p className="text-xs text-slate-400 -mt-3 mb-3">Skip if your institute does not use PF / ESIC.</p>
-              <FieldGrid cols={2}>
-                <Input label="PF Number" value={form.pfNumber} onChange={e => set('pfNumber', e.target.value)} placeholder="Optional" />
-                <Input label="ESIC Number" value={form.esicNumber} onChange={e => set('esicNumber', e.target.value)} placeholder="Optional" />
-              </FieldGrid>
-              <div className="flex gap-6 mt-1">
-                <Checkbox label="Professional Tax Applicable" checked={form.professionalTax} onChange={v => set('professionalTax', v)} />
-                <Checkbox label="TDS Applicable" checked={form.tdsApplicable} onChange={v => set('tdsApplicable', v)} />
-              </div>
             </div>
           )}
 
@@ -491,48 +1367,6 @@ export const StaffCreate: React.FC = () => {
             </div>
           )}
 
-          {/* SYSTEM ACCESS */}
-          {currentTabId === 'access' && (
-            <div className="space-y-5">
-              <SectionTitle>Login Account</SectionTitle>
-              <Checkbox label="Create a system login account for this employee" checked={form.createLogin} onChange={v => set('createLogin', v)} />
-              {form.createLogin && (
-                <>
-                  <FieldGrid>
-                    <Input label="Username" value={form.username} onChange={e => set('username', e.target.value)} placeholder="e.g. arvind.kelkar" />
-                    <Input label="Login Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="Prefilled from Contact" />
-                    <Input label="Temporary Password" type="password" value={form.tempPassword} onChange={e => set('tempPassword', e.target.value)} placeholder="Min 8 characters" />
-                  </FieldGrid>
-                  <SectionTitle>Security Settings</SectionTitle>
-                  <FieldGrid cols={2}>
-                    <Select label="Account Status" value={form.accountStatus} onChange={e => set('accountStatus', e.target.value)}
-                      options={[{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive (No Login)' }]} />
-                    <Select label="Permission Profile" value={form.permissionProfile} onChange={e => set('permissionProfile', e.target.value)}
-                      options={[{ value: '', label: 'Based on Role (Default)' }, { value: 'Custom', label: 'Custom Profile' }]} />
-                  </FieldGrid>
-                  <div className="flex flex-col gap-3 mt-1">
-                    <Checkbox label="Force password reset on first login" checked={form.forcePasswordReset} onChange={v => set('forcePasswordReset', v)} />
-                    <Checkbox label="Enable mobile app access" checked={form.mobileApp} onChange={v => set('mobileApp', v)} />
-                    <Checkbox label="Allow mobile number login" checked={form.mobileLogin} onChange={v => set('mobileLogin', v)} />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* EMERGENCY */}
-          {currentTabId === 'emergency' && (
-            <div className="space-y-5">
-              <SectionTitle>Emergency Contact</SectionTitle>
-              <FieldGrid>
-                <Input label="Contact Name" value={form.emergencyContact} onChange={e => set('emergencyContact', e.target.value)} placeholder="e.g. Sunita Kelkar" />
-                <Select label="Relationship" value={form.emergencyRelationship} onChange={e => set('emergencyRelationship', e.target.value)}
-                  options={[{ value: '', label: 'Select' }, { value: 'Spouse', label: 'Spouse' }, { value: 'Parent', label: 'Parent' }, { value: 'Sibling', label: 'Sibling' }, { value: 'Child', label: 'Child' }, { value: 'Friend', label: 'Friend' }, { value: 'Other', label: 'Other' }]} />
-                <Input label="Mobile Number" type="tel" value={form.emergencyMobile} onChange={e => set('emergencyMobile', e.target.value)} placeholder="10-digit number" />
-              </FieldGrid>
-            </div>
-          )}
-
           {/* REVIEW */}
           {currentTabId === 'review' && (
             <div className="space-y-5">
@@ -547,14 +1381,44 @@ export const StaffCreate: React.FC = () => {
                 </div>
               )}
               {[
-                { title: 'Basic Information', rows: [['Name', [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ')], ['Gender', form.gender], ['DOB', form.dob], ['Blood Group (Optional)', form.bloodGroup]] },
-                { title: 'Contact', rows: [['Mobile', form.mobile], ['Email', form.email], ['City', form.city], ['State', form.state]] },
+                { title: 'Basic Information', rows: [['Name', [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ')], ['Gender', form.gender], ['DOB', form.dob]] },
+                { title: 'Contact & Login', rows: [['Mobile', form.mobile], ['Login Email', form.email], ['City', form.city], ['State', form.state]] },
                 { title: 'Employment', rows: [['Type', form.employeeType], ['Designation', form.designation], ['Department', form.department], ['Joining Date', form.joiningDate], ['Employment Type', form.employmentType]] },
-                { title: 'Branch & Role', rows: [['Primary Branch', form.primaryBranch], ['Additional Branches', form.additionalBranches.join(', ')], ['System Roles', form.roles.join(', ')], ['Working Days', form.workingDays.join(', ')]] },
-                ...(isTeacher ? [{ title: 'Teacher Information', rows: [['Subjects', form.subjects.join(', ')], ['Courses', form.coursesAssigned.join(', ')], ['Teaching Mode', form.teachingMode.join(', ')], ['Max Lec/Day', form.maxLecturesPerDay]] }] : []),
+                { 
+                  title: 'Branch & Role', 
+                  rows: [
+                    [
+                      'Assigned Branches', 
+                      availableBranches
+                        .filter(b => form.assignedBranchIds.includes(b.id))
+                        .map(b => (b.id === form.primaryBranchId || (!form.primaryBranchId && form.assignedBranchIds[0] === b.id)) ? `${b.name} (Primary)` : b.name)
+                        .join(', ') || 'None Assigned'
+                    ], 
+                    ['System Roles', form.roles.join(', ')], 
+                    ['Working Days', form.workingDays.join(', ')]
+                  ] 
+                },
+                ...(isTeacher ? [{ 
+                  title: 'Teacher Information', 
+                  rows: [
+                    [
+                      'Mapped Subjects', 
+                      form.subjects.length > 0 
+                        ? `${form.subjects.length} Subjects (${form.subjects.slice(0, 5).join(', ')}${form.subjects.length > 5 ? '...' : ''})` 
+                        : 'None Assigned'
+                    ],
+                    [
+                      'Mapped Batches', 
+                      form.allocatedBatchIds.length > 0 
+                        ? `${form.allocatedBatchIds.length} Batches (${dbBatches.filter(b => form.allocatedBatchIds.includes(Number(b.id))).map(b => b.name || b.code).slice(0, 5).join(', ')}${form.allocatedBatchIds.length > 5 ? '...' : ''})` 
+                        : 'None Assigned'
+                    ],
+                    ['Max Lec/Day', form.maxLecturesPerDay], 
+                    ['Max Lec/Week', form.maxLecturesPerWeek], 
+                    ['Working Hours', form.preferredWorkingHours]
+                  ] 
+                }] : []),
                 { title: 'Salary', rows: [['Salary Type', form.salaryType], ['Bank', form.bankName], ['IFSC', form.ifsc]] },
-                { title: 'System Access', rows: [['Create Login', form.createLogin ? 'Yes' : 'No'], ['Username', form.username], ['Force Reset', form.forcePasswordReset ? 'Yes' : 'No']] },
-                { title: 'Emergency Contact', rows: [['Name', form.emergencyContact], ['Relationship', form.emergencyRelationship], ['Mobile', form.emergencyMobile]] },
               ].map(section => (
                 <div key={section.title}>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{section.title}</p>

@@ -36,7 +36,7 @@ const getRoomName = (id?: string) => {
 
 export const TeacherSchedule: React.FC = () => {
   const { currentUser, batches, branches, courses, addToast } = useApp();
-  const { lectures } = useScheduler();
+  const { lectures, fetchWeeklyLectures } = useScheduler();
   const navigate = useNavigate();
 
   // Schedule requests state initialized from scheduleRequests.json with localStorage persistence
@@ -181,6 +181,22 @@ export const TeacherSchedule: React.FC = () => {
     d.setDate(d.getDate() + offset);
     return d.toISOString().split('T')[0];
   };
+
+  // Fetch live weekly lectures for teacher
+  useEffect(() => {
+    const startStr = getDayString(0);
+    const endStr = getDayString(6);
+    const resolvedBranchId = filterBranch !== 'All' 
+      ? (branches.find(b => b.name === filterBranch || b.code === filterBranch)?.id || filterBranch) 
+      : undefined;
+
+    fetchWeeklyLectures({
+      branchId: resolvedBranchId,
+      teacherId: currentTeacher?.id,
+      startDate: startStr,
+      endDate: endStr
+    });
+  }, [currentTeacher, currentDate, filterBranch, fetchWeeklyLectures, branches]);
 
   // ----------------------------------------------------
   // HELPERS
