@@ -9,7 +9,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Plus, Upload, Trash, ArrowLeft, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
-import { getTenantStatus } from '../data/mockData';
+import { getTenantStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 const formatDate = (dateStr: string | undefined): string => {

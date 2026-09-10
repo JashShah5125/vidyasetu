@@ -214,7 +214,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Core Academics',
             links: [
               { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subjects', path: '/subjects', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subject Setup', path: '/subjects', icon: BookOpen },
               { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
               { name: 'Classroom Master', label: 'Classroom Master', path: '/classrooms', icon: DoorOpen }
             ]
@@ -222,41 +222,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'ERP & Admissions',
             links: [
-              { name: 'Leads & Admissions', label: 'Leads Pipeline', path: '/leads', icon: Users },
-              { name: 'Students Roster', label: 'Student Records', path: '/students', icon: GraduationCap },
-              { name: 'Staff & Roles', label: 'Staff Scopes', path: '/staff', icon: ShieldCheck }
+              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/leads', icon: Users },
+              { name: 'Students Roster', label: 'Students Roster', path: '/students', icon: GraduationCap },
+              { name: 'Staff & Roles', label: 'Staff Directory', path: '/staff', icon: ShieldCheck }
             ]
           },
           {
             title: 'Finance Hub',
             links: [
-              { name: 'Fees Master', label: 'Fees Master', path: '/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Fee Transactions', path: '/fees', icon: DollarSign },
-              { name: 'Defaulters Ledger', label: 'Defaulters Ledger', path: '/defaulters', icon: AlertTriangle }
+              { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
+              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign }
             ]
           },
           {
             title: 'Classroom Operations',
             links: [
-              { name: 'Mark Attendance', label: 'Class Attendance', path: '/attendance', icon: CheckSquare },
+              { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
-              { name: 'Assignment and Exams', label: 'Home Assignments', path: '/assignments', icon: BookOpen }
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen }
             ]
           },
           {
             title: 'Reports & Auditing',
             links: [
               { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Branch Audit Logs', path: '/audit-logs', icon: ClipboardList }
+              { name: 'Audit Logs', label: 'Audit Trail Logs', path: '/audit-logs', icon: ClipboardList }
             ]
           },
           {
             title: 'Organization Setup',
             links: [
-              { name: 'Institute Setup', label: 'Institute Details', path: '/institute', icon: Settings },
-              { name: 'Branches Manager', label: 'Branch Details', path: '/branches', icon: Building2 },
+              { name: 'Institute Setup', label: 'Institute Profile', path: '/institute', icon: Settings },
+              { name: 'Branches Manager', label: 'Branches Setup', path: '/branches', icon: Building2 },
               { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
-              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
+              { name: 'Settings', label: 'Global Settings', path: '/settings', icon: Settings }
             ]
           }
         ];

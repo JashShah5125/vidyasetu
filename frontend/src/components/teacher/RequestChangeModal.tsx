@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { Calendar, Clock, MapPin, AlertCircle, CheckCircle2, BookOpen, Send } from 'lucide-react';
-import type { ScheduleChange, Batch } from '../../data/mockData';
+import type { ScheduleChange, Batch } from '../../types';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
 
 interface RequestChangeModalProps {

@@ -22,7 +22,7 @@ export interface StudentRosterItem {
   year_of_attempt?: string;
   blood_group?: string;
   profile_photo_url?: string;
-  status: string;
+  status: number | string;
   created_at: string;
   updated_at: string;
   enrollment_id?: number;
@@ -104,6 +104,7 @@ export interface StudentDetail extends StudentRosterItem {
 }
 
 export interface AcademicOptions {
+  branch?: { id: number; name: string };
   branches: Array<{ id: number; name: string }>;
   courses: Array<{ id: number; name: string }>;
   programs: Array<{ id: number; course_id: number; name: string; code?: string }>;
@@ -149,6 +150,22 @@ export interface CreateStudentPayload {
   status?: string;
 }
 
+const getStudentBasePath = (): string => {
+  try {
+    const savedUser = localStorage.getItem('vs_current_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
+      if (role === 'branch-admin') {
+        return '/branch/students';
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return '/admin/students';
+};
+
 export const getStudents = async (params: {
   page?: number;
   limit?: number;
@@ -159,31 +176,59 @@ export const getStudents = async (params: {
   status?: string;
   feeStatus?: string;
 }) => {
-  const response = await api.get('/admin/students', { params });
+  const basePath = getStudentBasePath();
+  const cleanParams = { ...params };
+  if (basePath === '/branch/students') {
+    delete cleanParams.branchId;
+  }
+  const response = await api.get(basePath, { params: cleanParams });
   return response.data;
 };
 
 export const getStudentById = async (id: number) => {
-  const response = await api.get(`/admin/students/${id}`);
+  const basePath = getStudentBasePath();
+  const response = await api.get(`${basePath}/${id}`);
   return response.data;
 };
 
 export const createStudent = async (payload: CreateStudentPayload) => {
-  const response = await api.post('/admin/students', payload);
+  const basePath = getStudentBasePath();
+  const cleanPayload = { ...payload };
+  if (basePath === '/branch/students' && !cleanPayload.primary_branch_id) {
+    delete (cleanPayload as any).primary_branch_id;
+  }
+  const response = await api.post(basePath, cleanPayload);
   return response.data;
 };
 
 export const updateStudent = async (id: number, payload: Partial<CreateStudentPayload>) => {
-  const response = await api.put(`/admin/students/${id}`, payload);
+  const basePath = getStudentBasePath();
+  const cleanPayload = { ...payload };
+  if (basePath === '/branch/students') {
+    delete cleanPayload.primary_branch_id;
+  }
+  const response = await api.put(`${basePath}/${id}`, cleanPayload);
+  return response.data;
+};
+
+export const patchStudent = async (id: number, partialPayload: Record<string, any>) => {
+  const basePath = getStudentBasePath();
+  const cleanPayload = { ...partialPayload };
+  if (basePath === '/branch/students') {
+    delete cleanPayload.primary_branch_id;
+  }
+  const response = await api.patch(`${basePath}/${id}`, cleanPayload);
   return response.data;
 };
 
 export const deleteStudent = async (id: number) => {
-  const response = await api.delete(`/admin/students/${id}`);
+  const basePath = getStudentBasePath();
+  const response = await api.delete(`${basePath}/${id}`);
   return response.data;
 };
 
 export const getAcademicOptions = async () => {
-  const response = await api.get('/admin/students/options/academic');
+  const basePath = getStudentBasePath();
+  const response = await api.get(`${basePath}/options/academic`);
   return response.data;
 };

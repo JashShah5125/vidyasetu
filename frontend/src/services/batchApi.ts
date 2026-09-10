@@ -86,6 +86,11 @@ export const batchApi = {
     return data;
   },
 
+  setStatus: async (id: string, status: BatchStatus) => {
+    const { data } = await api.patch(`/admin/batches/${id}/status`, { status });
+    return data;
+  },
+
   academicYears: async (params: { branch?: string } = {}) => {
     const { data } = await api.get('/admin/batches/academic-years', { params });
     return data;

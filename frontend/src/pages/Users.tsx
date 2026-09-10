@@ -8,8 +8,8 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Modal } from '../components/ui/Modal';
-import { Plus, ArrowLeft, Upload, Loader2 } from 'lucide-react';
-import type { Staff } from '../data/mockData';
+import { Plus, ArrowLeft, Upload, Loader2, Eye, Edit3, Trash2, AlertTriangle } from 'lucide-react';
+import type { Staff } from '../types';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { staffApi } from '../services/staffApi';
 
@@ -143,15 +143,18 @@ export const Users: React.FC = () => {
   const [staffProfileTab, setStaffProfileTab] = useState<'overview' | 'employment' | 'salary' | 'access'>('overview');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
-  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
+  const [filterBranch, setFilterBranch] = useState(isBranchAdmin ? currentUser.branch || 'All' : 'All');
   const [selectedCustomColumn, setSelectedCustomColumn] = useState<StaffColumnKey>('contact_number');
 
   const [loading, setLoading] = useState(false);
   const [apiStaff, setApiStaff] = useState<any[]>([]);
   const [totalStaff, setTotalStaff] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 10;
 
   const fetchStaff = async () => {
@@ -161,33 +164,126 @@ export const Users: React.FC = () => {
         page: currentPage,
         limit: itemsPerPage,
         search: searchTerm || undefined,
-        branchId: filterBranch !== 'All' ? filterBranch : undefined,
+        branchId: !isBranchAdmin && filterBranch !== 'All' ? filterBranch : undefined,
         role: filterRole !== 'All' ? filterRole : undefined,
       };
       const res = await staffApi.list(filters);
-      setApiStaff(res.data);
-      setTotalStaff(res.pagination.total);
+      if (res?.data) {
+        setApiStaff(res.data);
+        setTotalStaff(res.pagination?.total || res.data.length);
+      }
     } catch (err) {
-      console.error('Failed to fetch staff', err);
+      console.error('Failed to fetch staff:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await staffApi.delete(deleteTarget.id);
+      addToast(`Staff member "${deleteTarget.first_name || ''} ${deleteTarget.last_name || ''}" deleted successfully.`, 'success');
+      setDeleteTarget(null);
+      if (selectedStaff && String(selectedStaff.id) === String(deleteTarget.id)) {
+        setSelectedStaff(null);
+      }
+      fetchStaff();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || err?.message || 'Failed to delete staff member', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleViewStaff = (s: any) => {
+    const fullName = ((s.first_name || '') + ' ' + (s.last_name || '')).trim() || s.name || 'Personnel Member';
+    let branchName = s.primary_branch_name || s.branch || 'Main Branch';
+    if (s.branch_ids) {
+      try {
+        const bIds = Array.isArray(s.branch_ids) ? s.branch_ids : JSON.parse(s.branch_ids);
+        const names = bIds.map((id: any) => {
+          const b = (branches || []).find(branch => String(branch.id) === String(id));
+          return b ? b.name : null;
+        }).filter(Boolean);
+        if (names.length > 0) {
+          branchName = names.join(', ');
+        }
+      } catch (e) {}
+    }
+
+    let subjectsTaught = '';
+    if (Array.isArray(s.subjects)) {
+      subjectsTaught = s.subjects.join(', ');
+    } else if (s.subjects_taught) {
+      subjectsTaught = s.subjects_taught;
+    }
+
+    setSelectedStaff({
+      id: s.id,
+      employeeId: s.employee_id || `EMP-${s.id}`,
+      name: fullName,
+      firstName: s.first_name || '',
+      lastName: s.last_name || '',
+      email: s.email || s.official_email || '',
+      mobile: s.contact_number || s.mobile || '',
+      alternateMobile: s.alternate_mobile || '',
+      role: s.role_name || s.role || (s.employee_type === 'Teaching' ? 'Teacher' : (s.designation || 'Staff')),
+      designation: s.designation || '',
+      department: s.department || '',
+      branch: branchName,
+      additionalBranches: [],
+      roles: s.role_name ? s.role_name.split(', ') : (s.role ? [s.role] : []),
+      status: s.status || 'Active',
+      employeeType: s.employee_type || 'Teaching',
+      employmentType: s.employment_type || 'Full-Time',
+      employmentStatus: s.status || 'Active',
+      joiningDate: s.joining_date ? new Date(s.joining_date).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+      experience: s.experience || '',
+      qualification: s.qualification || '',
+      gender: s.gender || '',
+      dob: s.dob ? new Date(s.dob).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+      aadhaar: s.aadhaar_number || '',
+      pan: s.pan_number || '',
+      address: s.address || s.current_address || '',
+      city: s.city || '',
+      state: s.state || '',
+      pinCode: s.pincode || '',
+      salaryType: s.salary_type || 'Monthly',
+      monthlySalary: s.salary_amount || (s.monthly_salary ? Number(s.monthly_salary) : null),
+      bankName: s.bank_name || '',
+      accountHolder: s.bank_account_holder || fullName,
+      accountNumber: s.bank_account_number || '',
+      ifsc: s.bank_ifsc || '',
+      upiId: s.upi_id || '',
+      subjects_taught: subjectsTaught,
+      raw: s
+    } as any);
   };
 
   React.useEffect(() => {
     fetchStaff();
   }, [currentPage, searchTerm, filterBranch, filterRole]);
 
-  const ROLE_FILTER_OPTIONS = [
-    { value: 'All', label: 'All Roles' },
-    { value: 'Teacher', label: 'Teacher / Faculty' },
-    { value: 'Branch Admin', label: 'Branch Admin' },
-    { value: 'Institute Admin', label: 'Institute Admin' },
-    { value: 'Counsellor', label: 'Counsellor' },
-    { value: 'Finance', label: 'Finance Staff' },
-    { value: 'Teaching', label: 'Teaching Staff' },
-    { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
-  ];
+  const ROLE_FILTER_OPTIONS = isBranchAdmin
+    ? [
+        { value: 'All', label: 'All Operational Roles' },
+        { value: 'Teacher', label: 'Teacher / Faculty' },
+        { value: 'Counsellor', label: 'Counsellor' },
+        { value: 'Finance', label: 'Finance Staff' },
+        { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
+      ]
+    : [
+        { value: 'All', label: 'All Roles' },
+        { value: 'Teacher', label: 'Teacher / Faculty' },
+        { value: 'Branch Admin', label: 'Branch Admin' },
+        { value: 'Institute Admin', label: 'Institute Admin' },
+        { value: 'Counsellor', label: 'Counsellor' },
+        { value: 'Finance', label: 'Finance Staff' },
+        { value: 'Teaching', label: 'Teaching Staff' },
+        { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
+      ];
 
   const branchFilterOptions = [
     { value: 'All', label: 'All Branches' },
@@ -363,19 +459,42 @@ export const Users: React.FC = () => {
   if (selectedStaff) {
     return (
       <div className="space-y-6 w-full animate-fade-in">
-        {/* Header section with back button */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedStaff(null)}
-            className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={26} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">
-              Staff Profile: {selectedStaff.name}
-            </h2>
-            <p className="text-sm text-slate-500">Review staff info, employment attributes, and credentials.</p>
+        {/* Header section with back button & actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedStaff(null)}
+              className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            >
+              <ArrowLeft size={26} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-2xl font-display font-bold text-slate-900">
+                  Staff Profile: {selectedStaff.name}
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                  Profile View
+                </span>
+              </div>
+              <p className="text-sm text-slate-500">Review complete employee details, assignments, salary structure, and security credentials.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="primary"
+              onClick={() => navigate(`/staff/${selectedStaff.id}`, { state: { staffData: (selectedStaff as any).raw || selectedStaff } })}
+              className="flex items-center gap-1.5 font-semibold"
+            >
+              <Edit3 size={15} /> Edit Profile
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteTarget((selectedStaff as any).raw || selectedStaff)}
+              className="flex items-center gap-1.5 font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            >
+              <Trash2 size={15} /> Delete Staff
+            </Button>
           </div>
         </div>
 
@@ -720,7 +839,11 @@ export const Users: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Staff Members Directory</h2>
-          <p className="text-base text-slate-500 mt-2">Manage personnel profile records, assign security role boundaries, and allocate active branch hubs.</p>
+          <p className="text-base text-slate-500 mt-2">
+            {isBranchAdmin
+              ? "Manage branch personnel profiles, assign operational roles, and update staff details."
+              : "Manage personnel profile records, assign security role boundaries, and allocate active branch hubs."}
+          </p>
         </div>
         <div className="flex gap-2 shrink-0">
           <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
@@ -737,7 +860,7 @@ export const Users: React.FC = () => {
 
       {/* Search, Filter, Sort Controls & Export CSV */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
+        <div className={`grid grid-cols-1 ${isBranchAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-4 flex-1 w-full items-end`}>
           <Input
             label="Search"
             placeholder="Search by ID, name, email..."
@@ -756,16 +879,17 @@ export const Users: React.FC = () => {
             }}
             options={ROLE_FILTER_OPTIONS}
           />
-          <Select
-            label="Branch"
-            value={filterBranch}
-            onChange={(e) => {
-              setFilterBranch(e.target.value);
-              setCurrentPage(1);
-            }}
-            options={branchFilterOptions}
-            disabled={currentUser?.role === 'branch-admin'}
-          />
+          {!isBranchAdmin && (
+            <Select
+              label="Branch"
+              value={filterBranch}
+              onChange={(e) => {
+                setFilterBranch(e.target.value);
+                setCurrentPage(1);
+              }}
+              options={branchFilterOptions}
+            />
+          )}
           <Select
             label="Display Column"
             value={selectedCustomColumn}
@@ -799,7 +923,7 @@ export const Users: React.FC = () => {
             Staff Directory Registry {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}
           </CardTitle>
         </CardHeader>
-        <Table dense headers={[
+        <Table headers={[
           'ID',
           'Staff Name',
           'Branch / Hubs',
@@ -809,7 +933,7 @@ export const Users: React.FC = () => {
           'Actions'
         ]}>
           {paginatedStaff.map((s, idx) => {
-            const nameStr = (s.first_name || '') + ' ' + (s.last_name || '');
+            const nameStr = ((s.first_name || '') + ' ' + (s.last_name || '')).trim();
             const empId = (s as any).employee_id || s.id || `EMP-${idx + 1}`;
             
             let branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
@@ -829,51 +953,71 @@ export const Users: React.FC = () => {
             const roleStr = s.role_name || (s.employee_type === 'Teaching' ? 'Teacher' : (s.designation || s.employee_type || 'Staff'));
             const statusStr = (s.status || 'Active').toLowerCase();
             
-            let statusBadgeClass = 'bg-red-50 text-red-600';
+            let statusBadgeClass = 'bg-red-50 text-red-600 border-red-200';
             if (statusStr === 'active') {
-              statusBadgeClass = 'bg-emerald-50 text-emerald-600';
+              statusBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
             } else if (statusStr === 'inactive' || statusStr === 'suspended') {
-              statusBadgeClass = 'bg-amber-50 text-amber-600';
+              statusBadgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
             return (
               <tr 
                 key={idx} 
-                className="hover:bg-slate-50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}
+                className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                onClick={() => handleViewStaff(s)}
               >
-                <td className="px-3 py-3 font-bold text-sm text-slate-700 whitespace-nowrap font-mono">
+                <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600 whitespace-nowrap">
                   {empId}
                 </td>
-                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[180px]">
-                  {nameStr.trim() || 'Personnel Member'}
+                <td className="px-4 py-3">
+                  <div className="font-bold text-sm text-slate-900 line-clamp-1 max-w-[220px]" title={nameStr || 'Personnel Member'}>
+                    {nameStr || 'Personnel Member'}
+                  </div>
                 </td>
-                <td className="px-3 py-3 text-sm font-semibold text-slate-800 whitespace-nowrap">
-                  {branchStr}
+                <td className="px-4 py-3 text-xs font-medium text-slate-700">
+                  <span className="line-clamp-1 max-w-[200px]" title={branchStr}>
+                    {branchStr}
+                  </span>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">
+                <td className="px-4 py-3 whitespace-nowrap">
                   {renderCustomColumnCell(s, selectedCustomColumn)}
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">
-                  <span className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold border ${roleBadgeColors(roleStr)}`}>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-semibold border ${roleBadgeColors(roleStr)}`}>
                     {roleStr}
                   </span>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold capitalize ${statusBadgeClass}`}>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold capitalize border ${statusBadgeClass}`}>
                     {s.status || 'Active'}
                   </span>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
-                      className="py-1 px-3 text-xs" 
+                <td className="px-4 py-3 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      title="View Profile Details"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      onClick={() => handleViewStaff(s)}
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Edit Staff Form"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                       onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}
                     >
-                      Manage
-                    </Button>
+                      <Edit3 size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete Staff"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                      onClick={() => setDeleteTarget(s)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -888,6 +1032,50 @@ export const Users: React.FC = () => {
           onPageChange={setCurrentPage}
         />
       </Card>
+
+      {/* Delete Staff Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => !isDeleting && setDeleteTarget(null)}
+        title="Delete Staff Member"
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex items-start gap-3.5 p-1">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 text-red-600">
+            <AlertTriangle size={20} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-800">
+              Are you sure you want to delete <strong className="text-slate-900">{deleteTarget ? `${deleteTarget.first_name || ''} ${deleteTarget.last_name || ''}`.trim() || 'this staff member' : ''}</strong>?
+            </p>
+            <p className="text-xs text-slate-500">
+              This action will mark the staff member as <span className="font-semibold text-red-600">Deleted</span> and revoke their portal access immediately.
+            </p>
+          </div>
+        </div>
+      </Modal>
 
       <BulkImportModal
         isOpen={isImportModalOpen}

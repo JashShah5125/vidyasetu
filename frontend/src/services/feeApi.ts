@@ -46,6 +46,20 @@ export interface SubjectFeeUpsertPayload {
   feeAmount: number;
 }
 
+const isBranchAdmin = (): boolean => {
+  try {
+    const savedUser = localStorage.getItem('vs_current_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
+      return role === 'branch-admin';
+    }
+  } catch {
+    // fallback
+  }
+  return false;
+};
+
 export const feeApi = {
   listFeePlans: async (params: {
     page?: number;
@@ -54,7 +68,8 @@ export const feeApi = {
     programId?: string | number;
     search?: string;
   } = {}): Promise<ProgramFeeListResponse> => {
-    const { data } = await api.get('/admin/fee-plans', { params });
+    const url = isBranchAdmin() ? '/branch/fees/programs' : '/admin/fee-plans';
+    const { data } = await api.get(url, { params });
     return data;
   },
 
@@ -69,7 +84,8 @@ export const feeApi = {
   },
 
   listLevelSubjectFees: async (levelId: string | number) => {
-    const { data } = await api.get(`/admin/fee-plans/levels/${levelId}/subjects`);
+    const url = isBranchAdmin() ? `/branch/fees/levels/${levelId}/subjects` : `/admin/fee-plans/levels/${levelId}/subjects`;
+    const { data } = await api.get(url);
     return data;
   },
 

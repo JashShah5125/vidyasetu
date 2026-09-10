@@ -9,7 +9,9 @@ router.use(requireAuth);
 router.get('/', requirePermission('classroom.view'), classroomController.getClassrooms);
 router.post('/', requirePermission('classroom.create'), classroomController.createClassroom);
 router.get('/:id', requirePermission('classroom.view'), classroomController.getClassroom);
+router.patch('/:id', requirePermission('classroom.update'), classroomController.updateClassroom);
 router.put('/:id', requirePermission('classroom.update'), classroomController.updateClassroom);
+router.patch('/:id/status', requirePermission('classroom.update'), classroomController.changeClassroomStatus);
 router.delete('/:id', requirePermission('classroom.delete'), classroomController.deleteClassroom);
 
 module.exports = router;

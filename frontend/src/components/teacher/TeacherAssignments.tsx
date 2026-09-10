@@ -37,7 +37,7 @@ import {
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
-import type { ExamItem } from '../../data/mockData';
+import type { ExamItem } from '../../types';
 import { assignmentApi } from '../../services/assignmentApi';
 import type { HomeworkItem, HomeworkScoping, HomeworkSubmission, ScopingOption } from '../../services/assignmentApi';
 import { subjectApi } from '../../services/subjectApi';
@@ -113,11 +113,16 @@ export const TeacherAssignments: React.FC = () => {
     addToast,
     batches
   } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
-  const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'exams'>('homework');
+  const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'assignment' | 'exams'>('homework');
   const [activeSubTab, setActiveSubTab] = useState<'active' | 'drafts'>('active');
 
   const [scoping, setScoping] = useState<HomeworkScoping | null>(null);
+
+  const activeBranchId = scoping?.branch?.id?.toString() || (scoping?.branches && scoping.branches.length === 1 ? scoping.branches[0].id.toString() : currentUser?.branchId || '');
+  const activeBranchName = scoping?.branch?.name || (scoping?.branches && scoping.branches.length === 1 ? scoping.branches[0].name : currentUser?.branch || 'Assigned Branch');
+
   const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionBusy, setActionBusy] = useState<boolean>(false);
@@ -253,8 +258,14 @@ export const TeacherAssignments: React.FC = () => {
       if (activeSubTab === 'active' && item.status === 'Draft') return false;
       if (activeSubTab === 'drafts' && item.status !== 'Draft') return false;
 
+      // Scoped by active primary tab:
+      const itemType = (item.assignmentType || 'assignment').toLowerCase();
+      if (activePrimaryTab === 'homework' && itemType !== 'homework') return false;
+      if (activePrimaryTab === 'assignment' && itemType !== 'assignment') return false;
+      if (activePrimaryTab === 'exams' && itemType !== 'exam') return false;
+
       if (filterType !== 'All' && item.assignmentType !== filterType) return false;
-      if (filterBranch !== 'All' && item.branchName !== filterBranch) return false;
+      if (filterBranch !== 'All' && !isBranchAdmin && item.branchName !== filterBranch) return false;
       if (filterBatch !== 'All' && !item.batchNames.includes(filterBatch)) return false;
       if (filterSubject !== 'All' && item.subjectName !== filterSubject) return false;
       if (filterStatus !== 'All' && item.status !== filterStatus) return false;
@@ -268,38 +279,22 @@ export const TeacherAssignments: React.FC = () => {
       }
       return true;
     });
-  }, [homeworks, activeSubTab, filterType, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
+  }, [homeworks, activePrimaryTab, activeSubTab, filterType, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery, isBranchAdmin]);
 
-  const filteredExams = useMemo(() => {
-    return exams.filter(item => {
-      if (activeSubTab === 'active' && item.status === 'Draft') return false;
-      if (activeSubTab === 'drafts' && item.status !== 'Draft') return false;
-      if (filterBranch !== 'All') return false;
-      if (filterBatch !== 'All' && item.batch !== filterBatch) return false;
-      if (filterSubject !== 'All' && item.subject !== filterSubject) return false;
-      if (filterStatus !== 'All' && item.status !== filterStatus) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = item.name.toLowerCase().includes(q);
-        const matchSubj = item.subject.toLowerCase().includes(q);
-        const matchBatch = item.batch.toLowerCase().includes(q);
-        if (!matchName && !matchSubj && !matchBatch) return false;
-      }
-      return true;
-    });
-  }, [exams, activeSubTab, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
-
-  const currentData = activePrimaryTab === 'homework' ? filteredHomeworks : filteredExams;
+  const currentData = filteredHomeworks;
   const totalPages = Math.ceil(currentData.length / itemsPerPage);
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return currentData.slice(start, start + itemsPerPage);
   }, [currentData, currentPage, itemsPerPage]);
 
-  const openCreateForm = () => {
+  const openCreateForm = (type?: string) => {
+    const selectedType = type || (activePrimaryTab === 'homework' ? 'homework' : 'assignment');
+    const bId = isBranchAdmin && activeBranchId ? Number(activeBranchId) : (scoping?.branches?.[0] ? Number(scoping.branches[0].id) : 0);
     setHwForm({
       ...EMPTY_HW_FORM,
-      branchId: scoping?.branches?.[0] ? Number(scoping.branches[0].id) : 0,
+      assignmentType: selectedType,
+      branchId: bId,
       academicYearId: scoping?.academicYears?.[0] ? Number(scoping.academicYears[0].id) : 0,
       subjectId: scoping?.subjects?.[0] ? Number(scoping.subjects[0].id) : 0,
       dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
@@ -1608,14 +1603,24 @@ export const TeacherAssignments: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Branch</label>
-                  <select
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    value={hwForm.branchId}
-                    onChange={e => changeBranch(Number(e.target.value))}
-                  >
-                    <option value={0}>Select a branch...</option>
-                    {(scoping?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                  {!isBranchAdmin ? (
+                    <select
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                      value={hwForm.branchId}
+                      onChange={e => changeBranch(Number(e.target.value))}
+                    >
+                      <option value={0}>Select a branch...</option>
+                      {(scoping?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  ) : (
+                    <select
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-600 cursor-not-allowed opacity-70 outline-none"
+                      value={activeBranchId}
+                      disabled={true}
+                    >
+                      <option value={activeBranchId}>{activeBranchName}</option>
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Academic Year</label>
@@ -2069,7 +2074,7 @@ export const TeacherAssignments: React.FC = () => {
   // ─── Main list view ──────────────────────────────────────────────────────
   const handleResetFilters = () => {
     setFilterType('All');
-    setFilterBranch('All');
+    setFilterBranch(isBranchAdmin ? activeBranchName : 'All');
     setFilterBatch('All');
     setFilterSubject('All');
     setFilterStatus('All');
@@ -2082,13 +2087,19 @@ export const TeacherAssignments: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-display font-bold text-slate-900">Homeworks and Exams</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage homework, practice sets, and classroom evaluations</p>
+          <p className="text-sm text-slate-500 mt-1">Manage homework, assignments, practice sets, and classroom evaluations</p>
         </div>
-        {activePrimaryTab === 'homework' ? (
-          <Button className="bg-blue-600 text-white cursor-pointer" onClick={openCreateForm}>
+        {activePrimaryTab === 'homework' && (
+          <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => openCreateForm('homework')}>
+            <Plus className="w-4 h-4 mr-2" /> Create Homework
+          </Button>
+        )}
+        {activePrimaryTab === 'assignment' && (
+          <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => openCreateForm('assignment')}>
             <Plus className="w-4 h-4 mr-2" /> Create Assignment
           </Button>
-        ) : (
+        )}
+        {activePrimaryTab === 'exams' && (
           <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => { setExamForm({}); setShowExamForm(true); }}>
             <Plus className="w-4 h-4 mr-2" /> Schedule Test
           </Button>
@@ -2108,6 +2119,16 @@ export const TeacherAssignments: React.FC = () => {
           Homeworks
         </button>
         <button
+          onClick={() => { setActivePrimaryTab('assignment'); setActiveSubTab('active'); }}
+          className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'assignment'
+            ? 'border-blue-600 text-blue-700'
+            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+        >
+          <FileText size={16} />
+          Assignments
+        </button>
+        <button
           onClick={() => { setActivePrimaryTab('exams'); setActiveSubTab('active'); }}
           className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'exams'
             ? 'border-blue-600 text-blue-700'
@@ -2115,7 +2136,7 @@ export const TeacherAssignments: React.FC = () => {
             }`}
         >
           <ClipboardList size={16} />
-          Exams & Assignments
+          Exams
         </button>
         <button
           onClick={() => setActiveSubTab('drafts')}
@@ -2124,7 +2145,13 @@ export const TeacherAssignments: React.FC = () => {
             : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
             }`}
         >
-          Drafts ({activePrimaryTab === 'homework' ? homeworks.filter(a => a.status === 'Draft').length : exams.filter(e => e.status === 'Draft').length})
+          Drafts ({
+            activePrimaryTab === 'homework'
+              ? homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'homework').length
+              : activePrimaryTab === 'assignment'
+              ? homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'assignment').length
+              : homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'exam').length
+          })
         </button>
       </div>
 
@@ -2136,28 +2163,32 @@ export const TeacherAssignments: React.FC = () => {
         </div>
         <Input
           label="Search"
-          placeholder={activePrimaryTab === 'homework' ? 'Search assignments by title...' : 'Search tests by name...'}
+          placeholder={
+            activePrimaryTab === 'homework'
+              ? 'Search homework by title...'
+              : activePrimaryTab === 'assignment'
+              ? 'Search assignments by title...'
+              : 'Search exams by title...'
+          }
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Select
-            label="Type"
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-            options={[
-              { value: 'All', label: 'All Types' },
-              { value: 'assignment', label: 'Assignment' },
-              { value: 'homework', label: 'Homework' },
-              { value: 'exam', label: 'Exam' }
-            ]}
-          />
-          <Select
-            label="Branch"
-            value={filterBranch}
-            onChange={e => setFilterBranch(e.target.value)}
-            options={[{ value: 'All', label: 'All Branches' }, ...(scoping?.branches || []).map(b => ({ value: b.name, label: b.name }))]}
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {!isBranchAdmin ? (
+            <Select
+              label="Branch"
+              value={filterBranch}
+              onChange={e => setFilterBranch(e.target.value)}
+              options={[{ value: 'All', label: 'All Branches' }, ...(scoping?.branches || []).map(b => ({ value: b.name, label: b.name }))]}
+            />
+          ) : (
+            <Select
+              label="Branch"
+              value={activeBranchName}
+              disabled={true}
+              options={[{ value: activeBranchName, label: activeBranchName }]}
+            />
+          )}
           <Select
             label="Batch"
             value={filterBatch}
@@ -2176,17 +2207,8 @@ export const TeacherAssignments: React.FC = () => {
             onChange={e => setFilterStatus(e.target.value)}
             options={[{ value: 'All', label: 'All Statuses' }, ...(activeSubTab === 'drafts' ? (
               [{ value: 'Draft', label: 'Draft' }]
-            ) : activePrimaryTab === 'homework' ? (
-              [{ value: 'Published', label: 'Published' }, { value: 'Closed', label: 'Closed' }]
             ) : (
-              [
-                { value: 'Scheduled', label: 'Scheduled' },
-                { value: 'In Progress', label: 'In Progress' },
-                { value: 'Completed', label: 'Completed' },
-                { value: 'Marks Pending', label: 'Marks Pending' },
-                { value: 'Marks Published', label: 'Marks Published' },
-                { value: 'Cancelled', label: 'Cancelled' }
-              ]
+              [{ value: 'Published', label: 'Published' }, { value: 'Closed', label: 'Closed' }]
             ))]}
           />
         </div>
@@ -2197,14 +2219,14 @@ export const TeacherAssignments: React.FC = () => {
         {loading ? (
           <div className="py-16 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-3" />
-            <p className="text-sm">Loading homework...</p>
+            <p className="text-sm">Loading data...</p>
           </div>
-        ) : activePrimaryTab === 'homework' ? (
+        ) : (
           <Table headers={[
-            'Assignment',
+            activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam',
             'Subject',
             'Target Batch',
-            'Due Date',
+            activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date',
             ...(activeSubTab === 'active' ? ['Submissions'] : []),
             'Status',
             'Actions'
@@ -2213,7 +2235,12 @@ export const TeacherAssignments: React.FC = () => {
               <tr>
                 <td colSpan={activeSubTab === 'active' ? 8 : 7} className="px-6 py-12 text-center text-slate-500">
                   <FileText className="mx-auto text-slate-300 mb-3" size={32} />
-                  <div className="font-medium">No {activeSubTab === 'active' ? 'active assignments' : 'assignment drafts'} found.</div>
+                  <div className="font-medium">
+                    No {activeSubTab === 'active'
+                      ? (activePrimaryTab === 'homework' ? 'active homework' : activePrimaryTab === 'assignment' ? 'active assignments' : 'active exams')
+                      : (activePrimaryTab === 'homework' ? 'homework drafts' : activePrimaryTab === 'assignment' ? 'assignment drafts' : 'exam drafts')
+                    } found.
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -2254,84 +2281,16 @@ export const TeacherAssignments: React.FC = () => {
                           <ClipboardCheck className="w-4 h-4 text-purple-600" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => openEditForm(assign)} title="Edit Assignment" className="cursor-pointer hover:bg-blue-50">
+                      <Button variant="ghost" size="sm" onClick={() => openEditForm(assign)} title={activePrimaryTab === 'exams' ? 'Edit Exam' : activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'} className="cursor-pointer hover:bg-blue-50">
                         <Edit3 className="w-4 h-4 text-blue-600" />
                       </Button>
                       {assign.status === 'Published' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleCloseAssign(assign)} title="Close Assignment" className="cursor-pointer hover:bg-amber-50">
+                        <Button variant="ghost" size="sm" onClick={() => handleCloseAssign(assign)} title="Close" className="cursor-pointer hover:bg-amber-50">
                           <XCircle className="w-4 h-4 text-amber-600" />
                         </Button>
                       )}
                       {assign.status !== 'Published' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteAssign(assign)} title="Delete Assignment" className="cursor-pointer hover:bg-red-50">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </Table>
-        ) : (
-          <Table headers={[
-            'Test Name',
-            'Subject',
-            'Target Batch',
-            'Exam Date',
-            'Marks',
-            ...(activeSubTab === 'active' ? ['Average'] : []),
-            'Status',
-            'Actions'
-          ]}>
-            {(paginatedData as ExamItem[]).length === 0 ? (
-              <tr>
-                <td colSpan={activeSubTab === 'active' ? 9 : 8} className="px-6 py-12 text-center text-slate-500">
-                  <ClipboardList className="mx-auto text-slate-300 mb-3" size={32} />
-                  <div className="font-medium">No {activeSubTab === 'active' ? 'scheduled examinations' : 'examination drafts'} found.</div>
-                </td>
-              </tr>
-            ) : (
-              (paginatedData as ExamItem[]).map((exam) => (
-                <tr key={exam.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-slate-900">{exam.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{exam.type}</div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-700">{exam.subject}</td>
-                  <td className="px-6 py-4 text-slate-600">{exam.batch}</td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {exam.examDate}
-                    {exam.startTime && <div className="text-xs text-slate-400 mt-0.5">{exam.startTime}</div>}
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {exam.totalMarks} <span className="text-xs text-slate-400">(Pass: {exam.passingMarks})</span>
-                  </td>
-                  {activeSubTab === 'active' && (
-                    <td className="px-6 py-4 text-slate-600">
-                      {exam.average || <span className="text-slate-400 italic">Not available</span>}
-                    </td>
-                  )}
-                  <td className="px-6 py-4">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(exam.status)}`}>
-                      {exam.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => setShowExamDetails(exam)} title="View Details" className="cursor-pointer hover:bg-slate-100">
-                        <Eye className="w-4 h-4 text-slate-500" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => { setExamForm({ ...exam }); setShowExamForm(true); }} title="Edit Exam" className="cursor-pointer hover:bg-blue-50">
-                        <Edit3 className="w-4 h-4 text-blue-600" />
-                      </Button>
-                      {exam.status === 'Scheduled' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleCancelExam(exam.id)} title="Cancel Exam" className="cursor-pointer hover:bg-amber-50">
-                          <XCircle className="w-4 h-4 text-amber-600" />
-                        </Button>
-                      )}
-                      {exam.status === 'Draft' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteExam(exam.id)} title="Delete Draft" className="cursor-pointer hover:bg-red-50">
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteAssign(assign)} title="Delete" className="cursor-pointer hover:bg-red-50">
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       )}

@@ -62,8 +62,37 @@ const createInvoice = async (req, res) => {
     }
 };
 
+const getStudentFeeAssignment = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const assignment = await paymentService.getStudentFeeAssignment(Number(tenantId), Number(req.params.id));
+        res.status(200).json({ status: 'success', data: assignment });
+    } catch (error) {
+        handleError(res, error, 'Error fetching student fee assignment:');
+    }
+};
+
+const updateStudentFeeAssignment = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+        const result = await paymentService.updateStudentFeeAssignment(
+            Number(tenantId),
+            Number(req.params.id),
+            req.body,
+            null,
+            Number(userId)
+        );
+        res.status(200).json({ status: 'success', message: 'Student fee assignment updated successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error updating student fee assignment:');
+    }
+};
+
 module.exports = {
     getStudentLedger,
+    getStudentFeeAssignment,
+    updateStudentFeeAssignment,
     recordPayment,
     createInvoice
 };

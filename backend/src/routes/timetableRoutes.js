@@ -10,9 +10,9 @@ router.use(requireAuth);
 router.get('/options', timetableController.getOptions);
 
 // 2. Default Timetable (Template Management)
+router.post('/default/clone', timetableController.cloneDefaultTimetable);
 router.get('/default/:batchId', timetableController.getDefaultTimetable);
 router.post('/default/:batchId', timetableController.saveDefaultTimetable);
-router.post('/default/clone', timetableController.cloneDefaultTimetable);
 
 // 3. Weekly Calendar Schedules & Operations
 router.get('/weekly', timetableController.getWeeklyLectures);

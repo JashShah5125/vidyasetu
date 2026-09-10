@@ -20,7 +20,7 @@ import type {
   AppNotification,
   AssignmentItem,
   SupportTicket
-} from '../data/mockData';
+} from '../types';
 import { useAuth } from './AuthContext';
 import { tenantService } from '../services/tenantService';
 import { planService } from '../services/planService';

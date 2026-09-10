@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Pencil, Check, X, Upload } from 'lucide-react';
-import { formatDate, getTenantStatus } from '../data/mockData';
+import { formatDate, getTenantStatus } from '../types';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { tenantService } from '../services/tenantService';

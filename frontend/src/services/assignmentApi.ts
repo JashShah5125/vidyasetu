@@ -30,7 +30,7 @@ export interface HomeworkItem {
 export interface HomeworkPayload {
   title: string;
   description?: string;
-  branchId: number;
+  branchId?: number;
   academicYearId: number;
   subjectId: number;
   assignmentType: string;
@@ -44,10 +44,12 @@ export interface ScopingOption {
   id: string;
   name: string;
   code?: string;
+  academicYearId?: string | null;
 }
 
 export interface HomeworkScoping {
   scoped: boolean;
+  branch?: ScopingOption;
   branches: ScopingOption[];
   batches: ScopingOption[];
   subjects: ScopingOption[];
@@ -90,11 +92,27 @@ export interface HomeworkSubmission {
   gradedAt: string | null;
 }
 
+const getBaseUrl = () => {
+  try {
+    const raw = localStorage.getItem('vs_current_user') || localStorage.getItem('user') || '{}';
+    const user = JSON.parse(raw);
+    const role = String(user.role || user.userType || user.user_type || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (role === 'branch_admin' || role === 'branch_manager') {
+      return '/branch/homeworks';
+    }
+  } catch (e) {
+    // fallback
+  }
+  return '/admin/homeworks';
+};
+
 const buildFormData = (payload: HomeworkPayload, files: File[]) => {
   const fd = new FormData();
   fd.append('title', payload.title);
   fd.append('description', payload.description || '');
-  fd.append('branchId', String(payload.branchId));
+  if (payload.branchId !== undefined && payload.branchId !== null) {
+    fd.append('branchId', String(payload.branchId));
+  }
   fd.append('academicYearId', String(payload.academicYearId));
   fd.append('subjectId', String(payload.subjectId));
   fd.append('assignmentType', payload.assignmentType);
@@ -115,16 +133,16 @@ const handleErr = (err: any): never => {
 export const assignmentApi = {
   async getScoping(): Promise<HomeworkScoping> {
     try {
-      const res = await api.get('/admin/homeworks/scoping');
+      const res = await api.get(`${getBaseUrl()}/scoping`);
       return res.data.data;
     } catch (err) {
       return handleErr(err);
     }
   },
 
-  async getHomeworks(params: { status?: string; subject?: string; batch?: string; branch?: string; search?: string } = {}): Promise<HomeworkItem[]> {
+  async getHomeworks(params: { status?: string; subject?: string; batch?: string; branch?: string; search?: string; assignmentType?: string } = {}): Promise<HomeworkItem[]> {
     try {
-      const res = await api.get('/admin/homeworks', { params });
+      const res = await api.get(getBaseUrl(), { params });
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -133,7 +151,7 @@ export const assignmentApi = {
 
   async getHomework(id: string): Promise<HomeworkItem> {
     try {
-      const res = await api.get(`/admin/homeworks/${id}`);
+      const res = await api.get(`${getBaseUrl()}/${id}`);
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -142,7 +160,7 @@ export const assignmentApi = {
 
   async createHomework(payload: HomeworkPayload, files: File[] = []): Promise<{ id: string }> {
     try {
-      const res = await api.post('/admin/homeworks', buildFormData(payload, files));
+      const res = await api.post(getBaseUrl(), buildFormData(payload, files));
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -151,7 +169,7 @@ export const assignmentApi = {
 
   async updateHomework(id: string, payload: HomeworkPayload, files: File[] = []): Promise<{ id: string }> {
     try {
-      const res = await api.put(`/admin/homeworks/${id}`, buildFormData(payload, files));
+      const res = await api.put(`${getBaseUrl()}/${id}`, buildFormData(payload, files));
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -160,7 +178,7 @@ export const assignmentApi = {
 
   async deleteHomework(id: string): Promise<void> {
     try {
-      await api.delete(`/admin/homeworks/${id}`);
+      await api.delete(`${getBaseUrl()}/${id}`);
     } catch (err) {
       return handleErr(err);
     }
@@ -168,7 +186,7 @@ export const assignmentApi = {
 
   async publishHomework(id: string): Promise<void> {
     try {
-      await api.post(`/admin/homeworks/${id}/publish`);
+      await api.post(`${getBaseUrl()}/${id}/publish`);
     } catch (err) {
       return handleErr(err);
     }
@@ -176,7 +194,7 @@ export const assignmentApi = {
 
   async closeHomework(id: string): Promise<void> {
     try {
-      await api.post(`/admin/homeworks/${id}/close`);
+      await api.post(`${getBaseUrl()}/${id}/close`);
     } catch (err) {
       return handleErr(err);
     }
@@ -184,7 +202,7 @@ export const assignmentApi = {
 
   async getSubmissions(id: string): Promise<{ homework: { id: string; status: string }; submissions: HomeworkSubmission[] }> {
     try {
-      const res = await api.get(`/admin/homeworks/${id}/submissions`);
+      const res = await api.get(`${getBaseUrl()}/${id}/submissions`);
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -193,7 +211,7 @@ export const assignmentApi = {
 
   async getEvaluationRoster(id: string): Promise<EvaluationRosterResponse> {
     try {
-      const res = await api.get(`/admin/homeworks/${id}/roster`);
+      const res = await api.get(`${getBaseUrl()}/${id}/roster`);
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -202,7 +220,7 @@ export const assignmentApi = {
 
   async gradeSubmission(id: string, submissionIdOrStudentId: string, payload: { marksObtained: number; feedback?: string; studentId?: string }): Promise<void> {
     try {
-      await api.put(`/admin/homeworks/${id}/submissions/${submissionIdOrStudentId}/grade`, {
+      await api.put(`${getBaseUrl()}/${id}/submissions/${submissionIdOrStudentId}/grade`, {
         marksObtained: payload.marksObtained,
         teacher_feedback: payload.feedback || '',
         studentId: payload.studentId
@@ -214,7 +232,7 @@ export const assignmentApi = {
 
   async bulkGradeHomework(id: string, rows: any[]): Promise<{ successCount: number; errorCount: number; errors: string[] }> {
     try {
-      const res = await api.post(`/admin/homeworks/${id}/bulk-grade`, { rows });
+      const res = await api.post(`${getBaseUrl()}/${id}/bulk-grade`, { rows });
       return res.data.data;
     } catch (err) {
       return handleErr(err);

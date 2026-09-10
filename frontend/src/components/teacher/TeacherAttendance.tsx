@@ -13,10 +13,12 @@ import {
 import { 
   TEACHER_ASSIGNED_BATCHES, 
   INITIAL_ATTENDANCE_HISTORY 
-} from '../../data/mockData';
-import type { AttendanceSubmission } from '../../data/mockData';
+} from '../../types';
+import type { AttendanceSubmission } from '../../types';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
 import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
+import { attendanceApi } from '../../services/attendanceApi';
+import type { AttendanceLecture, AttendanceRosterRow } from '../../services/attendanceApi';
 import teachersList from '../../data/teachers.json';
 import classroomsList from '../../data/classrooms.json';
 import courseHierarchy from '../../data/courseHierarchy.json';
@@ -65,13 +67,30 @@ export const TeacherAttendance: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'lectures' | 'history' | 'summary' | 'low_attendance'>('lectures');
   
   // Register State
-  const [activeLecture, setActiveLecture] = useState<Lecture | null>(() => {
+  const [activeLecture, setActiveLecture] = useState<any | null>(() => {
     return navState?.activeLecture || null;
   });
   const [attendanceState, setAttendanceState] = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [registerSearch, setRegisterSearch] = useState('');
   const [viewHistoryRecord, setViewHistoryRecord] = useState<AttendanceSubmission | null>(null);
+
+  // API Data State
+  const [apiLectures, setApiLectures] = useState<AttendanceLecture[]>([]);
+  const [loadingLectures, setLoadingLectures] = useState(false);
+  const [rosterStudents, setRosterStudents] = useState<AttendanceRosterRow[]>([]);
+  const [loadingRoster, setLoadingRoster] = useState(false);
+
+  // Fetch teacher's lectures for the selected date from the API
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingLectures(true);
+    attendanceApi.getTodayLectures(currentDateStr, currentUser?.id)
+      .then((rows) => { if (!cancelled) setApiLectures(rows); })
+      .catch(() => { if (!cancelled) addToast('Failed to load lectures.', 'error'); })
+      .finally(() => { if (!cancelled) setLoadingLectures(false); });
+    return () => { cancelled = true; };
+  }, [currentDateStr, currentUser?.id, addToast]);
 
   // History Filter State
   const [historyRange, setHistoryRange] = useState('7days'); // '7days' | '30days'
@@ -112,18 +131,44 @@ export const TeacherAttendance: React.FC = () => {
     return Array.from(new Set([...fromLectures, ...fromTeacher].filter(Boolean))) as string[];
   }, [lectures, activeBatches, currentTeacher]);
 
-  // Filtered Lectures for current date
+  // Filtered Lectures for current date (from API)
   const todaysLectures = useMemo(() => {
-    return lectures.filter((l: Lecture) => {
-      if (l.status === 'CANCELLED') return false;
-      const isTeacherMatch = !currentTeacher || l.teacherId === currentTeacher.id || l.teacherId === currentTeacher.name || teacherAssignedBatches.includes(l.batchId);
-      if (!isTeacherMatch) return false;
-      const isDateMatch = l.date === currentDateStr;
-      const isBatchMatch = activeBatches.includes(l.batchId);
-      const isSubjectMatch = filterSubject === 'All' || l.subjectId === filterSubject;
-      return isDateMatch && isBatchMatch && isSubjectMatch;
-    });
-  }, [lectures, currentDateStr, currentTeacher, teacherAssignedBatches, activeBatches, filterSubject]);
+    return apiLectures
+      .filter((l) => {
+        if (filterSubject !== 'All' && l.subject_name !== filterSubject) return false;
+        if (filterBatch !== 'All' && l.batch_name !== filterBatch) return false;
+        return true;
+      })
+      .map((l) => ({
+        id: String(l.id),
+        branchId: String(l.branch_id || ''),
+        academicYearId: String(l.academic_year_id || ''),
+        batchId: l.batch_name || `Batch ${l.batch_id}`,
+        batchName: l.batch_name || `Batch ${l.batch_id}`,
+        batchCode: l.batch_code,
+        subjectId: l.subject_name || String(l.subject_id),
+        subjectName: l.subject_name,
+        subjectCode: l.subject_code,
+        teacherId: String(l.teacher_user_id || ''),
+        teacherName: l.teacher_name,
+        roomId: l.classroom_id ? String(l.classroom_id) : '',
+        roomName: l.classroom_name,
+        roomNumber: l.room_number,
+        date: l.lecture_date,
+        startTime: l.start_time?.slice(0, 5) || '09:00',
+        endTime: l.end_time?.slice(0, 5) || '10:30',
+        lectureType: (l.lecture_type || 'Regular') as any,
+        slotLabel: l.slot_label,
+        status: (l.status || 'SCHEDULED').toUpperCase() as any,
+        publishStatus: 'PUBLISHED' as any,
+        isDefault: 0,
+        createdAt: '',
+        updatedAt: '',
+        lectureId: l.id,
+        attendance_taken: l.attendance_taken,
+        markedCount: l.marked_count
+      }));
+  }, [apiLectures, filterSubject, filterBatch]);
 
   // Navigation handlers
   const handlePrevDay = () => setCurrentDate(new Date(currentDate.getTime() - 86400000));
@@ -141,21 +186,43 @@ export const TeacherAttendance: React.FC = () => {
   // ----------------------------------------------------
   // REGISTER LOGIC
   // ----------------------------------------------------
-  const handleOpenRegister = (lecture: Lecture) => {
+  const handleOpenRegister = async (lecture: any) => {
     if (isFutureDate) {
       addToast('Cannot mark attendance for future lectures.', 'error');
       return;
     }
     setActiveLecture(lecture);
     setAttendanceState({});
+    setRosterStudents([]);
     setHasUnsavedChanges(false);
     setRegisterSearch('');
+    setLoadingRoster(true);
+    try {
+      const roster = await attendanceApi.getRoster(lecture.lectureId || lecture.id);
+      setRosterStudents(roster);
+      const initial: Record<string, 'Present' | 'Absent' | 'Late'> = {};
+      roster.forEach((r: AttendanceRosterRow) => {
+        if (r.attendance_status === 0) initial[String(r.student_id)] = 'Absent';
+        else if (r.attendance_status === 1) initial[String(r.student_id)] = 'Present';
+        else if (r.attendance_status === 2) initial[String(r.student_id)] = 'Late';
+      });
+      setAttendanceState(initial);
+    } catch {
+      addToast('Failed to load the attendance roster.', 'error');
+    } finally {
+      setLoadingRoster(false);
+    }
   };
 
   const activeLectureStudents = useMemo(() => {
-    if (!activeLecture) return [];
-    return students.filter(s => s.batch === activeLecture.batchId);
-  }, [activeLecture, students]);
+    if (!rosterStudents || rosterStudents.length === 0) return [];
+    return rosterStudents.map((r) => ({
+      id: String(r.student_id),
+      studentId: r.student_code,
+      name: r.full_name,
+      batch: activeLecture?.batchName || 'Batch'
+    }));
+  }, [rosterStudents, activeLecture]);
 
   const filteredRegisterStudents = useMemo(() => {
     if (!registerSearch) return activeLectureStudents;
@@ -186,7 +253,7 @@ export const TeacherAttendance: React.FC = () => {
     setHasUnsavedChanges(false);
   };
 
-  const handleSubmitAttendance = (e: React.FormEvent) => {
+  const handleSubmitAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeLecture) return;
 
@@ -195,9 +262,22 @@ export const TeacherAttendance: React.FC = () => {
       return;
     }
 
-    addToast('Attendance submitted successfully.', 'success');
-    setActiveLecture(null);
-    setHasUnsavedChanges(false);
+    const records = activeLectureStudents.map((s) => {
+      const mark = attendanceState[s.id];
+      const status: 0 | 1 | 2 = mark === 'Present' ? 1 : (mark === 'Late' ? 2 : 0);
+      return { student_id: Number(s.id), status };
+    });
+
+    try {
+      const lectureId = activeLecture.lectureId || activeLecture.id;
+      await attendanceApi.saveAttendance(lectureId, records);
+      await attendanceApi.submitAttendance(lectureId);
+      addToast('Attendance submitted successfully.', 'success');
+      setActiveLecture(null);
+      setHasUnsavedChanges(false);
+    } catch {
+      addToast('Failed to submit attendance.', 'error');
+    }
   };
 
   // View toggle logic
@@ -259,7 +339,14 @@ export const TeacherAttendance: React.FC = () => {
           </div>
 
           <Table headers={['Student ID', 'Student Name', 'Batch', 'Status', 'Remark']}>
-            {filteredRegisterStudents.length > 0 ? filteredRegisterStudents.map((student) => {
+            {loadingRoster ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  <div className="font-medium mt-3">Loading roster...</div>
+                </td>
+              </tr>
+            ) : filteredRegisterStudents.length > 0 ? filteredRegisterStudents.map((student) => {
               const status = attendanceState[student.id];
               return (
                 <tr key={student.id} className="hover:bg-slate-50">
@@ -411,9 +498,17 @@ export const TeacherAttendance: React.FC = () => {
           </div>
 
           <Table headers={['Time', 'Batch', 'Subject', 'Room', 'Students', 'Status', 'Action']}>
-            {todaysLectures.length > 0 ? todaysLectures.map((lecture: Lecture) => {
+            {loadingLectures ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                  <div className="animate-spin inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  <div className="font-medium mt-3">Loading lectures...</div>
+                </td>
+              </tr>
+            ) : todaysLectures.length > 0 ? todaysLectures.map((lecture: any) => {
               const batchInfo = batches.find(b => b.name === lecture.batchId);
-              const studentCount = students.filter(s => s.batch === lecture.batchId).length;
+              const studentCount = lecture.markedCount || (students.filter(s => s.batch === lecture.batchId).length);
+              const attendanceTaken = lecture.attendance_taken === 1;
               return (
                 <tr key={lecture.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-slate-900">{lecture.startTime} – {lecture.endTime}</td>
@@ -426,10 +521,11 @@ export const TeacherAttendance: React.FC = () => {
                   <td className="px-6 py-4 text-slate-600">{studentCount}</td>
                   <td className="px-6 py-4">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border text-center ${
+                      attendanceTaken ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                       lecture.status === 'SCHEDULED' ? (isFutureDate ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-600 border-amber-100') : 
                       'bg-emerald-50 text-emerald-600 border-emerald-100'
                     }`}>
-                      {lecture.status === 'SCHEDULED' ? (isFutureDate ? 'Upcoming' : 'Pending') : lecture.status}
+                      {attendanceTaken ? 'Submitted' : lecture.status === 'SCHEDULED' ? (isFutureDate ? 'Upcoming' : 'Pending') : lecture.status}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -439,7 +535,7 @@ export const TeacherAttendance: React.FC = () => {
                       disabled={isFutureDate}
                       onClick={() => handleOpenRegister(lecture)}
                     >
-                      {isFutureDate ? 'Upcoming' : 'Mark Attendance'}
+                      {isFutureDate ? 'Upcoming' : (attendanceTaken ? 'View / Update' : 'Mark Attendance')}
                     </Button>
                   </td>
                 </tr>

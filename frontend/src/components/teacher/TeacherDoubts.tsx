@@ -5,7 +5,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { HelpCircle, CheckCircle2, MessageCircle, Send, Paperclip, Clock, BookOpen, AlertCircle, RefreshCw } from 'lucide-react';
-import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES } from '../../types';
 import teachersList from '../../data/teachers.json';
 import courseHierarchy from '../../data/courseHierarchy.json';
 

@@ -1,5 +1,5 @@
 import api from './api';
-import type { Branch } from '../data/mockData';
+import type { Branch } from '../types';
 
 export interface BranchApiProgramMapping {
   courseId?: number | string;
@@ -52,6 +52,26 @@ export const branchApi = {
   },
   remove: async (code: string) => {
     const { data } = await api.delete(`/admin/branches/${code}`);
+    return data;
+  },
+  getCourses: async (branchId: string | number, params: { assignment_status?: string; search?: string } = {}) => {
+    const { data } = await api.get(`/admin/branches/${branchId}/courses`, { params });
+    return data;
+  },
+  assignCourse: async (branchId: string | number, courseId: string | number, programIds?: Array<string | number>) => {
+    const { data } = await api.post(`/admin/branches/${branchId}/courses/${courseId}/assign`, { programIds });
+    return data;
+  },
+  unassignCourse: async (branchId: string | number, courseId: string | number) => {
+    const { data } = await api.post(`/admin/branches/${branchId}/courses/${courseId}/unassign`);
+    return data;
+  },
+  batchAssignCourses: async (branchId: string | number, assignments: Array<{ courseId: string | number; programIds?: Array<string | number> }>) => {
+    const { data } = await api.post(`/admin/branches/${branchId}/courses/batch-assign`, { assignments });
+    return data;
+  },
+  toggleProgram: async (branchId: string | number, programId: string | number, assign: boolean) => {
+    const { data } = await api.post(`/admin/branches/${branchId}/programs/${programId}/toggle`, { assign });
     return data;
   }
 };

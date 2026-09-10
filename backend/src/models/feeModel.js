@@ -8,7 +8,22 @@ const listProgramFeePlans = async (tenantId, {
     search = '',
     limit = 10,
     offset = 0
-} = {}) => {
+} = {}, accessContext = null) => {
+    const isBranchScope = accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId;
+    const branchId = isBranchScope ? Number(accessContext.authorizedBranchId) : null;
+
+    let joinBranch = '';
+    let branchWhere = '';
+    const branchParams = [];
+
+    if (isBranchScope) {
+        joinBranch = `
+            JOIN course_branches cb ON cb.course_id = p.course_id AND cb.branch_id = ?
+            JOIN branch_programs bp ON bp.program_id = p.id AND bp.branch_id = ?
+        `;
+        branchParams.push(branchId, branchId);
+    }
+
     let where = 'p.tenant_id = ? AND p.deleted_at IS NULL';
     const params = [tenantId];
 
@@ -26,8 +41,10 @@ const listProgramFeePlans = async (tenantId, {
         params.push(pattern, pattern);
     }
 
+    const queryParams = [...branchParams, ...params];
+
     const [rows] = await pool.query(
-        `SELECT
+        `SELECT DISTINCT
             p.id,
             p.tenant_id,
             p.course_id,
@@ -42,15 +59,20 @@ const listProgramFeePlans = async (tenantId, {
             c.code AS course_code
          FROM programs p
          JOIN courses c ON c.id = p.course_id
+         ${joinBranch}
          WHERE ${where}
          ORDER BY c.name ASC, p.name ASC
          LIMIT ? OFFSET ?`,
-        [...params, Number(limit), Number(offset)]
+        [...queryParams, Number(limit), Number(offset)]
     );
 
     const [countRows] = await pool.query(
-        `SELECT COUNT(*) AS total FROM programs p WHERE ${where}`,
-        params
+        `SELECT COUNT(DISTINCT p.id) AS total 
+         FROM programs p 
+         JOIN courses c ON c.id = p.course_id
+         ${joinBranch}
+         WHERE ${where}`,
+        queryParams
     );
 
     const data = rows.map(row => ({
@@ -109,7 +131,22 @@ const clearProgramFee = async (tenantId, programId, userId) => {
 
 // ─── Subject-wise Fees ────────────────────────────────────────────────────
 
-const getLevelSubjectFees = async (tenantId, levelId) => {
+const getLevelSubjectFees = async (tenantId, levelId, accessContext = null) => {
+    const isBranchScope = accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId;
+    const branchId = isBranchScope ? Number(accessContext.authorizedBranchId) : null;
+
+    let branchJoin = '';
+    const branchParams = [];
+
+    if (isBranchScope) {
+        branchJoin = `
+            JOIN programs p ON p.id = l.program_id
+            JOIN branch_programs bp ON bp.program_id = p.id AND bp.branch_id = ?
+            JOIN course_branches cb ON cb.course_id = p.course_id AND cb.branch_id = ?
+        `;
+        branchParams.push(branchId, branchId);
+    }
+
     const [rows] = await pool.query(
         `SELECT
             s.id,
@@ -118,11 +155,13 @@ const getLevelSubjectFees = async (tenantId, levelId) => {
             s.type,
             COALESCE(sf.fee_amount, 0) AS fee_amount
          FROM level_subjects ls
+         JOIN levels l ON l.id = ls.level_id
          JOIN subjects s ON s.id = ls.subject_id
          LEFT JOIN subject_fees sf ON sf.level_id = ls.level_id AND sf.subject_id = ls.subject_id AND sf.deleted_at IS NULL
+         ${branchJoin}
          WHERE ls.level_id = ? AND ls.tenant_id = ? AND s.deleted_at IS NULL
          ORDER BY s.name ASC`,
-        [levelId, tenantId]
+        [...branchParams, levelId, tenantId]
     );
 
     return rows.map(row => ({

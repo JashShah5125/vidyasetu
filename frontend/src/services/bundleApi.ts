@@ -48,14 +48,30 @@ export interface BundleCreatePayload {
   feeAmount?: number | null;
 }
 
+const isBranchAdmin = (): boolean => {
+  try {
+    const savedUser = localStorage.getItem('vs_current_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
+      return role === 'branch-admin';
+    }
+  } catch {
+    // fallback
+  }
+  return false;
+};
+
 export const bundleApi = {
   list: async (params: { page?: number; limit?: number; search?: string; levelId?: string | number; branchId?: string | number; status?: string } = {}): Promise<BundleListResponse> => {
-    const { data } = await api.get('/admin/bundles', { params });
+    const url = isBranchAdmin() ? '/branch/fees/bundles' : '/admin/bundles';
+    const { data } = await api.get(url, { params });
     return data;
   },
 
   getById: async (id: string | number) => {
-    const { data } = await api.get(`/admin/bundles/${id}`);
+    const url = isBranchAdmin() ? `/branch/fees/bundles/${id}` : `/admin/bundles/${id}`;
+    const { data } = await api.get(url);
     return data;
   },
 

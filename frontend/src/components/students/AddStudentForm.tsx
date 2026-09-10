@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useApp } from '../../context/AppContext';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
@@ -68,7 +69,7 @@ const EMPTY_FORM: CreateStudentPayload = {
   discount_amount: '',
   downpayment_amount: '',
   installment_count: 1,
-  status: 'active'
+  status: 1
 };
 
 export const AddStudentForm: React.FC<AddStudentFormProps> = ({
@@ -83,6 +84,9 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
   initialProgramId,
   initialLevelId
 }) => {
+  const { currentUser } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || currentUser?.role === 'branch_admin';
+
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('personal');
 
@@ -97,7 +101,13 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
   const [selectedLevelId, setSelectedLevelId] = useState<number | ''>(initialLevelId ?? '');
 
   const [formData, setFormData] = useState<CreateStudentPayload>(
-    initialData ? { ...EMPTY_FORM, ...initialData } : EMPTY_FORM
+    initialData
+      ? {
+          ...EMPTY_FORM,
+          ...initialData,
+          dob: initialData.dob ? String(initialData.dob).slice(0, 10) : ''
+        }
+      : EMPTY_FORM
   );
 
   // Load academic options directly inside this form (self-sufficient)
@@ -106,10 +116,19 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
       setLoadingOptions(true);
       setOptionsError(null);
       const res = await getAcademicOptions();
-      // getAcademicOptions returns response.data which is { status, data: { branches, courses, ... } }
       const payload = res?.data ?? res;
-      if (payload && payload.branches) {
+      if (payload && (payload.branches || (payload as any).branch)) {
         setAcademicData(payload);
+        // Auto-select branch if branch admin or only 1 branch exists
+        if (isBranchAdmin || (payload.branches && payload.branches.length === 1)) {
+          const autoBranchId = (payload as any).branch?.id || payload.branches?.[0]?.id;
+          if (autoBranchId) {
+            setFormData(prev => ({
+              ...prev,
+              primary_branch_id: Number(autoBranchId)
+            }));
+          }
+        }
       } else {
         setOptionsError('Could not parse academic options from server');
         console.error('[AddStudentForm] Unexpected options shape:', res);
@@ -505,13 +524,25 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
                       <Select
                         label="① Institute Branch *"
                         value={formData.primary_branch_id ? String(formData.primary_branch_id) : ''}
+                        disabled={isBranchAdmin || mode === 'edit'}
                         onChange={e => handleBranchChange(e.target.value)}
-                        options={[
-                          { value: '', label: '-- Select Branch --' },
-                          ...(academicData.branches || []).map(b => ({ value: String(b.id), label: b.name }))
-                        ]}
+                        options={
+                          isBranchAdmin
+                            ? [
+                                {
+                                  value: String(formData.primary_branch_id || (academicData as any).branch?.id || academicData.branches?.[0]?.id || ''),
+                                  label: (academicData as any).branch?.name || academicData.branches?.find(b => Number(b.id) === Number(formData.primary_branch_id))?.name || academicData.branches?.[0]?.name || 'Assigned Branch'
+                                }
+                              ]
+                            : [
+                                { value: '', label: '-- Select Branch --' },
+                                ...(academicData.branches || []).map(b => ({ value: String(b.id), label: b.name }))
+                              ]
+                        }
                       />
-                      <p className="text-[10px] text-slate-400">Select the institute branch</p>
+                      <p className="text-[10px] text-slate-400">
+                        {isBranchAdmin ? 'Assigned branch from authorized access' : (mode === 'edit' ? 'Branch cannot be modified in edit mode' : 'Select the institute branch')}
+                      </p>
                     </div>
 
                     {/* Step 2: Academic Year */}

@@ -6,10 +6,12 @@ import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
 import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert, Download, Upload, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useFeeConfig, type ProgramFeePlan } from '../context/FeeConfigContext';
 import { courseApi } from '../services/courseApi';
+import { branchApi } from '../services/branchApi';
 import { feeApi, type LevelSubjectFee } from '../services/feeApi';
 import { bundleApi } from '../services/bundleApi';
 
@@ -27,28 +29,56 @@ interface ProgramWithLevels {
 }
 
 export const FeesMaster: React.FC = () => {
-  const { addToast } = useApp();
-  const isReadOnly = false;
+  const { addToast, currentUser, branches } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const isReadOnly = isBranchAdmin;
   const [activeMainTab, setActiveMainTab] = useState<'full-course' | 'custom-bundles' | 'subject-wise'>('full-course');
   const [view, setView] = useState<'list' | 'form'>('list');
   const { plans, customBundles, isLoadingFees, refreshFees } = useFeeConfig();
 
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
+  const [deletePlanTarget, setDeletePlanTarget] = useState<ProgramFeePlan | null>(null);
+
+  useEffect(() => {
+    refreshFees();
+  }, [isBranchAdmin, currentUser?.branch, refreshFees]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await courseApi.list({ limit: 200 });
-        if (!mounted) return;
-        const mapped = (res.data || []).map((c: any) => ({
-          id: String(c.id),
-          name: c.name,
-          code: c.code,
-          programs: (c.programs || []).map((p: any) => ({ id: String(p.id), name: p.name }))
-        }));
-        setCourses(mapped);
+        if (isBranchAdmin) {
+          const authorizedBranchObj = (branches || []).find((b: any) =>
+            b.name === currentUser?.branch || String(b.id) === String(currentUser?.branch)
+          );
+          const authorizedBranchId = authorizedBranchObj ? (authorizedBranchObj.id || 1) : (currentUser?.branch || 1);
+          const res = await branchApi.getCourses(authorizedBranchId, { assignment_status: 'assigned' });
+          if (!mounted) return;
+          const mapped = (res.data || []).map((c: any) => ({
+            id: String(c.id),
+            name: c.name,
+            code: c.code,
+            programs: (c.assigned_programs && c.assigned_programs.length > 0
+              ? c.assigned_programs
+              : (c.programs || []).filter((p: any) => p.is_assigned !== false && p.assigned !== false)
+            ).map((p: any) => ({
+              id: String(p.id),
+              name: p.name
+            }))
+          }));
+          setCourses(mapped);
+        } else {
+          const res = await courseApi.list({ limit: 200 });
+          if (!mounted) return;
+          const mapped = (res.data || []).map((c: any) => ({
+            id: String(c.id),
+            name: c.name,
+            code: c.code,
+            programs: (c.programs || []).map((p: any) => ({ id: String(p.id), name: p.name }))
+          }));
+          setCourses(mapped);
+        }
       } catch (err) {
         if (mounted) addToast('Failed to load courses', 'error');
       } finally {
@@ -56,7 +86,7 @@ export const FeesMaster: React.FC = () => {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [isBranchAdmin, branches, currentUser]);
 
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -127,12 +157,13 @@ export const FeesMaster: React.FC = () => {
     }
   };
 
-  const handleDeletePlan = async (plan: ProgramFeePlan) => {
-    if (!window.confirm(`Remove the fee configuration for "${plan.name}"?`)) return;
+  const handleConfirmDeletePlan = async () => {
+    if (!deletePlanTarget) return;
     try {
-      await feeApi.deleteProgramFeePlan(plan.id);
+      await feeApi.deleteProgramFeePlan(deletePlanTarget.id);
       await refreshFees();
-      addToast('Fee configuration removed', 'success');
+      addToast(`Fee configuration for "${deletePlanTarget.name}" removed successfully.`, 'success');
+      setDeletePlanTarget(null);
     } catch (err) {
       addToast('Failed to remove fee configuration', 'error');
     }
@@ -192,7 +223,14 @@ export const FeesMaster: React.FC = () => {
     }
     try {
       const res = await courseApi.getByCode(courseCode);
-      const programs = (res.data?.programs || []).map((p: any) => ({
+      const courseData = res.data || res;
+      let programsList = courseData.programs || [];
+      if (isBranchAdmin) {
+        const matchingCourse = courses.find(c => c.code === courseCode);
+        const assignedProgramIds = new Set((matchingCourse?.programs || []).map(p => String(p.id)));
+        programsList = programsList.filter((p: any) => assignedProgramIds.has(String(p.id)));
+      }
+      const programs = programsList.map((p: any) => ({
         id: String(p.id),
         name: p.name,
         levels: (p.levels || []).map((l: any) => ({ id: String(l.id), name: l.name }))
@@ -265,15 +303,42 @@ export const FeesMaster: React.FC = () => {
     setSubjectsPage(1);
   }, [subjectFilterCourse, subjectFilterProgram, subjectFilterLevel]);
 
+  const displayedPlans = useMemo(() => {
+    if (!isBranchAdmin) return plans;
+    const assignedProgramIds = new Set<string>();
+    courses.forEach(c => {
+      (c.programs || []).forEach((p: any) => {
+        assignedProgramIds.add(String(p.id));
+      });
+    });
+    return plans.filter(p => assignedProgramIds.has(String(p.id)));
+  }, [plans, isBranchAdmin, courses]);
+
   const paginatedPlans = useMemo(() => {
     const startIndex = (fullCoursePage - 1) * ITEMS_PER_PAGE;
-    return plans.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [plans, fullCoursePage]);
+    return displayedPlans.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [displayedPlans, fullCoursePage]);
+
+  const displayedBundles = useMemo(() => {
+    if (!isBranchAdmin) return customBundles;
+    const assignedCourseNames = new Set(courses.map(c => c.name));
+    const assignedProgramNames = new Set<string>();
+    courses.forEach(c => {
+      (c.programs || []).forEach((p: any) => {
+        assignedProgramNames.add(p.name);
+      });
+    });
+    return customBundles.filter(b => {
+      if (b.courseName && !assignedCourseNames.has(b.courseName)) return false;
+      if (b.programDetails && !assignedProgramNames.has(b.programDetails)) return false;
+      return true;
+    });
+  }, [customBundles, isBranchAdmin, courses]);
 
   const paginatedBundles = useMemo(() => {
     const startIndex = (bundlesPage - 1) * ITEMS_PER_PAGE;
-    return customBundles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [customBundles, bundlesPage]);
+    return displayedBundles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [displayedBundles, bundlesPage]);
 
   const paginatedSubjects = useMemo(() => {
     const startIndex = (subjectsPage - 1) * ITEMS_PER_PAGE;
@@ -287,7 +352,7 @@ export const FeesMaster: React.FC = () => {
 
     if (activeMainTab === 'full-course') {
       headers = ['Course', 'Program', 'Total Fees (INR)', 'Down Payment (INR)', 'Months', 'Installment (INR/mo)'];
-      rows = plans.map(p => [
+      rows = displayedPlans.map(p => [
         p.course_name,
         p.name,
         p.totalFees,
@@ -298,7 +363,7 @@ export const FeesMaster: React.FC = () => {
       filename = 'program_wise_fees.csv';
     } else if (activeMainTab === 'custom-bundles') {
       headers = ['Bundle Name', 'Branch', 'Level', 'Fee Amount (INR)'];
-      rows = customBundles.map(b => [
+      rows = displayedBundles.map(b => [
         b.name,
         b.branchName || '-',
         b.levelDetails || '-',
@@ -333,21 +398,24 @@ export const FeesMaster: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {isReadOnly && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
-          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify fee structures in Fees Master.
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm font-semibold text-blue-800 shadow-sm flex items-center gap-2">
+          <ShieldAlert size={16} className="text-blue-600" /> Read-Only View: Displaying fee structures and bundles assigned to your branch.
         </div>
       )}
-      <fieldset disabled={isReadOnly} className="contents">
-        <div className="space-y-6">
+      <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Fees Master</h2>
-              <p className="text-sm text-slate-500 mt-1">Configure program-wise, bundle-wise and subject-wise fee structures.</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {isBranchAdmin
+                  ? 'View program-wise, bundle-wise and subject-wise fee structures assigned to your branch.'
+                  : 'Configure program-wise, bundle-wise and subject-wise fee structures.'}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               {view === 'list' && (activeMainTab !== 'subject-wise' || subjectFees.length > 0) && (
                 <div className="flex gap-2">
-                  {activeMainTab === 'full-course' && (
+                  {activeMainTab === 'full-course' && !isReadOnly && (
                     <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
                       <Upload size={14} /> Bulk Import
                     </Button>
@@ -442,7 +510,7 @@ export const FeesMaster: React.FC = () => {
                                     <Button variant="outline" size="sm" onClick={() => handleEditPlan(plan)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
                                       <Edit2 size={14} />
                                     </Button>
-                                    <Button variant="outline" size="sm" onClick={() => handleDeletePlan(plan)} className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+                                    <Button variant="outline" size="sm" onClick={() => setDeletePlanTarget(plan)} className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
                                       <Trash2 size={14} />
                                     </Button>
                                   </div>
@@ -454,11 +522,11 @@ export const FeesMaster: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
-                  {plans.length > ITEMS_PER_PAGE && (
+                  {displayedPlans.length > ITEMS_PER_PAGE && (
                     <Pagination
                       currentPage={fullCoursePage}
-                      totalPages={Math.ceil(plans.length / ITEMS_PER_PAGE)}
-                      totalItems={plans.length}
+                      totalPages={Math.ceil(displayedPlans.length / ITEMS_PER_PAGE)}
+                      totalItems={displayedPlans.length}
                       pageSize={ITEMS_PER_PAGE}
                       onPageChange={setFullCoursePage}
                     />
@@ -576,7 +644,9 @@ export const FeesMaster: React.FC = () => {
           {activeMainTab === 'custom-bundles' && (
             <Card>
               <div className="p-4 border-b border-slate-100 text-sm text-slate-500 flex items-center gap-2">
-                Bundles are created and managed in Subject Setup. Use this tab to set the fee for each bundle.
+                {isBranchAdmin
+                  ? 'Viewing custom subject bundles assigned to your branch.'
+                  : 'Bundles are created and managed in Subject Setup. Use this tab to set the fee for each bundle.'}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -587,7 +657,7 @@ export const FeesMaster: React.FC = () => {
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Program</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Level</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Fee Amount (₹)</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>
+                      {!isReadOnly && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -597,7 +667,7 @@ export const FeesMaster: React.FC = () => {
                       </tr>
                     ) : paginatedBundles.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">No bundles found. Create them in Subject Setup first.</td>
+                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">No bundles found for this branch.</td>
                       </tr>
                     ) : (
                       paginatedBundles.map((bundle, idx) => (
@@ -609,22 +679,24 @@ export const FeesMaster: React.FC = () => {
                           <td className="px-6 py-4 text-right font-semibold text-emerald-600">
                             ₹{bundle.fee?.toLocaleString() || 0}
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            <Button variant="outline" size="sm" onClick={() => handleOpenBundleModal(bundle)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
-                              <Edit2 size={14} />
-                            </Button>
-                          </td>
+                          {!isReadOnly && (
+                            <td className="px-6 py-4 text-right">
+                              <Button variant="outline" size="sm" onClick={() => handleOpenBundleModal(bundle)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
+                                <Edit2 size={14} />
+                              </Button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
-              {customBundles.length > ITEMS_PER_PAGE && (
+              {displayedBundles.length > ITEMS_PER_PAGE && (
                 <Pagination
                   currentPage={bundlesPage}
-                  totalPages={Math.ceil(customBundles.length / ITEMS_PER_PAGE)}
-                  totalItems={customBundles.length}
+                  totalPages={Math.ceil(displayedBundles.length / ITEMS_PER_PAGE)}
+                  totalItems={displayedBundles.length}
                   pageSize={ITEMS_PER_PAGE}
                   onPageChange={setBundlesPage}
                 />
@@ -684,7 +756,7 @@ export const FeesMaster: React.FC = () => {
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Subject Code</th>
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Type</th>
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Fee Amount (₹)</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>
+                          {!isReadOnly && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-sm">
@@ -709,11 +781,13 @@ export const FeesMaster: React.FC = () => {
                               <td className="px-6 py-4 text-right font-semibold text-emerald-600">
                                 ₹{subject.fee?.toLocaleString() || 0}
                               </td>
-                              <td className="px-6 py-4 text-right">
-                                <Button variant="outline" size="sm" onClick={() => handleOpenSubjectModal(subject)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
-                                  <Edit2 size={14} />
-                                </Button>
-                              </td>
+                              {!isReadOnly && (
+                                <td className="px-6 py-4 text-right">
+                                  <Button variant="outline" size="sm" onClick={() => handleOpenSubjectModal(subject)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
+                                    <Edit2 size={14} />
+                                  </Button>
+                                </td>
+                              )}
                             </tr>
                           ))
                         )}
@@ -801,7 +875,6 @@ export const FeesMaster: React.FC = () => {
             </div>
           </Modal>
         </div>
-      </fieldset>
 
       <BulkImportModal
         isOpen={isImportModalOpen}
@@ -847,6 +920,15 @@ export const FeesMaster: React.FC = () => {
             addToast(`${imported} program fee plan(s) imported.`, 'success');
           }
         }}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletePlanTarget)}
+        onClose={() => setDeletePlanTarget(null)}
+        onConfirm={handleConfirmDeletePlan}
+        itemType="fee plan configuration"
+        itemName={deletePlanTarget?.name}
+        description="Removing this fee plan will affect fee calculation presets for future admissions in this program."
       />
     </div>
   );

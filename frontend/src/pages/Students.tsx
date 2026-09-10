@@ -24,7 +24,8 @@ import type {
 } from '../services/studentApi';
 
 export const Students: React.FC = () => {
-  const { addToast } = useApp();
+  const { addToast, currentUser } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState<StudentRosterItem[]>([]);
@@ -40,6 +41,9 @@ export const Students: React.FC = () => {
   const [filterBatch, setFilterBatch] = useState('All');
   const [filterBundle, setFilterBundle] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+
+  const activeBranchId = academicOptions?.branch?.id?.toString() || (academicOptions?.branches && academicOptions.branches.length === 1 ? academicOptions.branches[0].id.toString() : currentUser?.branchId || '');
+  const activeBranchName = academicOptions?.branch?.name || (academicOptions?.branches && academicOptions.branches.length === 1 ? academicOptions.branches[0].name : currentUser?.branch || 'Assigned Branch');
 
   // Modals & Detailed Profile
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -63,9 +67,6 @@ export const Students: React.FC = () => {
     const fetchOptions = async () => {
       try {
         const res = await getAcademicOptions();
-        // Backend returns { status: 'success', data: { branches, courses, programs, ... } }
-        // getAcademicOptions returns response.data (the full backend response wrapper)
-        // So res.data is the actual options object
         const data = res?.data ?? res;
         if (data && (data.courses || data.branches)) {
           setAcademicOptions(data);
@@ -87,7 +88,7 @@ export const Students: React.FC = () => {
         page: currentPage,
         limit: itemsPerPage,
         search: searchTerm,
-        branchId: filterBranch,
+        branchId: isBranchAdmin ? undefined : filterBranch,
         batchId: filterBatch,
         bundleId: filterBundle,
         status: filterStatus
@@ -194,7 +195,7 @@ export const Students: React.FC = () => {
             full_name: d.full_name,
             mobile: d.mobile,
             email: d.email,
-            dob: d.dob,
+            dob: d.dob ? String(d.dob).slice(0, 10) : '',
             gender: d.gender,
             blood_group: d.blood_group,
             street: d.street,
@@ -350,7 +351,9 @@ export const Students: React.FC = () => {
                   <div>
                     <h4 className="font-display font-extrabold text-slate-900 text-lg">{selectedStudentDetail.full_name}</h4>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs font-medium text-slate-500">
-                      <span>Status: <strong className="uppercase font-bold text-emerald-600">{selectedStudentDetail.status}</strong></span>
+                      <span>Status: <strong className={`uppercase font-bold ${Number(selectedStudentDetail.status) === 1 || selectedStudentDetail.status === 'active' ? 'text-emerald-600' : 'text-slate-600'}`}>
+                        {Number(selectedStudentDetail.status) === 1 || selectedStudentDetail.status === 'active' ? 'Active' : (Number(selectedStudentDetail.status) === 2 ? 'Deleted' : 'Inactive')}
+                      </strong></span>
                       <span>&bull;</span>
                       <span>Category: <strong className="text-slate-700">{selectedStudentDetail.category || 'General'}</strong></span>
                       <span>&bull;</span>
@@ -768,7 +771,7 @@ export const Students: React.FC = () => {
             Manage active students, assigned batches, subject bundles, and guardian records.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 items-center">
           <Button 
             variant="primary" 
             onClick={() => setIsAddModalOpen(true)} 
@@ -777,8 +780,12 @@ export const Students: React.FC = () => {
           >
             <UserPlus size={16} /> Add Active Student
           </Button>
-          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
-            <Upload size={14} /> Bulk Import
+          <Button
+            variant="secondary"
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-1.5 font-bold cursor-pointer"
+          >
+            <Upload size={14} /> Bulk Import <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200">UI Only</span>
           </Button>
           <Button variant="secondary" onClick={handleExportCSV}>
             Export CSV
@@ -796,15 +803,26 @@ export const Students: React.FC = () => {
           wrapperClassName="sm:col-span-2"
         />
 
-        <Select
-          label="Filter Branch"
-          value={filterBranch}
-          onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
-          options={[
-            { value: 'All', label: 'All Branches' },
-            ...(academicOptions?.branches || []).map(b => ({ value: b.id.toString(), label: b.name }))
-          ]}
-        />
+        {!isBranchAdmin ? (
+          <Select
+            label="Filter Branch"
+            value={filterBranch}
+            onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
+            options={[
+              { value: 'All', label: 'All Branches' },
+              ...(academicOptions?.branches || []).map(b => ({ value: b.id.toString(), label: b.name }))
+            ]}
+          />
+        ) : (
+          <Select
+            label="Filter Branch"
+            value={activeBranchId}
+            disabled={true}
+            options={[
+              { value: activeBranchId, label: activeBranchName }
+            ]}
+          />
+        )}
 
         <Select
           label="Filter Batch"
@@ -822,9 +840,8 @@ export const Students: React.FC = () => {
           onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
           options={[
             { value: 'All', label: 'All Status' },
-            { value: 'active', label: 'Active Enrolled' },
-            { value: 'registration_pending', label: 'Registration Pending' },
-            { value: 'suspended', label: 'Suspended' }
+            { value: '1', label: 'Active Enrolled' },
+            { value: '0', label: 'Inactive' }
           ]}
         />
       </div>
@@ -853,13 +870,19 @@ export const Students: React.FC = () => {
                 <td className="px-6 py-4 font-mono text-xs text-emerald-700 font-bold">{s.batch_name || 'Unassigned'}</td>
                 <td className="px-6 py-4 font-mono text-xs text-slate-600">{s.mobile || 'N/A'}</td>
                 <td className="px-6 py-4 text-xs">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                    s.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                    s.status === 'registration_pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
-                    {s.status}
-                  </span>
+                  {Number(s.status) === 1 || s.status === 'active' ? (
+                    <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Active
+                    </span>
+                  ) : Number(s.status) === 2 || s.status === 'deleted' ? (
+                    <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-rose-50 text-rose-700 border border-rose-200">
+                      Deleted
+                    </span>
+                  ) : (
+                    <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-slate-100 text-slate-600 border border-slate-200">
+                      Inactive
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
@@ -907,8 +930,8 @@ export const Students: React.FC = () => {
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        title="Bulk Import Student Roster"
-        description="Upload CSV formatted file with active student enrollment records."
+        title="Bulk Import Student Roster (UI Only)"
+        description="Upload CSV spreadsheet to import student enrollment records (demonstration mode)."
         sampleHeaders={['Full Name', 'Mobile', 'Email', 'Class', 'Branch ID', 'Batch ID']}
         sampleRows={[
           ['Aarav Sharma', '9812457812', 'aarav.sharma@gmail.com', 'Class 11', '1', '1'],
@@ -916,7 +939,7 @@ export const Students: React.FC = () => {
         ]}
         onImport={() => {
           fetchRoster();
-          addToast('Bulk import processed', 'success');
+          addToast('Bulk import processed (UI Only)', 'success');
         }}
       />
 

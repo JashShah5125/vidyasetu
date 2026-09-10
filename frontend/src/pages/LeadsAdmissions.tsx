@@ -15,7 +15,7 @@ import {
   ClipboardList, Layers, CheckCircle, Clock, ChevronRight,
   Download, Search, UserCheck, FileText, Zap, X
 } from 'lucide-react';
-import type { Lead, Student } from '../data/mockData';
+import type { Lead, Student } from '../types';
 
 interface LeadsAdmissionsProps {
   initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';

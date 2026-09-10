@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const bcrypt = require('bcryptjs');
 
 const BRANCH_WHERE = `b.tenant_id = ? AND b.deleted_at IS NULL`;
 
@@ -27,15 +28,36 @@ const fetchBranchSettings = async (branchId) => {
     );
     const settings = {};
     for (const row of rows) {
-        settings[row.setting_key] = row.setting_value;
+        let val = row.setting_value;
+        if (typeof val === 'string') {
+            try {
+                val = JSON.parse(val);
+            } catch {
+                // keep raw string if not json
+            }
+        }
+        settings[row.setting_key] = val;
     }
     return settings;
 };
 
 const extractAdminEmails = (settings) => {
-    const altEmails = Array.isArray(settings.alt_emails) ? settings.alt_emails : [];
-    const defaultEmail = settings.default_email || '';
-    return { altEmails, defaultEmail };
+    let altEmails = [];
+    if (Array.isArray(settings.alt_emails)) {
+        altEmails = settings.alt_emails;
+    } else if (typeof settings.alt_emails === 'string') {
+        try {
+            const parsed = JSON.parse(settings.alt_emails);
+            if (Array.isArray(parsed)) altEmails = parsed;
+        } catch {}
+    }
+    let defaultEmail = settings.default_email || '';
+    if (typeof defaultEmail === 'string' && defaultEmail.startsWith('"') && defaultEmail.endsWith('"')) {
+        try {
+            defaultEmail = JSON.parse(defaultEmail);
+        } catch {}
+    }
+    return { altEmails, defaultEmail: String(defaultEmail || '') };
 };
 
 const fetchBranchAdmin = async (branchId) => {
@@ -43,7 +65,8 @@ const fetchBranchAdmin = async (branchId) => {
         `SELECT u.id, u.name, u.email, u.mobile
          FROM user_branch_access uba
          JOIN users u ON uba.user_id = u.id
-         WHERE uba.branch_id = ? AND uba.is_primary = 1 AND uba.revoked_at IS NULL`,
+         WHERE uba.branch_id = ? AND uba.is_primary = 1 AND uba.revoked_at IS NULL
+         ORDER BY uba.id DESC`,
         [branchId]
     );
     return rows[0] || null;
@@ -249,70 +272,167 @@ const upsertBranchSettings = async (conn, branchId, tenantId, data) => {
 };
 
 const linkOrCreateBranchAdmin = async (conn, tenantId, branchId, data, actingUserId) => {
-    const adminName = data.admin;
-    const adminEmail = data.adminEmail;
-    const adminMobile = data.adminMobile;
+    const adminName = data.admin !== undefined ? (String(data.admin).trim() || null) : undefined;
+    const adminEmail = data.adminEmail !== undefined ? (String(data.adminEmail).trim().toLowerCase() || null) : undefined;
+    const adminMobile = data.adminMobile !== undefined ? (String(data.adminMobile).trim() || null) : undefined;
 
-    // If only partial admin fields are sent (e.g. just the mobile), update the
-    // existing primary admin for this branch rather than leaving it untouched.
-    if (!adminName && !adminEmail) {
-        const [existingAdmin] = await conn.query(
-            `SELECT u.id, u.mobile FROM user_branch_access uba
-             JOIN users u ON uba.user_id = u.id
-             WHERE uba.branch_id = ? AND uba.is_primary = 1 AND uba.revoked_at IS NULL`,
-            [branchId]
-        );
-        if (existingAdmin[0] && adminMobile) {
+    // If no admin fields provided at all in data
+    if (adminName === undefined && adminEmail === undefined && adminMobile === undefined) {
+        return null;
+    }
+
+    // Find the current active primary admin for this branch
+    const [currentPrimary] = await conn.query(
+        `SELECT u.id, u.name, u.email, u.mobile
+         FROM user_branch_access uba
+         JOIN users u ON uba.user_id = u.id
+         WHERE uba.branch_id = ? AND uba.is_primary = 1 AND uba.revoked_at IS NULL
+         ORDER BY uba.id DESC
+         LIMIT 1`,
+        [branchId]
+    );
+    const existingBranchAdmin = currentPrimary[0] || null;
+
+    // If all admin fields are empty (clearing the branch admin)
+    if (!adminName && !adminEmail && !adminMobile) {
+        if (existingBranchAdmin) {
             await conn.query(
-                `UPDATE users SET mobile = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                [adminMobile, actingUserId, existingAdmin[0].id]
+                `UPDATE user_branch_access SET is_primary = 0, revoked_at = CURRENT_TIMESTAMP
+                 WHERE branch_id = ?`,
+                [branchId]
             );
         }
-        return existingAdmin[0] ? existingAdmin[0].id : null;
+        return null;
     }
 
-    let userId = null;
-    let existingUser = null;
+    let targetUserId = null;
+
     if (adminEmail) {
-        const [existing] = await conn.query(
-            `SELECT id, name, mobile FROM users WHERE tenant_id = ? AND email = ?`,
-            [tenantId, String(adminEmail).toLowerCase()]
+        // Check if an existing user has this email
+        const [existingByEmail] = await conn.query(
+            `SELECT id, name, email, mobile FROM users WHERE tenant_id = ? AND email = ?`,
+            [tenantId, adminEmail]
         );
-        existingUser = existing[0] || null;
-        if (existingUser) {
-            userId = existingUser.id;
+
+        if (existingByEmail[0]) {
+            // Reassign to the existing user who owns this email
+            targetUserId = existingByEmail[0].id;
+        } else if (existingBranchAdmin) {
+            // Change the email of the existing branch admin
+            targetUserId = existingBranchAdmin.id;
+            await conn.query(
+                `UPDATE users SET
+                    email = ?,
+                    updated_by = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [adminEmail, actingUserId, targetUserId]
+            );
+        } else {
+            // Create a brand new admin user
+            const defaultPasswordHash = await bcrypt.hash('admin123', 10);
+            
+            // Check if mobile is already used by someone else
+            let safeMobile = adminMobile;
+            if (safeMobile) {
+                const [dupMob] = await conn.query(
+                    `SELECT id FROM users WHERE tenant_id = ? AND mobile = ?`,
+                    [tenantId, safeMobile]
+                );
+                if (dupMob[0]) safeMobile = null;
+            }
+
+            const [insert] = await conn.query(
+                `INSERT INTO users (tenant_id, name, email, mobile, password_hash, user_type, status, must_change_password, password_generated_at, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?, 'staff', 'active', 1, CURRENT_TIMESTAMP, ?, ?)`,
+                [tenantId, adminName || 'Branch Admin', adminEmail, safeMobile, defaultPasswordHash, actingUserId, actingUserId]
+            );
+            targetUserId = insert.insertId;
+        }
+    } else if (existingBranchAdmin) {
+        targetUserId = existingBranchAdmin.id;
+    } else if (adminMobile || adminName) {
+        if (adminMobile) {
+            const [byMobile] = await conn.query(
+                `SELECT id, name, email, mobile FROM users WHERE tenant_id = ? AND mobile = ?`,
+                [tenantId, adminMobile]
+            );
+            if (byMobile[0]) {
+                targetUserId = byMobile[0].id;
+            }
+        }
+        if (!targetUserId) {
+            const defaultPasswordHash = await bcrypt.hash('admin123', 10);
+            const generatedEmail = `branchadmin_${branchId}_${Date.now()}@vidyasetu.com`;
+            let safeMobile = adminMobile;
+            if (safeMobile) {
+                const [dupMob] = await conn.query(
+                    `SELECT id FROM users WHERE tenant_id = ? AND mobile = ?`,
+                    [tenantId, safeMobile]
+                );
+                if (dupMob[0]) safeMobile = null;
+            }
+            const [insert] = await conn.query(
+                `INSERT INTO users (tenant_id, name, email, mobile, password_hash, user_type, status, must_change_password, password_generated_at, created_by, updated_by)
+                 VALUES (?, ?, ?, ?, ?, 'staff', 'active', 1, CURRENT_TIMESTAMP, ?, ?)`,
+                [tenantId, adminName || 'Branch Admin', generatedEmail, safeMobile, defaultPasswordHash, actingUserId, actingUserId]
+            );
+            targetUserId = insert.insertId;
         }
     }
 
-    // Fall back to matching an existing user by mobile before creating a new one.
-    if (!userId && adminMobile) {
-        const [byMobile] = await conn.query(
-            `SELECT id, name, mobile FROM users WHERE tenant_id = ? AND mobile = ?`,
-            [tenantId, adminMobile]
-        );
-        if (byMobile[0]) {
-            existingUser = byMobile[0];
-            userId = existingUser.id;
+    if (!targetUserId) {
+        return null;
+    }
+
+    // Now safely update name and mobile on targetUserId if provided and not duplicate
+    if (adminName !== undefined || adminMobile !== undefined) {
+        let safeMobile = undefined;
+        if (adminMobile !== undefined) {
+            if (adminMobile) {
+                const [dupMob] = await conn.query(
+                    `SELECT id FROM users WHERE tenant_id = ? AND mobile = ? AND id != ?`,
+                    [tenantId, adminMobile, targetUserId]
+                );
+                if (!dupMob[0]) {
+                    safeMobile = adminMobile;
+                }
+            } else {
+                safeMobile = null;
+            }
+        }
+
+        const updateFields = [];
+        const updateParams = [];
+        if (adminName) {
+            updateFields.push('name = ?');
+            updateParams.push(adminName);
+        }
+        if (safeMobile !== undefined) {
+            updateFields.push('mobile = ?');
+            updateParams.push(safeMobile);
+        }
+        if (updateFields.length > 0) {
+            updateFields.push('updated_by = ?', 'updated_at = CURRENT_TIMESTAMP');
+            updateParams.push(actingUserId, targetUserId);
+            await conn.query(
+                `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+                updateParams
+            );
         }
     }
 
-    if (!userId) {
-        const [insert] = await conn.query(
-            `INSERT INTO users (tenant_id, name, email, mobile, user_type, status, must_change_password, created_by, updated_by)
-             VALUES (?, ?, ?, ?, 'staff', 'active', 1, ?, ?)`,
-            [tenantId, adminName || 'Branch Admin', String(adminEmail || '').toLowerCase(), adminMobile || null, actingUserId, actingUserId]
-        );
-        userId = insert.insertId;
-    } else {
-        await conn.query(
-            `UPDATE users SET name = ?, mobile = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            [adminName || existingUser.name, adminMobile || existingUser.mobile, actingUserId, userId]
-        );
-    }
+    // Demote any other users as primary on this branch
+    await conn.query(
+        `UPDATE user_branch_access SET is_primary = 0
+         WHERE branch_id = ? AND user_id != ?`,
+        [branchId, targetUserId]
+    );
 
+    // Link target user to branch as primary
     const [existingLink] = await conn.query(
         `SELECT id FROM user_branch_access WHERE user_id = ? AND branch_id = ?`,
-        [userId, branchId]
+        [targetUserId, branchId]
     );
 
     if (existingLink[0]) {
@@ -325,20 +445,23 @@ const linkOrCreateBranchAdmin = async (conn, tenantId, branchId, data, actingUse
         await conn.query(
             `INSERT INTO user_branch_access (tenant_id, user_id, branch_id, is_primary, granted_by)
              VALUES (?, ?, ?, 1, ?)`,
-            [tenantId, userId, branchId, actingUserId]
+            [tenantId, targetUserId, branchId, actingUserId]
         );
     }
 
-    const [roleRows] = await conn.query(`SELECT id FROM roles WHERE code = 'branch_admin'`);
+    // Ensure branch_admin role is assigned
+    const [roleRows] = await conn.query(
+        `SELECT id FROM roles WHERE code IN ('branch_admin', 'branch-admin') OR name IN ('Branch Admin', 'branch-admin') LIMIT 1`
+    );
     const roleId = roleRows[0]?.id;
     if (roleId) {
         await conn.query(
             `INSERT IGNORE INTO user_roles (user_id, role_id, assigned_by) VALUES (?, ?, ?)`,
-            [userId, roleId, actingUserId]
+            [targetUserId, roleId, actingUserId]
         );
     }
 
-    return userId;
+    return targetUserId;
 };
 
 // Map a DB row (snake_case columns) back into the camelCase shape the frontend
@@ -535,10 +658,330 @@ const deleteBranch = async (tenantId, identifier, userId) => {
     }
 };
 
+const verifyUserBranchAccess = async (tenantId, userId, identifier) => {
+    const [rows] = await pool.query(
+        `SELECT uba.id
+         FROM user_branch_access uba
+         JOIN branches b ON uba.branch_id = b.id
+         WHERE b.tenant_id = ? AND uba.user_id = ? AND uba.revoked_at IS NULL AND (b.id = ? OR b.code = ?)`,
+        [tenantId, userId, identifier, identifier]
+    );
+    return rows.length > 0;
+};
+
+const getUserBranchIds = async (tenantId, userId) => {
+    const [rows] = await pool.query(
+        `SELECT uba.branch_id
+         FROM user_branch_access uba
+         JOIN branches b ON uba.branch_id = b.id
+         WHERE b.tenant_id = ? AND uba.user_id = ? AND uba.revoked_at IS NULL AND b.deleted_at IS NULL
+         ORDER BY uba.is_primary DESC, uba.id ASC`,
+        [tenantId, userId]
+    );
+    return rows.map(r => Number(r.branch_id));
+};
+
+const getBranchCourses = async (tenantId, branchIdentifier, { assignment_status = 'all', search = '' } = {}) => {
+    const [branchRows] = await pool.query(
+        `SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND (id = ? OR code = ?)`,
+        [tenantId, branchIdentifier, branchIdentifier]
+    );
+    if (!branchRows[0]) return { data: [], total: 0, branch: null };
+    const branch = branchRows[0];
+    const branchId = branch.id;
+
+    let where = `c.tenant_id = ? AND c.deleted_at IS NULL`;
+    const params = [tenantId];
+
+    if (search) {
+        where += ` AND (c.name LIKE ? OR c.code LIKE ?)`;
+        const pattern = `%${search}%`;
+        params.push(pattern, pattern);
+    }
+
+    if (assignment_status === 'assigned') {
+        where += ` AND cb.course_id IS NOT NULL`;
+    } else if (assignment_status === 'unassigned') {
+        where += ` AND cb.course_id IS NULL`;
+    }
+
+    const [rows] = await pool.query(
+        `SELECT
+            c.id,
+            c.name,
+            c.code,
+            c.description,
+            c.is_active,
+            CASE
+                WHEN cb.course_id IS NOT NULL THEN 'assigned'
+                ELSE 'unassigned'
+            END AS assignment_status
+         FROM courses c
+         LEFT JOIN course_branches cb ON cb.course_id = c.id AND cb.branch_id = ?
+         WHERE ${where}
+         ORDER BY c.name ASC`,
+        [branchId, ...params]
+    );
+
+    if (rows.length === 0) {
+        return { data: [], total: 0, branch };
+    }
+
+    const courseIds = rows.map(r => r.id);
+    const placeholders = courseIds.map(() => '?').join(',');
+
+    // Fetch all programs for these courses
+    const [programRows] = await pool.query(
+        `SELECT p.id, p.course_id, p.name, p.code, p.is_active
+         FROM programs p
+         WHERE p.course_id IN (${placeholders}) AND p.deleted_at IS NULL
+         ORDER BY p.name ASC`,
+        courseIds
+    );
+
+    // Fetch mapped programs for this branch
+    const [mappedProgRows] = await pool.query(
+        `SELECT bp.course_id, bp.program_id
+         FROM branch_programs bp
+         WHERE bp.branch_id = ? AND bp.course_id IN (${placeholders})`,
+        [branchId, ...courseIds]
+    );
+
+    const mappedProgSet = new Set(mappedProgRows.map(m => `${m.course_id}-${m.program_id}`));
+
+    const programsByCourse = {};
+    for (const pr of programRows) {
+        if (!programsByCourse[pr.course_id]) programsByCourse[pr.course_id] = [];
+        const isAssigned = mappedProgSet.has(`${pr.course_id}-${pr.id}`);
+        programsByCourse[pr.course_id].push({
+            id: String(pr.id),
+            name: pr.name,
+            code: pr.code,
+            is_active: Boolean(pr.is_active),
+            is_assigned: isAssigned,
+            assigned: isAssigned
+        });
+    }
+
+    const data = rows.map(row => {
+        const allProgs = programsByCourse[row.id] || [];
+        const isAssigned = row.assignment_status === 'assigned';
+        const assignedProgs = allProgs.filter(p => p.is_assigned);
+        return {
+            id: String(row.id),
+            name: row.name,
+            code: row.code,
+            description: row.description,
+            is_active: Boolean(row.is_active),
+            is_assigned: isAssigned,
+            assignment_status: row.assignment_status,
+            programs: allProgs,
+            assigned_programs: assignedProgs
+        };
+    });
+
+    return { data, total: data.length, branch };
+};
+
+const assignCourseToBranch = async (tenantId, branchIdentifier, courseIdentifier, programIds = [], userId) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const branchId = await getBranchIdByIdentifier(conn, tenantId, branchIdentifier);
+        if (!branchId) throw new Error('Branch not found');
+
+        const [courseRows] = await conn.query(
+            `SELECT id FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND (id = ? OR code = ?)`,
+            [tenantId, courseIdentifier, courseIdentifier]
+        );
+        if (!courseRows[0]) throw new Error('Course not found');
+        const courseId = courseRows[0].id;
+
+        // 1. Insert course branch mapping
+        await conn.query(
+            `INSERT IGNORE INTO course_branches (course_id, branch_id) VALUES (?, ?)`,
+            [courseId, branchId]
+        );
+
+        // 2. Map programs
+        let targetProgramIds = [];
+        if (Array.isArray(programIds) && programIds.length > 0) {
+            targetProgramIds = programIds.map(Number).filter(Boolean);
+        } else {
+            const [progs] = await conn.query(
+                `SELECT id FROM programs WHERE course_id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+                [courseId, tenantId]
+            );
+            targetProgramIds = progs.map(p => p.id);
+        }
+
+        for (const progId of targetProgramIds) {
+            await conn.query(
+                `INSERT IGNORE INTO branch_programs (tenant_id, branch_id, course_id, program_id) VALUES (?, ?, ?, ?)`,
+                [tenantId, branchId, courseId, progId]
+            );
+        }
+
+        await conn.commit();
+        return { success: true, branchId, courseId };
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+};
+
+const unassignCourseFromBranch = async (tenantId, branchIdentifier, courseIdentifier, userId) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const branchId = await getBranchIdByIdentifier(conn, tenantId, branchIdentifier);
+        if (!branchId) throw new Error('Branch not found');
+
+        const [courseRows] = await conn.query(
+            `SELECT id FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND (id = ? OR code = ?)`,
+            [tenantId, courseIdentifier, courseIdentifier]
+        );
+        if (!courseRows[0]) throw new Error('Course not found');
+        const courseId = courseRows[0].id;
+
+        await conn.query(
+            `DELETE FROM course_branches WHERE course_id = ? AND branch_id = ?`,
+            [courseId, branchId]
+        );
+
+        await conn.query(
+            `DELETE FROM branch_programs WHERE course_id = ? AND branch_id = ?`,
+            [courseId, branchId]
+        );
+
+        await conn.commit();
+        return { success: true, branchId, courseId };
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+};
+
+const batchAssignCoursesToBranch = async (tenantId, branchIdentifier, assignments = [], userId) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const branchId = await getBranchIdByIdentifier(conn, tenantId, branchIdentifier);
+        if (!branchId) throw new Error('Branch not found');
+
+        for (const item of assignments) {
+            const courseIdentifier = typeof item === 'object' ? item.courseId : item;
+            const programIds = typeof item === 'object' && Array.isArray(item.programIds) ? item.programIds : [];
+
+            const [courseRows] = await conn.query(
+                `SELECT id FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND (id = ? OR code = ?)`,
+                [tenantId, courseIdentifier, courseIdentifier]
+            );
+            if (!courseRows[0]) continue;
+            const courseId = courseRows[0].id;
+
+            await conn.query(
+                `INSERT IGNORE INTO course_branches (course_id, branch_id) VALUES (?, ?)`,
+                [courseId, branchId]
+            );
+
+            let targetProgramIds = programIds.map(Number).filter(Boolean);
+            if (targetProgramIds.length === 0) {
+                const [progs] = await conn.query(
+                    `SELECT id FROM programs WHERE course_id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+                    [courseId, tenantId]
+                );
+                targetProgramIds = progs.map(p => p.id);
+            }
+
+            for (const progId of targetProgramIds) {
+                await conn.query(
+                    `INSERT IGNORE INTO branch_programs (tenant_id, branch_id, course_id, program_id) VALUES (?, ?, ?, ?)`,
+                    [tenantId, branchId, courseId, progId]
+                );
+            }
+        }
+
+        await conn.commit();
+        return { success: true, branchId };
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+};
+
+const toggleBranchProgramAssignment = async (tenantId, branchIdentifier, programId, assign = true, userId) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        const branchId = await getBranchIdByIdentifier(conn, tenantId, branchIdentifier);
+        if (!branchId) throw new Error('Branch not found');
+
+        const [progRows] = await conn.query(
+            `SELECT id, course_id FROM programs WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+            [programId, tenantId]
+        );
+        if (!progRows[0]) throw new Error('Program not found');
+        const courseId = progRows[0].course_id;
+
+        if (assign) {
+            await conn.query(
+                `INSERT IGNORE INTO course_branches (course_id, branch_id) VALUES (?, ?)`,
+                [courseId, branchId]
+            );
+            await conn.query(
+                `INSERT IGNORE INTO branch_programs (tenant_id, branch_id, course_id, program_id) VALUES (?, ?, ?, ?)`,
+                [tenantId, branchId, courseId, programId]
+            );
+        } else {
+            await conn.query(
+                `DELETE FROM branch_programs WHERE branch_id = ? AND program_id = ?`,
+                [branchId, programId]
+            );
+            // Check if any other programs remain for this course on the branch
+            const [rem] = await conn.query(
+                `SELECT id FROM branch_programs WHERE branch_id = ? AND course_id = ?`,
+                [branchId, courseId]
+            );
+            if (rem.length === 0) {
+                await conn.query(
+                    `DELETE FROM course_branches WHERE branch_id = ? AND course_id = ?`,
+                    [branchId, courseId]
+                );
+            }
+        }
+
+        await conn.commit();
+        return { success: true, branchId, courseId, programId, assign };
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
+    }
+};
+
 module.exports = {
     getBranches,
     getBranch,
     createBranch,
     updateBranch,
-    deleteBranch
+    deleteBranch,
+    verifyUserBranchAccess,
+    getUserBranchIds,
+    getBranchCourses,
+    assignCourseToBranch,
+    unassignCourseFromBranch,
+    batchAssignCoursesToBranch,
+    toggleBranchProgramAssignment
 };

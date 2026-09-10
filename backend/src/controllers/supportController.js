@@ -1,16 +1,80 @@
 const supportService = require('../services/supportService');
+const branchModel = require('../models/branchModel');
 
-const getTicketAccess = (req, ticket) => {
-    if (req.user.isSaasAdmin) return true;
-    return String(ticket.tenantId) === String(req.user.tenantId);
+const resolveTenantId = (req) => req.user && req.user.tenantId;
+
+const isBranchAdmin = (role) => role === 'branch-admin' || role === 'branch_admin';
+const isInstAdmin = (role) => role === 'inst_admin' || role === 'inst-admin';
+const isSaasAdmin = (req) => Boolean(req.user?.isSaasAdmin);
+
+// Central security boundary for support tickets
+const getSupportTicketAccess = async (req, ticket) => {
+    if (!ticket) return false;
+    const user = req.user;
+    const userRole = user?.role;
+    const tenantId = resolveTenantId(req);
+
+    // SaaS Admin has global access to SAAS_SUPPORT channel tickets
+    if (isSaasAdmin(req)) {
+        return ticket.channel === 'SAAS_SUPPORT';
+    }
+
+    // Institute Admin has access to all SAAS_SUPPORT and INSTITUTE_SUPPORT tickets for their tenant
+    if (isInstAdmin(userRole)) {
+        return String(ticket.tenantId) === String(tenantId);
+    }
+
+    // Branch Admin has access strictly to INSTITUTE_SUPPORT tickets in their assigned branch
+    if (isBranchAdmin(userRole)) {
+        if (ticket.channel !== 'INSTITUTE_SUPPORT' || String(ticket.tenantId) !== String(tenantId)) {
+            return false;
+        }
+        if (!ticket.branchId) return false;
+        const hasAccess = await branchModel.verifyUserBranchAccess(tenantId, user.userId, ticket.branchId);
+        return hasAccess;
+    }
+
+    // Fallback for other roles within tenant
+    return String(ticket.tenantId) === String(tenantId);
 };
 
 const listTickets = async (req, res) => {
     try {
-        const { status = 'All', search = '' } = req.query;
-        const tenantId = req.user.isSaasAdmin ? null : req.user.tenantId;
+        const { status = 'All', search = '', channel: queryChannel, branch_id, branchId } = req.query;
+        const tenantId = isSaasAdmin(req) ? null : resolveTenantId(req);
+        const userRole = req.user?.role;
+        const isBranch = isBranchAdmin(userRole);
 
-        const data = await supportService.getTickets({ tenantId, status, search });
+        let channel = queryChannel;
+        let targetBranchId = branchId || branch_id || null;
+
+        // Channel and Branch Scoping Rules
+        if (isSaasAdmin(req)) {
+            channel = 'SAAS_SUPPORT';
+        } else if (isBranch) {
+            // Branch Admins are locked strictly to INSTITUTE_SUPPORT and their own branch
+            channel = 'INSTITUTE_SUPPORT';
+            const userBranchIds = await branchModel.getUserBranchIds(tenantId, req.user.userId);
+            if (!userBranchIds.length) {
+                return res.status(200).json({ status: 'success', data: [] });
+            }
+            targetBranchId = String(userBranchIds[0]);
+        } else if (isInstAdmin(userRole)) {
+            // Institute Admin can view either channel (defaults to INSTITUTE_SUPPORT if on /api/branch or /api/institute, else queryChannel or All)
+            if (req.baseUrl.includes('/branch') || req.baseUrl.includes('/institute')) {
+                channel = 'INSTITUTE_SUPPORT';
+            } else if (!channel) {
+                channel = 'SAAS_SUPPORT';
+            }
+        }
+
+        const data = await supportService.getTickets({
+            tenantId,
+            branchId: targetBranchId,
+            channel,
+            status,
+            search
+        });
 
         res.status(200).json({ status: 'success', data });
     } catch (error) {
@@ -26,7 +90,8 @@ const getTicket = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Ticket not found' });
         }
 
-        if (!getTicketAccess(req, ticket)) {
+        const hasAccess = await getSupportTicketAccess(req, ticket);
+        if (!hasAccess) {
             return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
         }
 
@@ -44,18 +109,50 @@ const createTicket = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Subject and description are required' });
         }
 
-        const tenantId = req.user.isSaasAdmin ? (req.body.tenantId || null) : req.user.tenantId;
+        const userRole = req.user?.role;
+        const tenantId = isSaasAdmin(req) ? (req.body.tenantId || null) : resolveTenantId(req);
+
+        let channel = 'SAAS_SUPPORT';
+        let branchId = null;
+        let senderType = 'INSTITUTE_ADMIN';
+
+        if (isBranchAdmin(userRole)) {
+            channel = 'INSTITUTE_SUPPORT';
+            senderType = 'BRANCH_ADMIN';
+            const userBranchIds = await branchModel.getUserBranchIds(tenantId, req.user.userId);
+            if (!userBranchIds.length) {
+                return res.status(400).json({ status: 'error', message: 'User is not assigned to an active branch' });
+            }
+            branchId = userBranchIds[0];
+        } else if (isInstAdmin(userRole)) {
+            if (req.baseUrl.includes('/institute') || req.body.channel === 'INSTITUTE_SUPPORT') {
+                channel = 'INSTITUTE_SUPPORT';
+                senderType = 'INSTITUTE_ADMIN';
+                branchId = req.body.branchId || req.body.branch_id || null;
+            } else {
+                channel = 'SAAS_SUPPORT';
+                senderType = 'INSTITUTE_ADMIN';
+            }
+        } else if (isSaasAdmin(req)) {
+            channel = 'SAAS_SUPPORT';
+            senderType = 'SAAS_ADMIN';
+        }
+
         let attachmentUrl = null;
         let attachmentName = null;
         if (req.file) {
             attachmentUrl = `/uploads/support/${req.file.filename}`;
             attachmentName = req.file.originalname;
         }
+
         const ticket = await supportService.createTicket({
             tenantId,
+            branchId,
+            channel,
             subject,
             description,
             createdBy: req.user.userId,
+            senderType,
             attachmentUrl,
             attachmentName
         });
@@ -79,8 +176,38 @@ const addReply = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Ticket not found' });
         }
 
-        if (!getTicketAccess(req, ticket)) {
+        const hasAccess = await getSupportTicketAccess(req, ticket);
+        if (!hasAccess) {
             return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
+        }
+
+        const userRole = req.user?.role;
+        let senderRole = 'tenant';
+        let senderType = 'INSTITUTE_ADMIN';
+        let isFromStaff = false;
+
+        // Role & Staff status resolution per channel
+        if (ticket.channel === 'INSTITUTE_SUPPORT') {
+            if (isInstAdmin(userRole) || isSaasAdmin(req)) {
+                senderRole = 'staff';
+                senderType = 'INSTITUTE_ADMIN';
+                isFromStaff = true;
+            } else {
+                senderRole = 'tenant';
+                senderType = 'BRANCH_ADMIN';
+                isFromStaff = false;
+            }
+        } else {
+            // SAAS_SUPPORT channel
+            if (isSaasAdmin(req)) {
+                senderRole = 'staff';
+                senderType = 'SAAS_ADMIN';
+                isFromStaff = true;
+            } else {
+                senderRole = 'tenant';
+                senderType = 'INSTITUTE_ADMIN';
+                isFromStaff = false;
+            }
         }
 
         let attachmentUrl = null;
@@ -93,8 +220,9 @@ const addReply = async (req, res) => {
         const updated = await supportService.addReply({
             ticketIdentifier: req.params.ticketNumber,
             senderId: req.user.userId,
-            senderRole: req.user.isSaasAdmin ? 'staff' : 'tenant',
-            isFromStaff: !!req.user.isSaasAdmin,
+            senderRole,
+            senderType,
+            isFromStaff,
             message,
             attachmentUrl,
             attachmentName
@@ -119,12 +247,12 @@ const updateTicket = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Ticket not found' });
         }
 
-        if (!getTicketAccess(req, ticket)) {
+        const hasAccess = await getSupportTicketAccess(req, ticket);
+        if (!hasAccess) {
             return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
         }
 
         const updated = await supportService.updateTicket(req.params.ticketNumber, { subject, description });
-
         res.status(200).json({ status: 'success', data: updated });
     } catch (error) {
         console.error('Error updating support ticket:', error);
@@ -139,12 +267,12 @@ const deleteTicket = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Ticket not found' });
         }
 
-        if (!getTicketAccess(req, ticket)) {
+        const hasAccess = await getSupportTicketAccess(req, ticket);
+        if (!hasAccess) {
             return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
         }
 
         const deleted = await supportService.deleteTicket(req.params.ticketNumber);
-
         res.status(200).json({ status: 'success', message: deleted ? 'Ticket deleted' : 'Failed to delete ticket' });
     } catch (error) {
         console.error('Error deleting support ticket:', error);
@@ -159,7 +287,8 @@ const resolveTicket = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Ticket not found' });
         }
 
-        if (!getTicketAccess(req, ticket)) {
+        const hasAccess = await getSupportTicketAccess(req, ticket);
+        if (!hasAccess) {
             return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
         }
 
@@ -175,11 +304,11 @@ const updateTicketStatus = async (req, res) => {
     try {
         const { status } = req.body;
         const allowedStatuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
-        
+
         if (!status || !allowedStatuses.includes(status)) {
-            return res.status(400).json({ 
-                status: 'error', 
-                message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}` 
+            return res.status(400).json({
+                status: 'error',
+                message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
             });
         }
 
@@ -188,7 +317,8 @@ const updateTicketStatus = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Ticket not found' });
         }
 
-        if (!getTicketAccess(req, ticket)) {
+        const hasAccess = await getSupportTicketAccess(req, ticket);
+        if (!hasAccess) {
             return res.status(403).json({ status: 'error', message: 'Forbidden. You do not have access to this ticket.' });
         }
 

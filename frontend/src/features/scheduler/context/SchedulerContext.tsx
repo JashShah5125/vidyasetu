@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import type { Lecture, Room, PublishStatus, LectureStatus } from '../types/scheduler';
 import { timetableApi, type TimetableOptions } from '../../../services/timetableApi';
+import { getAcademicOptions } from '../../../services/studentApi';
 
 const parseLocalDate = (dateStr: string): Date => {
   if (dateStr.includes('T')) {
@@ -57,8 +58,21 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Load scheduler metadata & options on mount
   const refreshOptions = useCallback(async () => {
     try {
-      const opts = await timetableApi.getOptions();
-      setOptions(opts);
+      const [opts, academicRes] = await Promise.all([
+        timetableApi.getOptions(),
+        getAcademicOptions().catch(() => null)
+      ]);
+      const academicData = academicRes?.data || {};
+      setOptions({
+        ...opts,
+        branch: academicData.branch || opts?.branch,
+        branches: academicData.branches || opts?.branches,
+        courses: academicData.courses && academicData.courses.length > 0 ? academicData.courses : (opts?.courses || []),
+        programs: academicData.programs && academicData.programs.length > 0 ? academicData.programs : (opts?.programs || []),
+        levels: academicData.levels && academicData.levels.length > 0 ? academicData.levels : (opts?.levels || []),
+        batches: academicData.batches && academicData.batches.length > 0 ? academicData.batches : (opts?.batches || []),
+        academicYears: academicData.academicYears && academicData.academicYears.length > 0 ? academicData.academicYears : (opts?.academicYears || [])
+      });
     } catch (err) {
       console.warn('Could not load live timetable options from API:', err);
     }

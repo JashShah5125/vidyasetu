@@ -4,8 +4,8 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Bell, Mail, Send, X, Paperclip } from 'lucide-react';
-import type { AppNotification, NotificationRecipient } from '../../data/mockData';
-import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import type { AppNotification, NotificationRecipient } from '../../types';
+import { TEACHER_ASSIGNED_BATCHES } from '../../types';
 import teachersList from '../../data/teachers.json';
 import courseHierarchy from '../../data/courseHierarchy.json';
 

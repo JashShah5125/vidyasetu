@@ -97,7 +97,15 @@ export const CourseDetail: React.FC = () => {
   const { addToast, currentUser } = useApp();
 
   const isNew = code === 'new';
-  const isReadOnly = false;
+  const isReadOnly = currentUser?.role === 'branch-admin';
+  const disableInputs = isReadOnly;
+
+  useEffect(() => {
+    if (currentUser?.role === 'branch-admin' && isNew) {
+      addToast('Access denied: Branch Admins cannot create new courses.', 'error');
+      navigate('/courses');
+    }
+  }, [currentUser, isNew, navigate, addToast]);
 
   const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'levels' | 'subjects'>('general');
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
@@ -202,41 +210,41 @@ export const CourseDetail: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="py-20 text-center flex flex-col items-center justify-center">
-        <Loader2 size={40} className="text-blue-500 animate-spin mb-4" />
-        <h3 className="text-sm font-bold text-slate-700">Loading course details...</h3>
+      <div className="flex flex-col items-center justify-center py-28 text-slate-400">
+        <Loader2 className="animate-spin text-blue-600 mb-3" size={36} />
+        <p className="text-sm font-medium">Loading course catalog details...</p>
       </div>
     );
   }
 
-  const disableInputs = currentUser?.role === 'branch-admin' && !isNew;
-
   return (
-    <div className="w-full animate-fade-in">
-      {isReadOnly && (
-        <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 shadow-sm flex items-center gap-2">
-          <ShieldAlert size={16} /> Read-Only Mode: Only Institute Owners can modify course setup.
-        </div>
-      )}
+    <div className="space-y-6 animate-fade-in pb-12">
+      {/* Top Header & Actions */}
+      <div className="bg-white border-b border-slate-200 px-6 py-5 sticky top-0 z-20 shadow-xs">
+        <Breadcrumbs items={[
+          { label: 'Courses Directory', href: '/courses' },
+          { label: isNew ? 'Create New Course' : (formData.name || 'Course Details') }
+        ]} />
 
-      {/* Page Header matching Tenants */}
-      <div className="flex flex-col gap-2 p-6 pb-0">
-        <Breadcrumbs
-          items={[
-            { label: 'Courses', href: '/courses' },
-            { label: isNew ? 'Create New Course' : formData.name }
-          ]}
-        />
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
+        {isReadOnly && (
+          <div className="mt-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+            <ShieldAlert size={16} className="text-amber-600 shrink-0" />
+            <span>Viewing course in <strong>read-only</strong> mode. Master courses are centrally managed by Institute Admin. You can control this course's assignment to your branch from <strong>Branch Setup &gt; Courses &amp; Programs</strong>.</span>
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-4">
           <div>
-            <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">
-              {isNew ? 'Create New Course' : formData.name}
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+              <BookOpen size={28} className="text-blue-600" />
+              {isNew ? 'Create Master Course' : (formData.name || 'Course Details')}
             </h2>
-            <p className="text-base text-slate-500 mt-2">
-              Configure course programs, level durations, subjects mapping, and course setup.
+            <p className="text-sm text-slate-500 mt-1">
+              {isNew ? 'Define a new master course, programs, academic levels and subjects.' : `Manage ${formData.code || 'course'} catalog and structure.`}
             </p>
           </div>
-          <div className="flex gap-3 shrink-0">
+
+          <div className="flex items-center gap-2 shrink-0">
             <Button variant="secondary" onClick={() => navigate('/courses')}>
               {isReadOnly ? 'Back' : 'Cancel'}
             </Button>
@@ -255,28 +263,26 @@ export const CourseDetail: React.FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      {currentUser?.role !== 'branch-admin' && (
-        <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none mt-6 px-6">
-          {[
-            { id: 'general', label: '1. Course Details', icon: BookOpen },
-            { id: 'programs', label: '2. Programs', icon: GraduationCap },
-            { id: 'levels', label: '3. Academic Levels', icon: Layers },
-            { id: 'subjects', label: '4. Level Subjects', icon: BookOpenCheck },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors cursor-pointer select-none ${activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-            >
-              <tab.icon size={16} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none mt-6 px-6">
+        {[
+          { id: 'general', label: '1. Course Details', icon: BookOpen },
+          { id: 'programs', label: '2. Programs', icon: GraduationCap },
+          { id: 'levels', label: '3. Academic Levels', icon: Layers },
+          { id: 'subjects', label: '4. Level Subjects', icon: BookOpenCheck },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors cursor-pointer select-none ${activeTab === tab.id
+                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <fieldset disabled={isReadOnly} className="contents">
         <div className="p-6 pt-6 space-y-6">

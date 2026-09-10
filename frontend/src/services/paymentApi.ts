@@ -146,8 +146,70 @@ export interface CreateInvoiceResult {
   };
 }
 
+const isBranchAdmin = (): boolean => {
+  try {
+    const savedUser = localStorage.getItem('vs_current_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
+      return role === 'branch-admin';
+    }
+  } catch {
+    // fallback
+  }
+  return false;
+};
+
+export interface StudentFeeAssignmentDetails {
+  id: number;
+  studentId: number;
+  studentName: string;
+  studentCode: string;
+  branchId: number;
+  branchName?: string;
+  enrollmentId: number;
+  feeSourceType: string;
+  feeSourceId?: number | null;
+  feeSourceName?: string;
+  grossAmount: number;
+  totalConcession: number;
+  netAmount: number;
+  downPayment: number;
+  installmentCount: number;
+  installmentAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+  status: string;
+}
+
+export interface UpdateFeeAssignmentPayload {
+  grossAmount: number;
+  totalConcession?: number;
+  downPayment?: number;
+  installmentCount?: number;
+}
+
 export const getStudentLedger = async (studentId: number): Promise<StudentLedger> => {
-  const response = await api.get(`/admin/payments/students/${studentId}/ledger`);
+  const url = isBranchAdmin()
+    ? `/branch/fees/students/${studentId}/ledger`
+    : `/admin/payments/students/${studentId}/ledger`;
+  const response = await api.get(url);
+  return response.data.data;
+};
+
+export const getStudentFeeAssignment = async (studentId: number): Promise<StudentFeeAssignmentDetails> => {
+  const url = isBranchAdmin()
+    ? `/branch/fees/students/${studentId}/fee-assignment`
+    : `/admin/payments/students/${studentId}/fee-assignment`;
+  const response = await api.get(url);
+  return response.data.data;
+};
+
+export const updateStudentFeeAssignment = async (studentId: number, payload: UpdateFeeAssignmentPayload): Promise<StudentFeeAssignmentDetails> => {
+  const url = isBranchAdmin()
+    ? `/branch/fees/students/${studentId}/fee-assignment`
+    : `/admin/payments/students/${studentId}/fee-assignment`;
+  const response = await api.put(url, payload);
   return response.data.data;
 };
 
@@ -157,6 +219,7 @@ export const recordPayment = async (payload: RecordPaymentPayload): Promise<Reco
 };
 
 export const createInvoice = async (payload: CreateInvoicePayload): Promise<CreateInvoiceResult> => {
-  const response = await api.post('/admin/payments/invoices', payload);
+  const url = isBranchAdmin() ? '/branch/fees/invoices' : '/admin/payments/invoices';
+  const response = await api.post(url, payload);
   return response.data.data;
 };

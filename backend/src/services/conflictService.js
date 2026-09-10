@@ -43,7 +43,7 @@ const conflictService = {
 
         // Base exclusion clause for editing current lecture
         let excludeClause = '';
-        const queryParams = [tenantId, lectureDate, startTime, endTime, endTime, startTime];
+        const queryParams = [tenantId, lectureDate, startTime, endTime];
         if (lectureId) {
             excludeClause = ' AND l.id != ?';
         }

@@ -1,11 +1,16 @@
 const pool = require('../config/db');
 
-const STATUS_TOKENS = ['active', 'inactive', 'deleted'];
+// Status codes: 0 = Inactive, 1 = Active, 2 = Deleted
+const STATUS_MAP = {
+    0: 'Inactive',
+    1: 'Active',
+    2: 'Deleted'
+};
 
 const normalizeStatus = (status) => {
-    if (!status) return 'active';
-    const token = String(status).toLowerCase().trim().replace(/\s+/g, '_');
-    return STATUS_TOKENS.includes(token) ? token : 'active';
+    if (status === 0 || status === '0' || String(status).toLowerCase() === 'inactive') return 0;
+    if (status === 2 || status === '2' || String(status).toLowerCase() === 'deleted') return 2;
+    return 1; // default Active
 };
 
 const titleize = (token) =>
@@ -13,6 +18,11 @@ const titleize = (token) =>
         .split('_')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
+
+const statusToText = (status) => {
+    const num = Number(status);
+    return STATUS_MAP[num] ?? (String(status).toLowerCase() === 'inactive' ? 'Inactive' : 'Active');
+};
 
 const timeToHHMM = (time) => (time ? String(time).substring(0, 5) : '');
 
@@ -36,7 +46,7 @@ const rowToBatch = (row) => ({
     endTime: timeToHHMM(row.end_time),
     classroomId: row.classroom_id ? String(row.classroom_id) : '',
     classroomName: row.classroom_name || '',
-    status: titleize(row.status)
+    status: statusToText(row.status)
 });
 
 const safeNumber = (value) =>
@@ -79,18 +89,54 @@ const getBranchIdInTenant = async (conn, tenantId, branchId) => {
 const getAcademicYearInBranch = async (conn, tenantId, branchId, academicYearId) => {
     const [rows] = await conn.query(
         `SELECT id, name FROM academic_years
-         WHERE tenant_id = ? AND deleted_at IS NULL AND branch_id = ? AND id = ?`,
+         WHERE tenant_id = ? AND deleted_at IS NULL AND (branch_id = ? OR branch_id IS NULL) AND id = ?`,
         [tenantId, Number(branchId), Number(academicYearId)]
     );
     return rows.length ? rows[0] : null;
 };
 
-const getLevelInTenant = async (conn, tenantId, levelId) => {
-    const [rows] = await conn.query(
-        `SELECT id FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
+const validateLevelBranchAssignment = async (conn, tenantId, branchId, levelId) => {
+    const [levelRows] = await conn.query(
+        `SELECT lv.id, lv.course_id, lv.program_id, lv.name,
+                c.name AS course_name, p.name AS program_name
+         FROM levels lv
+         LEFT JOIN courses c ON lv.course_id = c.id
+         LEFT JOIN programs p ON lv.program_id = p.id
+         WHERE lv.tenant_id = ? AND lv.deleted_at IS NULL AND lv.id = ?`,
         [tenantId, Number(levelId)]
     );
-    return rows.length ? rows[0].id : null;
+    if (!levelRows.length) {
+        const error = new Error('Level not found for this institute');
+        error.code = 'ER_LEVEL_NOT_FOUND';
+        throw error;
+    }
+    const level = levelRows[0];
+
+    // Check if the course is assigned to this branch
+    const [courseBranchRows] = await conn.query(
+        `SELECT 1 FROM course_branches WHERE branch_id = ? AND course_id = ?`,
+        [Number(branchId), level.course_id]
+    );
+    if (!courseBranchRows.length) {
+        const error = new Error(`The course "${level.course_name || 'Selected Course'}" is not assigned to this branch.`);
+        error.code = 'ER_LEVEL_NOT_ASSIGNED_TO_BRANCH';
+        throw error;
+    }
+
+    // If level has a program_id, check if that program is assigned to this branch in branch_programs
+    if (level.program_id) {
+        const [progBranchRows] = await conn.query(
+            `SELECT 1 FROM branch_programs WHERE branch_id = ? AND course_id = ? AND program_id = ?`,
+            [Number(branchId), level.course_id, level.program_id]
+        );
+        if (!progBranchRows.length) {
+            const error = new Error(`The program "${level.program_name || 'Selected Program'}" is not assigned to this branch.`);
+            error.code = 'ER_LEVEL_NOT_ASSIGNED_TO_BRANCH';
+            throw error;
+        }
+    }
+
+    return level;
 };
 
 const getClassroomInBranch = async (conn, tenantId, branchId, classroomId) => {
@@ -103,7 +149,7 @@ const getClassroomInBranch = async (conn, tenantId, branchId, classroomId) => {
 };
 
 const buildBatchQuery = (tenantId, { search = '', branch = 'all', status = 'all', course = 'all', program = 'all', level = 'all', academicYear = 'all' } = {}) => {
-    let where = 'bt.tenant_id = ? AND bt.deleted_at IS NULL';
+    let where = 'bt.tenant_id = ? AND bt.status != 2';
     const params = [tenantId];
 
     if (search) {
@@ -186,7 +232,7 @@ const getBatches = async (tenantId, { search = '', branch = 'all', status = 'all
 const getBatch = async (tenantId, id) => {
     const [rows] = await pool.query(
         `${BATCH_SELECT}
-         WHERE bt.tenant_id = ? AND bt.deleted_at IS NULL AND bt.id = ?`,
+         WHERE bt.tenant_id = ? AND bt.status != 2 AND bt.id = ?`,
         [tenantId, Number(id)]
     );
     return rows[0] ? rowToBatch(rows[0]) : null;
@@ -194,12 +240,13 @@ const getBatch = async (tenantId, id) => {
 
 const generateCode = async (conn, tenantId, branchId, academicYearName) => {
     const [countRows] = await conn.query(
-        `SELECT COUNT(*) AS total FROM batches
-         WHERE tenant_id = ? AND branch_id = ? AND deleted_at IS NULL`,
+        `SELECT COUNT(*) AS total, COALESCE(MAX(id), 0) AS max_id FROM batches
+         WHERE tenant_id = ? AND branch_id = ?`,
         [tenantId, Number(branchId)]
     );
     const fiscalYear = (academicYearName || '').replace(/\s+|[^0-9-]/g, '') || 'YYYY';
-    return `BAT-${fiscalYear}-${String(countRows[0].total + 1).padStart(3, '0')}`;
+    const nextNum = Math.max(countRows[0].total + 1, countRows[0].max_id + 1);
+    return `BAT-${fiscalYear}-${String(nextNum).padStart(3, '0')}`;
 };
 
 const createBatch = async (tenantId, data, userId) => {
@@ -231,13 +278,8 @@ const createBatch = async (tenantId, data, userId) => {
             throw error;
         }
 
-        const levelId = await getLevelInTenant(conn, tenantId, payload.levelId);
-        if (!levelId) {
-            await conn.rollback();
-            const error = new Error('Level not found for this institute');
-            error.code = 'ER_LEVEL_NOT_FOUND';
-            throw error;
-        }
+        // Strict Domain Hierarchy Safeguard: Verify Level is assigned to Branch
+        await validateLevelBranchAssignment(conn, tenantId, branchId, payload.levelId);
 
         let classroomId = null;
         if (payload.classroomId) {
@@ -257,7 +299,7 @@ const createBatch = async (tenantId, data, userId) => {
                 (tenant_id, branch_id, academic_year_id, level_id, name, code, capacity,
                  start_time, end_time, classroom_id, status, created_by, updated_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [tenantId, branchId, academicYear.id, levelId, payload.name, code, payload.capacity,
+            [tenantId, branchId, academicYear.id, payload.levelId, payload.name, code, payload.capacity,
              payload.startTime || null, payload.endTime || null, classroomId,
              payload.status, userId, userId]
         );
@@ -313,13 +355,8 @@ const updateBatch = async (tenantId, id, data, userId) => {
             throw error;
         }
 
-        const levelId = await getLevelInTenant(conn, tenantId, payload.levelId);
-        if (!levelId) {
-            await conn.rollback();
-            const error = new Error('Level not found for this institute');
-            error.code = 'ER_LEVEL_NOT_FOUND';
-            throw error;
-        }
+        // Strict Domain Hierarchy Safeguard: Verify Level is assigned to Branch
+        await validateLevelBranchAssignment(conn, tenantId, branchId, payload.levelId);
 
         let classroomId = null;
         if (payload.classroomId) {
@@ -340,7 +377,7 @@ const updateBatch = async (tenantId, id, data, userId) => {
                  capacity = ?, start_time = ?, end_time = ?, classroom_id = ?, status = ?,
                  updated_by = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ? AND deleted_at IS NULL`,
-            [branchId, academicYear.id, levelId, payload.name, code, payload.capacity,
+            [branchId, academicYear.id, payload.levelId, payload.name, code, payload.capacity,
              payload.startTime || null, payload.endTime || null, classroomId,
              payload.status, userId, current.id]
         );
@@ -356,30 +393,25 @@ const updateBatch = async (tenantId, id, data, userId) => {
 };
 
 const deleteBatch = async (tenantId, id, userId) => {
-    const conn = await pool.getConnection();
-    try {
-        await conn.beginTransaction();
+    const [result] = await pool.query(
+        `UPDATE batches
+         SET status = 2, deleted_at = CURRENT_TIMESTAMP,
+             updated_by = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = ? AND status != 2 AND id = ?`,
+        [userId, tenantId, Number(id)]
+    );
+    return result.affectedRows > 0;
+};
 
-        const [result] = await conn.query(
-            `UPDATE batches
-             SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP,
-                 updated_by = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-            [userId, tenantId, Number(id)]
-        );
-        if (result.affectedRows === 0) {
-            await conn.rollback();
-            return false;
-        }
-
-        await conn.commit();
-        return true;
-    } catch (error) {
-        await conn.rollback();
-        throw error;
-    } finally {
-        conn.release();
-    }
+const toggleBatchStatus = async (tenantId, id, status, userId) => {
+    const normalized = normalizeStatus(status);
+    const [result] = await pool.query(
+        `UPDATE batches
+         SET status = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = ? AND status != 2 AND id = ?`,
+        [normalized, userId, tenantId, Number(id)]
+    );
+    return result.affectedRows > 0;
 };
 
 const getAcademicYears = async (tenantId, branch = 'all') => {
@@ -387,14 +419,14 @@ const getAcademicYears = async (tenantId, branch = 'all') => {
     const params = [tenantId];
 
     if (branch && String(branch).toLowerCase() !== 'all') {
-        where += ' AND ay.branch_id = ?';
+        where += ' AND (ay.branch_id = ? OR ay.branch_id IS NULL)';
         params.push(Number(branch));
     }
 
     const [rows] = await pool.query(
         `SELECT ay.*, b.name AS branch_name
          FROM academic_years ay
-         JOIN branches b ON ay.branch_id = b.id
+         LEFT JOIN branches b ON ay.branch_id = b.id
          WHERE ${where}
          ORDER BY ay.start_date DESC`,
         params
@@ -402,8 +434,8 @@ const getAcademicYears = async (tenantId, branch = 'all') => {
 
     return rows.map(row => ({
         id: String(row.id),
-        branchId: String(row.branch_id),
-        branchName: row.branch_name || '',
+        branchId: row.branch_id ? String(row.branch_id) : '',
+        branchName: row.branch_name || 'All Branches',
         name: row.name,
         startDate: row.start_date ? String(row.start_date).substring(0, 10) : '',
         endDate: row.end_date ? String(row.end_date).substring(0, 10) : '',
@@ -417,5 +449,6 @@ module.exports = {
     createBatch,
     updateBatch,
     deleteBatch,
+    toggleBatchStatus,
     getAcademicYears
 };

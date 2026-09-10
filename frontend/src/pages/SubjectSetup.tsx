@@ -1,26 +1,33 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Toggle } from '../components/ui/Toggle';
-import { BookOpen, Package, Plus, Search, Loader2, Layers, Trash2, Pencil } from 'lucide-react';
+import {
+  BookOpen, Package, Plus, Loader2, Layers, Trash2, Pencil,
+  RotateCcw, Download, ArrowRight
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
 import { subjectApi } from '../services/subjectApi';
 import type { Subject } from '../services/subjectApi';
 import { bundleApi } from '../services/bundleApi';
 import type { SubjectBundle } from '../services/bundleApi';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
 import { courseApi } from '../services/courseApi';
 
 export const SubjectSetup: React.FC = () => {
   const navigate = useNavigate();
-  const { addToast } = useApp();
+  const { currentUser, addToast } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
   
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteBundleTarget, setDeleteBundleTarget] = useState<SubjectBundle | null>(null);
   
   // Courses Data
   const [courses, setCourses] = useState<any[]>([]);
@@ -178,16 +185,57 @@ export const SubjectSetup: React.FC = () => {
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
   }, [subjects, search]);
 
-  // Bundle search + pagination are handled server-side via bundleApi.list.
-  const filteredBundles = bundles;
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleClearFilters = () => {
+    setSelectedCourseCode('');
+    setSelectedProgramId('');
+    setSelectedLevelId('');
+    setFilterStatus('all');
+    setSearch('');
+    setCurrentPage(1);
+    setBundleCurrentPage(1);
+    fetchBundles('', 1);
+  };
+
+  const handleExportCSV = () => {
+    if (activeTab === 'subjects') {
+      if (filtered.length === 0) return;
+      const rows = filtered.map(s => ({
+        'Subject Name': s.name,
+        'Code': s.code,
+        'Type': s.type || 'Theory',
+        'Status': s.status
+      }));
+      const headers = Object.keys(rows[0]);
+      const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String(r[h as keyof typeof r]).replace(/"/g, '""')}"`).join(','))].join('\n');
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = 'subjects.csv';
+      a.click();
+    } else {
+      if (bundles.length === 0) return;
+      const rows = bundles.map(b => ({
+        'Bundle Name': b.name,
+        'Level': b.level_name || b.level_id || '-',
+        'Branch': b.branch_name || b.branch_id || '-',
+        'Subjects': (b.subjects || []).map(s => s.name).join('; '),
+        'Status': b.is_active !== false ? 'Active' : 'Inactive'
+      }));
+      const headers = Object.keys(rows[0]);
+      const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String(r[h as keyof typeof r]).replace(/"/g, '""')}"`).join(','))].join('\n');
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = 'subject_bundles.csv';
+      a.click();
+    }
+  };
 
   // ─── Bundle handlers ───────────────────────────────────────────────────────
   const openCreateBundle = () => {
     if (!selectedLevelId) {
-      addToast('Please select a level first.', 'error');
+      addToast('Please select a level in the filters first.', 'error');
       return;
     }
     setEditingBundle(null);
@@ -256,11 +304,12 @@ export const SubjectSetup: React.FC = () => {
     }
   };
 
-  const handleDeleteBundle = async (bundle: SubjectBundle) => {
-    if (!window.confirm(`Are you sure you want to delete the bundle "${bundle.name}"?`)) return;
+  const handleConfirmDeleteBundle = async () => {
+    if (!deleteBundleTarget) return;
     try {
-      await bundleApi.delete(bundle.id);
-      addToast('Subject bundle deleted successfully', 'success');
+      await bundleApi.delete(deleteBundleTarget.id);
+      addToast(`Subject bundle "${deleteBundleTarget.name}" deleted successfully.`, 'success');
+      setDeleteBundleTarget(null);
       fetchBundles();
     } catch (err: any) {
       addToast(err.response?.data?.message || 'Failed to delete subject bundle', 'error');
@@ -268,50 +317,59 @@ export const SubjectSetup: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in pb-12">
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Master Subject Pool</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage the global catalog of subjects and filter by hierarchies</p>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            <BookOpen size={32} className="text-indigo-600" />
+            Academic Subjects Directory
+          </h2>
+          <p className="text-base text-slate-500 mt-2">
+            Configure master subjects, syllabus types, curriculum mappings, and subject bundles.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {activeTab === 'subjects' ? (
-            <Button
-              variant="primary"
-              onClick={() => navigate('/subjects/new')}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              <Plus size={16} className="mr-2" /> Add New Subject
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={openCreateBundle}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-            >
-              <Plus size={16} className="mr-2" /> Create Bundle
-            </Button>
-          )}
-        </div>
+
+        {!isBranchAdmin && (
+          <div className="flex items-center gap-2">
+            {activeTab === 'subjects' ? (
+              <Button
+                variant="primary"
+                onClick={() => navigate('/subjects/new')}
+                className="px-5 py-2.5 text-sm shadow-sm gap-2"
+              >
+                <Plus size={18} /> Add New Subject
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={openCreateBundle}
+                className="px-5 py-2.5 text-sm shadow-sm gap-2"
+              >
+                <Plus size={18} /> Create Bundle
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none">
+      <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none gap-2">
         <button
           onClick={() => setActiveTab('subjects')}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors cursor-pointer select-none ${
             activeTab === 'subjects'
-              ? 'border-blue-600 text-blue-600 bg-blue-50/40'
+              ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <BookOpen size={16} /> Subjects
+          <BookOpen size={16} /> Master Subjects
         </button>
         <button
           onClick={() => setActiveTab('bundles')}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors cursor-pointer select-none ${
             activeTab === 'bundles'
-              ? 'border-blue-600 text-blue-600 bg-blue-50/40'
+              ? 'border-indigo-600 text-indigo-600 bg-indigo-50/40'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -319,28 +377,17 @@ export const SubjectSetup: React.FC = () => {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Filters</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setSelectedCourseCode('');
-              setSelectedProgramId('');
-              setSelectedLevelId('');
-              setFilterStatus('all');
-              setSearch('');
-              setCurrentPage(1);
-              setBundleCurrentPage(1);
-              fetchBundles('', 1);
-            }}
-          >
-            Clear Filters
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 flex-1 w-full items-end">
+          <Input
+            label="Search"
+            placeholder={activeTab === 'bundles' ? 'Search by bundle name...' : 'Search by subject name or code...'}
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); setBundleCurrentPage(1); }}
+            wrapperClassName="sm:col-span-2"
+          />
+
           <Select
             label="Course"
             options={[
@@ -357,6 +404,7 @@ export const SubjectSetup: React.FC = () => {
               fetchBundles('', 1);
             }}
           />
+
           <Select
             label="Program"
             options={programOptions}
@@ -370,92 +418,96 @@ export const SubjectSetup: React.FC = () => {
             }}
             disabled={!selectedCourseCode}
           />
-          <Select
-            label="Level"
-            options={levelOptions}
-            value={selectedLevelId}
-            onChange={e => {
-              setSelectedLevelId(e.target.value);
-              setCurrentPage(1);
-              setBundleCurrentPage(1);
-            }}
-            disabled={!selectedProgramId}
-          />
+
           <Select
             label="Status"
+            value={filterStatus}
+            onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
             options={[
-              { value: 'all', label: 'All Status' },
+              { value: 'all', label: 'All Statuses' },
               { value: 'active', label: 'Active' },
               { value: 'inactive', label: 'Inactive' }
             ]}
-            value={filterStatus}
-            onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
           />
         </div>
-        
-        <div className="relative flex flex-col gap-1.5 w-full">
-          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-            {activeTab === 'bundles' ? 'Search bundles' : 'Search subjects'}
-          </label>
-          <div className="relative w-full">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder={activeTab === 'bundles' ? 'Search by bundle name...' : 'Search by subject name or code...'}
-              value={search}
-              onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 bg-white"
-            />
-          </div>
+
+        <div className="flex gap-2 shrink-0">
+          <Button variant="secondary" onClick={handleClearFilters} className="text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
+            <RotateCcw size={14} /> Clear
+          </Button>
+          <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
+            <Download size={14} /> Export CSV
+          </Button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Main Content Card */}
       {activeTab === 'subjects' ? (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <BookOpen size={18} className="text-blue-600" />
-              <h3 className="font-bold text-slate-800">Subjects</h3>
-              <span className="ml-2 text-xs text-slate-400 font-medium">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
+        <Card className="shadow-sm border border-slate-200 overflow-hidden">
+          <CardHeader>
+            <CardTitle>Master Subjects Directory</CardTitle>
+          </CardHeader>
 
           {isLoading ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
-              <Loader2 size={40} className="text-blue-400 animate-spin mb-4" />
-              <h3 className="text-lg font-bold text-slate-800 mb-1">Loading subjects...</h3>
+            <div className="py-16 text-center flex flex-col items-center justify-center">
+              <Loader2 size={36} className="text-blue-500 animate-spin mb-3" />
+              <h3 className="text-sm font-bold text-slate-700">Loading subjects directory...</h3>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
-              <div className="bg-blue-50 p-4 rounded-full mb-4">
-                <BookOpen size={40} className="text-blue-400" />
+            <div className="py-16 text-center flex flex-col items-center justify-center">
+              <div className="bg-blue-50 p-4 rounded-full mb-3">
+                <BookOpen size={36} className="text-blue-500" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-1">No subjects found</h3>
-              <p className="text-slate-500 max-w-sm mb-6">No subjects match the selected filters.</p>
+              <h3 className="text-base font-bold text-slate-800 mb-1">No subjects found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mb-5">
+                {isBranchAdmin ? 'No academic subjects match your filters.' : 'Get started by creating your first subject, or adjust your filters.'}
+              </p>
+              {!isBranchAdmin && (
+                <Button
+                  variant="primary"
+                  onClick={() => navigate('/subjects/new')}
+                  className="px-4 py-2 text-sm font-bold"
+                >
+                  <Plus size={16} className="mr-1.5" /> Add New Subject
+                </Button>
+              )}
             </div>
           ) : (
             <>
-              <Table headers={['Subject', 'Code', 'Type', 'Status', 'Actions']}>
+              <Table headers={['Subject Name', 'Subject Code', 'Type', 'Status', 'Actions']} dense>
                 {paginated.map(subject => (
-                  <tr key={subject.code} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800">{subject.name}</div>
+                  <tr key={subject.code} className="hover:bg-slate-50 transition-all duration-200">
+                    <td className="px-3 py-3.5 font-bold text-slate-900 text-sm whitespace-nowrap min-w-[200px]">
+                      {subject.name}
                     </td>
-                    <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500 uppercase">{subject.code}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 capitalize">{subject.type}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full capitalize ${subject.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                        {subject.status}
+                    <td className="px-3 py-3.5 font-mono font-bold text-blue-600 text-xs whitespace-nowrap uppercase">
+                      {subject.code}
+                    </td>
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-bold uppercase">
+                        {subject.type || 'Theory'}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => navigate(`/subjects/${subject.code}`)}
-                        className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        Edit
-                      </button>
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      {subject.status === 'active' || (subject as any).is_active !== false ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => navigate(`/subjects/${subject.code}`)}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                        >
+                          {isBranchAdmin ? 'View Details' : 'Manage'} <ArrowRight size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -470,59 +522,57 @@ export const SubjectSetup: React.FC = () => {
               />
             </>
           )}
-        </div>
+        </Card>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <Package size={18} className="text-blue-600" />
-              <h3 className="font-bold text-slate-800">
-                Subject Bundles {selectedLevel ? `for ${selectedLevel.name}` : ''}
-              </h3>
-              <span className="ml-2 text-xs text-slate-400 font-medium">{bundleTotal} result{bundleTotal !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
+        <Card className="shadow-sm border border-slate-200 overflow-hidden">
+          <CardHeader>
+            <CardTitle>Subject Bundles Directory</CardTitle>
+          </CardHeader>
 
           {isBundlesLoading ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
-              <Loader2 size={40} className="text-blue-400 animate-spin mb-4" />
-              <h3 className="text-lg font-bold text-slate-800 mb-1">Loading bundles...</h3>
+            <div className="py-16 text-center flex flex-col items-center justify-center">
+              <Loader2 size={36} className="text-blue-500 animate-spin mb-3" />
+              <h3 className="text-sm font-bold text-slate-700">Loading subject bundles...</h3>
             </div>
           ) : filteredBundles.length === 0 ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center bg-slate-50 border-t border-slate-100">
-              <div className="bg-blue-50 p-4 rounded-full mb-4">
-                <Package size={40} className="text-blue-400" />
+            <div className="py-16 text-center flex flex-col items-center justify-center">
+              <div className="bg-blue-50 p-4 rounded-full mb-3">
+                <Package size={36} className="text-blue-500" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-1">No bundles yet</h3>
-              <p className="text-slate-500 max-w-sm mb-6">Create a bundle of subjects that students can opt into together.</p>
-              <Button
-                variant="primary"
-                onClick={openCreateBundle}
-                style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
-              >
-                <Plus size={16} className="mr-2" /> Create First Bundle
-              </Button>
+              <h3 className="text-base font-bold text-slate-800 mb-1">No bundles found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mb-5">
+                {isBranchAdmin ? 'No subject bundles configured for this level.' : 'Create a bundle of subjects that students can opt into together.'}
+              </p>
+              {!isBranchAdmin && (
+                <Button
+                  variant="primary"
+                  onClick={openCreateBundle}
+                  className="px-4 py-2 text-sm font-bold"
+                >
+                  <Plus size={16} className="mr-1.5" /> Create Bundle
+                </Button>
+              )}
             </div>
           ) : (
             <>
-              <Table headers={['Bundle', 'Level', 'Branch', 'Subjects', 'Status', 'Actions']}>
+              <Table headers={['Bundle Name', 'Level', 'Branch', 'Mapped Subjects', 'Status', 'Actions']} dense>
                 {filteredBundles.map(bundle => (
-                  <tr key={bundle.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900 text-sm">{bundle.name}</div>
+                  <tr key={bundle.id} className="hover:bg-slate-50 transition-all duration-200">
+                    <td className="px-3 py-3.5 font-bold text-slate-900 text-sm whitespace-nowrap min-w-[180px]">
+                      <div>{bundle.name}</div>
                       {bundle.description ? (
-                        <p className="text-xs text-slate-500 mt-0.5 max-w-[260px]">{bundle.description}</p>
+                        <p className="text-xs font-normal text-slate-500 mt-0.5 max-w-[260px] truncate">{bundle.description}</p>
                       ) : null}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
+                    <td className="px-3 py-3.5 text-xs font-medium text-slate-700 whitespace-nowrap">
                       {bundle.level_name || bundle.level_id || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
+                    <td className="px-3 py-3.5 text-xs font-medium text-slate-700 whitespace-nowrap">
                       {bundle.branch_name || bundle.branch_id || '-'}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3.5">
                       {(bundle.subjects || []).length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 max-w-[340px]">
+                        <div className="flex flex-wrap gap-1">
                           {bundle.subjects!.map(s => (
                             <span
                               key={s.id}
@@ -536,30 +586,36 @@ export const SubjectSetup: React.FC = () => {
                         <span className="text-xs text-slate-400 italic">No subjects</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full capitalize whitespace-nowrap ${
-                        bundle.is_active !== false
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-600 border border-slate-200'
-                      }`}>
-                        {bundle.is_active !== false ? 'Active' : 'Inactive'}
-                      </span>
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      {bundle.is_active !== false ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Inactive
+                        </span>
+                      )}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button
-                          onClick={() => openEditBundle(bundle)}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1"
-                        >
-                          <Pencil size={14} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBundle(bundle)}
-                          className="text-sm font-semibold text-red-600 hover:text-red-800 transition-colors flex items-center gap-1"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
-                      </div>
+                    <td className="px-3 py-3.5 whitespace-nowrap">
+                      {isBranchAdmin ? (
+                        <span className="text-xs text-slate-400 italic">View Only</span>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => openEditBundle(bundle)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button
+                            onClick={() => setDeleteBundleTarget(bundle)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-800 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -574,7 +630,7 @@ export const SubjectSetup: React.FC = () => {
               />
             </>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Create / Edit Bundle Modal */}
@@ -592,7 +648,7 @@ export const SubjectSetup: React.FC = () => {
               variant="primary"
               onClick={handleSaveBundle}
               disabled={isBundleSaving}
-              style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}
+              className="text-sm font-semibold"
             >
               {isBundleSaving ? 'Saving...' : editingBundle ? 'Save Changes' : 'Create Bundle'}
             </Button>
@@ -602,7 +658,7 @@ export const SubjectSetup: React.FC = () => {
         <div className="space-y-5">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">
-              <Layers size={14} className="text-blue-600" /> Level
+              <Layers size={14} className="text-indigo-600" /> Selected Level
             </div>
             <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700">
               {selectedLevel?.name || 'No level selected'}
@@ -657,15 +713,15 @@ export const SubjectSetup: React.FC = () => {
                       type="button"
                       onClick={() => toggleBundleSubject(String(subject.id))}
                       className={`w-full p-3 flex items-center justify-between hover:bg-slate-50 transition text-left ${
-                        checked ? 'bg-blue-50/60' : ''
+                        checked ? 'bg-indigo-50/60' : ''
                       }`}
                     >
                       <div>
-                        <div className={`font-bold text-sm ${checked ? 'text-blue-800' : 'text-slate-900'}`}>{subject.name}</div>
+                        <div className={`font-bold text-sm ${checked ? 'text-indigo-800' : 'text-slate-900'}`}>{subject.name}</div>
                         <div className="font-mono text-[10px] font-bold text-slate-400 uppercase">Code: {subject.code}</div>
                       </div>
                       <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
-                        checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'
+                        checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
                       }`}>
                         {checked && (
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
@@ -681,6 +737,15 @@ export const SubjectSetup: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteBundleTarget)}
+        onClose={() => setDeleteBundleTarget(null)}
+        onConfirm={handleConfirmDeleteBundle}
+        itemType="subject bundle"
+        itemName={deleteBundleTarget?.name}
+        description="Deleting this subject bundle will remove this predefined grouping from future batch assignments."
+      />
     </div>
   );
 };

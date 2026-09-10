@@ -8,7 +8,7 @@ import {
   Download, UploadCloud, CheckCircle, Save,
   Plus, Trash2, Star, ShieldAlert
 } from 'lucide-react';
-import { formatDate } from '../data/mockData';
+import { formatDate } from '../types';
 import type { InstituteProfile, UpdateInstituteProfilePayload } from '../services/instituteApi';
 import { getInstituteProfile, updateInstituteProfile } from '../services/instituteApi';
 

@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
 import { ChevronLeft, MapPin, Building, Clock, Landmark, ShieldAlert, GraduationCap, Plus, Trash2, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
-import type { Branch } from '../data/mockData';
+import type { Branch } from '../types';
 import { branchApi, toBranch } from '../services/branchApi';
 
 // Type for a course-program mapping on a branch
@@ -84,6 +84,25 @@ export const BranchDetail: React.FC = () => {
     return Array.from(map.values());
   };
 
+  const getCoursePrograms = (course?: any): { name: string; code: string; id: string }[] => {
+    if (!course) return [];
+    if (Array.isArray(course.programDetails) && course.programDetails.length > 0) {
+      return course.programDetails.map((p: any, idx: number) => ({
+        name: typeof p === 'string' ? p : (p.name || ''),
+        code: typeof p === 'string' ? '' : (p.code || ''),
+        id: String(typeof p === 'string' ? p : (p.id || p.code || p.name || idx))
+      })).filter(p => Boolean(p.name));
+    }
+    if (Array.isArray(course.programs) && course.programs.length > 0) {
+      return course.programs.map((p: any, idx: number) => ({
+        name: typeof p === 'string' ? p : (p.name || ''),
+        code: typeof p === 'string' ? '' : (p.code || ''),
+        id: String(typeof p === 'string' ? p : (p.id || p.code || p.name || idx))
+      })).filter(p => Boolean(p.name));
+    }
+    return [];
+  };
+
   // Build the payload sent to the backend. Program mappings carry course/program
   // codes so the backend can resolve them to real DB ids (mock courses use string ids).
   const buildPayload = () => {
@@ -94,7 +113,11 @@ export const BranchDetail: React.FC = () => {
         const programCodes = storedCodes.length > 0
           ? storedCodes
           : (mapping.programs || [])
-              .map(p => course?.programDetails?.find(pd => pd.name === p)?.code)
+              .map(p => {
+                const pName = typeof p === 'string' ? p : (p as any)?.name;
+                const found = course?.programDetails?.find(pd => pd.name === pName);
+                return found?.code || '';
+              })
               .filter((c): c is string => Boolean(c));
         return { courseCode: mapping.courseCode, programCodes };
       })
@@ -121,16 +144,16 @@ export const BranchDetail: React.FC = () => {
   };
 
   useEffect(() => {
-    if (existingBranch && !isNew) {
-      setFormData({
-        ...formData,
+    if (existingBranch && !isNew && !loadedIdentifier) {
+      setFormData(prev => ({
+        ...prev,
         ...existingBranch,
-        bankDetails: existingBranch.bankDetails || formData.bankDetails,
+        bankDetails: existingBranch.bankDetails || prev.bankDetails,
         altEmails: existingBranch.altEmails || [],
         defaultEmail: existingBranch.defaultEmail || '',
-      });
+      }));
     }
-  }, [existingBranch, isNew]);
+  }, [existingBranch, isNew, loadedIdentifier]);
 
   // When opening an existing branch, load the authoritative record from the API.
   useEffect(() => {
@@ -142,13 +165,13 @@ export const BranchDetail: React.FC = () => {
         const row = res.data;
         const branch = toBranch(row);
         if (cancelled) return;
-        setFormData({
-          ...formData,
+        setFormData(prev => ({
+          ...prev,
           ...branch,
-          bankDetails: branch.bankDetails || formData.bankDetails,
+          bankDetails: branch.bankDetails || prev.bankDetails,
           altEmails: branch.altEmails || [],
           defaultEmail: branch.defaultEmail || '',
-        });
+        }));
         setCourseMappings(buildCourseMappings(row.programMappings || []));
         setLoadedIdentifier(branch.id || branch.code);
         setBranches(prev => {
@@ -322,14 +345,15 @@ export const BranchDetail: React.FC = () => {
                 <h3 className="font-bold text-slate-800">Basic Details</h3>
               </div>
               <div className="p-5 grid grid-cols-2 gap-4">
-                <Input label="Branch Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g., Mumbai West" />
-                <Input label="Branch Code" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="e.g., MUM-WEST" />
+                <Input label="Branch Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g., Mumbai West" disabled={currentUser?.role === 'branch-admin'} />
+                <Input label="Branch Code" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="e.g., MUM-WEST" disabled={currentUser?.role === 'branch-admin'} />
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-widest">Status</label>
                   <select 
-                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-sm bg-white"
+                    className="w-full h-11 px-3 border border-slate-200 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                     value={formData.status}
                     onChange={e => setFormData({...formData, status: e.target.value as any})}
+                    disabled={currentUser?.role === 'branch-admin'}
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -368,8 +392,8 @@ export const BranchDetail: React.FC = () => {
                 <p className="text-xs text-slate-500">The assigned administrator has full operational control over this branch.</p>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input label="Admin Name" value={formData.admin} onChange={e => setFormData({...formData, admin: e.target.value})} placeholder="Full Name" />
-                  <Input label="Admin Mobile" value={formData.adminMobile} onChange={e => setFormData({...formData, adminMobile: e.target.value})} placeholder="For SMS alerts" />
+                  <Input label="Admin Name" value={formData.admin} onChange={e => setFormData({...formData, admin: e.target.value})} placeholder="Full Name" disabled={currentUser?.role === 'branch-admin'} />
+                  <Input label="Admin Mobile" value={formData.adminMobile} onChange={e => setFormData({...formData, adminMobile: e.target.value})} placeholder="For SMS alerts" disabled={currentUser?.role === 'branch-admin'} />
                 </div>
 
                 {/* Primary Admin Email */}
@@ -378,19 +402,21 @@ export const BranchDetail: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <input
                       type="email"
-                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-400"
+                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                       placeholder="primary@branch.com"
                       value={formData.adminEmail || ''}
                       onChange={e => setFormData({...formData, adminEmail: e.target.value})}
+                      disabled={currentUser?.role === 'branch-admin'}
                     />
                     <button
                       type="button"
+                      disabled={currentUser?.role === 'branch-admin'}
                       onClick={() => setFormData({...formData, defaultEmail: formData.adminEmail})}
                       className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors whitespace-nowrap ${
                         formData.defaultEmail === formData.adminEmail || !formData.defaultEmail
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-300 cursor-default'
                           : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 cursor-pointer'
-                      }`}
+                      } ${currentUser?.role === 'branch-admin' ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
                       {formData.defaultEmail === formData.adminEmail || !formData.defaultEmail ? '✓ Default' : 'Set Default'}
                     </button>
@@ -568,17 +594,28 @@ export const BranchDetail: React.FC = () => {
                       <div className="border-t border-slate-100 bg-slate-50/50 p-5">
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Select available programs for this course</p>
                         <div className="flex flex-wrap gap-4">
-                          {courses.find(c => c.code === mapping.courseCode)?.programs?.map(prog => (
-                            <label key={prog} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:border-blue-300 transition-colors">
-                              <input 
-                                type="checkbox" 
-                                checked={mapping.programs.includes(prog)}
-                                onChange={() => handleToggleProgram(mapping.id, prog)}
-                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-                              />
-                              <span className="text-sm font-semibold text-slate-700">{prog}</span>
-                            </label>
-                          )) || <p className="text-xs text-slate-400">No programs available in this course.</p>}
+                          {(() => {
+                            const course = courses.find(c => c.code === mapping.courseCode || c.name === mapping.courseName);
+                            const availableProgs = getCoursePrograms(course);
+                            if (availableProgs.length === 0) {
+                              return <p className="text-xs text-slate-400">No programs available in this course.</p>;
+                            }
+                            return availableProgs.map((prog) => {
+                              const progName = prog.name;
+                              const isChecked = mapping.programs.includes(progName);
+                              return (
+                                <label key={prog.id || progName} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:border-blue-300 transition-colors">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isChecked}
+                                    onChange={() => handleToggleProgram(mapping.id, progName)}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                                  />
+                                  <span className="text-sm font-semibold text-slate-700">{progName}</span>
+                                </label>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     )}
@@ -610,10 +647,10 @@ export const BranchDetail: React.FC = () => {
               <div className="p-5">
                 <p className="text-xs text-slate-500 mb-4">Leave blank to use Institute's global collection account. Fill this only if this branch collects fees in a separate local account.</p>
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Bank Name" value={formData.bankDetails?.bankName} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, bankName: e.target.value}})} />
-                  <Input label="Account Name" value={formData.bankDetails?.accountName} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, accountName: e.target.value}})} />
-                  <Input label="Account Number" value={formData.bankDetails?.accountNumber} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, accountNumber: e.target.value}})} />
-                  <Input label="IFSC Code" value={formData.bankDetails?.ifsc} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, ifsc: e.target.value}})} />
+                  <Input label="Bank Name" value={formData.bankDetails?.bankName} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, bankName: e.target.value}})} disabled={currentUser?.role === 'branch-admin'} />
+                  <Input label="Account Name" value={formData.bankDetails?.accountName} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, accountName: e.target.value}})} disabled={currentUser?.role === 'branch-admin'} />
+                  <Input label="Account Number" value={formData.bankDetails?.accountNumber} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, accountNumber: e.target.value}})} disabled={currentUser?.role === 'branch-admin'} />
+                  <Input label="IFSC Code" value={formData.bankDetails?.ifsc} onChange={e => setFormData({...formData, bankDetails: {...formData.bankDetails!, ifsc: e.target.value}})} disabled={currentUser?.role === 'branch-admin'} />
                 </div>
               </div>
             </Card>

@@ -9,10 +9,13 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Wallet, Plus } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
-import { getStudents } from '../services/studentApi';
-import type { StudentRosterItem } from '../services/studentApi';
-import { getStudentLedger, createInvoice } from '../services/paymentApi';
-import type { StudentLedger, StudentLedgerInvoice } from '../services/paymentApi';
+import { getStudents, getAcademicOptions, type StudentRosterItem, type AcademicOptions } from '../services/studentApi';
+import {
+  getStudentLedger,
+  createInvoice,
+  type StudentLedger,
+  type StudentLedgerInvoice
+} from '../services/paymentApi';
 
 const fmt = (n: number) => '₹' + (Number(n) || 0).toLocaleString('en-IN');
 
@@ -42,7 +45,8 @@ const statusBadge = (status?: string) => {
 };
 
 export const Fees: React.FC = () => {
-  const { addToast } = useApp();
+  const { addToast, currentUser } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
   // ── View routing ──
   const [view, setView] = useState<'register' | 'collect'>('register');
@@ -57,6 +61,29 @@ export const Fees: React.FC = () => {
   const [branch, setBranch] = useState('All');
   const [feeStatus, setFeeStatus] = useState('All');
   const limit = 10;
+
+  const [academicOptions, setAcademicOptions] = useState<AcademicOptions | null>(null);
+
+  const activeBranchId = academicOptions?.branch?.id?.toString() || (academicOptions?.branches && academicOptions.branches.length === 1 ? academicOptions.branches[0].id.toString() : currentUser?.branchId || '');
+  const activeBranchName = academicOptions?.branch?.name || (academicOptions?.branches && academicOptions.branches.length === 1 ? academicOptions.branches[0].name : currentUser?.branch || 'Assigned Branch');
+
+  // Load dropdown options dynamically from backend
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const res = await getAcademicOptions();
+        const data = res?.data ?? res;
+        if (data && (data.courses || data.branches)) {
+          setAcademicOptions(data);
+        } else {
+          console.warn('Academic options returned unexpected shape:', res);
+        }
+      } catch (err) {
+        console.error('Failed to load academic options:', err);
+      }
+    };
+    fetchOptions();
+  }, []);
 
   // ── Selected student ledger ──
   const [selectedStudentId, setSelectedStudentId] = useState<number | 0>(0);
@@ -87,7 +114,7 @@ export const Fees: React.FC = () => {
         page: p,
         limit,
         search,
-        branchId: branch,
+        branchId: isBranchAdmin ? undefined : branch,
         batchId: 'All',
         bundleId: 'All',
         status: 'All',
@@ -107,7 +134,7 @@ export const Fees: React.FC = () => {
 
   useEffect(() => {
     fetchRoster(1);
-  }, [search, branch, feeStatus]);
+  }, [search, branch, feeStatus, isBranchAdmin]);
 
   const handlePageChange = (p: number) => {
     setPage(p);
@@ -293,15 +320,26 @@ export const Fees: React.FC = () => {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
-            <Select
-              label="Branch"
-              value={branch}
-              onChange={(e) => { setBranch(e.target.value); setPage(1); }}
-              options={[
-                { value: 'All', label: 'All Branches' },
-                ...uniqueBranches.map(b => ({ value: b || '', label: b || '' }))
-              ]}
-            />
+            {!isBranchAdmin ? (
+              <Select
+                label="Branch"
+                value={branch}
+                onChange={(e) => { setBranch(e.target.value); setPage(1); }}
+                options={[
+                  { value: 'All', label: 'All Branches' },
+                  ...(academicOptions?.branches || []).map(b => ({ value: b.id.toString(), label: b.name }))
+                ]}
+              />
+            ) : (
+              <Select
+                label="Branch"
+                value={activeBranchId}
+                disabled={true}
+                options={[
+                  { value: activeBranchId, label: activeBranchName }
+                ]}
+              />
+            )}
             <Select
               label="Fee Status"
               value={feeStatus}
@@ -366,7 +404,12 @@ export const Fees: React.FC = () => {
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.cls}`}>{badge.label}</span>
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <Button size="sm" variant={s.fee_status && s.fee_status === 'paid' ? 'secondary' : 'primary'} className="font-bold" onClick={() => openCollect(s)}>
+                        <Button
+                          size="sm"
+                          variant={s.fee_status && s.fee_status === 'paid' ? 'secondary' : 'primary'}
+                          className="font-bold"
+                          onClick={() => openCollect(s)}
+                        >
                           Collect <ArrowRight size={13} className="ml-1" />
                         </Button>
                       </td>

@@ -27,17 +27,34 @@ const getBundles = async (tenantId, {
     status = 'all',
     limit = 10,
     offset = 0
-} = {}) => {
+} = {}, accessContext = null) => {
+    const isBranchScope = (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) || Boolean(branchId);
+    const effectiveBranchId = isBranchScope ? Number(accessContext?.authorizedBranchId || branchId) : null;
+
+    let branchJoin = '';
+    const branchParams = [];
+
+    if (isBranchScope && effectiveBranchId) {
+        branchJoin = `
+            JOIN levels l ON l.id = sb.level_id
+            JOIN programs p ON p.id = l.program_id
+            JOIN courses c ON c.id = p.course_id
+            JOIN branch_programs bp ON bp.program_id = p.id AND bp.branch_id = ?
+            JOIN course_branches cb ON cb.course_id = c.id AND cb.branch_id = ?
+        `;
+        branchParams.push(effectiveBranchId, effectiveBranchId);
+    }
+
     let where = 'sb.tenant_id = ? AND sb.deleted_at IS NULL';
     const params = [tenantId];
 
+    if (effectiveBranchId) {
+        where += ' AND (sb.branch_id IS NULL OR sb.branch_id = ?)';
+        params.push(effectiveBranchId);
+    }
     if (levelId) {
         where += ' AND sb.level_id = ?';
         params.push(levelId);
-    }
-    if (branchId) {
-        where += ' AND sb.branch_id = ?';
-        params.push(branchId);
     }
     if (search) {
         where += ' AND sb.name LIKE ?';
@@ -49,14 +66,16 @@ const getBundles = async (tenantId, {
         where += ' AND sb.is_active = 0';
     }
 
+    const queryParams = [...branchParams, ...params];
+
     const [rows] = await pool.query(
-        `${BUNDLE_SELECT} WHERE ${where} ORDER BY sb.name ASC LIMIT ? OFFSET ?`,
-        [...params, limit, offset]
+        `${BUNDLE_SELECT} ${branchJoin} WHERE ${where} ORDER BY sb.name ASC LIMIT ? OFFSET ?`,
+        [...queryParams, Number(limit), Number(offset)]
     );
 
     const [countRows] = await pool.query(
-        `SELECT COUNT(*) AS total FROM subject_bundles sb WHERE ${where}`,
-        params
+        `SELECT COUNT(DISTINCT sb.id) AS total FROM subject_bundles sb ${branchJoin} WHERE ${where}`,
+        queryParams
     );
 
     const subjectDetails = await resolveSubjectDetails(rows.flatMap(r => r.subject_ids || []));

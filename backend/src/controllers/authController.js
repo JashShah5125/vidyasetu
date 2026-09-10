@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const pool = require('../config/db');
 const userModel = require('../models/userModel');
 const sessionModel = require('../models/sessionModel');
 const tenantModel = require('../models/tenantModel');
@@ -117,11 +118,26 @@ const login = async (req, res) => {
         // Resolve the requester's organization/tenant name for display (used by
         // the support ticket "Requester Organization" field and general UI).
         let tenantName = null;
+        let branchInfo = null;
         if (!isSaasAdmin && user.tenant_id) {
             const tenant = user.tenant_id === MASTER_TENANT_ID
                 ? null
                 : await tenantModel.getTenantById(user.tenant_id);
             tenantName = tenant && tenant.name ? tenant.name : null;
+
+            if (user.id) {
+                const [branchRows] = await pool.query(`
+                    SELECT b.id, b.name, b.code
+                    FROM user_branch_access uba
+                    JOIN branches b ON uba.branch_id = b.id
+                    WHERE uba.user_id = ? AND uba.revoked_at IS NULL AND b.deleted_at IS NULL
+                    ORDER BY uba.is_primary DESC, uba.id DESC
+                    LIMIT 1
+                `, [user.id]);
+                if (branchRows[0]) {
+                    branchInfo = branchRows[0];
+                }
+            }
         }
 
         // Cache the session in Redis (fast path) and persist it durably in the
@@ -159,6 +175,9 @@ const login = async (req, res) => {
                     tenantId: user.tenant_id,
                     isSaasAdmin,
                     tenantName,
+                    branch: branchInfo ? branchInfo.name : null,
+                    branchId: branchInfo ? String(branchInfo.id) : null,
+                    branchCode: branchInfo ? branchInfo.code : null,
                     mustChangePassword: Boolean(user.must_change_password)
                 }
             }

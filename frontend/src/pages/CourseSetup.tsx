@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { courseApi } from '../services/courseApi';
+import { branchApi } from '../services/branchApi';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
@@ -9,16 +10,27 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { AssignCoursesDrawer } from '../components/branch/AssignCoursesDrawer';
+import { UnassignCourseModal } from '../components/branch/UnassignCourseModal';
 import {
-  BookOpen, Plus, ArrowRight, Download, Upload, Loader2, RotateCcw, Eye, EyeOff, GraduationCap, Layers, BookOpenCheck, ChevronRight, ChevronUp, Clock, Settings
+  BookOpen, Plus, ArrowRight, Download, Upload, Loader2, RotateCcw, Eye, EyeOff, GraduationCap, Layers, BookOpenCheck, ChevronRight, ChevronUp, Clock, Settings, Trash2, CheckCircle2
 } from 'lucide-react';
 
 export const CourseSetup: React.FC = () => {
-  const { currentUser, addToast } = useApp();
+  const { currentUser, branches, addToast } = useApp();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all');
+
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const resolvedBranchId = currentUser?.branchId || branches.find(b => b.name === currentUser?.branch)?.id || '1';
+  const branchName = currentUser?.branch || 'Branch';
+
+  // Branch Admin Drawer & Unassign Modal State
+  const [isAssignDrawerOpen, setIsAssignDrawerOpen] = useState(false);
+  const [unassignTargetCourse, setUnassignTargetCourse] = useState<{ id: string | number; name: string; code: string } | null>(null);
+  const [isUnassigning, setIsUnassigning] = useState(false);
 
   // Accordion Expansion State with Smooth Opening and Closing Transitions
   const [selectedCourseCode, setSelectedCourseCode] = useState<string | null>(null);
@@ -33,9 +45,21 @@ export const CourseSetup: React.FC = () => {
   const fetchCourses = async () => {
     try {
       setIsLoading(true);
-      const res = await courseApi.list({ status: filterStatus });
-      if (res?.status === 'success') {
-        setCourses(res.data || []);
+      if (isBranchAdmin && resolvedBranchId) {
+        const res = await branchApi.getCourses(resolvedBranchId, { assignment_status: 'assigned' });
+        if (res?.status === 'success') {
+          const list = (res.data || []).map((c: any) => ({
+            ...c,
+            // Filter programs to only assigned ones for branch admin view
+            programs: (c.programs || []).filter((p: any) => p.is_assigned !== false)
+          }));
+          setCourses(list);
+        }
+      } else {
+        const res = await courseApi.list({ status: filterStatus });
+        if (res?.status === 'success') {
+          setCourses(res.data || []);
+        }
       }
     } catch (err: any) {
       addToast(err.response?.data?.message || 'Failed to fetch courses', 'error');
@@ -46,7 +70,7 @@ export const CourseSetup: React.FC = () => {
 
   useEffect(() => {
     fetchCourses();
-  }, [filterStatus]);
+  }, [filterStatus, isBranchAdmin, resolvedBranchId]);
 
   // Fetch complete course details when a row is expanded below
   useEffect(() => {
@@ -72,6 +96,21 @@ export const CourseSetup: React.FC = () => {
       addToast(err.response?.data?.message || 'Failed to fetch course details', 'error');
     } finally {
       setIsInspectorLoading(false);
+    }
+  };
+
+  const handleUnassignCourse = async () => {
+    if (!unassignTargetCourse || !resolvedBranchId) return;
+    try {
+      setIsUnassigning(true);
+      await branchApi.unassignCourse(resolvedBranchId, unassignTargetCourse.id);
+      addToast(`Course ${unassignTargetCourse.name} unassigned from ${branchName}`, 'success');
+      setUnassignTargetCourse(null);
+      fetchCourses();
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to unassign course', 'error');
+    } finally {
+      setIsUnassigning(false);
     }
   };
 
@@ -150,11 +189,23 @@ export const CourseSetup: React.FC = () => {
             Academic Courses Directory
           </h2>
           <p className="text-base text-slate-500 mt-2">
-            Configure academic catalog — courses, programs, subject levels, and branch assignments.
+            {isBranchAdmin ? (
+              <>Configure active offerings for <span className="font-semibold text-slate-800">{branchName}</span> branch.</>
+            ) : (
+              'Configure academic catalog — courses, programs, subject levels, and branch assignments.'
+            )}
           </p>
         </div>
 
-        {currentUser?.role !== 'branch-admin' && (
+        {isBranchAdmin ? (
+          <Button
+            variant="primary"
+            onClick={() => setIsAssignDrawerOpen(true)}
+            className="px-5 py-2.5 text-sm shadow-sm gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+          >
+            <Plus size={18} /> Assign Master Course
+          </Button>
+        ) : (
           <Button
             variant="primary"
             onClick={() => navigate('/courses/new')}
@@ -167,34 +218,38 @@ export const CourseSetup: React.FC = () => {
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
+        <div className={`grid grid-cols-1 ${isBranchAdmin ? 'sm:grid-cols-1' : 'sm:grid-cols-4'} gap-4 flex-1 w-full items-end`}>
           <Input
             label="Search"
             placeholder="Search by course name or code..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            wrapperClassName="sm:col-span-3"
+            wrapperClassName={isBranchAdmin ? 'w-full' : 'sm:col-span-3'}
           />
 
-          <Select
-            label="Status"
-            value={filterStatus}
-            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-            options={[
-              { value: 'all', label: 'All Statuses' },
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' }
-            ]}
-          />
+          {!isBranchAdmin && (
+            <Select
+              label="Status"
+              value={filterStatus}
+              onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+              options={[
+                { value: 'all', label: 'All Statuses' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' }
+              ]}
+            />
+          )}
         </div>
 
         <div className="flex gap-2 shrink-0">
           <Button variant="secondary" onClick={handleClearFilters} className="text-slate-500 hover:text-slate-700 flex items-center gap-1.5">
             <RotateCcw size={14} /> Clear
           </Button>
-          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-semibold">
-            <Upload size={14} /> Bulk Import
-          </Button>
+          {!isBranchAdmin && (
+            <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-semibold">
+              <Upload size={14} /> Bulk Import
+            </Button>
+          )}
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5">
             <Download size={14} /> Export CSV
           </Button>
@@ -204,32 +259,57 @@ export const CourseSetup: React.FC = () => {
       {/* Main Table Container */}
       <Card className="shadow-sm border border-slate-200 overflow-hidden">
         <CardHeader>
-          <CardTitle>Academic Courses Directory</CardTitle>
+          <CardTitle>
+            {isBranchAdmin ? `Assigned Courses (${filtered.length})` : 'Academic Courses Directory'}
+          </CardTitle>
         </CardHeader>
 
         {isLoading ? (
           <div className="py-16 text-center flex flex-col items-center justify-center">
-            <Loader2 size={36} className="text-blue-500 animate-spin mb-3" />
+            <Loader2 size={36} className="text-indigo-600 animate-spin mb-3" />
             <h3 className="text-sm font-bold text-slate-700">Loading courses directory...</h3>
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center flex flex-col items-center justify-center">
-            <div className="bg-blue-50 p-4 rounded-full mb-3">
-              <BookOpen size={36} className="text-blue-500" />
+            <div className="bg-indigo-50 p-4 rounded-full mb-3">
+              <BookOpen size={36} className="text-indigo-600" />
             </div>
-            <h3 className="text-base font-bold text-slate-800 mb-1">No courses found</h3>
-            <p className="text-xs text-slate-500 max-w-sm mb-5">Get started by creating your first course, or adjust your filters.</p>
-            <Button
-              variant="primary"
-              onClick={() => navigate('/courses/new')}
-              className="px-4 py-2 text-sm font-bold"
-            >
-              <Plus size={16} className="mr-1.5" /> Create Course
-            </Button>
+            <h3 className="text-base font-bold text-slate-800 mb-1">
+              {isBranchAdmin ? 'No courses assigned to this branch yet' : 'No courses found'}
+            </h3>
+            <p className="text-xs text-slate-500 max-w-sm mb-5">
+              {isBranchAdmin
+                ? `Activate academic offerings for ${branchName} from the central institute catalog.`
+                : 'Get started by creating your first course, or adjust your filters.'}
+            </p>
+            {isBranchAdmin ? (
+              <Button
+                variant="primary"
+                onClick={() => setIsAssignDrawerOpen(true)}
+                className="px-4 py-2 text-sm font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Plus size={16} className="mr-1.5" /> Assign Master Course
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => navigate('/courses/new')}
+                className="px-4 py-2 text-sm font-bold"
+              >
+                <Plus size={16} className="mr-1.5" /> Create Course
+              </Button>
+            )}
           </div>
         ) : (
           <>
-            <Table headers={['Course Name', 'Code', 'Programs', 'Status', 'Actions']} dense>
+            <Table
+              headers={
+                isBranchAdmin
+                  ? ['Course Name', 'Code', 'Assigned Programs', 'Branch Status', 'Actions']
+                  : ['Course Name', 'Code', 'Programs', 'Status', 'Actions']
+              }
+              dense
+            >
               {paginated.map(course => {
                 const isSelected = selectedCourseCode === course.code;
                 const isVisible = activeCourseCode === course.code;
@@ -266,7 +346,11 @@ export const CourseSetup: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-3 py-3.5 whitespace-nowrap">
-                        {course.is_active !== false ? (
+                        {isBranchAdmin ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active Offering
+                          </span>
+                        ) : course.is_active !== false ? (
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
                           </span>
@@ -277,7 +361,7 @@ export const CourseSetup: React.FC = () => {
                         )}
                       </td>
                       <td className="px-3 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           {isSelected && !isClosing ? (
                             <button
                               onClick={() => handleClose()}
@@ -294,12 +378,22 @@ export const CourseSetup: React.FC = () => {
                             </button>
                           )}
 
-                          <button
-                            onClick={() => navigate(`/courses/${course.code}`)}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
-                          >
-                            Manage <ArrowRight size={14} />
-                          </button>
+                          {isBranchAdmin ? (
+                            <button
+                              onClick={() => setUnassignTargetCourse({ id: course.id, name: course.name, code: course.code })}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 transition-colors cursor-pointer bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200"
+                              title="Unassign from branch"
+                            >
+                              <Trash2 size={13} /> Unassign
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/courses/${course.code}`)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                            >
+                              Manage <ArrowRight size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -328,18 +422,22 @@ export const CourseSetup: React.FC = () => {
                                     </span>
                                   </div>
                                   <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                                    Manage programs, levels, and subjects for this course.
+                                    {isBranchAdmin
+                                      ? 'View programs, levels, and subjects active for this course.'
+                                      : 'Manage programs, levels, and subjects for this course.'}
                                   </p>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  onClick={() => navigate(`/courses/${course.code}`)}
-                                  className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                                >
-                                  <Settings size={14} /> Manage Setup
-                                </button>
+                                {!isBranchAdmin && (
+                                  <button
+                                    onClick={() => navigate(`/courses/${course.code}`)}
+                                    className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                  >
+                                    <Settings size={14} /> Manage Setup
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleClose()}
                                   className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
@@ -522,7 +620,31 @@ export const CourseSetup: React.FC = () => {
         )}
       </Card>
 
-      {/* Bulk Import Modal */}
+      {/* Slide-over Drawer to Assign Master Courses & Programs */}
+      {isBranchAdmin && resolvedBranchId && (
+        <AssignCoursesDrawer
+          isOpen={isAssignDrawerOpen}
+          onClose={() => setIsAssignDrawerOpen(false)}
+          branchId={resolvedBranchId}
+          branchName={branchName}
+          onAssignedSuccess={() => {
+            addToast('Courses and programs successfully assigned to branch!', 'success');
+            fetchCourses();
+          }}
+        />
+      )}
+
+      {/* Safety Confirmation Modal to Unassign Course */}
+      <UnassignCourseModal
+        isOpen={!!unassignTargetCourse}
+        onClose={() => setUnassignTargetCourse(null)}
+        onConfirm={handleUnassignCourse}
+        course={unassignTargetCourse}
+        branchName={branchName}
+        isLoading={isUnassigning}
+      />
+
+      {/* Bulk Import Modal for Institute Admin */}
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}

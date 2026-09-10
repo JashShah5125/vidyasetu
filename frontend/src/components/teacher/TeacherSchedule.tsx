@@ -12,8 +12,8 @@ import {
   Plus, Send, MessageSquare, Tag, CheckCircle2, User, CalendarPlus
 } from 'lucide-react';
 
-import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../data/mockData';
-import type { ScheduleChange } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../types';
+import type { ScheduleChange } from '../../types';
 import scheduleRequestsData from '../../data/scheduleRequests.json';
 import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 import type { Lecture } from '../../features/scheduler/types/scheduler';

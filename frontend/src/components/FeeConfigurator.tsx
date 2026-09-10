@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle, Calculator } from 'lucide-react';
-import { INITIAL_COURSES, INITIAL_FEE_PLANS, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../data/mockData';
+import { INITIAL_COURSES, INITIAL_FEE_PLANS, INITIAL_BUNDLES_MAP, INITIAL_SUBJECTS_MAP } from '../types';
 import { Select } from './ui/Select';
 import { Input } from './ui/Input';
 

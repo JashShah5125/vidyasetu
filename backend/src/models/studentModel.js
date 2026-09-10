@@ -2,9 +2,25 @@ const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 
 /**
- * Get student roster list with optional filters and pagination.
+ * Normalizes student status to TINYINT:
+ * 0 = inactive, 1 = active, 2 = deleted
  */
-const getStudents = async (tenantId, filters = {}) => {
+const normalizeStudentStatus = (status) => {
+    if (status === undefined || status === null) return 1;
+    if (typeof status === 'number') {
+        return [0, 1, 2].includes(status) ? status : 1;
+    }
+    const s = String(status).trim().toLowerCase();
+    if (s === '1' || s === 'active') return 1;
+    if (s === '0' || s === 'inactive' || s === 'suspended' || s === 'registration_pending') return 0;
+    if (s === '2' || s === 'deleted' || s === 'cancelled') return 2;
+    return 1;
+};
+
+/**
+ * Get student roster list with optional filters, pagination, and branch-scoped authorization.
+ */
+const getStudents = async (tenantId, filters = {}, accessContext = null) => {
     const {
         search = '',
         branchId,
@@ -18,6 +34,16 @@ const getStudents = async (tenantId, filters = {}) => {
 
     let whereClause = ` WHERE s.tenant_id = ? AND s.deleted_at IS NULL`;
     const params = [tenantId];
+
+    // Branch authorization scope check
+    if (accessContext && accessContext.scope === 'BRANCH') {
+        const authBranchId = accessContext.authorizedBranchId;
+        whereClause += ` AND se.branch_id = ? AND se.status = 'active' AND se.deleted_at IS NULL`;
+        params.push(authBranchId);
+    } else if (branchId && branchId !== 'All') {
+        whereClause += ` AND (s.primary_branch_id = ? OR se.branch_id = ?)`;
+        params.push(branchId, branchId);
+    }
 
     // Latest fee assignment per student (latest row per student_id via rn=1)
     const faJoin = `
@@ -36,19 +62,15 @@ const getStudents = async (tenantId, filters = {}) => {
         params.push(term, term, term, term);
     }
 
-    if (branchId && branchId !== 'All') {
-        whereClause += ` AND s.primary_branch_id = ?`;
-        params.push(branchId);
-    }
-
     if (batchId && batchId !== 'All') {
         whereClause += ` AND se.batch_id = ?`;
         params.push(batchId);
     }
 
-    if (status && status !== 'All') {
+    if (status !== undefined && status !== 'All' && status !== '') {
+        const numStatus = normalizeStudentStatus(status);
         whereClause += ` AND s.status = ?`;
-        params.push(status);
+        params.push(numStatus);
     }
 
     if (feeStatus && feeStatus !== 'All') {
@@ -138,14 +160,23 @@ const getStudents = async (tenantId, filters = {}) => {
 };
 
 /**
- * Get detailed student profile by ID.
+ * Get detailed student profile by ID with optional branch scope check.
  */
-const getStudentById = async (tenantId, id) => {
+const getStudentById = async (tenantId, id, accessContext = null) => {
+    let whereBranchClause = '';
+    const queryParams = [tenantId, id];
+
+    if (accessContext && accessContext.scope === 'BRANCH') {
+        whereBranchClause = ` AND se.branch_id = ? AND se.status = 'active'`;
+        queryParams.push(accessContext.authorizedBranchId);
+    }
+
     const query = `
         SELECT 
             s.*,
             b.name AS branch_name,
             se.id AS enrollment_id,
+            se.branch_id AS enrollment_branch_id,
             se.batch_id,
             bat.name AS batch_name,
             bat.code AS batch_code,
@@ -171,9 +202,10 @@ const getStudentById = async (tenantId, id) => {
         LEFT JOIN student_guardians sg ON s.id = sg.student_id AND sg.tenant_id = s.tenant_id AND sg.is_primary = 1
         LEFT JOIN guardians g ON sg.guardian_id = g.id AND g.tenant_id = s.tenant_id
         WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
+        ${whereBranchClause}
     `;
 
-    const [rows] = await pool.query(query, [tenantId, id]);
+    const [rows] = await pool.query(query, queryParams);
     if (rows.length === 0) return null;
 
     const student = rows[0];
@@ -295,10 +327,38 @@ const generateStudentCode = async (tenantId) => {
 /**
  * Create a new student with user account, guardian user account, and enrollment linkage.
  */
-const createStudent = async (tenantId, studentData, createdBy = 1) => {
+const createStudent = async (tenantId, studentData, createdBy = 1, accessContext = null) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
+
+        // Enforce branch scope if executing as Branch Admin
+        let effectiveBranchId = studentData.primary_branch_id;
+        if (accessContext && accessContext.scope === 'BRANCH') {
+            effectiveBranchId = accessContext.authorizedBranchId;
+        }
+
+        if (!effectiveBranchId) {
+            throw new Error('Branch ID is required for student registration.');
+        }
+
+        // Validate that the assigned batch belongs to the effective branch
+        if (studentData.batch_id) {
+            const [batchRows] = await connection.query(
+                `SELECT id, branch_id FROM batches WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+                [studentData.batch_id, tenantId]
+            );
+            if (!batchRows.length) {
+                const err = new Error('Batch not found for this institute.');
+                err.statusCode = 404;
+                throw err;
+            }
+            if (Number(batchRows[0].branch_id) !== Number(effectiveBranchId)) {
+                const err = new Error(`Selected batch (ID: ${studentData.batch_id}) does not belong to authorized branch (ID: ${effectiveBranchId}).`);
+                err.statusCode = 403;
+                throw err;
+            }
+        }
 
         const studentCode = studentData.student_code || await generateStudentCode(tenantId);
 
@@ -337,6 +397,8 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
             `, [studentUserId, createdBy]);
         }
 
+        const studentStatus = normalizeStudentStatus(studentData.status);
+
         // 2. Insert into students table
         const [studentResult] = await connection.query(`
             INSERT INTO students (
@@ -347,7 +409,7 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
         `, [
             tenantId,
             studentUserId,
-            studentData.primary_branch_id,
+            effectiveBranchId,
             studentCode,
             studentData.full_name,
             studentData.dob || null,
@@ -364,7 +426,7 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
             studentData.target_exam || null,
             studentData.year_of_attempt || null,
             studentData.blood_group || null,
-            studentData.status || 'active',
+            studentStatus,
             createdBy,
             createdBy
         ]);
@@ -432,6 +494,7 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
         }
 
         // 4. Create Enrollment row if batch_id is provided
+        let enrollmentId = null;
         if (studentData.batch_id && studentData.academic_year_id) {
             const selectionType = studentData.subject_selection_type === 'custom' ? 'custom' : 'bundle';
             const bundleId = selectionType === 'bundle' && studentData.bundle_id ? Number(studentData.bundle_id) : null;
@@ -439,13 +502,13 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
                 ? JSON.stringify(studentData.custom_subject_ids.map(Number))
                 : (selectionType === 'custom' && typeof studentData.custom_subject_ids === 'string' ? studentData.custom_subject_ids : null);
 
-            await connection.query(`
+            const [enrollmentRes] = await connection.query(`
                 INSERT INTO student_enrollments (
                     tenant_id, branch_id, student_id, batch_id, bundle_id, subject_selection_type, custom_subject_ids, academic_year_id, enrolled_date, status, created_by, updated_by
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', ?, ?)
             `, [
                 tenantId,
-                studentData.primary_branch_id,
+                effectiveBranchId,
                 studentId,
                 studentData.batch_id,
                 bundleId,
@@ -455,6 +518,8 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
                 createdBy,
                 createdBy
             ]);
+
+            enrollmentId = enrollmentRes.insertId;
 
             // Increment batch current_strength
             await connection.query(`
@@ -472,18 +537,20 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
             const remainingForInstallments = Math.max(0, netAmount - downpaymentAmount);
             const installmentAmount = Math.round(remainingForInstallments / installmentCount);
             const paidAmount = downpaymentAmount;
-            const balanceDue = Math.max(0, netAmount - paidAmount);
-            const status = balanceDue === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'pending');
+            const balanceAmount = Math.max(0, netAmount - paidAmount);
+            const status = balanceAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partially_paid' : 'pending');
 
             const [feeRes] = await connection.query(`
                 INSERT INTO student_fee_assignments (
-                    tenant_id, student_id, gross_amount, discount_amount, net_amount,
-                    downpayment_amount, installment_count, installment_amount,
-                    paid_amount, balance_due, status, created_by, updated_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    tenant_id, branch_id, student_id, enrollment_id, gross_amount, total_concession, net_amount,
+                    down_payment, installment_count, installment_amount,
+                    paid_amount, balance_amount, status, created_by, updated_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 tenantId,
+                effectiveBranchId,
                 studentId,
+                enrollmentId,
                 grossAmount,
                 discountAmount,
                 netAmount,
@@ -491,7 +558,7 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
                 installmentCount,
                 installmentAmount,
                 paidAmount,
-                balanceDue,
+                balanceAmount,
                 status,
                 createdBy,
                 createdBy
@@ -504,13 +571,15 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
                 const invNum = `INV-${tenantId}-${studentId}-DP`;
                 await connection.query(`
                     INSERT INTO student_invoices (
-                        tenant_id, student_id, fee_assignment_id, invoice_number, installment_number,
-                        description, issue_date, due_date, billed_amount, paid_amount, balance_due,
-                        status, payment_date, payment_mode, transaction_ref, created_by, updated_by
-                    ) VALUES (?, ?, ?, ?, 0, 'Admission Downpayment', CURDATE(), CURDATE(), ?, ?, 0, 'paid', NOW(), 'UPI', ?, ?, ?)
+                        tenant_id, branch_id, student_id, enrollment_id, fee_assignment_id, invoice_number, installment_number,
+                        description, issue_date, due_date, amount, paid_amount, balance_due,
+                        status, payment_date, payment_mode, transaction_reference, created_by, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, 0, 'Admission Downpayment', CURDATE(), CURDATE(), ?, ?, 0, 'paid', NOW(), 'UPI', ?, ?, ?)
                 `, [
                     tenantId,
+                    effectiveBranchId,
                     studentId,
+                    enrollmentId,
                     feeAssignmentId,
                     invNum,
                     downpaymentAmount,
@@ -526,13 +595,15 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
                 const invNum = `INV-${tenantId}-${studentId}-INST${i}`;
                 await connection.query(`
                     INSERT INTO student_invoices (
-                        tenant_id, student_id, fee_assignment_id, invoice_number, installment_number,
-                        description, issue_date, due_date, billed_amount, paid_amount, balance_due,
+                        tenant_id, branch_id, student_id, enrollment_id, fee_assignment_id, invoice_number, installment_number,
+                        description, issue_date, due_date, amount, paid_amount, balance_due,
                         status, created_by, updated_by
-                    ) VALUES (?, ?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? MONTH), ?, 0, ?, 'unpaid', ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? MONTH), ?, 0, ?, 'unpaid', ?, ?)
                 `, [
                     tenantId,
+                    effectiveBranchId,
                     studentId,
+                    enrollmentId,
                     feeAssignmentId,
                     invNum,
                     i,
@@ -549,7 +620,7 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
         await connection.commit();
         connection.release();
 
-        return getStudentById(tenantId, studentId);
+        return getStudentById(tenantId, studentId, accessContext);
     } catch (error) {
         await connection.rollback();
         connection.release();
@@ -559,115 +630,377 @@ const createStudent = async (tenantId, studentData, createdBy = 1) => {
 
 /**
  * Update existing student profile, user account, and academic linkages.
+ * Performs dynamic partial updates (PATCH/PUT) touching ONLY the tables
+ * whose fields are explicitly provided in updateData.
  */
-const updateStudent = async (tenantId, id, updateData, updatedBy = 1) => {
+const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessContext = null) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // 1. Update students table
-        await connection.query(`
-            UPDATE students SET
-                primary_branch_id = COALESCE(?, primary_branch_id),
-                full_name = COALESCE(?, full_name),
-                dob = COALESCE(?, dob),
-                gender = COALESCE(?, gender),
-                mobile = COALESCE(?, mobile),
-                email = COALESCE(?, email),
-                street = COALESCE(?, street),
-                city = COALESCE(?, city),
-                state = COALESCE(?, state),
-                pincode = COALESCE(?, pincode),
-                category = COALESCE(?, category),
-                school_name = COALESCE(?, school_name),
-                current_class = COALESCE(?, current_class),
-                target_exam = COALESCE(?, target_exam),
-                year_of_attempt = COALESCE(?, year_of_attempt),
-                status = COALESCE(?, status),
-                updated_by = ?,
-                updated_at = NOW()
-            WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL
-        `, [
-            updateData.primary_branch_id,
-            updateData.full_name,
-            updateData.dob,
-            updateData.gender,
-            updateData.mobile,
-            updateData.email,
-            updateData.street,
-            updateData.city,
-            updateData.state,
-            updateData.pincode,
-            updateData.category,
-            updateData.school_name,
-            updateData.current_class,
-            updateData.target_exam,
-            updateData.year_of_attempt,
-            updateData.status,
-            updatedBy,
-            id,
-            tenantId
-        ]);
-
-        // 2. Also update users table name & mobile if user_id linked
-        const [studentRows] = await connection.query(
-            `SELECT user_id FROM students WHERE id = ? AND tenant_id = ?`,
-            [id, tenantId]
-        );
-        if (studentRows.length > 0 && studentRows[0].user_id) {
-            await connection.query(`
-                UPDATE users SET
-                    name = COALESCE(?, name),
-                    mobile = COALESCE(?, mobile)
-                WHERE id = ? AND tenant_id = ?
-            `, [updateData.full_name, updateData.mobile, studentRows[0].user_id, tenantId]);
+        // Branch scope check: verify student has active enrollment in authorized branch
+        if (accessContext && accessContext.scope === 'BRANCH') {
+            const [enrollCheck] = await connection.query(
+                `SELECT se.id FROM student_enrollments se
+                 JOIN students s ON s.id = se.student_id AND s.deleted_at IS NULL
+                 WHERE s.tenant_id = ? AND s.id = ? AND se.branch_id = ? AND se.status = 'active' AND se.deleted_at IS NULL`,
+                [tenantId, id, accessContext.authorizedBranchId]
+            );
+            if (!enrollCheck.length) {
+                await connection.rollback();
+                connection.release();
+                return null;
+            }
         }
 
-        // 3. Update guardian if provided
-        if (updateData.guardian_name) {
+        // 1. Dynamic Partial Update on `students` table
+        const studentFieldsMap = {
+            full_name: 'full_name',
+            dob: 'dob',
+            gender: 'gender',
+            mobile: 'mobile',
+            email: 'email',
+            street: 'street',
+            city: 'city',
+            state: 'state',
+            pincode: 'pincode',
+            category: 'category',
+            school_name: 'school_name',
+            current_class: 'current_class',
+            target_exam: 'target_exam',
+            year_of_attempt: 'year_of_attempt',
+            blood_group: 'blood_group'
+        };
+
+        if (accessContext?.scope !== 'BRANCH' && updateData.primary_branch_id !== undefined) {
+            studentFieldsMap.primary_branch_id = 'primary_branch_id';
+        }
+
+        const studentSets = [];
+        const studentVals = [];
+
+        for (const [key, col] of Object.entries(studentFieldsMap)) {
+            if (updateData[key] !== undefined) {
+                studentSets.push(`${col} = ?`);
+                studentVals.push(updateData[key] || null);
+            }
+        }
+
+        if (updateData.status !== undefined) {
+            studentSets.push(`status = ?`);
+            studentVals.push(normalizeStudentStatus(updateData.status));
+        }
+
+        if (studentSets.length > 0) {
+            studentSets.push(`updated_by = ?`, `updated_at = NOW()`);
+            studentVals.push(updatedBy, id, tenantId);
+
+            await connection.query(`
+                UPDATE students SET ${studentSets.join(', ')}
+                WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL
+            `, studentVals);
+        }
+
+        // 2. Dynamic Partial Update on `users` table
+        if (updateData.full_name !== undefined || updateData.mobile !== undefined) {
+            const [studentRows] = await connection.query(
+                `SELECT user_id FROM students WHERE id = ? AND tenant_id = ?`,
+                [id, tenantId]
+            );
+            if (studentRows.length > 0 && studentRows[0].user_id) {
+                const userSets = [];
+                const userVals = [];
+                if (updateData.full_name !== undefined) {
+                    userSets.push(`name = ?`);
+                    userVals.push(updateData.full_name);
+                }
+                if (updateData.mobile !== undefined) {
+                    userSets.push(`mobile = ?`);
+                    userVals.push(updateData.mobile || null);
+                }
+                if (userSets.length > 0) {
+                    userVals.push(studentRows[0].user_id, tenantId);
+                    await connection.query(`
+                        UPDATE users SET ${userSets.join(', ')}
+                        WHERE id = ? AND tenant_id = ?
+                    `, userVals);
+                }
+            }
+        }
+
+        // 3. Dynamic Partial Update on `guardians` table
+        const guardianFields = ['guardian_name', 'guardian_mobile', 'guardian_email', 'guardian_relation', 'guardian_occupation'];
+        const hasGuardianUpdates = guardianFields.some(f => updateData[f] !== undefined);
+
+        if (hasGuardianUpdates) {
             const [sgRows] = await connection.query(
                 `SELECT guardian_id FROM student_guardians WHERE student_id = ? AND tenant_id = ? AND is_primary = 1`,
                 [id, tenantId]
             );
             if (sgRows.length > 0) {
+                const gSets = [];
+                const gVals = [];
+                if (updateData.guardian_name !== undefined) { gSets.push(`full_name = ?`); gVals.push(updateData.guardian_name); }
+                if (updateData.guardian_mobile !== undefined) { gSets.push(`mobile = ?`); gVals.push(updateData.guardian_mobile); }
+                if (updateData.guardian_email !== undefined) { gSets.push(`email = ?`); gVals.push(updateData.guardian_email || null); }
+                if (updateData.guardian_relation !== undefined) { gSets.push(`relation = ?`); gVals.push(updateData.guardian_relation || null); }
+                if (updateData.guardian_occupation !== undefined) { gSets.push(`occupation = ?`); gVals.push(updateData.guardian_occupation || null); }
+
+                if (gSets.length > 0) {
+                    gSets.push(`updated_by = ?`, `updated_at = NOW()`);
+                    gVals.push(updatedBy, sgRows[0].guardian_id, tenantId);
+                    await connection.query(`
+                        UPDATE guardians SET ${gSets.join(', ')}
+                        WHERE id = ? AND tenant_id = ?
+                    `, gVals);
+                }
+            }
+        }
+
+        // 4. Dynamic Partial Update on `student_enrollments` table
+        const enrollmentFields = ['batch_id', 'bundle_id', 'subject_selection_type', 'custom_subject_ids', 'academic_year_id'];
+        const hasEnrollmentUpdates = enrollmentFields.some(f => updateData[f] !== undefined);
+
+        let effectiveEnrollmentId = null;
+        if (hasEnrollmentUpdates) {
+            const [existingEnrollments] = await connection.query(
+                `SELECT id, batch_id FROM student_enrollments WHERE student_id = ? AND tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
+                [id, tenantId]
+            );
+
+            const selectionType = updateData.subject_selection_type === 'custom' ? 'custom' : (updateData.subject_selection_type === 'bundle' ? 'bundle' : undefined);
+            const bundleId = updateData.bundle_id !== undefined ? (updateData.bundle_id ? Number(updateData.bundle_id) : null) : undefined;
+            const customSubjectIds = updateData.custom_subject_ids !== undefined
+                ? (Array.isArray(updateData.custom_subject_ids) ? JSON.stringify(updateData.custom_subject_ids.map(Number)) : updateData.custom_subject_ids)
+                : undefined;
+
+            if (existingEnrollments.length > 0) {
+                effectiveEnrollmentId = existingEnrollments[0].id;
+                const oldBatchId = existingEnrollments[0].batch_id;
+                const newBatchId = updateData.batch_id !== undefined ? Number(updateData.batch_id) : oldBatchId;
+
+                const eSets = [];
+                const eVals = [];
+                if (updateData.batch_id !== undefined) { eSets.push(`batch_id = ?`); eVals.push(updateData.batch_id); }
+                if (bundleId !== undefined) { eSets.push(`bundle_id = ?`); eVals.push(bundleId); }
+                if (selectionType !== undefined) { eSets.push(`subject_selection_type = ?`); eVals.push(selectionType); }
+                if (customSubjectIds !== undefined) { eSets.push(`custom_subject_ids = ?`); eVals.push(customSubjectIds); }
+                if (updateData.academic_year_id !== undefined) { eSets.push(`academic_year_id = ?`); eVals.push(updateData.academic_year_id); }
+
+                if (eSets.length > 0) {
+                    eSets.push(`updated_by = ?`, `updated_at = NOW()`);
+                    eVals.push(updatedBy, effectiveEnrollmentId, tenantId);
+                    await connection.query(`UPDATE student_enrollments SET ${eSets.join(', ')} WHERE id = ? AND tenant_id = ?`, eVals);
+                }
+
+                if (updateData.batch_id !== undefined && oldBatchId && Number(oldBatchId) !== Number(newBatchId)) {
+                    await connection.query(`UPDATE batches SET current_strength = GREATEST(0, current_strength - 1) WHERE id = ? AND tenant_id = ?`, [oldBatchId, tenantId]);
+                    await connection.query(`UPDATE batches SET current_strength = current_strength + 1 WHERE id = ? AND tenant_id = ?`, [newBatchId, tenantId]);
+                }
+            } else if (updateData.batch_id && updateData.academic_year_id) {
+                const [stBranch] = await connection.query(`SELECT primary_branch_id FROM students WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
+                const effectiveBranchId = (accessContext && accessContext.authorizedBranchId) || (stBranch[0]?.primary_branch_id) || 1;
+                const [enrollmentRes] = await connection.query(`
+                    INSERT INTO student_enrollments (
+                        tenant_id, branch_id, student_id, batch_id, bundle_id, subject_selection_type, custom_subject_ids, academic_year_id, enrolled_date, status, created_by, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'active', ?, ?)
+                `, [
+                    tenantId,
+                    effectiveBranchId,
+                    id,
+                    updateData.batch_id,
+                    bundleId || null,
+                    selectionType || 'bundle',
+                    customSubjectIds || null,
+                    updateData.academic_year_id,
+                    updatedBy,
+                    updatedBy
+                ]);
+                effectiveEnrollmentId = enrollmentRes.insertId;
+                await connection.query(`UPDATE batches SET current_strength = current_strength + 1 WHERE id = ? AND tenant_id = ?`, [updateData.batch_id, tenantId]);
+            }
+        }
+
+        // 5. Dynamic Partial Update on `student_fee_assignments` table
+        const feeFields = ['gross_amount', 'discount_amount', 'total_concession', 'downpayment_amount', 'down_payment', 'installment_count', 'installment_amount'];
+        const hasFeeUpdates = feeFields.some(f => updateData[f] !== undefined);
+
+        if (hasFeeUpdates) {
+            const [existingFee] = await connection.query(
+                `SELECT * FROM student_fee_assignments WHERE student_id = ? AND tenant_id = ? ORDER BY id DESC LIMIT 1`,
+                [id, tenantId]
+            );
+
+            if (existingFee.length > 0) {
+                const cur = existingFee[0];
+                const grossAmount = updateData.gross_amount !== undefined ? Number(updateData.gross_amount) : Number(cur.gross_amount || 0);
+                const discountAmount = updateData.discount_amount !== undefined
+                    ? Number(updateData.discount_amount)
+                    : (updateData.total_concession !== undefined ? Number(updateData.total_concession) : Number(cur.total_concession || 0));
+                const netAmount = Math.max(0, grossAmount - discountAmount);
+                const downpaymentAmount = updateData.downpayment_amount !== undefined
+                    ? Number(updateData.downpayment_amount)
+                    : (updateData.down_payment !== undefined ? Number(updateData.down_payment) : Number(cur.down_payment || 0));
+                const installmentCount = updateData.installment_count !== undefined
+                    ? Math.max(1, Number(updateData.installment_count))
+                    : Math.max(1, Number(cur.installment_count || 1));
+                const remainingForInstallments = Math.max(0, netAmount - downpaymentAmount);
+                const installmentAmount = Math.round((remainingForInstallments / installmentCount) * 100) / 100;
+                const paidAmount = Number(cur.paid_amount || 0);
+                const balanceAmount = Math.max(0, netAmount - paidAmount);
+                const feeStatus = balanceAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid');
+
                 await connection.query(`
-                    UPDATE guardians SET
-                        full_name = COALESCE(?, full_name),
-                        mobile = COALESCE(?, mobile),
-                        email = COALESCE(?, email),
-                        relation = COALESCE(?, relation),
-                        updated_by = ?
+                    UPDATE student_fee_assignments SET
+                        enrollment_id = COALESCE(?, enrollment_id),
+                        gross_amount = ?,
+                        total_concession = ?,
+                        net_amount = ?,
+                        down_payment = ?,
+                        installment_count = ?,
+                        installment_amount = ?,
+                        balance_amount = ?,
+                        status = ?,
+                        updated_by = ?,
+                        updated_at = NOW()
                     WHERE id = ? AND tenant_id = ?
                 `, [
-                    updateData.guardian_name,
-                    updateData.guardian_mobile,
-                    updateData.guardian_email,
-                    updateData.guardian_relation,
+                    effectiveEnrollmentId,
+                    grossAmount,
+                    discountAmount,
+                    netAmount,
+                    downpaymentAmount,
+                    installmentCount,
+                    installmentAmount,
+                    balanceAmount,
+                    feeStatus,
                     updatedBy,
-                    sgRows[0].guardian_id,
+                    cur.id,
                     tenantId
                 ]);
+            } else if (updateData.gross_amount !== undefined && Number(updateData.gross_amount) > 0) {
+                const grossAmount = Number(updateData.gross_amount);
+                const discountAmount = Number(updateData.discount_amount || updateData.total_concession || 0);
+                const netAmount = Math.max(0, grossAmount - discountAmount);
+                const downpaymentAmount = Number(updateData.downpayment_amount || updateData.down_payment || 0);
+                const installmentCount = Math.max(1, Number(updateData.installment_count || 1));
+                const remainingForInstallments = Math.max(0, netAmount - downpaymentAmount);
+                const installmentAmount = Math.round((remainingForInstallments / installmentCount) * 100) / 100;
+                const paidAmount = downpaymentAmount;
+                const balanceAmount = Math.max(0, netAmount - paidAmount);
+                const feeStatus = balanceAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid');
+                const [stBranch] = await connection.query(`SELECT primary_branch_id FROM students WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
+                const effectiveBranchId = (accessContext && accessContext.authorizedBranchId) || (stBranch[0]?.primary_branch_id) || 1;
+
+                const [feeRes] = await connection.query(`
+                    INSERT INTO student_fee_assignments (
+                        tenant_id, branch_id, student_id, enrollment_id, gross_amount, total_concession, net_amount,
+                        down_payment, installment_count, installment_amount,
+                        paid_amount, balance_amount, status, created_by, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    tenantId,
+                    effectiveBranchId,
+                    id,
+                    effectiveEnrollmentId,
+                    grossAmount,
+                    discountAmount,
+                    netAmount,
+                    downpaymentAmount,
+                    installmentCount,
+                    installmentAmount,
+                    paidAmount,
+                    balanceAmount,
+                    feeStatus,
+                    updatedBy,
+                    updatedBy
+                ]);
+
+                const feeAssignmentId = feeRes.insertId;
+
+                if (downpaymentAmount > 0) {
+                    const invNum = `INV-${tenantId}-${id}-DP`;
+                    await connection.query(`
+                        INSERT INTO student_invoices (
+                            tenant_id, branch_id, student_id, enrollment_id, fee_assignment_id, invoice_number, installment_number,
+                            description, issue_date, due_date, amount, paid_amount, balance_due,
+                            status, payment_date, payment_mode, transaction_reference, created_by, updated_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, 0, 'Admission Downpayment', CURDATE(), CURDATE(), ?, ?, 0, 'paid', NOW(), 'UPI', ?, ?, ?)
+                    `, [
+                        tenantId,
+                        effectiveBranchId,
+                        id,
+                        effectiveEnrollmentId,
+                        feeAssignmentId,
+                        invNum,
+                        downpaymentAmount,
+                        downpaymentAmount,
+                        `TXN-DP-${Date.now().toString().slice(-6)}`,
+                        updatedBy,
+                        updatedBy
+                    ]);
+                }
+
+                for (let i = 1; i <= installmentCount; i++) {
+                    const invNum = `INV-${tenantId}-${id}-INST${i}`;
+                    await connection.query(`
+                        INSERT INTO student_invoices (
+                            tenant_id, branch_id, student_id, enrollment_id, fee_assignment_id, invoice_number, installment_number,
+                            description, issue_date, due_date, amount, paid_amount, balance_due,
+                            status, created_by, updated_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? MONTH), ?, 0, ?, 'unpaid', ?, ?)
+                    `, [
+                        tenantId,
+                        effectiveBranchId,
+                        id,
+                        effectiveEnrollmentId,
+                        feeAssignmentId,
+                        invNum,
+                        i,
+                        `Monthly Installment ${i} of ${installmentCount}`,
+                        i,
+                        installmentAmount,
+                        installmentAmount,
+                        updatedBy,
+                        updatedBy
+                    ]);
+                }
             }
         }
 
         await connection.commit();
         connection.release();
 
-        return getStudentById(tenantId, id);
+        return getStudentById(tenantId, id, accessContext);
     } catch (error) {
         await connection.rollback();
-        connection.rollback();
+        connection.release();
         throw error;
     }
 };
 
 /**
- * Soft delete student.
+ * Soft delete student with branch scope check.
  */
-const deleteStudent = async (tenantId, id, updatedBy = 1) => {
+const deleteStudent = async (tenantId, id, updatedBy = 1, accessContext = null) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
+
+        // Branch scope check
+        if (accessContext && accessContext.scope === 'BRANCH') {
+            const [enrollCheck] = await connection.query(
+                `SELECT se.id FROM student_enrollments se
+                 JOIN students s ON s.id = se.student_id AND s.deleted_at IS NULL
+                 WHERE s.tenant_id = ? AND s.id = ? AND se.branch_id = ? AND se.status = 'active' AND se.deleted_at IS NULL`,
+                [tenantId, id, accessContext.authorizedBranchId]
+            );
+            if (!enrollCheck.length) {
+                await connection.rollback();
+                connection.release();
+                return false;
+            }
+        }
 
         // Get student active enrollments to decrement batch strength
         const [enrollments] = await connection.query(
@@ -682,13 +1015,25 @@ const deleteStudent = async (tenantId, id, updatedBy = 1) => {
             );
         }
 
+        // Deactivate linked user account if exists
+        const [studentRows] = await connection.query(
+            `SELECT user_id FROM students WHERE id = ? AND tenant_id = ?`,
+            [id, tenantId]
+        );
+        if (studentRows.length > 0 && studentRows[0].user_id) {
+            await connection.query(
+                `UPDATE users SET status = 'inactive', deleted_at = NOW(), updated_at = NOW() WHERE id = ? AND tenant_id = ?`,
+                [studentRows[0].user_id, tenantId]
+            );
+        }
+
         await connection.query(
-            `UPDATE student_enrollments SET deleted_at = NOW(), status = 'cancelled', updated_by = ? WHERE student_id = ? AND tenant_id = ?`,
+            `UPDATE student_enrollments SET deleted_at = NOW(), status = 'cancelled', updated_by = ?, updated_at = NOW() WHERE student_id = ? AND tenant_id = ? AND deleted_at IS NULL`,
             [updatedBy, id, tenantId]
         );
 
         const [result] = await connection.query(
-            `UPDATE students SET deleted_at = NOW(), updated_by = ? WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+            `UPDATE students SET deleted_at = NOW(), status = 2, updated_by = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
             [updatedBy, id, tenantId]
         );
 
@@ -705,57 +1050,152 @@ const deleteStudent = async (tenantId, id, updatedBy = 1) => {
 
 /**
  * Get dropdown academic options (branches, courses, programs, levels, batches, subject_bundles, academic_years).
+ * If accessContext is provided with scope 'BRANCH', options are filtered specifically to that branch.
  */
-const getAcademicOptions = async (tenantId) => {
+const getAcademicOptions = async (tenantId, accessContext = null) => {
     const tid = Number(tenantId);
-    console.log('[getAcademicOptions] tenantId =', tid, '| type =', typeof tid);
+    const isBranchScope = accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId;
+    const branchId = isBranchScope ? Number(accessContext.authorizedBranchId) : null;
 
     const safeQuery = async (label, sql, params) => {
         try {
             const [rows] = await pool.query(sql, params);
-            console.log(`[getAcademicOptions] ${label}: ${rows.length} rows`);
             return rows;
         } catch (err) {
-            console.error(`[getAcademicOptions] ${label} FAILED:`, err.message);
+            console.error(`[getAcademicOptions] ${label} error:`, err.message);
             return [];
         }
     };
 
-    const branches = await safeQuery('branches',
-        `SELECT id, name FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`,
-        [tid]
-    );
+    // 1. Branches
+    let branches = [];
+    let branch = null;
+    if (isBranchScope) {
+        branches = await safeQuery('branches',
+            `SELECT id, name FROM branches WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL`,
+            [tid, branchId]
+        );
+        branch = branches[0] || { id: branchId, name: 'Assigned Branch' };
+    } else {
+        branches = await safeQuery('branches',
+            `SELECT id, name FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`,
+            [tid]
+        );
+    }
 
-    const courses = await safeQuery('courses',
-        `SELECT id, name FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
-        [tid]
-    );
+    // 2. Courses
+    let courses = [];
+    if (isBranchScope) {
+        courses = await safeQuery('courses',
+            `SELECT DISTINCT c.id, c.name 
+             FROM courses c
+             JOIN course_branches cb ON cb.course_id = c.id
+             WHERE c.tenant_id = ? AND cb.branch_id = ? AND c.deleted_at IS NULL AND c.is_active = 1
+             ORDER BY c.name ASC`,
+            [tid, branchId]
+        );
+        // Fallback to all tenant courses if no explicit branch course mappings exist
+        if (!courses.length) {
+            courses = await safeQuery('courses_fallback',
+                `SELECT id, name FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+                [tid]
+            );
+        }
+    } else {
+        courses = await safeQuery('courses',
+            `SELECT id, name FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            [tid]
+        );
+    }
 
-    const programs = await safeQuery('programs',
-        `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`,
-        [tid]
-    );
+    // 3. Programs
+    let programs = [];
+    if (isBranchScope) {
+        programs = await safeQuery('programs',
+            `SELECT DISTINCT p.id, p.course_id, p.name, p.code 
+             FROM programs p
+             JOIN branch_programs bp ON bp.program_id = p.id
+             WHERE p.tenant_id = ? AND bp.branch_id = ? AND p.deleted_at IS NULL
+             ORDER BY p.name ASC`,
+            [tid, branchId]
+        );
+        // Fallback to programs under the available courses if no explicit branch program mappings exist
+        if (!programs.length) {
+            const courseIds = courses.map(c => c.id);
+            if (courseIds.length > 0) {
+                programs = await safeQuery('programs_fallback',
+                    `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND course_id IN (?) AND deleted_at IS NULL ORDER BY name ASC`,
+                    [tid, courseIds]
+                );
+            }
+        }
+    } else {
+        programs = await safeQuery('programs',
+            `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`,
+            [tid]
+        );
+    }
 
-    const levels = await safeQuery('levels',
-        `SELECT id, course_id, program_id, name FROM levels WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`,
-        [tid]
-    );
+    // 4. Levels
+    let levels = [];
+    if (isBranchScope) {
+        const courseIds = courses.map(c => c.id);
+        const programIds = programs.map(p => p.id);
+        if (courseIds.length > 0 || programIds.length > 0) {
+            levels = await safeQuery('levels',
+                `SELECT id, course_id, program_id, name FROM levels 
+                 WHERE tenant_id = ? AND deleted_at IS NULL 
+                   AND (course_id IN (?) OR program_id IN (?))
+                 ORDER BY name ASC`,
+                [tid, courseIds.length ? courseIds : [-1], programIds.length ? programIds : [-1]]
+            );
+        }
+    } else {
+        levels = await safeQuery('levels',
+            `SELECT id, course_id, program_id, name FROM levels WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`,
+            [tid]
+        );
+    }
 
-    const batches = await safeQuery('batches',
-        `SELECT id, branch_id, level_id, name, code FROM batches WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`,
-        [tid]
-    );
+    // 5. Batches
+    let batches = [];
+    if (isBranchScope) {
+        batches = await safeQuery('batches',
+            `SELECT id, branch_id, level_id, name, code FROM batches 
+             WHERE tenant_id = ? AND branch_id = ? AND deleted_at IS NULL AND (status = 1 OR status = '1' OR status = 'active') 
+             ORDER BY name ASC`,
+            [tid, branchId]
+        );
+    } else {
+        batches = await safeQuery('batches',
+            `SELECT id, branch_id, level_id, name, code FROM batches WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 1 OR status = '1' OR status = 'active') ORDER BY name ASC`,
+            [tid]
+        );
+    }
 
-    const bundles = await safeQuery('bundles',
-        `SELECT id, branch_id, level_id, name, description, fee_amount, subject_ids FROM subject_bundles WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
-        [tid]
-    );
+    // 6. Subject Bundles
+    let bundles = [];
+    if (isBranchScope) {
+        bundles = await safeQuery('bundles',
+            `SELECT id, branch_id, level_id, name, description, fee_amount, subject_ids FROM subject_bundles 
+             WHERE tenant_id = ? AND (branch_id = ? OR branch_id IS NULL) AND deleted_at IS NULL AND is_active = 1 
+             ORDER BY name ASC`,
+            [tid, branchId]
+        );
+    } else {
+        bundles = await safeQuery('bundles',
+            `SELECT id, branch_id, level_id, name, description, fee_amount, subject_ids FROM subject_bundles WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            [tid]
+        );
+    }
 
+    // 7. Subjects
     const subjects = await safeQuery('subjects',
         `SELECT id, name, code, type FROM subjects WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`,
         [tid]
     );
 
+    // 8. Level Subjects
     const levelSubjects = await safeQuery('levelSubjects',
         `SELECT 
             ls.level_id, 
@@ -775,6 +1215,7 @@ const getAcademicOptions = async (tenantId) => {
         [tid]
     );
 
+    // 9. Academic Years
     const academicYears = await safeQuery('academicYears',
         `SELECT id, name, status FROM academic_years WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY start_date DESC`,
         [tid]
@@ -794,6 +1235,7 @@ const getAcademicOptions = async (tenantId) => {
     });
 
     return {
+        ...(branch ? { branch } : {}),
         branches,
         courses,
         programs,
@@ -814,4 +1256,3 @@ module.exports = {
     deleteStudent,
     getAcademicOptions
 };
-

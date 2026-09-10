@@ -1,17 +1,18 @@
 const pool = require('../config/db');
 
-const STATUS_ALLOWED = ['draft', 'published', 'closed'];
+const STATUS_MAP = {
+    0: 'Draft',
+    1: 'Published',
+    2: 'Closed'
+};
 
-const titleize = (token) =>
-    String(token || '')
-        .split('_')
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-
-const normalizeStatus = (status) => {
-    if (!status) return 'draft';
-    const token = String(status).toLowerCase().trim().replace(/\s+/g, '_');
-    return STATUS_ALLOWED.includes(token) ? token : 'draft';
+const formatStatus = (status) => {
+    const num = Number(status);
+    if (num in STATUS_MAP) return STATUS_MAP[num];
+    const s = String(status || '').toLowerCase().trim();
+    if (s === 'published' || s === '1') return 'Published';
+    if (s === 'closed' || s === '2') return 'Closed';
+    return 'Draft';
 };
 
 const parseJsonArray = (value) => {
@@ -85,7 +86,8 @@ const rowToHomework = (row) => {
         dueDate: row.due_date ? new Date(row.due_date).toISOString().slice(0, 10) : '',
         dueDateTime: row.due_date ? String(row.due_date).replace(' ', 'T') : '',
         maxMarks: row.max_marks === null || row.max_marks === undefined ? null : Number(row.max_marks),
-        status: titleize(row.status),
+        status: formatStatus(row.status),
+        statusCode: Number(row.status ?? 0),
         publishedAt: row.published_at || null,
         closedAt: row.closed_at || null,
         submittedCount: Number(row.submitted_count || 0),
@@ -93,6 +95,30 @@ const rowToHomework = (row) => {
         createdBy: row.created_by ? String(row.created_by) : '',
         updatedAt: row.updated_at || null
     };
+};
+
+const assertHomeworkAccess = async (conn, tenantId, homeworkId, accessContext) => {
+    const executor = conn || pool;
+    const [rows] = await executor.query(
+        `SELECT * FROM homeworks WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL`,
+        [tenantId, Number(homeworkId)]
+    );
+    if (!rows.length) {
+        const err = new Error('Homework not found');
+        err.statusCode = 404;
+        err.code = 'ER_HW_NOT_FOUND';
+        throw err;
+    }
+    const hw = rows[0];
+    if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
+        if (Number(hw.branch_id) !== Number(accessContext.authorizedBranchId)) {
+            const err = new Error('Forbidden: You do not have access to homework belonging to another branch');
+            err.statusCode = 403;
+            err.code = 'ER_FORBIDDEN_BRANCH';
+            throw err;
+        }
+    }
+    return hw;
 };
 
 const getBranchInTenant = async (conn, tenantId, branchId) => {
@@ -125,7 +151,7 @@ const getBatchesInBranchYear = async (conn, tenantId, branchId, academicYearId, 
     if (!batchIds || !batchIds.length) return [];
     const [rows] = await conn.query(
         `SELECT id, name FROM batches
-         WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active'
+         WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 'active' OR status = 1 OR status = '1')
            AND branch_id = ? AND academic_year_id = ? AND id IN (?)`,
         [tenantId, Number(branchId), Number(academicYearId), batchIds]
     );
@@ -195,15 +221,26 @@ const HOMEWORK_SELECT = `
     LEFT JOIN academic_years ay ON ay.id = hw.academic_year_id
 `;
 
-const fetchHomeworkRows = async (tenantId, teacherUserId) => {
+const fetchHomeworkRows = async (tenantId, teacherUserId, accessContext) => {
+    let whereClause = `WHERE hw.tenant_id = ? AND hw.deleted_at IS NULL`;
+    const params = [tenantId];
+
+    if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
+        whereClause += ` AND hw.branch_id = ?`;
+        params.push(Number(accessContext.authorizedBranchId));
+    }
+
     const [rows] = await pool.query(
         `${HOMEWORK_SELECT}
-         WHERE hw.tenant_id = ? AND hw.deleted_at IS NULL
+         ${whereClause}
          ORDER BY hw.updated_at DESC`,
-        [tenantId]
+        params
     );
 
-    const assignedBatchIds = await getTeacherAssignedBatchIds(tenantId, teacherUserId);
+    let assignedBatchIds = [];
+    if (teacherUserId && (!accessContext || accessContext.scope !== 'BRANCH')) {
+        assignedBatchIds = await getTeacherAssignedBatchIds(tenantId, teacherUserId);
+    }
 
     // Batch id -> names lookup for output
     const allBatchIds = [...new Set(rows.flatMap(r => parseJsonArray(r.batch_ids).map(Number)))];
@@ -232,13 +269,16 @@ const fetchHomeworkRows = async (tenantId, teacherUserId) => {
         }));
 };
 
-// Teacher: fetch homeworks scoped to the teacher's allocated batches.
-const getHomeworks = async (tenantId, teacherUserId, filters = {}) => {
+// Teacher/Admin/Branch: fetch homeworks scoped to allocations or branch.
+const getHomeworks = async (tenantId, teacherUserId, filters = {}, accessContext = null) => {
     const { status = 'all', subject = 'all', batch = 'all', branch = 'all', search = '', assignmentType = 'all' } = filters;
-    const rows = await fetchHomeworkRows(tenantId, teacherUserId);
+    const rows = await fetchHomeworkRows(tenantId, teacherUserId, accessContext);
 
     return rows.filter(hw => {
-        if (status && String(status).toLowerCase() !== 'all' && hw.status.toLowerCase() !== String(status).toLowerCase()) return false;
+        if (status && String(status).toLowerCase() !== 'all') {
+            const filterNorm = formatStatus(status).toLowerCase();
+            if (hw.status.toLowerCase() !== filterNorm) return false;
+        }
         if (assignmentType && String(assignmentType).toLowerCase() !== 'all' && hw.assignmentType.toLowerCase() !== String(assignmentType).toLowerCase()) return false;
         if (subject && String(subject).toLowerCase() !== 'all' && Number(hw.subjectId) !== Number(subject)) return false;
         if (batch && String(batch).toLowerCase() !== 'all' && !hw.batchIds.includes(Number(batch))) return false;
@@ -251,9 +291,56 @@ const getHomeworks = async (tenantId, teacherUserId, filters = {}) => {
     });
 };
 
-const getHomework = async (tenantId, id, teacherUserId) => {
-    const rows = await fetchHomeworkRows(tenantId, teacherUserId);
+const getHomework = async (tenantId, id, teacherUserId, accessContext = null) => {
+    const rows = await fetchHomeworkRows(tenantId, teacherUserId, accessContext);
     return rows.find(h => h.id === String(id)) || null;
+};
+
+// Branch Admin Scoping (Branch specific)
+const getBranchScoping = async (tenantId, branchId) => {
+    const bId = Number(branchId);
+    const [branches] = await pool.query(
+        `SELECT id, name FROM branches WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL`,
+        [tenantId, bId]
+    );
+    if (!branches.length) {
+        const error = new Error('Branch not found or inaccessible');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const [batches] = await pool.query(
+        `SELECT bt.id, bt.name, bt.academic_year_id 
+           FROM batches bt
+          WHERE bt.tenant_id = ? AND bt.branch_id = ? AND bt.deleted_at IS NULL AND (bt.status = 'active' OR bt.status = 1 OR bt.status = '1')
+          ORDER BY bt.name ASC`,
+        [tenantId, bId]
+    );
+
+    const [subjects] = await pool.query(
+        `SELECT DISTINCT s.id, s.name, s.code
+           FROM subjects s
+          WHERE s.tenant_id = ? AND s.deleted_at IS NULL AND (s.status = 'active' OR s.status = 1 OR s.status = '1' OR s.status IS NULL)
+          ORDER BY s.name ASC`,
+        [tenantId]
+    );
+
+    const [academicYears] = await pool.query(
+        `SELECT DISTINCT ay.id, ay.name, ay.start_date
+           FROM academic_years ay
+          WHERE ay.tenant_id = ? AND ay.branch_id = ? AND ay.deleted_at IS NULL
+          ORDER BY ay.start_date DESC`,
+        [tenantId, bId]
+    );
+
+    return {
+        scoped: true,
+        branch: { id: String(branches[0].id), name: branches[0].name },
+        branches: [{ id: String(branches[0].id), name: branches[0].name }],
+        batches: batches.map(b => ({ id: String(b.id), name: b.name, academicYearId: b.academic_year_id ? String(b.academic_year_id) : null })),
+        subjects: subjects.map(s => ({ id: String(s.id), name: s.name, code: s.code || '' })),
+        academicYears: academicYears.map(ay => ({ id: String(ay.id), name: ay.name }))
+    };
 };
 
 const getTeacherScoping = async (tenantId, teacherUserId) => {
@@ -274,7 +361,7 @@ const getTeacherScoping = async (tenantId, teacherUserId) => {
            FROM teacher_allocations ta
            JOIN batches bt ON bt.id = ta.batch_id
           WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL
-            AND bt.deleted_at IS NULL AND bt.status = 'active'
+            AND bt.deleted_at IS NULL AND (bt.status = 'active' OR bt.status = 1 OR bt.status = '1')
           ORDER BY bt.name ASC`,
         params
     );
@@ -284,7 +371,7 @@ const getTeacherScoping = async (tenantId, teacherUserId) => {
            FROM teacher_subjects ts
            JOIN subjects s ON s.id = ts.subject_id
           WHERE ts.tenant_id = ? AND ts.teacher_user_id = ?
-            AND s.deleted_at IS NULL AND s.status = 'active'
+            AND s.deleted_at IS NULL AND (s.status = 'active' OR s.status = 1 OR s.status = '1' OR s.status IS NULL)
           ORDER BY s.name ASC`,
         params
     );
@@ -299,18 +386,16 @@ const getTeacherScoping = async (tenantId, teacherUserId) => {
         params
     );
 
-    // Fallback: if the teacher has no allocations, expose the tenant's full scope
-    // so the page stays usable even before allocations are configured.
     if (!branches.length && !batches.length && !subjects.length) {
         const [allBranches] = await pool.query(
             `SELECT id, name FROM branches WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId]);
         const [allBatches] = await pool.query(
             `SELECT bt.id, bt.name FROM batches bt
               JOIN academic_years ay ON ay.id = bt.academic_year_id
-             WHERE bt.tenant_id = ? AND bt.deleted_at IS NULL AND bt.status = 'active'
+             WHERE bt.tenant_id = ? AND bt.deleted_at IS NULL AND (bt.status = 'active' OR bt.status = 1 OR bt.status = '1')
              ORDER BY bt.name ASC`, [tenantId]);
         const [allSubjects] = await pool.query(
-            `SELECT id, name, code FROM subjects WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`, [tenantId]);
+            `SELECT id, name, code FROM subjects WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 'active' OR status = 1 OR status = '1' OR status IS NULL) ORDER BY name ASC`, [tenantId]);
         const [allYears] = await pool.query(
             `SELECT id, name FROM academic_years WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY start_date DESC`, [tenantId]);
 
@@ -332,8 +417,12 @@ const getTeacherScoping = async (tenantId, teacherUserId) => {
     };
 };
 
-const createHomework = async (tenantId, data, userId) => {
+const createHomework = async (tenantId, data, userId, accessContext = null) => {
     const payload = normalizeCreatePayload(data);
+
+    if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
+        payload.branchId = Number(accessContext.authorizedBranchId);
+    }
 
     if (!payload.title || !payload.subjectId || !payload.branchId || !payload.academicYearId || !payload.dueDate) {
         const error = new Error('Missing required fields (title, subjectId, branchId, academicYearId, dueDate)');
@@ -386,7 +475,7 @@ const createHomework = async (tenantId, data, userId) => {
             `INSERT INTO homeworks
                 (tenant_id, branch_id, academic_year_id, subject_id, title, description,
                  assignment_type, batch_ids, files, due_date, max_marks, status, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
             [tenantId, branchId, academicYear.id, subject.id, payload.title, payload.description,
              payload.assignmentType, JSON.stringify(payload.batchIds), JSON.stringify(payload.files),
              payload.dueDate, payload.maxMarks, userId, userId]
@@ -402,20 +491,12 @@ const createHomework = async (tenantId, data, userId) => {
     }
 };
 
-const updateHomework = async (tenantId, id, data, userId) => {
+const updateHomework = async (tenantId, id, data, userId, accessContext = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        const [existingRows] = await conn.query(
-            `SELECT * FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-            [tenantId, Number(id)]
-        );
-        if (!existingRows.length) {
-            await conn.rollback();
-            return null;
-        }
-        const current = existingRows[0];
+        const current = await assertHomeworkAccess(conn, tenantId, id, accessContext);
 
         const payload = normalizeCreatePayload({
             branchId: current.branch_id,
@@ -431,6 +512,10 @@ const updateHomework = async (tenantId, id, data, userId) => {
             ...data
         });
 
+        if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
+            payload.branchId = Number(accessContext.authorizedBranchId);
+        }
+
         if (!payload.title || !payload.dueDate) {
             await conn.rollback();
             const error = new Error('Missing required fields (title, dueDate)');
@@ -444,8 +529,9 @@ const updateHomework = async (tenantId, id, data, userId) => {
             throw error;
         }
 
-        // Batches cannot be changed once the homework is published.
-        if (current.status === 'published' && JSON.stringify(payload.batchIds) !== JSON.stringify(parseJsonArray(current.batch_ids))) {
+        // Batches cannot be changed once the homework is published (status = 1).
+        const currentStatusCode = Number(current.status);
+        if (currentStatusCode === 1 && JSON.stringify(payload.batchIds) !== JSON.stringify(parseJsonArray(current.batch_ids))) {
             await conn.rollback();
             const error = new Error('Target batches cannot be changed once the homework is published');
             error.code = 'ER_HW_LOCKED';
@@ -505,20 +591,14 @@ const updateHomework = async (tenantId, id, data, userId) => {
     }
 };
 
-const deleteHomework = async (tenantId, id) => {
+const deleteHomework = async (tenantId, id, accessContext = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        const [rows] = await conn.query(
-            `SELECT status FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-            [tenantId, Number(id)]
-        );
-        if (!rows.length) {
-            await conn.rollback();
-            return 'not_found';
-        }
-        if (rows[0].status === 'published') {
+        const current = await assertHomeworkAccess(conn, tenantId, id, accessContext);
+
+        if (Number(current.status) === 1) {
             await conn.rollback();
             return 'active';
         }
@@ -539,31 +619,26 @@ const deleteHomework = async (tenantId, id) => {
     }
 };
 
-const publishHomework = async (tenantId, id, userId) => {
+const publishHomework = async (tenantId, id, userId, accessContext = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        const [rows] = await conn.query(
-            `SELECT status FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-            [tenantId, Number(id)]
-        );
-        if (!rows.length) {
-            await conn.rollback();
-            return 'not_found';
-        }
-        if (rows[0].status === 'closed') {
+        const current = await assertHomeworkAccess(conn, tenantId, id, accessContext);
+
+        const currentStatus = Number(current.status);
+        if (currentStatus === 2) {
             await conn.rollback();
             return 'closed';
         }
-        if (rows[0].status === 'published') {
+        if (currentStatus === 1) {
             await conn.commit();
             return 'published';
         }
 
         await conn.query(
             `UPDATE homeworks
-                SET status = 'published', published_at = CURRENT_TIMESTAMP,
+                SET status = 1, published_at = CURRENT_TIMESTAMP,
                     updated_by = ?, updated_at = CURRENT_TIMESTAMP
               WHERE id = ? AND deleted_at IS NULL`,
             [userId, Number(id)]
@@ -579,27 +654,21 @@ const publishHomework = async (tenantId, id, userId) => {
     }
 };
 
-const closeHomework = async (tenantId, id, userId) => {
+const closeHomework = async (tenantId, id, userId, accessContext = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        const [rows] = await conn.query(
-            `SELECT status FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-            [tenantId, Number(id)]
-        );
-        if (!rows.length) {
-            await conn.rollback();
-            return 'not_found';
-        }
-        if (rows[0].status !== 'published') {
+        const current = await assertHomeworkAccess(conn, tenantId, id, accessContext);
+
+        if (Number(current.status) !== 1) {
             await conn.rollback();
             return 'not_published';
         }
 
         await conn.query(
             `UPDATE homeworks
-                SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
+                SET status = 2, closed_at = CURRENT_TIMESTAMP,
                     updated_by = ?, updated_at = CURRENT_TIMESTAMP
               WHERE id = ? AND deleted_at IS NULL`,
             [userId, Number(id)]
@@ -615,12 +684,8 @@ const closeHomework = async (tenantId, id, userId) => {
     }
 };
 
-const getSubmissions = async (tenantId, homeworkId) => {
-    const [hwRows] = await pool.query(
-        `SELECT id, status FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-        [tenantId, Number(homeworkId)]
-    );
-    if (!hwRows.length) return null;
+const getSubmissions = async (tenantId, homeworkId, accessContext = null) => {
+    const hw = await assertHomeworkAccess(null, tenantId, homeworkId, accessContext);
 
     const [rows] = await pool.query(
         `SELECT hs.id, hs.homework_id, hs.student_id, hs.response_text, hs.files, hs.status,
@@ -634,7 +699,7 @@ const getSubmissions = async (tenantId, homeworkId) => {
     );
 
     return {
-        homework: { id: String(hwRows[0].id), status: hwRows[0].status },
+        homework: { id: String(hw.id), status: hw.status },
         submissions: rows.map(r => ({
             id: String(r.id),
             homeworkId: String(r.homework_id),
@@ -652,10 +717,12 @@ const getSubmissions = async (tenantId, homeworkId) => {
     };
 };
 
-const gradeSubmission = async (tenantId, homeworkId, submissionId, data, userId) => {
+const gradeSubmission = async (tenantId, homeworkId, submissionId, data, userId, accessContext = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
+
+        const hw = await assertHomeworkAccess(conn, tenantId, homeworkId, accessContext);
 
         let subId = Number(submissionId);
         const studentId = safeNumber(data.studentId ?? data.student_id);
@@ -723,28 +790,17 @@ const gradeSubmission = async (tenantId, homeworkId, submissionId, data, userId)
     }
 };
 
-const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId) => {
+const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId, accessContext = null) => {
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
 
-        // 1. Fetch homework to get max_marks and batch_ids
-        const [hwRows] = await conn.query(
-            `SELECT id, max_marks, batch_ids FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-            [tenantId, Number(homeworkId)]
-        );
-        if (!hwRows.length) {
-            await conn.rollback();
-            const error = new Error('Homework not found');
-            error.code = 'ER_HW_NOT_FOUND';
-            throw error;
-        }
+        const hw = await assertHomeworkAccess(conn, tenantId, homeworkId, accessContext);
 
-        const hw = hwRows[0];
         const maxMarks = hw.max_marks !== null && hw.max_marks !== undefined ? Number(hw.max_marks) : null;
         const batchIds = parseJsonArray(hw.batch_ids).map(Number).filter(Boolean);
 
-        // 2. Fetch all valid enrolled students in these batches
+        // Fetch all valid enrolled students in these batches
         const [studentRows] = await conn.query(
             `SELECT DISTINCT st.id, st.student_code
                FROM student_enrollments se
@@ -753,8 +809,8 @@ const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId) => {
             [tenantId, tenantId, batchIds.length ? batchIds : [0]]
         );
 
-        const studentCodeMap = new Map(); // lowercase trimmed code -> student id
-        const studentIdMap = new Map();   // numeric string id -> student id
+        const studentCodeMap = new Map();
+        const studentIdMap = new Map();
 
         studentRows.forEach(st => {
             if (st.student_code) {
@@ -763,7 +819,6 @@ const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId) => {
             studentIdMap.set(String(st.id), Number(st.id));
         });
 
-        // 3. Existing submissions map
         const [existingSubRows] = await conn.query(
             `SELECT id, student_id FROM homework_submissions 
               WHERE tenant_id = ? AND homework_id = ? AND deleted_at IS NULL`,
@@ -776,7 +831,6 @@ const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId) => {
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            // Extract student identifier (only by ID/Code, no name)
             const rawId = String(
                 row['Roll No / ID'] ??
                 row['Student ID / Roll No'] ??
@@ -803,7 +857,6 @@ const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId) => {
                 continue;
             }
 
-            // Extract marks
             const rawMarks = row['Marks Obtained'] ?? row['Marks'] ?? row['marks_obtained'] ?? row['marks'];
             const marks = safeNumber(rawMarks);
 
@@ -817,7 +870,6 @@ const bulkGradeSubmissions = async (tenantId, homeworkId, rows, userId) => {
                 continue;
             }
 
-            // Extract feedback / remarks
             const feedback = String(row['Remarks'] ?? row['Teacher Feedback'] ?? row['Feedback'] ?? row['remarks'] ?? '').trim();
 
             const existingSubId = existingSubMap.get(studentId);
@@ -990,14 +1042,9 @@ const submitHomework = async (tenantId, studentId, homeworkId, data) => {
 };
 
 // ─── Evaluation roster: all enrolled students + their submission (if any) ─────
-const getEvaluationRoster = async (tenantId, homeworkId) => {
-    const [hwRows] = await pool.query(
-        `SELECT id, status, max_marks, batch_ids FROM homeworks WHERE tenant_id = ? AND deleted_at IS NULL AND id = ?`,
-        [tenantId, Number(homeworkId)]
-    );
-    if (!hwRows.length) return null;
+const getEvaluationRoster = async (tenantId, homeworkId, accessContext = null) => {
+    const hw = await assertHomeworkAccess(null, tenantId, homeworkId, accessContext);
 
-    const hw = hwRows[0];
     const batchIds = parseJsonArray(hw.batch_ids).map(Number).filter(Boolean);
 
     if (!batchIds.length) {
@@ -1055,8 +1102,10 @@ const getEvaluationRoster = async (tenantId, homeworkId) => {
 };
 
 module.exports = {
+    assertHomeworkAccess,
     getHomeworks,
     getHomework,
+    getBranchScoping,
     getTeacherScoping,
     createHomework,
     updateHomework,

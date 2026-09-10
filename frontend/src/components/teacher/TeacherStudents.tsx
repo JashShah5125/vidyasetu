@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Pagination } from '../ui/Pagination';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import type { Student } from '../../data/mockData';
+import type { Student } from '../../types';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
 import { useScheduler } from '../../features/scheduler/context/SchedulerContext';
 import { 
@@ -14,7 +14,7 @@ import {
   INITIAL_ATTENDANCE_HISTORY, 
   INITIAL_ASSIGNMENTS, 
   EXAM_RESULTS
-} from '../../data/mockData';
+} from '../../types';
 import teachersList from '../../data/teachers.json';
 import classroomsList from '../../data/classrooms.json';
 import courseHierarchy from '../../data/courseHierarchy.json';

@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Calendar, HelpCircle, GraduationCap, ArrowLeft, Clock, MapPin, AlertCircle, FileText, CheckCircle } from 'lucide-react';
-import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES, INITIAL_EXAMS, INITIAL_ASSIGNMENTS } from '../../types';
 import teachersList from '../../data/teachers.json';
 import classroomsList from '../../data/classrooms.json';
 import courseHierarchy from '../../data/courseHierarchy.json';

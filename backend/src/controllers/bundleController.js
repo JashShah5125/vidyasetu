@@ -1,20 +1,28 @@
 const bundleModel = require('../models/bundleModel');
+const feeAccessService = require('../services/feeAccessService');
 
-const resolveTenantId = (req) => req.user && req.user.tenantId;
+const resolveTenantId = (req) => {
+    if (req.query && req.query.tenantId) return parseInt(req.query.tenantId);
+    if (req.user && req.user.tenantId && req.user.tenantId !== 1) return req.user.tenantId;
+    return 2;
+};
 
 const getBundles = async (req, res) => {
     try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await feeAccessService.resolveAccessContext(tenantId, req.user);
         const { page = 1, limit = 10, search = '', levelId, branchId, status } = req.query;
+        const effectiveBranchId = accessContext.scope === 'BRANCH' ? accessContext.authorizedBranchId : branchId;
         const offset = (page - 1) * limit;
 
-        const result = await bundleModel.getBundles(resolveTenantId(req), {
+        const result = await bundleModel.getBundles(tenantId, {
             search,
             levelId,
-            branchId,
+            branchId: effectiveBranchId,
             status,
             limit: Number(limit),
             offset
-        });
+        }, accessContext);
 
         res.json({
             status: 'success',

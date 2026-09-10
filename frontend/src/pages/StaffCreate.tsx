@@ -8,8 +8,9 @@ import {
   User, Phone, Briefcase, GitBranch, BookOpen,
   DollarSign, FileText, Shield, CheckCircle,
   ChevronRight, ChevronLeft, ArrowLeft, Check, Loader2,
-  Filter, Search, X, Layers, AlertTriangle
+  Filter, Search, X, Layers, AlertTriangle, Edit3, Trash2
 } from 'lucide-react';
+import { Modal } from '../components/ui/Modal';
 import { staffApi } from '../services/staffApi';
 import { subjectApi } from '../services/subjectApi';
 import { branchApi } from '../services/branchApi';
@@ -79,12 +80,31 @@ export const StaffCreate: React.FC = () => {
   const { state } = useLocation();
   const staffData = state?.staffData;
   const isEditMode = !!id;
+  const [isViewOnly, setIsViewOnly] = useState(Boolean(state?.viewOnly));
 
-  const { branches } = useApp();
+  const { branches, addToast, currentUser } = useApp();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
   const [activeTab, setActiveTab] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleDelete = async () => {
+    if (!id) return;
+    setIsDeleting(true);
+    try {
+      await staffApi.delete(id);
+      addToast(`Staff member "${form.firstName} ${form.lastName}".trim() deleted successfully.`, 'success');
+      setDeleteModalOpen(false);
+      navigate('/staff');
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || err?.message || 'Failed to delete staff member', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const [dbSubjects, setDbSubjects] = useState<Array<{ id: number; name: string; code?: string; type?: string; description?: string }>>([]);
   const [filteredDbSubjects, setFilteredDbSubjects] = useState<Array<{ id: number; name: string; code?: string; type?: string; description?: string }>>([]);
   const [dbBranches, setDbBranches] = useState<Array<{ id: number; name: string; code?: string; city?: string }>>([]);
@@ -123,32 +143,6 @@ export const StaffCreate: React.FC = () => {
     bankName: '', accountHolder: '', accountNumber: '', ifsc: '', upiId: '',
   });
 
-  // Fetch batches from API for teacher mapping
-  useEffect(() => {
-    batchApi.list({ limit: 500 })
-      .then(res => {
-        const list = res?.data?.batches || res?.data || (Array.isArray(res) ? res : []);
-        if (Array.isArray(list)) {
-          setDbBatches(list);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to fetch batches in StaffCreate:', err);
-      });
-  }, []);
-
-  // Fetch roles from API (only existing roles from roles table)
-  useEffect(() => {
-    roleApi.list()
-      .then(res => {
-        const list = Array.isArray(res) ? res : [];
-        setDbRoles(list);
-      })
-      .catch(err => {
-        console.error('Failed to fetch roles in StaffCreate:', err);
-      });
-  }, []);
-
   // Fetch branches from API
   useEffect(() => {
     branchApi.list({ limit: 100 })
@@ -165,6 +159,91 @@ export const StaffCreate: React.FC = () => {
       })
       .catch(err => {
         console.error('Failed to fetch branches in StaffCreate:', err);
+      });
+  }, []);
+
+  const availableBranches = (dbBranches.length > 0
+    ? dbBranches
+    : (branches || []).map((b: any, idx: number) => ({
+        id: Number(b.id || idx + 1),
+        name: typeof b === 'string' ? b : (b.name || (b as any).branch_name || `Branch ${idx + 1}`),
+        code: typeof b === 'string' ? '' : (b.code || ''),
+        city: typeof b === 'string' ? '' : (b.city || '')
+      }))).filter(b => b.name);
+
+  const authorizedBranchObj = isBranchAdmin
+    ? availableBranches.find(b => b.name === currentUser?.branch || String(b.id) === String(currentUser?.branch)) || availableBranches[0]
+    : null;
+  const authorizedBranchId = authorizedBranchObj ? authorizedBranchObj.id : null;
+
+  const activeBranchId = isBranchAdmin
+    ? authorizedBranchId
+    : (form.primaryBranchId || form.assignedBranchIds[0] || (availableBranches[0]?.id) || null);
+
+  // Auto-lock branch for Branch Admin in create mode
+  useEffect(() => {
+    if (isBranchAdmin && authorizedBranchId && !isEditMode) {
+      setForm(prev => ({
+        ...prev,
+        assignedBranchIds: [authorizedBranchId],
+        primaryBranchId: authorizedBranchId
+      }));
+    }
+  }, [isBranchAdmin, authorizedBranchId, isEditMode]);
+
+  // Fetch branch-assigned courses and programs strictly from branch API
+  const [branchAssignedCourses, setBranchAssignedCourses] = useState<Array<{
+    id: string | number;
+    name: string;
+    code?: string;
+    assigned_programs?: Array<{ id: string | number; name: string; code?: string }>;
+    programs?: Array<{ id: string | number; name: string; code?: string }>;
+  }>>([]);
+  const [isBranchCoursesLoading, setIsBranchCoursesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeBranchId) {
+      setBranchAssignedCourses([]);
+      return;
+    }
+    setIsBranchCoursesLoading(true);
+    branchApi.getCourses(activeBranchId, { assignment_status: 'assigned' })
+      .then(res => {
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        setBranchAssignedCourses(Array.isArray(list) ? list : []);
+      })
+      .catch(err => {
+        console.error('Failed to fetch assigned courses for branch in StaffCreate:', err);
+        setBranchAssignedCourses([]);
+      })
+      .finally(() => {
+        setIsBranchCoursesLoading(false);
+      });
+  }, [activeBranchId]);
+
+  // Fetch batches scoped to active branch for teacher mapping
+  useEffect(() => {
+    batchApi.list({ limit: 500, branch: activeBranchId ? String(activeBranchId) : undefined })
+      .then(res => {
+        const list = res?.data?.batches || res?.data || (Array.isArray(res) ? res : []);
+        if (Array.isArray(list)) {
+          setDbBatches(list);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch batches in StaffCreate:', err);
+      });
+  }, [activeBranchId]);
+
+  // Fetch roles from API (only existing roles from roles table)
+  useEffect(() => {
+    roleApi.list()
+      .then(res => {
+        const list = Array.isArray(res) ? res : [];
+        setDbRoles(list);
+      })
+      .catch(err => {
+        console.error('Failed to fetch roles in StaffCreate:', err);
       });
   }, []);
 
@@ -216,69 +295,84 @@ export const StaffCreate: React.FC = () => {
       });
   }, [subjectCourseFilter, subjectProgramFilter, subjectLevelFilter, subjectSearch]);
 
-  // Filter out non-staff roles (student, parent, saas_admin)
+  // Filter out non-staff roles and administrative roles for Branch Admin
+  const FORBIDDEN_ADMIN_ROLES = ['institute_admin', 'inst_admin', 'saas_admin', 'branch_admin', 'super_admin', 'owner', 'platform_admin'];
   const availableRoles = (dbRoles.length > 0
-    ? dbRoles.filter(r => !['student', 'parent', 'saas_admin'].includes(r.code?.toLowerCase()))
+    ? dbRoles.filter(r => {
+        const code = (r.code || '').toLowerCase().replace(/[\s-]+/g, '_');
+        if (['student', 'parent', 'saas_admin'].includes(code)) return false;
+        if (isBranchAdmin && FORBIDDEN_ADMIN_ROLES.includes(code)) return false;
+        return true;
+      })
     : []
   ).map(r => r.name);
 
-  const availableBranches = (dbBranches.length > 0
-    ? dbBranches
-    : (branches || []).map((b: any, idx: number) => ({
-        id: Number(b.id || idx + 1),
-        name: typeof b === 'string' ? b : (b.name || (b as any).branch_name || `Branch ${idx + 1}`),
-        code: typeof b === 'string' ? '' : (b.code || ''),
-        city: typeof b === 'string' ? '' : (b.city || '')
-      }))).filter(b => b.name);
-
-  // Derived unique dropdown filter options for Batches
-  const availableCourseOptions = Array.from(
-    new Map(
-      dbBatches
-        .filter(b => b.courseId && b.courseName)
-        .map(b => [b.courseId, { value: b.courseId, label: b.courseName }])
-    ).values()
-  );
+  // Derived unique dropdown filter options for Batches - strictly scoped to branch-assigned courses & programs
+  const availableCourseOptions = branchAssignedCourses.map(c => ({
+    value: String(c.id),
+    label: c.name
+  }));
 
   const availableProgramOptions = Array.from(
     new Map(
-      dbBatches
-        .filter(b => b.programId && b.programName && (!courseFilter || b.courseId === courseFilter))
-        .map(b => [b.programId, { value: b.programId, label: b.programName }])
+      branchAssignedCourses
+        .filter(c => !courseFilter || String(c.id) === String(courseFilter) || c.name === courseFilter)
+        .flatMap(c => {
+          const progs = (c.assigned_programs && c.assigned_programs.length > 0)
+            ? c.assigned_programs
+            : (c.programs || []);
+          return progs.map((p: any) => [String(p.id), { value: String(p.id), label: p.name }]);
+        })
     ).values()
   );
 
   const availableLevelOptions = Array.from(
     new Map(
       dbBatches
-        .filter(b => b.levelId && b.levelName && (!courseFilter || b.courseId === courseFilter) && (!programFilter || b.programId === programFilter))
-        .map(b => [b.levelId, { value: b.levelId, label: b.levelName }])
+        .filter(b => {
+          if (activeBranchId && Number(b.branchId) !== Number(activeBranchId)) return false;
+          if (courseFilter && String(b.courseId) !== String(courseFilter) && b.courseName !== courseFilter) return false;
+          if (programFilter && String(b.programId) !== String(programFilter) && b.programName !== programFilter) return false;
+          return Boolean(b.levelId && b.levelName);
+        })
+        .map(b => [String(b.levelId), { value: String(b.levelId), label: b.levelName }])
     ).values()
   );
 
-  // Derived unique dropdown filter options for Subjects
+  // Derived unique dropdown filter options for Subjects - strictly scoped to branch-assigned courses & programs
   const availableSubjectCourseOptions = availableCourseOptions;
 
   const availableSubjectProgramOptions = Array.from(
     new Map(
-      dbBatches
-        .filter(b => b.programId && b.programName && (!subjectCourseFilter || b.courseId === subjectCourseFilter))
-        .map(b => [b.programId, { value: b.programId, label: b.programName }])
+      branchAssignedCourses
+        .filter(c => !subjectCourseFilter || String(c.id) === String(subjectCourseFilter) || c.name === subjectCourseFilter)
+        .flatMap(c => {
+          const progs = (c.assigned_programs && c.assigned_programs.length > 0)
+            ? c.assigned_programs
+            : (c.programs || []);
+          return progs.map((p: any) => [String(p.id), { value: String(p.id), label: p.name }]);
+        })
     ).values()
   );
 
   const availableSubjectLevelOptions = Array.from(
     new Map(
       dbBatches
-        .filter(b => b.levelId && b.levelName && (!subjectCourseFilter || b.courseId === subjectCourseFilter) && (!subjectProgramFilter || b.programId === subjectProgramFilter))
-        .map(b => [b.levelId, { value: b.levelId, label: b.levelName }])
+        .filter(b => {
+          if (activeBranchId && Number(b.branchId) !== Number(activeBranchId)) return false;
+          if (subjectCourseFilter && String(b.courseId) !== String(subjectCourseFilter) && b.courseName !== subjectCourseFilter) return false;
+          if (subjectProgramFilter && String(b.programId) !== String(subjectProgramFilter) && b.programName !== subjectProgramFilter) return false;
+          return Boolean(b.levelId && b.levelName);
+        })
+        .map(b => [String(b.levelId), { value: String(b.levelId), label: b.levelName }])
     ).values()
   );
 
   const filteredBatches = dbBatches.filter(b => {
-    if (courseFilter && b.courseId !== courseFilter) return false;
-    if (programFilter && b.programId !== programFilter) return false;
-    if (levelFilter && b.levelId !== levelFilter) return false;
+    if (activeBranchId && Number(b.branchId) !== Number(activeBranchId)) return false;
+    if (courseFilter && String(b.courseId) !== String(courseFilter) && b.courseName !== courseFilter) return false;
+    if (programFilter && String(b.programId) !== String(programFilter) && b.programName !== programFilter) return false;
+    if (levelFilter && String(b.levelId) !== String(levelFilter) && b.levelName !== levelFilter) return false;
     if (batchSearch) {
       const q = batchSearch.toLowerCase();
       const matchName = b.name?.toLowerCase().includes(q);
@@ -608,17 +702,62 @@ export const StaffCreate: React.FC = () => {
   return (
     <div className="animate-fade-in space-y-5">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <button type="button" onClick={() => navigate('/staff')} className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors">
-          <ArrowLeft size={15} /> Staff Directory
-        </button>
-        <ChevronRight size={13} className="text-slate-300" />
-        <span className="font-semibold text-slate-800">{isEditMode ? 'Edit Employee Details' : 'New Employee Registration'}</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm">
+          <button type="button" onClick={() => navigate('/staff')} className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors">
+            <ArrowLeft size={15} /> Staff Directory
+          </button>
+          <ChevronRight size={13} className="text-slate-300" />
+          <span className="font-semibold text-slate-800">
+            {isViewOnly ? 'Staff Profile Details' : isEditMode ? 'Edit Employee Details' : 'New Employee Registration'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isViewOnly && (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => setIsViewOnly(false)}
+              className="flex items-center gap-1.5 font-semibold"
+            >
+              <Edit3 size={15} /> Edit Profile
+            </Button>
+          )}
+          {isEditMode && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setDeleteModalOpen(true)}
+              className="flex items-center gap-1.5 font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            >
+              <Trash2 size={15} /> Delete Staff
+            </Button>
+          )}
+        </div>
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">{isEditMode ? `Edit Profile: ${form.firstName} ${form.lastName}` : 'New Employee Registration'}</h1>
-        <p className="text-sm text-slate-500 mt-1">Fill in each section. Teacher-specific fields appear automatically based on assigned roles.</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-slate-900">
+            {isViewOnly 
+              ? `Staff Profile: ${form.firstName} ${form.lastName}`.trim() || 'Staff Profile'
+              : isEditMode 
+                ? `Edit Profile: ${form.firstName} ${form.lastName}`.trim() 
+                : 'New Employee Registration'}
+          </h1>
+          {isViewOnly && (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              View Only
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-slate-500 mt-1">
+          {isViewOnly 
+            ? 'Review staff details, contact info, employment attributes, branch allocations, and system credentials.' 
+            : 'Fill in each section. Teacher-specific fields appear automatically based on assigned roles.'}
+        </p>
       </div>
 
       <div className="flex border-b border-slate-200 gap-2 flex-wrap bg-white rounded-xl shadow-sm px-2 pt-2">
@@ -736,110 +875,131 @@ export const StaffCreate: React.FC = () => {
           {/* BRANCH & ROLE */}
           {currentTabId === 'branch' && (
             <div className="space-y-6">
-              <div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                  <div>
-                    <SectionTitle>Branch Assignment</SectionTitle>
-                    <p className="text-xs text-slate-500 -mt-2">
-                      Assign all branches where this staff member operates. Click to select multiple branches and designate one as the Primary Branch.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
-                      form.assignedBranchIds.length > 0
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}>
-                      {form.assignedBranchIds.length} {form.assignedBranchIds.length === 1 ? 'Branch' : 'Branches'} Assigned
+              {isBranchAdmin ? (
+                <div>
+                  <SectionTitle>Branch Assignment</SectionTitle>
+                  <p className="text-xs text-slate-500 -mt-2 mb-3">
+                    New staff registrations and batch assignments are automatically tied to your authorized branch.
+                  </p>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Authorized Branch</span>
+                      <strong className="text-base font-bold text-slate-900">{authorizedBranchObj?.name || currentUser?.branch || 'Authorized Branch'}</strong>
+                      {authorizedBranchObj?.city && (
+                        <span className="text-xs text-slate-500 ml-2 font-medium">({authorizedBranchObj.city})</span>
+                      )}
+                    </div>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      ★ Active Branch Scope
                     </span>
-                    <button
-                      type="button"
-                      onClick={selectAllBranches}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearAllBranches}
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1 rounded border border-slate-200 transition-colors"
-                    >
-                      Clear
-                    </button>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-3">
-                  {availableBranches.map(branch => {
-                    const isSelected = form.assignedBranchIds.includes(branch.id);
-                    const isPrimary = form.primaryBranchId === branch.id || (!form.primaryBranchId && form.assignedBranchIds[0] === branch.id);
-
-                    return (
-                      <div
-                        key={branch.id}
-                        onClick={() => toggleBranch(branch.id)}
-                        className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between gap-3 ${
-                          isSelected
-                            ? 'border-blue-600 bg-blue-50/40 shadow-sm ring-1 ring-blue-500/20'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
-                        }`}
+              ) : (
+                <div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div>
+                      <SectionTitle>Branch Assignment</SectionTitle>
+                      <p className="text-xs text-slate-500 -mt-2">
+                        Assign all branches where this staff member operates. Click to select multiple branches and designate one as the Primary Branch.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                        form.assignedBranchIds.length > 0
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {form.assignedBranchIds.length} {form.assignedBranchIds.length === 1 ? 'Branch' : 'Branches'} Assigned
+                      </span>
+                      <button
+                        type="button"
+                        onClick={selectAllBranches}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors"
                       >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
-                            }`}
-                          >
-                            {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-bold text-slate-900 leading-snug truncate">{branch.name}</h4>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                              {branch.code && (
-                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                  {branch.code}
-                                </span>
-                              )}
-                              {branch.city && (
-                                <span className="text-xs text-slate-500">{branch.city}</span>
-                              )}
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearAllBranches}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1 rounded border border-slate-200 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-3">
+                    {availableBranches.map(branch => {
+                      const isSelected = form.assignedBranchIds.includes(branch.id);
+                      const isPrimary = form.primaryBranchId === branch.id || (!form.primaryBranchId && form.assignedBranchIds[0] === branch.id);
+
+                      return (
+                        <div
+                          key={branch.id}
+                          onClick={() => toggleBranch(branch.id)}
+                          className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between gap-3 ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/40 shadow-sm ring-1 ring-blue-500/20'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-sm font-bold text-slate-900 leading-snug truncate">{branch.name}</h4>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                {branch.code && (
+                                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                    {branch.code}
+                                  </span>
+                                )}
+                                {branch.city && (
+                                  <span className="text-xs text-slate-500">{branch.city}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
+
+                          {isSelected && (
+                            <div className="pt-2 border-t border-blue-100 flex items-center justify-between">
+                              {isPrimary ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                  ★ Primary Branch
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPrimaryBranch(branch.id);
+                                  }}
+                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                  Set as Primary
+                                </button>
+                              )}
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Assigned</span>
+                            </div>
+                          )}
                         </div>
-
-                        {isSelected && (
-                          <div className="pt-2 border-t border-blue-100 flex items-center justify-between">
-                            {isPrimary ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                ★ Primary Branch
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPrimaryBranch(branch.id);
-                                }}
-                                className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                Set as Primary
-                              </button>
-                            )}
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Assigned</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {form.assignedBranchIds.length === 0 && (
-                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
-                    <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
-                    <span>Please assign at least one branch for this employee.</span>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
+
+                  {form.assignedBranchIds.length === 0 && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+                      <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" />
+                      <span>Please assign at least one branch for this employee.</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <SectionTitle>System Role Assignment</SectionTitle>
               <p className="text-xs text-slate-500 -mt-3 mb-2">
@@ -1447,6 +1607,10 @@ export const StaffCreate: React.FC = () => {
             <Button type="button" variant="primary" onClick={() => setActiveTab(i => Math.min(tabList.length - 1, i + 1))}>
               Next <ChevronRight size={16} className="ml-1" />
             </Button>
+          ) : isViewOnly ? (
+            <Button type="button" variant="primary" onClick={() => setIsViewOnly(false)} className="flex items-center gap-1.5 font-semibold">
+              <Edit3 size={16} className="mr-1" /> Edit Profile
+            </Button>
           ) : (
             <Button type="button" variant="primary" style={{ backgroundColor: '#10b981', borderColor: '#10b981' }} onClick={handleSubmit} disabled={loading}>
               {loading ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <CheckCircle size={16} className="mr-1.5" />}
@@ -1455,6 +1619,50 @@ export const StaffCreate: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Staff Confirmation Modal */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => !isDeleting && setDeleteModalOpen(false)}
+        title="Delete Staff Member"
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex items-start gap-3.5 p-1">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 text-red-600">
+            <AlertTriangle size={20} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-800">
+              Are you sure you want to delete <strong className="text-slate-900">{`${form.firstName || ''} ${form.lastName || ''}`.trim() || 'this staff member'}</strong>?
+            </p>
+            <p className="text-xs text-slate-500">
+              This action will mark the staff member as <span className="font-semibold text-red-600">Deleted</span> and revoke their portal access immediately.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -15,7 +15,7 @@ export const Table: React.FC<TableProps> = ({ headers, children, className = '',
     <div className="align-middle">
       <div className="border border-slate-200/80 rounded-xl bg-white shadow-sm overflow-hidden">
         {dense ? (
-          <table className="w-full table-fixed border-collapse text-left">
+          <table className={`w-full ${colWidths ? 'table-fixed' : 'table-auto'} border-collapse text-left`}>
             {colWidths && (
               <colgroup>
                 {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}

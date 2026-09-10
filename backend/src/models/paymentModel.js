@@ -16,7 +16,10 @@ const PAYMENT_MODES = ['UPI', 'Cash', 'Cheque', 'Bank Transfer'];
  * Loads a student's fee ledger: base student info, the master fee assignment,
  * and all invoices ordered by installment number.
  */
-const getStudentLedger = async (tenantId, studentId) => {
+const getStudentLedger = async (tenantId, studentId, accessContext = null) => {
+    const isBranchScope = accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId;
+    const branchId = isBranchScope ? Number(accessContext.authorizedBranchId) : null;
+
     const [students] = await pool.query(
         `SELECT
             s.id,
@@ -45,6 +48,10 @@ const getStudentLedger = async (tenantId, studentId) => {
     if (students.length === 0) throw httpError(404, 'Student not found');
 
     const student = students[0];
+
+    if (isBranchScope && Number(student.primary_branch_id) !== branchId) {
+        throw httpError(403, 'Forbidden: You cannot access student records from another branch.');
+    }
 
     const [feeRows] = await pool.query(
         `SELECT * FROM student_fee_assignments
@@ -497,8 +504,217 @@ const createCollectionInvoice = async ({
     }
 };
 
+/**
+ * Loads current fee assignment for a student, verifying branch access.
+ */
+const getStudentFeeAssignment = async (tenantId, studentId, accessContext = null) => {
+    const ledger = await getStudentLedger(tenantId, studentId, accessContext);
+    if (!ledger.feeAssignment) {
+        throw httpError(404, 'No fee assignment found for this student');
+    }
+
+    // Resolve course / program name from student's batch or fee source
+    let sourceName = 'Assigned Program';
+    if (ledger.feeAssignment.fee_source_type === 'bundle' && ledger.feeAssignment.fee_source_id) {
+        const [bRows] = await pool.query(
+            `SELECT name FROM subject_bundles WHERE id = ? AND tenant_id = ?`,
+            [ledger.feeAssignment.fee_source_id, tenantId]
+        );
+        if (bRows[0]) sourceName = `Bundle: ${bRows[0].name}`;
+    } else if (ledger.batch_id) {
+        const [batRows] = await pool.query(
+            `SELECT c.name AS course_name, p.name AS program_name
+             FROM batches b
+             LEFT JOIN levels l ON l.id = b.level_id
+             LEFT JOIN programs p ON p.id = l.program_id
+             LEFT JOIN courses c ON c.id = p.course_id
+             WHERE b.id = ? AND b.tenant_id = ?`,
+            [ledger.batch_id, tenantId]
+        );
+        if (batRows[0]) {
+            sourceName = `${batRows[0].course_name || ''} - ${batRows[0].program_name || ''}`.trim() || sourceName;
+        }
+    }
+
+    const fa = ledger.feeAssignment;
+    return {
+        id: fa.id,
+        studentId: ledger.id,
+        studentName: ledger.full_name,
+        studentCode: ledger.student_code,
+        branchId: ledger.primary_branch_id,
+        branchName: ledger.branch_name,
+        enrollmentId: ledger.enrollment_id,
+        feeSourceType: fa.fee_source_type,
+        feeSourceId: fa.fee_source_id,
+        feeSourceName: sourceName,
+        grossAmount: fa.gross_amount,
+        totalConcession: fa.total_concession,
+        netAmount: fa.net_amount,
+        downPayment: fa.down_payment,
+        installmentCount: fa.installment_count,
+        installmentAmount: fa.installment_amount,
+        paidAmount: fa.paid_amount,
+        balanceAmount: fa.balance_amount,
+        status: fa.status
+    };
+};
+
+/**
+ * Updates a student's commercial fee assignment within a strict transaction.
+ * Server authoritatively calculates net_amount, balance_amount, installment_amount, and status.
+ * Preserves historical paid amount and paid invoices.
+ */
+const updateStudentFeeAssignment = async (tenantId, studentId, payload, accessContext = null, userId = 1) => {
+    const tid = Number(tenantId);
+    const sid = Number(studentId);
+
+    const grossAmount = round2(Number(payload.grossAmount));
+    const totalConcession = round2(Number(payload.totalConcession || 0));
+    const downPayment = round2(Number(payload.downPayment || 0));
+    const installmentCount = Math.max(1, parseInt(payload.installmentCount, 10) || 1);
+
+    if (isNaN(grossAmount) || grossAmount < 0) {
+        throw httpError(400, 'Gross amount must be a valid non-negative number');
+    }
+    if (isNaN(totalConcession) || totalConcession < 0) {
+        throw httpError(400, 'Concession must be a valid non-negative number');
+    }
+    if (totalConcession > grossAmount) {
+        throw httpError(400, 'Concession cannot exceed gross amount');
+    }
+    if (isNaN(downPayment) || downPayment < 0) {
+        throw httpError(400, 'Down payment must be a valid non-negative number');
+    }
+
+    const netAmount = round2(grossAmount - totalConcession);
+    if (downPayment > netAmount) {
+        throw httpError(400, 'Down payment cannot exceed net payable amount');
+    }
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // 1. Verify student and branch
+        const [students] = await conn.query(
+            `SELECT s.id, s.primary_branch_id, se.id AS enrollment_id
+             FROM students s
+             JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+             WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
+             FOR UPDATE`,
+            [tid, sid]
+        );
+        if (students.length === 0) throw httpError(404, 'Student enrollment not found');
+
+        const student = students[0];
+        if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
+            if (Number(student.primary_branch_id) !== Number(accessContext.authorizedBranchId)) {
+                throw httpError(403, 'Forbidden: You cannot modify fee assignments for students outside your branch.');
+            }
+        }
+
+        // 2. Lock fee assignment
+        const [feeRows] = await conn.query(
+            `SELECT * FROM student_fee_assignments 
+             WHERE student_id = ? AND tenant_id = ? 
+             ORDER BY id DESC LIMIT 1 
+             FOR UPDATE`,
+            [sid, tid]
+        );
+        if (feeRows.length === 0) throw httpError(404, 'Fee assignment not found');
+
+        const currentFee = feeRows[0];
+        const existingPaid = round2(Number(currentFee.paid_amount) || 0);
+
+        // 3. Server calculations
+        const balanceAmount = round2(Math.max(0, netAmount - existingPaid));
+        const remAfterDown = Math.max(0, netAmount - downPayment);
+        const installmentAmount = installmentCount > 0 ? round2(remAfterDown / installmentCount) : 0;
+        const newStatus = balanceAmount <= 0 ? 'paid' : (existingPaid > 0 ? 'partial' : 'unpaid');
+
+        // 4. Update assignment
+        await conn.query(
+            `UPDATE student_fee_assignments SET
+                gross_amount = ?,
+                total_concession = ?,
+                net_amount = ?,
+                down_payment = ?,
+                installment_count = ?,
+                installment_amount = ?,
+                balance_amount = ?,
+                status = ?,
+                updated_by = ?,
+                updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [
+                grossAmount,
+                totalConcession,
+                netAmount,
+                downPayment,
+                installmentCount,
+                installmentAmount,
+                balanceAmount,
+                newStatus,
+                userId,
+                currentFee.id
+            ]
+        );
+
+        await conn.commit();
+
+        return {
+            id: currentFee.id,
+            studentId: sid,
+            grossAmount,
+            totalConcession,
+            netAmount,
+            downPayment,
+            installmentCount,
+            installmentAmount,
+            paidAmount: existingPaid,
+            balanceAmount,
+            status: newStatus
+        };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
+/**
+ * Retrieves invoice by ID with branch check.
+ */
+const getInvoiceById = async (tenantId, invoiceId, accessContext = null) => {
+    const tid = Number(tenantId);
+    const invId = Number(invoiceId);
+
+    const [rows] = await pool.query(
+        `SELECT si.*, s.full_name AS student_name, s.student_code, b.name AS branch_name
+         FROM student_invoices si
+         JOIN students s ON s.id = si.student_id
+         LEFT JOIN branches b ON b.id = si.branch_id
+         WHERE si.id = ? AND si.tenant_id = ?`,
+        [invId, tid]
+    );
+    if (rows.length === 0) throw httpError(404, 'Invoice not found');
+
+    const inv = rows[0];
+    if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
+        if (Number(inv.branch_id) !== Number(accessContext.authorizedBranchId)) {
+            throw httpError(403, 'Forbidden: You cannot view invoices outside your authorized branch.');
+        }
+    }
+    return inv;
+};
+
 module.exports = {
     getStudentLedger,
+    getStudentFeeAssignment,
+    updateStudentFeeAssignment,
     recordPayment,
-    createCollectionInvoice
+    createCollectionInvoice,
+    getInvoiceById
 };

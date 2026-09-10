@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useAuth } from './AuthContext';
 import { feeApi, type ProgramFeePlan } from '../services/feeApi';
 import { bundleApi, type SubjectBundle } from '../services/bundleApi';
 
@@ -48,17 +49,19 @@ const mapBundle = (b: SubjectBundle): CustomBundle => ({
 });
 
 export const FeeConfigProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
   const [plans, setPlans] = useState<ProgramFeePlan[]>([]);
   const [customBundles, setCustomBundles] = useState<CustomBundle[]>([]);
   const [isLoadingFees, setIsLoadingFees] = useState(true);
 
   const refreshFees = useCallback(async () => {
+    setIsLoadingFees(true);
     try {
       const planResponse = await feeApi.listFeePlans({ page: 1, limit: 500 });
-      setPlans(planResponse.data);
+      setPlans(planResponse.data || []);
 
       const bundleResponse = await bundleApi.list({ page: 1, limit: 500 });
-      setCustomBundles(bundleResponse.data.map(mapBundle));
+      setCustomBundles((bundleResponse.data || []).map(mapBundle));
     } catch (error) {
       console.error('Failed to load fee structures:', error);
     } finally {
@@ -68,7 +71,7 @@ export const FeeConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   useEffect(() => {
     refreshFees();
-  }, [refreshFees]);
+  }, [refreshFees, currentUser?.id, currentUser?.role, currentUser?.branch]);
 
   return (
     <FeeConfigContext.Provider value={{

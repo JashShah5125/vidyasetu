@@ -32,6 +32,7 @@ import { Students } from './pages/Students';
 import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
+import { LectureAttendance } from './pages/LectureAttendance';
 import { Assignments } from './pages/Assignments';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
@@ -366,6 +367,7 @@ const ContentRouter = () => {
       <Route path="/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
+      <Route path="/attendance/lecture/:lectureId" element={<LectureAttendance />} />
       <Route path="/assignments" element={isTeacher || currentUser?.role === 'inst-admin' || currentUser?.role === 'branch-admin' ? <TeacherAssignments /> : <Assignments />} />
       <Route path="/homework" element={<StudentHomework />} />
       <Route path="/teacher-notifications" element={<TeacherNotifications />} />

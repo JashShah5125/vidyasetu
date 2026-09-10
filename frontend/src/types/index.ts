@@ -6,6 +6,8 @@ export interface UserProfile {
   email: string;
   role: Role;
   branch?: string;
+  branchId?: string;
+  branchCode?: string;
   tenantId?: string;
   tenantName?: string;
   mustChangePassword?: boolean;
@@ -82,7 +84,7 @@ export interface Student {
   yearOfAttempt: string;
   status: 'Draft' | 'Registration Pending' | 'Documents Submitted' | 'Verification Pending' | 'Active Student';
   
-  // Legacy fields (for backward compatibility with unmigrated pages)
+  // Legacy fields (for backward compatibility)
   course?: string;
   program?: string;
   level?: string;
@@ -137,13 +139,13 @@ export interface AuditLog {
 
 export interface AcademicLevel {
   id: string;
-  name: string; // e.g. "Class XI", "Year 1"
+  name: string;
   duration?: string;
 }
 
 export interface Program {
   id: string;
-  name: string; // e.g. "2 Year", "1 Year Crash Course"
+  name: string;
   code: string;
   enabled: boolean;
   levels: AcademicLevel[];
@@ -157,8 +159,8 @@ export interface Course {
   description?: string;
   duration?: string;
   branches?: string[];
-  programs?: string[]; // Legacy array of strings for backward compatibility
-  programDetails?: Program[]; // New relational structure
+  programs?: string[];
+  programDetails?: Program[];
   batches?: string | string[];
   status?: 'Active' | 'Inactive';
 }
@@ -179,7 +181,7 @@ export interface Branch {
   id?: string;
   name: string;
   code: string;
-  admin: string; // ID or Name of branch admin
+  admin: string;
   adminEmail?: string;
   adminMobile?: string;
   capacity: number;
@@ -197,17 +199,16 @@ export interface Branch {
   programs?: string[];
   courses?: string[];
   altEmails?: string[];
-  defaultEmail?: string; // 'admin' | alt email string
+  defaultEmail?: string;
 }
 
 export interface Staff {
-  // Basic Info
   id?: string;
   employeeId?: string;
   firstName: string;
   middleName?: string;
   lastName: string;
-  name: string; // derived: firstName + lastName
+  name: string;
   gender?: string;
   dob?: string;
   bloodGroup?: string;
@@ -216,7 +217,6 @@ export interface Staff {
   pan?: string;
   profilePhoto?: string;
 
-  // Contact
   mobile: string;
   alternateMobile?: string;
   email: string;
@@ -229,7 +229,6 @@ export interface Staff {
   country?: string;
   pinCode?: string;
 
-  // Employment
   employeeType?: 'Teaching' | 'Non-Teaching';
   designation?: string;
   department?: string;
@@ -240,16 +239,14 @@ export interface Staff {
   experience?: string;
   qualification?: string;
 
-  // Branch & Role
-  branch: string; // primary branch (legacy compat)
+  branch: string;
   primaryBranch?: string;
   additionalBranches?: string[];
-  roles?: string[]; // multi-role
-  role: string; // primary role (legacy compat)
+  roles?: string[];
+  role: string;
   workingDays?: string[];
   defaultShift?: string;
 
-  // Teacher Info (conditional on 'Teacher' role)
   subjects?: string[];
   coursesAssigned?: string[];
   programsAssigned?: string[];
@@ -263,7 +260,6 @@ export interface Staff {
   teachingMode?: ('Online' | 'Offline' | 'Hybrid')[];
   biometricMandatory?: boolean;
 
-  // Salary
   salaryType?: 'Monthly' | 'Hourly' | 'Contract';
   monthlySalary?: number;
   hourlyRate?: number;
@@ -278,7 +274,6 @@ export interface Staff {
   professionalTax?: boolean;
   tdsApplicable?: boolean;
 
-  // System Access
   createLogin?: boolean;
   username?: string;
   mobileLogin?: boolean;
@@ -303,7 +298,7 @@ export interface Doubt {
   studentId: string;
   studentName: string;
   subject: string;
-  batch: string; // the batch ID context
+  batch: string;
   messages: DoubtMessage[];
   status: 'Pending' | 'In Progress' | 'Resolved' | 'Reopened';
   createdAt: string;
@@ -324,101 +319,37 @@ export interface AppNotification {
   sender: string;
   senderRole: string;
   createdAt: string;
-  direction: 'Incoming' | 'Outgoing'; // relative to the teacher viewing it
-  status: 'Read' | 'Unread'; 
-  recipients: NotificationRecipient[];
-  recipientCount?: number;
-  attachments?: string[];
+  direction: 'Incoming' | 'Outgoing';
+  status: 'Unread' | 'Read';
+  recipients?: NotificationRecipient[];
+  attachmentName?: string;
 }
 
-export const INITIAL_TENANTS: Tenant[]  = [];
-
-
-import leadsJson from './leads.json';
-import studentsJson from './students.json';
-
-export const INITIAL_LEADS: Lead[]  = [];
-
-export const INITIAL_PARENTS: Parent[]  = [];
-
-export const INITIAL_STUDENTS: Student[]  = [];
-
-export const INITIAL_ENROLLMENTS: Enrollment[]  = [];
-
-export const INITIAL_FEE_RECORDS: FeeRecord[]  = [];
-
-export const INITIAL_DOCUMENTS: Document[]  = [];
-
-export const INITIAL_COURSES: Course[]  = [];
-
-export const INITIAL_BATCHES: Batch[]  = [];
-
-export const INITIAL_BRANCHES: Branch[]  = [];
-
-export const INITIAL_STAFF: Staff[]  = [];
-
-export const INITIAL_DOUBTS: Doubt[]  = [];
-
-export const INITIAL_NOTIFICATIONS: AppNotification[]  = [];
-
-export const INITIAL_AUDIT_LOGS: AuditLog[]  = [];
-
-export const formatDate = (dateStr: string | undefined): string => {
-  if (!dateStr) return '';
-  const cleanStr = dateStr.split('T')[0];
-  const parts = cleanStr.split('-');
-  if (parts.length === 3) {
-    if (parts[0].length === 4) {
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
-    return cleanStr;
-  }
-  return dateStr;
-};
-
-export const getTenantStatus = (t: { status: string; startDate?: string }): string => {
-  if (t.startDate) {
-    const today = new Date('2026-08-13');
-    const start = new Date(t.startDate);
-    if (start > today) {
-      return 'Pending';
-    }
-  }
-  return t.status;
-};
-
-// ─── Feature Access Flags ─────────────────────────────────────────────────
 export interface FeatureAccess {
-  // Core ERP
   admissions: boolean;
   studentManagement: boolean;
   parentPortal: boolean;
   teacherPortal: boolean;
   attendance: boolean;
   timetable: boolean;
-  // Academic
   assignments: boolean;
   exams: boolean;
   results: boolean;
   doubts: boolean;
-  // Finance
   fees: boolean;
   payroll: boolean;
   income: boolean;
   expenses: boolean;
-  // Communication
   notifications: boolean;
   sms: boolean;
   whatsapp: boolean;
   email: boolean;
-  // Administration
   reports: boolean;
   auditLogs: boolean;
   importExport: boolean;
   apiAccess: boolean;
 }
 
-// ─── Support Configuration ─────────────────────────────────────────────────
 export interface SupportConfig {
   emailSupport: boolean;
   chatSupport: boolean;
@@ -427,7 +358,6 @@ export interface SupportConfig {
   onboardingAssistance: boolean;
 }
 
-// ─── Branding Configuration ────────────────────────────────────────────────
 export interface BrandingConfig {
   whiteLabel: boolean;
   customDomain: boolean;
@@ -435,7 +365,6 @@ export interface BrandingConfig {
   customEmailTemplates: boolean;
 }
 
-// ─── Integrations ──────────────────────────────────────────────────────────
 export interface IntegrationConfig {
   razorpay: boolean;
   cashfree: boolean;
@@ -447,16 +376,13 @@ export interface IntegrationConfig {
   apiAccess: boolean;
 }
 
-// ─── Plan Master ───────────────────────────────────────────────────────────
 export interface SubscriptionPlan {
   id: string;
-  // Section 1 – Basic Info
   name: string;
   code: string;
   description: string;
   status: 'Active' | 'Inactive';
   displayOrder: number;
-  // Section 2 – Billing
   billingType: 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime';
   price: number;
   currency: string;
@@ -464,7 +390,6 @@ export interface SubscriptionPlan {
   setupFee: number;
   renewalPrice: number;
   autoRenewal: boolean;
-  // Section 3 – Resource Limits (use -1 for Unlimited)
   maxBranches: number;
   maxStaffUsers: number;
   maxStudents: number;
@@ -475,37 +400,28 @@ export interface SubscriptionPlan {
   maxSmsCredits: number;
   maxWhatsappMsgs: number;
   maxApiCalls: number;
-  // Section 4 – Feature Access
   features: FeatureAccess;
-  // Section 5 – Support
   support: SupportConfig;
-  // Section 6 – Branding
   branding: BrandingConfig;
-  // Section 7 – Integrations
   integrations: IntegrationConfig;
-  // Section 8 – Notes
   notes: string;
   visibleTo?: string[];
 }
 
-// ─── Tenant Subscription (Plan assignment to a Tenant) ─────────────────────
 export interface TenantSubscription {
   id: string;
   tenantId: string;
   tenantName: string;
   planId: string;
   planName: string;
-  // Subscription period
   startDate: string;
   expiryDate: string;
   billingCycle: 'Monthly' | 'Quarterly' | 'Yearly' | 'Lifetime';
   status: 'Active' | 'Expired' | 'Cancelled' | 'Trial' | 'Pending';
-  // Commercial
   discount: number;
   finalPrice: number;
   tax: number;
   invoiceNumber: string;
-  // Override limits (null = use plan default, -1 = Unlimited)
   overrides: {
     maxBranches?: number;
     maxStaffUsers?: number;
@@ -520,41 +436,6 @@ export interface TenantSubscription {
   };
 }
 
-// ─── Defaults helpers ──────────────────────────────────────────────────────
-export const DEFAULT_FEATURES: FeatureAccess = {
-  admissions: false, studentManagement: false, parentPortal: false,
-  teacherPortal: false, attendance: false, timetable: false,
-  assignments: false, exams: false, results: false, doubts: false,
-  fees: false, payroll: false, income: false, expenses: false,
-  notifications: false, sms: false, whatsapp: false, email: false,
-  reports: false, auditLogs: false, importExport: false, apiAccess: false
-};
-
-export const DEFAULT_SUPPORT: SupportConfig = {
-  emailSupport: false, chatSupport: false, phoneSupport: false,
-  dedicatedAccountManager: false, onboardingAssistance: false
-};
-
-export const DEFAULT_BRANDING: BrandingConfig = {
-  whiteLabel: false, customDomain: false, customLogo: false, customEmailTemplates: false
-};
-
-export const DEFAULT_INTEGRATIONS: IntegrationConfig = {
-  razorpay: false, cashfree: false, biometricDevices: false,
-  zoom: false, googleMeet: false, googleCalendar: false,
-  whatsappBusiness: false, apiAccess: false
-};
-
-// ─── Initial Plans ──────────────────────────────────────────────────────────
-export const INITIAL_PLANS: SubscriptionPlan[]  = [];
-
-// ─── Initial Tenant Subscriptions ──────────────────────────────────────────
-export const INITIAL_TENANT_SUBSCRIPTIONS: TenantSubscription[]  = [];
-
-export const INITIAL_SUBJECTS_MAP: Record<string, any[]>  = {};
-
-export const INITIAL_BUNDLES_MAP: Record<string, any[]>  = {};
-
 export interface AssignmentItem {
   id: string;
   title: string;
@@ -567,8 +448,6 @@ export interface AssignmentItem {
   description?: string;
   attachmentName?: string;
 }
-
-export const TEACHER_INITIAL_ASSIGNMENTS: AssignmentItem[]  = [];
 
 export interface ExamItem {
   id: string;
@@ -586,8 +465,6 @@ export interface ExamItem {
   studentMarks?: { [studentId: string]: number };
 }
 
-export const INITIAL_EXAMS: ExamItem[]  = [];
-
 export interface FeePlan {
   id: string;
   course: string;
@@ -597,17 +474,6 @@ export interface FeePlan {
   months: number;
   installment: number;
 }
-
-export const INITIAL_FEE_PLANS: FeePlan[]  = [];
-
-import type { Lecture, Room } from '../features/scheduler/types/scheduler';
-
-export const INITIAL_ROOMS: Room[]  = [];
-
-export const INITIAL_LECTURES: Lecture[]  = [];
-
-
-import scheduleRequestsJson from './scheduleRequests.json';
 
 export interface ScheduleChange {
   id: string;
@@ -632,8 +498,6 @@ export interface ScheduleChange {
 }
 
 export type ScheduleRequest = ScheduleChange;
-export const INITIAL_SCHEDULE_REQUESTS: ScheduleRequest[]  = [];
-export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[]  = [];
 
 export interface Assignment {
   id: string;
@@ -645,10 +509,6 @@ export interface Assignment {
   submittedCount: number;
   totalCount: number;
 }
-
-export const INITIAL_ASSIGNMENTS: Assignment[]  = [];
-
-export const TEACHER_ASSIGNED_BATCHES = ['JEE-Morning-A1', 'NEET-Regular-B1', 'JEE-Evening-B1'];
 
 export interface StudentAttendanceRecord {
   studentId: string;
@@ -671,10 +531,6 @@ export interface AttendanceSubmission {
   records: StudentAttendanceRecord[];
 }
 
-const pastDateStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-export const INITIAL_ATTENDANCE_HISTORY: AttendanceSubmission[]  = [];
-
 export interface ExamResult {
   id: string;
   studentId: string;
@@ -687,13 +543,6 @@ export interface ExamResult {
   status: 'Published' | 'Under Review';
 }
 
-export const EXAM_RESULTS: ExamResult[] = [
-  { id: 'E1', studentId: 'STU-MUM-2603', examName: 'Periodic Test #3', subject: 'Chemistry', date: '2026-08-08', marks: 85, maxMarks: 100, grade: 'A', status: 'Published' },
-  { id: 'E2', studentId: 'STU-MUM-2603', examName: 'Unit Test #2', subject: 'Mathematics', date: '2026-08-01', marks: 78, maxMarks: 100, grade: 'B+', status: 'Published' },
-  { id: 'E3', studentId: 'STU-MUM-2603', examName: 'Weekly Quiz #5', subject: 'Physics', date: '2026-07-28', marks: 92, maxMarks: 100, grade: 'A+', status: 'Published' },
-  { id: 'E4', studentId: 'STU-MUM-2601', examName: 'Periodic Test #3', subject: 'Chemistry', date: '2026-08-08', marks: 76, maxMarks: 100, grade: 'B+', status: 'Published' },
-];
-
 export interface SupportTicket {
   id: string;
   tenantName: string;
@@ -705,4 +554,50 @@ export interface SupportTicket {
   replies: { sender: string; text: string; time: string }[];
 }
 
-export const INITIAL_SUPPORT_TICKETS: SupportTicket[]  = [];
+// ─── Constants & Fallback Arrays ───────────────────────────────────────────
+export const TEACHER_ASSIGNED_BATCHES: string[] = ['JEE-Morning-A1', 'NEET-Regular-B1', 'JEE-Evening-B1'];
+export const INITIAL_EXAMS: ExamItem[] = [];
+export const INITIAL_ASSIGNMENTS: Assignment[] = [];
+export const TEACHER_INITIAL_ASSIGNMENTS: AssignmentItem[] = [];
+export const INITIAL_COURSES: Course[] = [];
+export const INITIAL_BATCHES: Batch[] = [];
+export const INITIAL_BRANCHES: Branch[] = [];
+export const INITIAL_STAFF: Staff[] = [];
+export const INITIAL_DOUBTS: Doubt[] = [];
+export const INITIAL_NOTIFICATIONS: AppNotification[] = [];
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [];
+export const INITIAL_PLANS: SubscriptionPlan[] = [];
+export const INITIAL_TENANT_SUBSCRIPTIONS: TenantSubscription[] = [];
+export const INITIAL_SUBJECTS_MAP: Record<string, any[]> = {};
+export const INITIAL_BUNDLES_MAP: Record<string, any[]> = {};
+export const INITIAL_FEE_PLANS: FeePlan[] = [];
+export const INITIAL_SCHEDULE_REQUESTS: ScheduleRequest[] = [];
+export const INITIAL_SCHEDULE_CHANGES: ScheduleChange[] = [];
+export const INITIAL_ATTENDANCE_HISTORY: AttendanceSubmission[] = [];
+export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [];
+export const EXAM_RESULTS: ExamResult[] = [];
+
+export const formatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return '';
+  const cleanStr = dateStr.split('T')[0];
+  const parts = cleanStr.split('-');
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return cleanStr;
+  }
+  return dateStr;
+};
+
+export const getTenantStatus = (t: { status: string; startDate?: string }): string => {
+  if (t.startDate) {
+    const today = new Date();
+    const start = new Date(t.startDate);
+    if (start > today) {
+      return 'Pending';
+    }
+  }
+  return t.status;
+};
+

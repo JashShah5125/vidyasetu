@@ -8,27 +8,49 @@ export interface StaffFilters {
     employeeType?: string;
     department?: string;
     role?: string;
+    status?: string;
 }
+
+const getStaffBasePath = (): string => {
+    try {
+        const savedUser = localStorage.getItem('vs_current_user');
+        if (savedUser) {
+            const user = JSON.parse(savedUser);
+            const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
+            if (role === 'branch-admin') {
+                return '/branch/staff';
+            }
+        }
+    } catch (e) {
+        // Fallback to admin route
+    }
+    return '/admin/staff';
+};
 
 export const staffApi = {
     list: async (filters: StaffFilters = {}) => {
-        const { data } = await api.get('/admin/staff', { params: filters });
+        const basePath = getStaffBasePath();
+        const { data } = await api.get(basePath, { params: filters });
         return data;
     },
     getById: async (id: string) => {
-        const { data } = await api.get(`/admin/staff/${id}`);
+        const basePath = getStaffBasePath();
+        const { data } = await api.get(`${basePath}/${id}`);
         return data;
     },
     create: async (payload: any) => {
-        const { data } = await api.post('/admin/staff', payload);
+        const basePath = getStaffBasePath();
+        const { data } = await api.post(basePath, payload);
         return data;
     },
     update: async (id: string, payload: any) => {
-        const { data } = await api.put(`/admin/staff/${id}`, payload);
+        const basePath = getStaffBasePath();
+        const { data } = await api.put(`${basePath}/${id}`, payload);
         return data;
     },
     delete: async (id: string) => {
-        const { data } = await api.delete(`/admin/staff/${id}`);
+        const basePath = getStaffBasePath();
+        const { data } = await api.delete(`${basePath}/${id}`);
         return data;
     }
 };

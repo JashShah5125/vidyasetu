@@ -4,7 +4,7 @@ import { Table } from '../../../components/ui/Table';
 import { Modal } from '../../../components/ui/Modal';
 import { useApp } from '../../../context/AppContext';
 import { useScheduler } from '../context/SchedulerContext';
-import type { ScheduleChange } from '../../../data/mockData';
+import type { ScheduleChange } from '../../../types';
 import scheduleRequestsData from '../../../data/scheduleRequests.json';
 import teachersList from '../../../data/teachers.json';
 import classroomsList from '../../../data/classrooms.json';

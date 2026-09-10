@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Role, UserProfile } from '../data/mockData';
+import type { Role, UserProfile } from '../types';
 import api from '../services/api';
 
 interface AuthContextType {
@@ -86,6 +86,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           tenantId: user.tenantId !== undefined && user.tenantId !== null ? String(user.tenantId) : undefined,
           tenantName: user.tenantName || (user.isSaasAdmin ? 'Vidya Setu Platform' : 'Institute Name'),
           branch: user.branch || '',
+          branchId: user.branchId ? String(user.branchId) : undefined,
+          branchCode: user.branchCode || undefined,
           mustChangePassword: Boolean(user.mustChangePassword)
         };
 

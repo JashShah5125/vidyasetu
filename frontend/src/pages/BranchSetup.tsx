@@ -8,6 +8,7 @@ import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown, Upload, 
 import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
 import { branchApi, toBranch } from '../services/branchApi';
 
 export const BranchSetup: React.FC = () => {
@@ -21,6 +22,7 @@ export const BranchSetup: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; code: string; name: string } | null>(null);
 
   const loadBranches = useCallback(async () => {
     try {
@@ -35,14 +37,15 @@ export const BranchSetup: React.FC = () => {
     loadBranches();
   }, [loadBranches]);
 
-  const handleDelete = async (branchId: string, branchCode: string, branchName: string) => {
-    if (!window.confirm(`Delete branch "${branchName}"? This action cannot be undone.`)) return;
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await branchApi.remove(branchId || branchCode);
-      setBranches(prev => prev.filter(b => (b.id || b.code) !== (branchId || branchCode)));
-      addToast('Branch deleted successfully.');
+      await branchApi.remove(deleteTarget.id || deleteTarget.code);
+      setBranches(prev => prev.filter(b => (b.id || b.code) !== (deleteTarget.id || deleteTarget.code)));
+      addToast(`Branch "${deleteTarget.name}" deleted successfully.`, 'success');
+      setDeleteTarget(null);
     } catch {
-      addToast('Failed to delete branch.');
+      addToast('Failed to delete branch.', 'error');
     }
   };
 
@@ -68,7 +71,14 @@ export const BranchSetup: React.FC = () => {
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
   }, [branches, courses, search, filterStatus, filterProgram, filterCourse, currentUser]);
 
-  const uniquePrograms = useMemo(() => Array.from(new Set(courses.flatMap(c => c.programs || []))), [courses]);
+  const uniquePrograms = useMemo(() => {
+    const names = courses.flatMap(c => {
+      if (Array.isArray(c.programDetails)) return c.programDetails.map((p: any) => typeof p === 'string' ? p : p?.name);
+      if (Array.isArray(c.programs)) return c.programs.map((p: any) => typeof p === 'string' ? p : p?.name);
+      return [];
+    }).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [courses]);
   const courseOptions = [{ value: 'All', label: 'All Courses' }, ...courses.map(c => ({ value: c.name, label: c.name }))];
   const programOptions = [{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))];
 
@@ -215,8 +225,8 @@ export const BranchSetup: React.FC = () => {
                       </button>
                       {currentUser?.role !== 'branch-admin' && (
                         <button
-                          onClick={() => handleDelete(branch.id || '', branch.code, branch.name)}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors"
+                          onClick={() => setDeleteTarget({ id: branch.id || '', code: branch.code, name: branch.name })}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-700 transition-colors cursor-pointer"
                         >
                           <Trash2 size={13} /> Delete
                         </button>
@@ -237,6 +247,15 @@ export const BranchSetup: React.FC = () => {
           </>
         )}
       </div>
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        itemType="branch"
+        itemName={deleteTarget?.name}
+        description="Deleting this branch will remove its center configurations and all associated classroom allocations."
+      />
 
       <BulkImportModal
         isOpen={isImportModalOpen}

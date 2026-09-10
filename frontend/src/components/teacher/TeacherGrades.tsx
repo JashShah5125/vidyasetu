@@ -7,7 +7,7 @@ import { Select } from '../ui/Select';
 import { Table } from '../ui/Table';
 import { Pagination } from '../ui/Pagination';
 import { Award, Search, FileSpreadsheet, CheckCircle2, ArrowLeft, Edit3 } from 'lucide-react';
-import { TEACHER_ASSIGNED_BATCHES } from '../../data/mockData';
+import { TEACHER_ASSIGNED_BATCHES } from '../../types';
 import teachersList from '../../data/teachers.json';
 import courseHierarchy from '../../data/courseHierarchy.json';
 

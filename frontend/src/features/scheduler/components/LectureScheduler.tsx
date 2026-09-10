@@ -14,7 +14,7 @@ import { TeacherRequestsTab } from './TeacherRequestsTab';
 import { DefaultTimetableTab } from './DefaultTimetableTab';
 import type { CreateTimetableContext } from './CreateTimetableWizard';
 import type { Lecture } from '../types/scheduler';
-import type { ScheduleChange } from '../../../data/mockData';
+import type { ScheduleChange } from '../../../types';
 import scheduleRequestsData from '../../../data/scheduleRequests.json';
 
 const getTeacherName = (id?: string) => {
@@ -49,15 +49,21 @@ export const LectureScheduler = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filters State (derived from URL Search Params)
-  const initialBranchName = currentUser?.role === 'branch-admin' ? currentUser.branch : '';
-  const initialBranch = initialBranchName 
-    ? (branches.find(b => b.name === initialBranchName || b.code === initialBranchName)?.code || '') 
-    : '';
-  const branch = searchParams.get('branch') || initialBranch || '';
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || currentUser?.role === 'branch_admin';
+  const assignedBranch = options?.branch || (currentUser?.branch ? branches.find(b => b.name === currentUser.branch || b.code === currentUser.branch) : null);
+  const initialBranch = assignedBranch ? (assignedBranch.code || assignedBranch.name) : '';
+  const branch = isBranchAdmin ? (assignedBranch?.code || assignedBranch?.name || searchParams.get('branch') || '') : (searchParams.get('branch') || initialBranch || '');
   const course = searchParams.get('course') || '';
   const program = searchParams.get('program') || '';
   const level = searchParams.get('level') || '';
   const batch = searchParams.get('batch') || '';
+
+  // Auto set branch in query params if branch admin
+  useEffect(() => {
+    if (isBranchAdmin && assignedBranch && searchParams.get('branch') !== (assignedBranch.code || assignedBranch.name)) {
+      updateFilter('branch', assignedBranch.code || assignedBranch.name);
+    }
+  }, [isBranchAdmin, assignedBranch]);
 
   const updateFilter = (key: string, value: string, resetKeys: string[] = []) => {
     setSearchParams(prev => {
@@ -193,19 +199,10 @@ export const LectureScheduler = () => {
   // Derived options
   const availableBatches = useMemo(() => {
     if (options?.batches && options.batches.length > 0) {
-      return options.batches.filter(b => {
-        if (branch) {
-          const bBranch = options?.branches?.find(br => br.id === b.branch_id);
-          if (bBranch && bBranch.code !== branch && bBranch.name !== branch && String(bBranch.id) !== branch) return false;
-        }
-        return true;
-      }).map(b => ({ id: String(b.id), name: b.name, code: b.code, branch: String(b.branch_id) }));
+      return options.batches.map(b => ({ id: String(b.id), name: b.name, code: b.code || '', branch: String(b.branch_id) }));
     }
-    return batches.filter(b => {
-      if (branch && b.branch !== branch && b.branch !== (branches.find(br => br.code === branch)?.name || '')) return false;
-      return true;
-    });
-  }, [batches, branch, branches, options]);
+    return [];
+  }, [options]);
 
   // Load weekly lectures from API whenever filters, activeTab, or selectedWeekStart change
   useEffect(() => {
@@ -245,45 +242,41 @@ export const LectureScheduler = () => {
     if (options?.courses && options.courses.length > 0) {
       return options.courses.map(c => c.name);
     }
-    return courseHierarchy.map(c => c.courseName);
+    return [];
   }, [options]);
 
   const availablePrograms = useMemo(() => {
     if (options?.programs && options.programs.length > 0) {
-      const selectedCourse = options.courses.find(c => c.name === course);
+      const selectedCourse = options.courses?.find(c => c.name === course || String(c.id) === course || c.code === course);
       if (selectedCourse) {
         return options.programs.filter(p => p.course_id === selectedCourse.id).map(p => p.name);
       }
+      return [];
     }
-    const c = courseHierarchy.find(x => x.courseName === course);
-    return c ? c.programs.map(p => p.programName) : [];
+    return [];
   }, [course, options]);
 
   const availableLevels = useMemo(() => {
     if (options?.levels && options.levels.length > 0) {
-      const selectedProgram = options.programs?.find(p => p.name === program);
+      const selectedProgram = options.programs?.find(p => p.name === program || String(p.id) === program || p.code === program);
       if (selectedProgram) {
         return options.levels.filter(l => l.program_id === selectedProgram.id).map(l => ({ levelId: l.name, levelName: l.name }));
       }
+      return [];
     }
-    const c = courseHierarchy.find(x => x.courseName === course);
-    const p = c?.programs.find(x => x.programName === program);
-    return p ? p.levels : [];
-  }, [course, program, options]);
+    return [];
+  }, [program, options]);
 
   const availableBatchNames = useMemo(() => {
     if (options?.batches && options.batches.length > 0) {
-      const selectedLevel = options.levels?.find(l => l.name === level);
+      const selectedLevel = options.levels?.find(l => l.name === level || String(l.id) === level || l.code === level);
       if (selectedLevel) {
         return options.batches.filter(b => b.level_id === selectedLevel.id).map(b => b.name);
       }
+      return [];
     }
-    const c = courseHierarchy.find(x => x.courseName === course);
-    const p = c?.programs.find(x => x.programName === program);
-    const l = p?.levels.find(x => x.levelId === level);
-    if (!l) return [];
-    return l.batches.filter(batchName => availableBatches.some(b => b.name === batchName));
-  }, [course, program, level, availableBatches, options]);
+    return [];
+  }, [level, options]);
 
   // Main View Batch Lectures
   const batchLectures = useMemo(() => {
@@ -599,7 +592,17 @@ export const LectureScheduler = () => {
               {/* Filters Row */}
               <div className="flex flex-wrap md:flex-nowrap items-end gap-4 w-full">
                 <div className="flex-1 min-w-[140px]">
-                  <Select label="Branch" options={[{ value: '', label: 'Select...' }, ...branches.map(b => ({ value: b.code, label: b.name }))]} value={branch} onChange={(e) => updateFilter('branch', e.target.value, ['course', 'program', 'level', 'batch'])} disabled={!!initialBranch} />
+                  <Select 
+                    label="Branch" 
+                    options={
+                      isBranchAdmin && assignedBranch
+                        ? [{ value: assignedBranch.code || assignedBranch.name, label: assignedBranch.name }]
+                        : [{ value: '', label: 'Select...' }, ...(options?.branches || branches).map(b => ({ value: b.code || b.name, label: b.name }))]
+                    } 
+                    value={branch} 
+                    onChange={(e) => updateFilter('branch', e.target.value, ['course', 'program', 'level', 'batch'])} 
+                    disabled={isBranchAdmin} 
+                  />
                 </div>
                 <div className="flex-1 min-w-[140px]">
                   <Select label="Course" options={[{ value: '', label: 'Select...' }, ...uniqueCourses.map(c => ({ value: c as string, label: c as string }))]} value={course} onChange={(e) => updateFilter('course', e.target.value, ['program', 'level', 'batch'])} disabled={!branch} />

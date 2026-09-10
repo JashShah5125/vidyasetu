@@ -104,14 +104,20 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     setShowAddModal(true);
   };
 
-  const handleDelete = (name: string) => {
-    if (subTab === 'branches') {
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    const { name, type } = deleteTarget;
+    if (type === 'branch') {
       setBranches(prev => prev.filter(b => b.name !== name));
-    } else if (subTab === 'courses') {
+      addToast(`Branch "${name}" deleted.`, 'success');
+    } else if (type === 'course') {
       setCourses(prev => prev.filter(c => c.name !== name));
-    } else if (subTab === 'batches') {
+      addToast(`Course "${name}" deleted.`, 'success');
+    } else if (type === 'batch') {
       setBatches(prev => prev.filter(b => b.name !== name));
+      addToast(`Batch "${name}" deleted.`, 'success');
     }
+    setDeleteTarget(null);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -355,7 +361,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                           <Edit2 size={14} />
                         </button>
                         <button 
-                          onClick={() => handleDelete(c.name)}
+                          onClick={() => setDeleteTarget({ name: c.name, type: 'course' })}
                           className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
                         >
                           <Trash2 size={14} />
@@ -403,8 +409,8 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                           <Edit2 size={14} />
                         </button>
                         <button 
-                          onClick={() => handleDelete(b.name)}
-                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-650 cursor-pointer"
+                          onClick={() => setDeleteTarget({ name: b.name, type: 'batch' })}
+                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -449,8 +455,8 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                           <Edit2 size={14} />
                         </button>
                         <button 
-                          onClick={() => handleDelete(s.name)}
-                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-650 cursor-pointer"
+                          onClick={() => setDeleteTarget({ name: s.name, type: 'subject' })}
+                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -529,6 +535,15 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
             addToast('Bulk import for this sub-tab is managed under Subject Setup.', 'info');
           }
         }}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        itemType={deleteTarget?.type || 'record'}
+        itemName={deleteTarget?.name}
+        description={`Deleting this ${deleteTarget?.type || 'record'} will remove it from the active master catalog.`}
       />
     </div>
   );

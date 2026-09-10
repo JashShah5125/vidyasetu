@@ -2,15 +2,16 @@ import api from './api';
 import type { Lecture, DefaultTimetableSlot, Room } from '../features/scheduler/types/scheduler';
 
 export interface TimetableOptions {
-  branches: Array<{ id: number; name: string; code: string; status: string }>;
-  academicYears: Array<{ id: number; name: string; start_date: string; end_date: string; status: string }>;
-  courses: Array<{ id: number; name: string; code: string; is_active: number }>;
-  programs: Array<{ id: number; course_id: number; name: string; code: string; is_active: number }>;
-  levels: Array<{ id: number; program_id: number; name: string; code: string; is_active: number }>;
-  batches: Array<{ id: number; branch_id: number; level_id: number; academic_year_id: number; name: string; code: string; start_time?: string; end_time?: string; classroom_id?: number }>;
-  subjects: Array<{ id: number; name: string; code: string; type?: string; status: string }>;
-  teachers: Array<{ id: number; name: string; full_name: string; email?: string; mobile?: string; primary_branch_id?: number; designation?: string; max_lectures_per_day?: number; max_lectures_per_week?: number }>;
-  classrooms: Array<{ id: number; branch_id: number; name: string; room_number: string; capacity?: number; type?: string; status: string }>;
+  branch?: { id: number; name: string; code?: string };
+  branches?: Array<{ id: number; name: string; code: string; status: string }>;
+  academicYears: Array<{ id: number; name: string; start_date?: string; end_date?: string; status?: string }>;
+  courses: Array<{ id: number; name: string; code?: string; is_active?: number }>;
+  programs: Array<{ id: number; course_id: number; name: string; code?: string; is_active?: number }>;
+  levels: Array<{ id: number; program_id: number; name: string; code?: string; is_active?: number }>;
+  batches: Array<{ id: number; branch_id: number; level_id: number; academic_year_id?: number; name: string; code?: string; start_time?: string; end_time?: string; classroom_id?: number }>;
+  subjects: Array<{ id: number; name: string; code: string; type?: string; status?: string }>;
+  teachers: Array<{ id: number; name: string; full_name?: string; email?: string; mobile?: string; primary_branch_id?: number; designation?: string; max_lectures_per_day?: number; max_lectures_per_week?: number }>;
+  classrooms: Array<{ id: number; branch_id: number; name: string; room_number: string; capacity?: number; type?: string; status?: string }>;
   teacherAllocations?: Array<{ id: number; branch_id: number; academic_year_id: number; batch_id: number; teacher_user_id: number }>;
   levelSubjects?: Array<{ id: number; level_id: number; subject_id: number }>;
   teacherSubjects?: Array<{ id: number; teacher_user_id: number; subject_id: number }>;
@@ -23,20 +24,42 @@ export interface ConflictResult {
   message: string;
 }
 
+const getTimetableBasePath = (): string => {
+  try {
+    const raw = localStorage.getItem('vs_current_user') || localStorage.getItem('user');
+    if (raw) {
+      const user = JSON.parse(raw);
+      const role = String(user?.role || '').toLowerCase().replace(/[\s-]+/g, '_');
+      if (role === 'branch_admin' || role === 'branch_manager') {
+        return '/branch/timetable';
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return '/admin/timetable';
+};
+
 export const timetableApi = {
   // 1. Get options / metadata for filters and dropdowns
   async getOptions(branchId?: string | number, academicYearId?: string | number): Promise<TimetableOptions> {
+    const basePath = getTimetableBasePath();
     const params = new URLSearchParams();
-    if (branchId && branchId !== 'All') params.append('branchId', String(branchId));
-    if (academicYearId && academicYearId !== 'All') params.append('academicYearId', String(academicYearId));
+    if (basePath === '/admin/timetable' && branchId && branchId !== 'All') {
+      params.append('branchId', String(branchId));
+    }
+    if (academicYearId && academicYearId !== 'All') {
+      params.append('academicYearId', String(academicYearId));
+    }
     
-    const response = await api.get(`/admin/timetable/options?${params.toString()}`);
+    const response = await api.get(`${basePath}/options?${params.toString()}`);
     return response.data.data;
   },
 
   // 2. Default Timetable (Template Management)
   async getDefaultTimetable(batchId: string | number): Promise<DefaultTimetableSlot[]> {
-    const response = await api.get(`/admin/timetable/default/${batchId}`);
+    const basePath = getTimetableBasePath();
+    const response = await api.get(`${basePath}/default/${batchId}`);
     const rows = response.data.data || [];
     
     const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -66,7 +89,8 @@ export const timetableApi = {
     branchId?: string | number, 
     academicYearId?: string | number
   ): Promise<{ success: boolean; count: number }> {
-    const response = await api.post(`/admin/timetable/default/${batchId}`, {
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/default/${batchId}`, {
       slots,
       branchId,
       academicYearId
@@ -75,7 +99,8 @@ export const timetableApi = {
   },
 
   async cloneDefaultTimetable(sourceBatchId: string | number, targetBatchIds: (string | number)[]): Promise<any> {
-    const response = await api.post('/admin/timetable/default/clone', {
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/default/clone`, {
       sourceBatchId,
       targetBatchIds
     });
@@ -91,15 +116,18 @@ export const timetableApi = {
     startDate?: string;
     endDate?: string;
   }): Promise<Lecture[]> {
+    const basePath = getTimetableBasePath();
     const params = new URLSearchParams();
     if (filters.batchId && filters.batchId !== 'All') params.append('batchId', String(filters.batchId));
     if (filters.teacherId && filters.teacherId !== 'All') params.append('teacherId', String(filters.teacherId));
     if (filters.roomId && filters.roomId !== 'All') params.append('roomId', String(filters.roomId));
-    if (filters.branchId && filters.branchId !== 'All') params.append('branchId', String(filters.branchId));
+    if (basePath === '/admin/timetable' && filters.branchId && filters.branchId !== 'All') {
+      params.append('branchId', String(filters.branchId));
+    }
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
 
-    const response = await api.get(`/admin/timetable/weekly?${params.toString()}`);
+    const response = await api.get(`${basePath}/weekly?${params.toString()}`);
     const rows = response.data.data || [];
 
     return rows.map((r: any) => ({
@@ -140,7 +168,8 @@ export const timetableApi = {
     overwriteExisting?: boolean;
     skipHolidays?: boolean;
   }): Promise<{ success: boolean; generatedCount: number }> {
-    const response = await api.post('/admin/timetable/weekly/apply-default', options);
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/weekly/apply-default`, options);
     return response.data.data;
   },
 
@@ -150,7 +179,8 @@ export const timetableApi = {
     targetWeekStart: string;
     overwriteExisting?: boolean;
   }): Promise<{ success: boolean; count: number }> {
-    const response = await api.post('/admin/timetable/weekly/replicate', options);
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/weekly/replicate`, options);
     return response.data.data;
   },
 
@@ -165,28 +195,33 @@ export const timetableApi = {
     startTime: string;
     endTime: string;
   }): Promise<ConflictResult[]> {
-    const response = await api.post('/admin/timetable/validate-conflicts', params);
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/validate-conflicts`, params);
     return response.data.data || [];
   },
 
   // 5. Individual Lecture CRUD
   async createLecture(data: any): Promise<Lecture> {
-    const response = await api.post('/admin/timetable/lectures', data);
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/lectures`, data);
     return response.data.data;
   },
 
   async updateLecture(id: string | number, data: any): Promise<Lecture> {
-    const response = await api.put(`/admin/timetable/lectures/${id}`, data);
+    const basePath = getTimetableBasePath();
+    const response = await api.put(`${basePath}/lectures/${id}`, data);
     return response.data.data;
   },
 
   async cancelLecture(id: string | number, reason?: string): Promise<any> {
-    const response = await api.post(`/admin/timetable/lectures/${id}/cancel`, { reason });
+    const basePath = getTimetableBasePath();
+    const response = await api.post(`${basePath}/lectures/${id}/cancel`, { reason });
     return response.data;
   },
 
   async deleteLecture(id: string | number): Promise<any> {
-    const response = await api.delete(`/admin/timetable/lectures/${id}`);
+    const basePath = getTimetableBasePath();
+    const response = await api.delete(`${basePath}/lectures/${id}`);
     return response.data;
   }
 };

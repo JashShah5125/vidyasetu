@@ -28,7 +28,7 @@ const createStaff = async (req, res) => {
 const getStaffList = async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || 2;
-        const { page = 1, limit = 50, search, branchId, employeeType, department, role } = req.query;
+        const { page = 1, limit = 50, search, branchId, employeeType, department, role, status } = req.query;
 
         const filters = {
             search,
@@ -36,6 +36,7 @@ const getStaffList = async (req, res) => {
             employeeType,
             department,
             role,
+            status,
             limit: parseInt(limit, 10),
             offset: (parseInt(page, 10) - 1) * parseInt(limit, 10)
         };
