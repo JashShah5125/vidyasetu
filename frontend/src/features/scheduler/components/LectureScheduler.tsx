@@ -5,7 +5,6 @@ import { useScheduler } from '../context/SchedulerContext';
 import { Select } from '../../../components/ui/Select';
 import { Button } from '../../../components/ui/Button';
 import { Plus, Edit, ChevronLeft, ChevronRight, Calendar, User, MapPin, Copy, Sparkles, MessageSquare, BookmarkCheck, Download } from 'lucide-react';
-import courseHierarchy from '../../../data/courseHierarchy.json';
 import teachersList from '../../../data/teachers.json';
 import { TimetableGrid } from './TimetableGrid';
 import { LectureFormModal } from './LectureFormModal';
@@ -14,8 +13,7 @@ import { TeacherRequestsTab } from './TeacherRequestsTab';
 import { DefaultTimetableTab } from './DefaultTimetableTab';
 import type { CreateTimetableContext } from './CreateTimetableWizard';
 import type { Lecture } from '../types/scheduler';
-import type { ScheduleChange } from '../../../types';
-import scheduleRequestsData from '../../../data/scheduleRequests.json';
+import { lectureRequestApi } from '../../../services/lectureRequestApi';
 
 const getTeacherName = (id?: string) => {
   if (!id) return '';
@@ -83,27 +81,21 @@ export const LectureScheduler = () => {
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [selectedRoom, setSelectedRoom] = useState<string>('');
 
-  // Requests state for badge count
-  const [requestsList, setRequestsList] = useState<ScheduleChange[]>(() => {
-    const saved = localStorage.getItem('vs_schedule_requests');
-    return saved ? JSON.parse(saved) : (scheduleRequestsData as ScheduleChange[]);
-  });
+  // Requests state via API
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  const fetchPendingCount = async () => {
+    try {
+      const counts = await lectureRequestApi.getStatusCounts();
+      setPendingRequestsCount(counts.pending || 0);
+    } catch {
+      // silently fail
+    }
+  };
 
   useEffect(() => {
-    const handleStorage = () => {
-      const saved = localStorage.getItem('vs_schedule_requests');
-      if (saved) setRequestsList(JSON.parse(saved));
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    fetchPendingCount();
   }, []);
-
-  const pendingRequestsCount = useMemo(() => {
-    return requestsList.filter(r => r.status === 'Pending Approval').length;
-  }, [requestsList]);
-
-  // Request currently being resolved in the editor
-  const [resolvingRequest, setResolvingRequest] = useState<ScheduleChange | null>(null);
 
   // Week navigation (View Mode)
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>(
@@ -120,69 +112,6 @@ export const LectureScheduler = () => {
   // Local state for week scheduling editor
   const [localLectures, setLocalLectures] = useState<Lecture[]>([]);
 
-  // Solve request action handler
-  const handleSolveRequest = (req: ScheduleChange) => {
-    // 1. Find metadata for this batch from courseHierarchy
-    let courseName = course;
-    let programName = program;
-    let levelName = level;
-
-    for (const c of courseHierarchy) {
-      for (const p of c.programs) {
-        for (const l of p.levels) {
-          if (l.batches.includes(req.batchId)) {
-            courseName = c.courseName;
-            programName = p.programName;
-            levelName = l.levelId;
-            break;
-          }
-        }
-      }
-    }
-
-    // 2. Determine target lecture date and calculate week start date (Monday)
-    const lectureDateStr = req.date || (req.dateTime ? req.dateTime.split(' ')[0] : new Date().toISOString().split('T')[0]);
-    const targetDate = parseLocalDate(lectureDateStr);
-    const dayOfWeek = targetDate.getDay();
-    const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
-    const mondayDate = new Date(targetDate);
-    mondayDate.setDate(mondayDate.getDate() + diffToMonday);
-    const weekStartStr = formatLocalDate(mondayDate);
-
-    // 3. Find matching target lecture
-    let targetLecture = lectures.find(l => req.lectureId && l.id === req.lectureId);
-    if (!targetLecture) {
-      targetLecture = lectures.find(l => l.batchId === req.batchId && l.date === lectureDateStr && l.subjectId === req.subject);
-    }
-    if (!targetLecture) {
-      targetLecture = lectures.find(l => l.batchId === req.batchId && l.date === lectureDateStr);
-    }
-
-    // 4. Set editor context
-    const targetBranch = req.branchId || branch || (branches.find(b => b.name === req.branchName)?.code || '');
-    setEditorContext({
-      branchId: targetBranch,
-      courseId: courseName,
-      programId: programName,
-      levelId: levelName,
-      batchId: req.batchId,
-      weekStartDate: weekStartStr
-    });
-
-    // 5. Track resolving request
-    setResolvingRequest(req);
-
-    // 6. Open LectureFormModal
-    if (targetLecture) {
-      setEditingLecture(targetLecture);
-      setInitialDate(undefined);
-    } else {
-      setEditingLecture(undefined);
-      setInitialDate(lectureDateStr);
-    }
-    setIsFormOpen(true);
-  };
-
   useEffect(() => {
     if (editorContext) {
       if (editorContext.initialLectures && editorContext.initialLectures.length > 0) {
@@ -197,12 +126,94 @@ export const LectureScheduler = () => {
   }, [editorContext, lectures]);
 
   // Derived options
-  const availableBatches = useMemo(() => {
-    if (options?.batches && options.batches.length > 0) {
-      return options.batches.map(b => ({ id: String(b.id), name: b.name, code: b.code || '', branch: String(b.branch_id) }));
+  // Resolve selected Branch Object
+  const selectedBranchObj = useMemo(() => {
+    if (!options) return null;
+    const branchList = options.branches || branches;
+    return branchList.find(b => b.code === branch || b.name === branch || String(b.id) === branch) || null;
+  }, [options, branches, branch]);
+
+  // Derived available courses (scoped by branch if branch is selected)
+  const availableCourseList = useMemo(() => {
+    if (!options?.courses || options.courses.length === 0) return [];
+    if (!selectedBranchObj) return options.courses;
+
+    // Batches in this branch
+    const branchBatches = (options.batches || []).filter(b => Number(b.branch_id) === Number(selectedBranchObj.id));
+    if (branchBatches.length === 0) return options.courses;
+
+    const branchLevelIds = new Set(branchBatches.map(b => b.level_id));
+    const branchProgramIds = new Set((options.levels || []).filter(l => branchLevelIds.has(l.id)).map(l => l.program_id));
+    const branchCourseIds = new Set((options.programs || []).filter(p => branchProgramIds.has(p.id)).map(p => p.course_id));
+
+    return options.courses.filter(c => branchCourseIds.size === 0 || branchCourseIds.has(c.id));
+  }, [options, selectedBranchObj]);
+
+  const uniqueCourses = useMemo(() => {
+    return availableCourseList.map(c => c.name);
+  }, [availableCourseList]);
+
+  // Resolve selected Course Object
+  const selectedCourseObj = useMemo(() => {
+    if (!course || !availableCourseList.length) return null;
+    return availableCourseList.find(c => c.name === course || String(c.id) === course || c.code === course) || null;
+  }, [availableCourseList, course]);
+
+  // Derived available programs strictly under selected Course
+  const availableProgramList = useMemo(() => {
+    if (!options?.programs || !selectedCourseObj) return [];
+    return options.programs.filter(p => p.course_id === selectedCourseObj.id);
+  }, [options, selectedCourseObj]);
+
+  const availablePrograms = useMemo(() => {
+    return Array.from(new Set(availableProgramList.map(p => p.name)));
+  }, [availableProgramList]);
+
+  // Resolve selected Program Object
+  const selectedProgramObj = useMemo(() => {
+    if (!program || !availableProgramList.length) return null;
+    return availableProgramList.find(p => p.name === program || String(p.id) === program || p.code === program) || null;
+  }, [availableProgramList, program]);
+
+  // Derived available levels strictly under selected Program
+  const availableLevelList = useMemo(() => {
+    if (!options?.levels || !selectedProgramObj) return [];
+    return options.levels.filter(l => l.program_id === selectedProgramObj.id);
+  }, [options, selectedProgramObj]);
+
+  const availableLevels = useMemo(() => {
+    return availableLevelList.map(l => ({ levelId: l.name, levelName: l.name, id: l.id }));
+  }, [availableLevelList]);
+
+  // Resolve selected Level Object
+  const selectedLevelObj = useMemo(() => {
+    if (!level || !availableLevelList.length) return null;
+    return availableLevelList.find(l => l.name === level || String(l.id) === level || l.code === level) || null;
+  }, [availableLevelList, level]);
+
+  // Derived available batches strictly under selected Level (and selected Branch if set)
+  const availableBatchList = useMemo(() => {
+    if (!options?.batches || !selectedLevelObj) return [];
+    return options.batches.filter(b => {
+      const matchLevel = Number(b.level_id) === Number(selectedLevelObj.id);
+      const matchBranch = !selectedBranchObj || Number(b.branch_id) === Number(selectedBranchObj.id);
+      return matchLevel && matchBranch;
+    });
+  }, [options, selectedLevelObj, selectedBranchObj]);
+
+  const availableBatchNames = useMemo(() => {
+    return availableBatchList.map(b => b.name);
+  }, [availableBatchList]);
+
+  // Resolve selected Batch Object
+  const resolvedBatchObj = useMemo(() => {
+    if (!batch) return null;
+    if (availableBatchList.length > 0) {
+      const found = availableBatchList.find(b => String(b.id) === batch || b.name === batch || b.code === batch);
+      if (found) return found;
     }
-    return [];
-  }, [options]);
+    return options?.batches?.find(b => String(b.id) === batch || b.name === batch || b.code === batch) || null;
+  }, [batch, availableBatchList, options]);
 
   // Load weekly lectures from API whenever filters, activeTab, or selectedWeekStart change
   useEffect(() => {
@@ -210,9 +221,8 @@ export const LectureScheduler = () => {
     endD.setDate(endD.getDate() + 6);
     const selectedWeekEnd = formatLocalDate(endD);
 
-    const resolvedBatchObj = options?.batches?.find(b => String(b.id) === batch || b.name === batch || b.code === batch);
     const resolvedBatchId = resolvedBatchObj?.id || (batch && !isNaN(Number(batch)) ? Number(batch) : undefined);
-    const resolvedBranchId = resolvedBatchObj?.branch_id || (branch ? (options?.branches?.find(b => b.code === branch || b.name === branch)?.id || branch) : undefined);
+    const resolvedBranchId = resolvedBatchObj?.branch_id || selectedBranchObj?.id || (branch ? (options?.branches?.find(b => b.code === branch || b.name === branch)?.id || branch) : undefined);
 
     if (activeTab === 'batch') {
       fetchWeeklyLectures({
@@ -236,59 +246,18 @@ export const LectureScheduler = () => {
         endDate: selectedWeekEnd
       });
     }
-  }, [activeTab, branch, batch, selectedTeacher, selectedRoom, selectedWeekStart, fetchWeeklyLectures, options]);
-
-  const uniqueCourses = useMemo(() => {
-    if (options?.courses && options.courses.length > 0) {
-      return options.courses.map(c => c.name);
-    }
-    return [];
-  }, [options]);
-
-  const availablePrograms = useMemo(() => {
-    if (options?.programs && options.programs.length > 0) {
-      const selectedCourse = options.courses?.find(c => c.name === course || String(c.id) === course || c.code === course);
-      if (selectedCourse) {
-        return options.programs.filter(p => p.course_id === selectedCourse.id).map(p => p.name);
-      }
-      return [];
-    }
-    return [];
-  }, [course, options]);
-
-  const availableLevels = useMemo(() => {
-    if (options?.levels && options.levels.length > 0) {
-      const selectedProgram = options.programs?.find(p => p.name === program || String(p.id) === program || p.code === program);
-      if (selectedProgram) {
-        return options.levels.filter(l => l.program_id === selectedProgram.id).map(l => ({ levelId: l.name, levelName: l.name }));
-      }
-      return [];
-    }
-    return [];
-  }, [program, options]);
-
-  const availableBatchNames = useMemo(() => {
-    if (options?.batches && options.batches.length > 0) {
-      const selectedLevel = options.levels?.find(l => l.name === level || String(l.id) === level || l.code === level);
-      if (selectedLevel) {
-        return options.batches.filter(b => b.level_id === selectedLevel.id).map(b => b.name);
-      }
-      return [];
-    }
-    return [];
-  }, [level, options]);
+  }, [activeTab, branch, batch, selectedTeacher, selectedRoom, selectedWeekStart, fetchWeeklyLectures, options, resolvedBatchObj, selectedBranchObj]);
 
   // Main View Batch Lectures
   const batchLectures = useMemo(() => {
     if (!batch) return [];
-    const resolvedBatchObj = options?.batches?.find(b => String(b.id) === String(batch) || b.name === batch || b.code === batch);
-    const resolvedBatchId = resolvedBatchObj?.id;
+    const targetBatchId = resolvedBatchObj?.id;
     return lectures.filter(l => 
       String(l.batchId) === String(batch) || 
-      (resolvedBatchId !== undefined && String(l.batchId) === String(resolvedBatchId)) ||
+      (targetBatchId !== undefined && String(l.batchId) === String(targetBatchId)) ||
       (l.batchName && (l.batchName === batch || l.batchCode === batch))
     );
-  }, [lectures, batch, options]);
+  }, [lectures, batch, resolvedBatchObj]);
 
   // Teacher / Room Views
   const allTeachers = useMemo(() => {
@@ -451,7 +420,6 @@ export const LectureScheduler = () => {
                 size="sm"
                 onClick={() => {
                   setEditorContext(null);
-                  setResolvingRequest(null);
                 }}
                 className="text-xs font-semibold shadow-2xs border-slate-200 px-2.5 py-1.5"
               >
@@ -494,7 +462,6 @@ export const LectureScheduler = () => {
                 size="sm"
                 onClick={() => {
                   setEditorContext(null);
-                  setResolvingRequest(null);
                 }}
                 className="text-xs font-medium text-slate-600 px-3 py-1.5"
               >
@@ -505,27 +472,7 @@ export const LectureScheduler = () => {
                 size="sm"
                 onClick={async () => {
                   await syncLectures(editorContext.batchId, localLectures, 'PUBLISHED', editorContext.weekStartDate);
-
-                  if (resolvingRequest) {
-                    const saved = localStorage.getItem('vs_schedule_requests');
-                    const allRequests: ScheduleChange[] = saved ? JSON.parse(saved) : (scheduleRequestsData as ScheduleChange[]);
-                    const updated = allRequests.map(r => {
-                      if (r.id === resolvingRequest.id) {
-                        return {
-                          ...r,
-                          status: 'Approved' as const,
-                          updatedAt: new Date().toISOString()
-                        };
-                      }
-                      return r;
-                    });
-                    localStorage.setItem('vs_schedule_requests', JSON.stringify(updated));
-                    setRequestsList(updated);
-                    addToast(`Schedule published and Request ${resolvingRequest.id} marked as Approved.`, 'success');
-                    setResolvingRequest(null);
-                  } else {
-                    addToast('Weekly timetable published successfully.', 'success');
-                  }
+                  addToast('Weekly timetable published successfully.', 'success');
                   setEditorContext(null);
                 }}
                 className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs px-3.5 py-1.5"
@@ -534,24 +481,6 @@ export const LectureScheduler = () => {
               </Button>
             </div>
           </div>
-
-          {/* Banner when solving a teacher request */}
-          {resolvingRequest && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-900 flex items-center justify-between shadow-inner">
-              <span className="flex items-center gap-2">
-                <Sparkles size={15} className="text-amber-600 flex-shrink-0" />
-                <span>
-                  <strong>Solving Request ({resolvingRequest.id}):</strong> {resolvingRequest.teacherName || 'Faculty'} requested{' '}
-                  <span className="font-semibold uppercase">{resolvingRequest.type.replace('_', ' ')}</span>:{' '}
-                  <span className="line-through text-amber-700">{resolvingRequest.previousValue}</span> &rarr;{' '}
-                  <strong className="text-amber-950">{resolvingRequest.newValue || 'Updated slot'}</strong>.
-                </span>
-              </span>
-              <span className="text-[11px] text-amber-800 font-semibold bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
-                Click "Publish" when done to approve request
-              </span>
-            </div>
-          )}
 
           <div className="flex-1 overflow-auto p-4 bg-slate-50/50">
             <TimetableGrid
@@ -802,9 +731,8 @@ export const LectureScheduler = () => {
             {/* TAB 4: TEACHER REQUESTS */}
             {activeTab === 'requests' && (
               <TeacherRequestsTab
-                onSolveRequest={handleSolveRequest}
-                currentBatch={batch}
                 currentBranch={branch}
+                onRequestUpdated={fetchPendingCount}
               />
             )}
 

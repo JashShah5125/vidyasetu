@@ -60,6 +60,8 @@ const homeworkRoutes = require('./routes/homeworkRoutes');
 const branchHomeworkRoutes = require('./routes/branchHomeworkRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const branchAttendanceRoutes = require('./routes/branchAttendanceRoutes');
+const teacherScheduleRoutes = require('./routes/teacherScheduleRoutes');
+const lectureRequestRoutes = require('./routes/lectureRequestRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -95,6 +97,8 @@ app.use('/api/branch/students', branchStudentRoutes);
 app.use('/api/admin/payments', paymentRoutes);
 app.use('/api/admin/timetable', timetableRoutes);
 app.use('/api/branch/timetable', branchTimetableRoutes);
+app.use('/api/teacher/schedule', teacherScheduleRoutes);
+app.use('/api/admin/lecture-requests', lectureRequestRoutes);
 app.use('/api/admin/attendance', attendanceRoutes);
 app.use('/api/branch/attendance', branchAttendanceRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);

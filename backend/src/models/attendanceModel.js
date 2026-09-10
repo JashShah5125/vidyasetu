@@ -182,12 +182,12 @@ const attendanceModel = {
      */
     async getAttendanceOptions(tenantId) {
         const [branches] = await pool.query(
-            `SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`,
+            `SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 'active' OR status = 1 OR status = '1' OR status IS NULL) ORDER BY name ASC`,
             [tenantId]
         );
         const [batches] = await pool.query(
             `SELECT id, branch_id, level_id, academic_year_id, name, code FROM batches
-             WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`,
+             WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 1 OR status = '1' OR status = 'active') ORDER BY name ASC`,
             [tenantId]
         );
         const [academicYears] = await pool.query(
@@ -195,15 +195,15 @@ const attendanceModel = {
             [tenantId]
         );
         const [courses] = await pool.query(
-            `SELECT id, name, code FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            `SELECT id, name, code FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND (is_active = 1 OR is_active IS NULL) ORDER BY name ASC`,
             [tenantId]
         );
         const [programs] = await pool.query(
-            `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND (is_active = 1 OR is_active IS NULL) ORDER BY name ASC`,
             [tenantId]
         );
         const [levels] = await pool.query(
-            `SELECT id, course_id, program_id, name, code FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            `SELECT id, course_id, program_id, name, code FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND (is_active = 1 OR is_active IS NULL) ORDER BY name ASC`,
             [tenantId]
         );
         return { branches, batches, academicYears, courses, programs, levels };

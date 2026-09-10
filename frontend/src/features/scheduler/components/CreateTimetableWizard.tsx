@@ -78,63 +78,102 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
   const [defaultSlots, setDefaultSlots] = useState<DefaultTimetableSlot[]>([]);
   
   // Derived Options
-  const availableBatches = useMemo(() => {
-    return batches.filter(b => {
-      if (branchId && b.branch !== branchId && b.branch !== (branches.find(br => br.code === branchId)?.name || '')) return false;
-      return true;
-    });
-  }, [batches, branchId, branches]);
+  const selectedBranchObj = useMemo(() => {
+    if (!options) return null;
+    const branchList = options.branches || branches;
+    return branchList.find(b => b.code === branchId || b.name === branchId || String(b.id) === branchId) || null;
+  }, [options, branches, branchId]);
+
+  const availableCourseList = useMemo(() => {
+    if (!options?.courses || options.courses.length === 0) return [];
+    if (!selectedBranchObj) return options.courses;
+
+    const branchBatches = (options.batches || []).filter(b => Number(b.branch_id) === Number(selectedBranchObj.id));
+    if (branchBatches.length === 0) return options.courses;
+
+    const branchLevelIds = new Set(branchBatches.map(b => b.level_id));
+    const branchProgramIds = new Set((options.levels || []).filter(l => branchLevelIds.has(l.id)).map(l => l.program_id));
+    const branchCourseIds = new Set((options.programs || []).filter(p => branchProgramIds.has(p.id)).map(p => p.course_id));
+
+    return options.courses.filter(c => branchCourseIds.size === 0 || branchCourseIds.has(c.id));
+  }, [options, selectedBranchObj]);
 
   const uniqueCourses = useMemo(() => {
-    if (options?.courses && options.courses.length > 0) {
-      return options.courses.map(c => c.name);
+    if (availableCourseList.length > 0) {
+      return availableCourseList.map(c => c.name);
     }
     return courseHierarchy.map(c => c.courseName);
-  }, [options]);
+  }, [availableCourseList]);
+
+  const selectedCourseObj = useMemo(() => {
+    if (!courseId || !availableCourseList.length) return null;
+    return availableCourseList.find(c => c.name === courseId || String(c.id) === courseId || c.code === courseId) || null;
+  }, [availableCourseList, courseId]);
+
+  const availableProgramList = useMemo(() => {
+    if (!options?.programs || !selectedCourseObj) return [];
+    return options.programs.filter(p => p.course_id === selectedCourseObj.id);
+  }, [options, selectedCourseObj]);
 
   const availablePrograms = useMemo(() => {
-    if (options?.programs && options.programs.length > 0) {
-      const selectedCourse = options.courses?.find(c => c.name === courseId);
-      if (selectedCourse) {
-        return options.programs.filter(p => p.course_id === selectedCourse.id).map(p => p.name);
-      }
+    if (availableProgramList.length > 0) {
+      return Array.from(new Set(availableProgramList.map(p => p.name)));
     }
     const course = courseHierarchy.find(c => c.courseName === courseId);
     return course ? course.programs.map(p => p.programName) : [];
-  }, [courseId, options]);
+  }, [availableProgramList, courseId]);
+
+  const selectedProgramObj = useMemo(() => {
+    if (!programId || !availableProgramList.length) return null;
+    return availableProgramList.find(p => p.name === programId || String(p.id) === programId || p.code === programId) || null;
+  }, [availableProgramList, programId]);
+
+  const availableLevelList = useMemo(() => {
+    if (!options?.levels || !selectedProgramObj) return [];
+    return options.levels.filter(l => l.program_id === selectedProgramObj.id);
+  }, [options, selectedProgramObj]);
 
   const availableLevels = useMemo(() => {
-    if (options?.levels && options.levels.length > 0) {
-      const selectedProgram = options.programs?.find(p => p.name === programId);
-      if (selectedProgram) {
-        return options.levels.filter(l => l.program_id === selectedProgram.id).map(l => ({ levelId: l.name, levelName: l.name }));
-      }
+    if (availableLevelList.length > 0) {
+      return availableLevelList.map(l => ({ levelId: l.name, levelName: l.name, id: l.id }));
     }
     const course = courseHierarchy.find(c => c.courseName === courseId);
     const program = course?.programs.find(p => p.programName === programId);
     return program ? program.levels : [];
-  }, [courseId, programId, options]);
+  }, [availableLevelList, courseId, programId]);
+
+  const selectedLevelObj = useMemo(() => {
+    if (!levelId || !availableLevelList.length) return null;
+    return availableLevelList.find(l => l.name === levelId || String(l.id) === levelId || l.code === levelId) || null;
+  }, [availableLevelList, levelId]);
+
+  const availableBatchList = useMemo(() => {
+    if (!options?.batches || !selectedLevelObj) return [];
+    return options.batches.filter(b => {
+      const matchLevel = Number(b.level_id) === Number(selectedLevelObj.id);
+      const matchBranch = !selectedBranchObj || Number(b.branch_id) === Number(selectedBranchObj.id);
+      return matchLevel && matchBranch;
+    });
+  }, [options, selectedLevelObj, selectedBranchObj]);
 
   const availableBatchNames = useMemo(() => {
-    if (options?.batches && options.batches.length > 0) {
-      const selectedLevel = options.levels?.find(l => l.name === levelId);
-      if (selectedLevel) {
-        return options.batches.filter(b => b.level_id === selectedLevel.id).map(b => b.name);
-      }
+    if (availableBatchList.length > 0) {
+      return availableBatchList.map(b => b.name);
     }
     const course = courseHierarchy.find(c => c.courseName === courseId);
     const program = course?.programs.find(p => p.programName === programId);
     const level = program?.levels.find(l => l.levelId === levelId);
     if (!level) return [];
-    return level.batches.filter(batchName => availableBatches.some(b => b.name === batchName));
-  }, [courseId, programId, levelId, availableBatches, options]);
+    return level.batches;
+  }, [availableBatchList, courseId, programId, levelId]);
 
   // Resolve numerical batchId
   const resolvedBatchId = useMemo(() => {
     if (!batchId) return '';
-    const match = options?.batches?.find(b => String(b.id) === batchId || b.name === batchId || b.code === batchId);
+    const match = availableBatchList.find(b => String(b.id) === batchId || b.name === batchId || b.code === batchId)
+      || options?.batches?.find(b => String(b.id) === batchId || b.name === batchId || b.code === batchId);
     return match?.id ? String(match.id) : batchId;
-  }, [batchId, options]);
+  }, [batchId, availableBatchList, options]);
 
   // Load default template from backend API
   useEffect(() => {
@@ -270,7 +309,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
         {step === 1 && (
           <div className="space-y-4 animate-fade-in">
             <h4 className="font-semibold text-slate-800 mb-4 text-lg">Step 1: Select Academic Context</h4>
-            <Select label="Branch" value={branchId} onChange={(e) => { setBranchId(e.target.value); setCourseId(''); setProgramId(''); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...branches.map(b=>({value:b.code,label:b.name}))]} />
+            <Select label="Branch" value={branchId} onChange={(e) => { setBranchId(e.target.value); setCourseId(''); setProgramId(''); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...(options?.branches || branches).map(b=>({value:b.code || b.name,label:b.name}))]} />
             <Select label="Course" value={courseId} onChange={(e) => { setCourseId(e.target.value); setProgramId(''); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...uniqueCourses.map(c=>({value:c as string,label:c as string}))]} disabled={!branchId} />
             <Select label="Program" value={programId} onChange={(e) => { setProgramId(e.target.value); setLevelId(''); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...availablePrograms.map(p=>({value:p as string,label:p as string}))]} disabled={!courseId} />
             <Select label="Level" value={levelId} onChange={(e) => { setLevelId(e.target.value); setBatchId(''); }} options={[{value:'',label:'Select...'}, ...availableLevels.map(l=>({value:l.levelId,label:l.levelName}))]} disabled={!programId} />

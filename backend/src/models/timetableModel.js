@@ -74,7 +74,7 @@ const timetableModel = {
         programsQuery += ` ORDER BY name ASC`;
         const [programs] = await pool.query(programsQuery, programsParams);
 
-        let levelsQuery = `SELECT id, program_id, name, code, is_active FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1`;
+        let levelsQuery = `SELECT id, course_id, program_id, name, code, is_active FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1`;
         const levelsParams = [tenantId];
         if (branchId && branchId !== 'All') {
             levelsQuery += ` AND (

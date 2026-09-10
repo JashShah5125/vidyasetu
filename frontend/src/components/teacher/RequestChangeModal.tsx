@@ -1,362 +1,739 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
-import { Input } from '../ui/Input';
-import { Calendar, Clock, MapPin, AlertCircle, CheckCircle2, BookOpen, Send } from 'lucide-react';
-import type { ScheduleChange, Batch } from '../../types';
-import type { Lecture } from '../../features/scheduler/types/scheduler';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  AlertCircle,
+  CheckCircle2,
+  Send,
+  Layers,
+  Sparkles,
+  ArrowRight
+} from 'lucide-react';
+
+export type LectureRequestType = 'RESCHEDULE' | 'ROOM_CHANGE' | 'TEACHER_CHANGE' | 'CANCEL' | 'NEW_LECTURE';
+
+export interface CreateLectureRequestPayload {
+  branch_id: number;
+  batch_id: number;
+  subject_id: number;
+  lecture_id?: number | null;
+  request_type: LectureRequestType;
+  current_date?: string | null;
+  current_start_time?: string | null;
+  current_end_time?: string | null;
+  current_classroom_id?: number | null;
+  current_teacher_user_id?: number | null;
+  requested_date?: string | null;
+  requested_start_time?: string | null;
+  requested_end_time?: string | null;
+  requested_classroom_id?: number | null;
+  requested_teacher_user_id?: number | null;
+  reason: string;
+}
 
 interface RequestChangeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (change: ScheduleChange) => void;
-  batches: Batch[];
-  lectures: Lecture[];
+  onSubmit: (payload: CreateLectureRequestPayload) => Promise<void> | void;
+  batches: Array<{ id: number; branch_id: number; name: string; code?: string }>;
+  subjects: Array<{ id: number; name: string; code?: string }>;
+  classrooms: Array<{ id: number; branch_id?: number; name: string; room_number?: string }>;
+  teachers: Array<{ id: number; name: string; email?: string }>;
+  branches?: Array<{ id: number; name: string; code?: string }>;
+  lectures: any[];
   currentTeacher: any;
-  getRoomName: (id?: string) => string;
-  getTeacherName: (id?: string) => string;
-  prefillLecture?: Lecture | null;
+  prefillLecture?: any | null;
 }
 
 export const RequestChangeModal: React.FC<RequestChangeModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
-  batches,
-  lectures,
+  batches = [],
+  subjects = [],
+  classrooms = [],
+  teachers = [],
+  branches = [],
+  lectures = [],
   currentTeacher,
-  getRoomName,
-  getTeacherName,
   prefillLecture
 }) => {
-  const [selectedBatch, setSelectedBatch] = useState<string>('');
+  // Form State
+  const [requestType, setRequestType] = useState<LectureRequestType>('RESCHEDULE');
+  const [selectedBatchId, setSelectedBatchId] = useState<number | ''>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | ''>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedLectureId, setSelectedLectureId] = useState<string>('');
-  const [changeType, setChangeType] = useState<ScheduleChange['type']>('RESCHEDULED');
-  const [proposedValue, setProposedValue] = useState<string>('');
-  const [message, setMessage] = useState<string>('');
+  const [selectedLectureId, setSelectedLectureId] = useState<number | ''>('');
+
+  // Explicit Requested Column Fields
+  const [requestedDate, setRequestedDate] = useState<string>('');
+  const [requestedStartTime, setRequestedStartTime] = useState<string>('');
+  const [requestedEndTime, setRequestedEndTime] = useState<string>('');
+  const [requestedClassroomId, setRequestedClassroomId] = useState<number | ''>('');
+  const [requestedTeacherUserId, setRequestedTeacherUserId] = useState<number | ''>('');
+  const [reason, setReason] = useState<string>('');
+
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
-  // Prefill if provided
+  // Prefill when opened
   useEffect(() => {
     if (prefillLecture) {
-      setSelectedBatch(prefillLecture.batchId);
-      setSelectedDate(prefillLecture.date);
-      setSelectedLectureId(prefillLecture.id);
+      const bId = prefillLecture.batch?.id || prefillLecture.batchId;
+      const parsedBId = Number(bId);
+      if (parsedBId) setSelectedBatchId(parsedBId);
+      else if (batches.length > 0) {
+        const found = batches.find(b => b.name === bId || String(b.id) === String(bId));
+        if (found) setSelectedBatchId(found.id);
+      }
+
+      const sId = prefillLecture.subject?.id || prefillLecture.subjectId;
+      const parsedSId = Number(sId);
+      if (parsedSId) setSelectedSubjectId(parsedSId);
+      else if (subjects.length > 0) {
+        const foundS = subjects.find(s => s.name === sId || String(s.id) === String(sId));
+        if (foundS) setSelectedSubjectId(foundS.id);
+      }
+
+      const lDate = prefillLecture.date || new Date().toISOString().split('T')[0];
+      setSelectedDate(lDate);
+      setRequestedDate(lDate);
+
+      if (prefillLecture.id) {
+        setSelectedLectureId(Number(prefillLecture.id));
+      }
+
+      if (prefillLecture.startTime) {
+        const rawStart = prefillLecture.startTime.slice(0, 5);
+        setRequestedStartTime(rawStart);
+      }
+      if (prefillLecture.endTime) {
+        const rawEnd = prefillLecture.endTime.slice(0, 5);
+        setRequestedEndTime(rawEnd);
+      }
+      if (prefillLecture.classroom?.id || prefillLecture.roomId) {
+        const rId = Number(prefillLecture.classroom?.id || prefillLecture.roomId);
+        if (rId) setRequestedClassroomId(rId);
+      }
+      if (prefillLecture.teacherId || currentTeacher?.id) {
+        setRequestedTeacherUserId(Number(prefillLecture.teacherId || currentTeacher?.id));
+      }
     } else if (isOpen) {
-      if (batches.length > 0 && !selectedBatch) {
-        setSelectedBatch(batches[0].name);
+      if (batches.length > 0 && selectedBatchId === '') {
+        setSelectedBatchId(batches[0].id);
+      }
+      if (subjects.length > 0 && selectedSubjectId === '') {
+        setSelectedSubjectId(subjects[0].id);
       }
       if (!selectedDate) {
-        setSelectedDate(new Date().toISOString().split('T')[0]);
+        const todayStr = new Date().toISOString().split('T')[0];
+        setSelectedDate(todayStr);
+        setRequestedDate(todayStr);
       }
     }
-  }, [isOpen, prefillLecture, batches]);
+  }, [isOpen, prefillLecture, batches, subjects, currentTeacher]);
 
-  // Reset on modal close
+  // Reset when closed
   useEffect(() => {
     if (!isOpen) {
-      setSelectedBatch('');
+      setRequestType('RESCHEDULE');
+      setSelectedBatchId('');
+      setSelectedSubjectId('');
       setSelectedDate('');
       setSelectedLectureId('');
-      setChangeType('RESCHEDULED');
-      setProposedValue('');
-      setMessage('');
+      setRequestedDate('');
+      setRequestedStartTime('');
+      setRequestedEndTime('');
+      setRequestedClassroomId('');
+      setRequestedTeacherUserId('');
+      setReason('');
       setError('');
+      setSubmitting(false);
     }
   }, [isOpen]);
 
-  // Query lectures for the chosen batch and date
+  // Filter lectures for selected batch and date
   const dayLectures = useMemo(() => {
-    if (!selectedBatch || !selectedDate) return [];
-    return lectures.filter(l => 
-      l.batchId === selectedBatch && 
-      l.date === selectedDate && 
-      l.status !== 'CANCELLED'
-    ).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [lectures, selectedBatch, selectedDate]);
+    if (!selectedBatchId || !selectedDate) return [];
+    return lectures.filter(l => {
+      const bId = (l as any).batch?.id || (l as any).batchId;
+      const bMatches = Number(bId) === Number(selectedBatchId) ||
+        (l as any).batch?.name === batches.find(b => b.id === selectedBatchId)?.name;
+      const lDate = (l as any).date || (l as any).lectureDate || '';
+      const status = (l as any).status || '';
+      return bMatches && (!lDate || lDate === selectedDate) && status.toUpperCase() !== 'CANCELLED';
+    }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  }, [lectures, selectedBatchId, selectedDate, batches]);
 
+  // Find currently selected lecture object
   const selectedLecture = useMemo(() => {
-    return dayLectures.find(l => l.id === selectedLectureId) || null;
-  }, [dayLectures, selectedLectureId]);
+    if (requestType === 'NEW_LECTURE') return null;
+    return dayLectures.find(l => Number(l.id) === Number(selectedLectureId)) || null;
+  }, [dayLectures, selectedLectureId, requestType]);
 
-  // Auto-select first lecture if single lecture exists on the day
+  // When a lecture is chosen, sync subject and current fields to requested inputs
+  const handleSelectLecture = (lec: any) => {
+    setSelectedLectureId(Number(lec.id));
+    setError('');
+
+    if (lec.subject?.id) {
+      setSelectedSubjectId(Number(lec.subject.id));
+    }
+    if (lec.startTime) {
+      setRequestedStartTime(lec.startTime.slice(0, 5));
+    }
+    if (lec.endTime) {
+      setRequestedEndTime(lec.endTime.slice(0, 5));
+    }
+    if (lec.classroom?.id || lec.roomId) {
+      setRequestedClassroomId(Number(lec.classroom?.id || lec.roomId));
+    }
+    if (lec.teacherId) {
+      setRequestedTeacherUserId(Number(lec.teacherId));
+    } else if (currentTeacher?.id) {
+      setRequestedTeacherUserId(Number(currentTeacher.id));
+    }
+    if (lec.date) {
+      setRequestedDate(lec.date);
+    }
+  };
+
+  // Auto-select first lecture if single lecture exists on the selected day
   useEffect(() => {
-    if (dayLectures.length === 1 && !selectedLectureId) {
-      setSelectedLectureId(dayLectures[0].id);
-    } else if (dayLectures.length > 0 && !dayLectures.some(l => l.id === selectedLectureId)) {
-      setSelectedLectureId(dayLectures[0].id);
+    if (requestType !== 'NEW_LECTURE' && dayLectures.length > 0) {
+      if (!selectedLectureId || !dayLectures.some(l => Number(l.id) === Number(selectedLectureId))) {
+        handleSelectLecture(dayLectures[0]);
+      }
     }
-  }, [dayLectures, selectedLectureId]);
+  }, [dayLectures, selectedLectureId, requestType]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle Form Submission
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBatch) {
-      setError('Please select a batch.');
-      return;
-    }
-    if (!selectedDate) {
-      setError('Please select a date.');
-      return;
-    }
-    if (!selectedLecture) {
-      setError('Please select a lecture to request change for.');
-      return;
-    }
-    if (!message.trim()) {
-      setError('Please enter a message explaining the reason for the change request.');
+    setError('');
+
+    if (!selectedBatchId) {
+      setError('Please select a target batch.');
       return;
     }
 
-    const currentRoom = getRoomName(selectedLecture.roomId) || selectedLecture.roomId || 'Room TBA';
-    let prevVal = `${selectedLecture.date} (${selectedLecture.startTime} – ${selectedLecture.endTime}) at ${currentRoom}`;
-    if (changeType === 'ROOM_CHANGE') {
-      prevVal = currentRoom;
-    } else if (changeType === 'RESCHEDULED') {
-      prevVal = `${selectedLecture.date} ${selectedLecture.startTime}`;
-    } else if (changeType === 'CANCELLED') {
-      prevVal = `${selectedLecture.date} ${selectedLecture.startTime} (${selectedLecture.subjectId || 'Lecture'})`;
+    const targetSubjectId = selectedSubjectId || (selectedLecture as any)?.subject?.id;
+    if (!targetSubjectId && requestType === 'NEW_LECTURE') {
+      setError('Please select a subject for the new lecture.');
+      return;
     }
 
-    const newChange: ScheduleChange = {
-      id: 'REQ-' + Date.now().toString().slice(-6),
-      type: changeType,
-      batchId: selectedBatch,
-      subject: selectedLecture.subjectId || 'Lecture',
-      branchId: selectedLecture.branchId || 'MUM-WEST',
-      branchName: 'Mumbai West',
-      lectureId: selectedLecture.id,
-      teacherId: currentTeacher?.id || selectedLecture.teacherId,
-      teacherName: currentTeacher?.name || getTeacherName(selectedLecture.teacherId) || 'Faculty',
-      date: selectedLecture.date,
-      time: `${selectedLecture.startTime} - ${selectedLecture.endTime}`,
-      previousValue: prevVal,
-      newValue: proposedValue.trim() || undefined,
-      dateTime: `${selectedLecture.date} ${selectedLecture.startTime}`,
-      status: 'Pending Approval',
-      requestedBy: currentTeacher?.name || 'Faculty',
-      message: message.trim(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+    if (requestType !== 'NEW_LECTURE' && !selectedLecture) {
+      setError('Please select the scheduled lecture to modify.');
+      return;
+    }
+
+    if (requestType === 'RESCHEDULE') {
+      if (!requestedDate) {
+        setError('Please specify the requested date.');
+        return;
+      }
+      if (!requestedStartTime || !requestedEndTime) {
+        setError('Please specify both requested start time and end time.');
+        return;
+      }
+      if (requestedStartTime >= requestedEndTime) {
+        setError('Requested start time must be earlier than end time.');
+        return;
+      }
+    } else if (requestType === 'ROOM_CHANGE') {
+      if (!requestedClassroomId) {
+        setError('Please select the requested classroom.');
+        return;
+      }
+    } else if (requestType === 'TEACHER_CHANGE') {
+      if (!requestedTeacherUserId) {
+        setError('Please select the requested faculty / substitute teacher.');
+        return;
+      }
+    } else if (requestType === 'NEW_LECTURE') {
+      if (!requestedDate) {
+        setError('Please specify the requested date for the new lecture.');
+        return;
+      }
+      if (!requestedStartTime || !requestedEndTime) {
+        setError('Please specify the requested start and end times.');
+        return;
+      }
+      if (requestedStartTime >= requestedEndTime) {
+        setError('Requested start time must be earlier than end time.');
+        return;
+      }
+      if (!requestedClassroomId) {
+        setError('Please select a classroom for the new lecture.');
+        return;
+      }
+    }
+
+    if (!reason.trim()) {
+      setError('Please provide a reason / justification for this request.');
+      return;
+    }
+
+    // Resolve branch ID
+    const matchedBatch = batches.find(b => b.id === Number(selectedBatchId));
+    const targetBranchId = matchedBatch?.branch_id || (branches.length > 0 ? branches[0].id : 1);
+
+    // Current lecture values
+    const curDate = selectedLecture?.date || selectedDate || null;
+    const curStartTime = selectedLecture?.startTime
+      ? (selectedLecture.startTime.length === 5 ? `${selectedLecture.startTime}:00` : selectedLecture.startTime)
+      : null;
+    const curEndTime = selectedLecture?.endTime
+      ? (selectedLecture.endTime.length === 5 ? `${selectedLecture.endTime}:00` : selectedLecture.endTime)
+      : null;
+    const curClassroomId = selectedLecture?.classroom?.id || (selectedLecture?.roomId ? Number(selectedLecture.roomId) : null);
+    const curTeacherUserId = selectedLecture?.teacherId ? Number(selectedLecture.teacherId) : (currentTeacher?.id ? Number(currentTeacher.id) : null);
+
+    // Format requested times with seconds
+    const reqStartTime = requestedStartTime
+      ? (requestedStartTime.length === 5 ? `${requestedStartTime}:00` : requestedStartTime)
+      : curStartTime;
+    const reqEndTime = requestedEndTime
+      ? (requestedEndTime.length === 5 ? `${requestedEndTime}:00` : requestedEndTime)
+      : curEndTime;
+    const reqDate = requestedDate || curDate;
+    const reqClassroomId = requestedClassroomId ? Number(requestedClassroomId) : curClassroomId;
+    const reqTeacherUserId = requestedTeacherUserId ? Number(requestedTeacherUserId) : curTeacherUserId;
+
+    const payload: CreateLectureRequestPayload = {
+      branch_id: targetBranchId,
+      batch_id: Number(selectedBatchId),
+      subject_id: Number(targetSubjectId || (subjects.length > 0 ? subjects[0].id : 1)),
+      lecture_id: selectedLecture ? Number(selectedLecture.id) : null,
+      request_type: requestType,
+      current_date: curDate,
+      current_start_time: curStartTime,
+      current_end_time: curEndTime,
+      current_classroom_id: curClassroomId,
+      current_teacher_user_id: curTeacherUserId,
+      requested_date: reqDate,
+      requested_start_time: reqStartTime,
+      requested_end_time: reqEndTime,
+      requested_classroom_id: reqClassroomId,
+      requested_teacher_user_id: reqTeacherUserId,
+      reason: reason.trim()
     };
 
-    onSubmit(newChange);
-    onClose();
+    try {
+      setSubmitting(true);
+      await onSubmit(payload);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to submit request');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Helper names
+  const getRoomLabel = (id?: number | string | null) => {
+    if (!id) return 'Not Assigned';
+    const found = classrooms.find(c => Number(c.id) === Number(id));
+    return found ? `${found.name} ${found.room_number ? `(${found.room_number})` : ''}` : `Room #${id}`;
+  };
+
+  const getTeacherLabel = (id?: number | string | null) => {
+    if (!id) return 'Not Assigned';
+    const found = teachers.find(t => Number(t.id) === Number(id));
+    return found ? found.name : `Faculty #${id}`;
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Request Schedule Change">
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <p className="text-sm text-slate-500 -mt-2">
-          Select the batch, date, and lecture for which you would like to request a reschedule, room change, or cancellation.
-        </p>
-
+    <Modal isOpen={isOpen} onClose={onClose} title="Request Schedule Change" size="4xl">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Error Alert */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-700 font-medium">
-            <AlertCircle size={16} className="flex-shrink-0" />
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-sm text-rose-700 font-medium">
+            <AlertCircle size={18} className="flex-shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* STEP 1: SELECT BATCH & STEP 2: SELECT DATE */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              1. Select Batch <span className="text-rose-500">*</span>
-            </label>
-            <select
-              value={selectedBatch}
-              onChange={(e) => {
-                setSelectedBatch(e.target.value);
-                setSelectedLectureId('');
-                setError('');
-              }}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
-              required
-            >
-              <option value="">Choose a batch...</option>
-              {batches.map(b => (
-                <option key={b.name} value={b.name}>
-                  {b.name} ({b.course || 'Course'})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              2. Select Day / Date <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setSelectedLectureId('');
-                setError('');
-              }}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm"
-              required
-            />
+        {/* ── 1. REQUEST TYPE SELECTOR PILLS ── */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            1. Select Request Type <span className="text-rose-500">*</span>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+            {[
+              { type: 'RESCHEDULE' as const, label: 'Reschedule', desc: 'Date / Time Slot' },
+              { type: 'ROOM_CHANGE' as const, label: 'Room Change', desc: 'Move Classroom' },
+              { type: 'TEACHER_CHANGE' as const, label: 'Substitute', desc: 'Assign Faculty' },
+              { type: 'CANCEL' as const, label: 'Cancel Lecture', desc: 'Request Cancellation' },
+              { type: 'NEW_LECTURE' as const, label: 'Extra Lecture', desc: 'Add New Slot' }
+            ].map((item) => {
+              const active = requestType === item.type;
+              return (
+                <button
+                  key={item.type}
+                  type="button"
+                  onClick={() => {
+                    setRequestType(item.type);
+                    setError('');
+                  }}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    active
+                      ? 'border-blue-600 bg-blue-50/90 ring-2 ring-blue-500/20 shadow-sm'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`text-sm font-bold ${active ? 'text-blue-700' : 'text-slate-800'}`}>
+                    {item.label}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {item.desc}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* STEP 3: SELECT LECTURE */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              3. Select Lecture for this Day <span className="text-rose-500">*</span>
-            </label>
-            {dayLectures.length > 0 && (
-              <span className="text-xs font-semibold text-blue-600">
-                {dayLectures.length} lecture{dayLectures.length > 1 ? 's' : ''} scheduled
+        {/* ── 2. TARGET BATCH & DATE / SUBJECT CONTEXT ── */}
+        <div className="p-5 bg-slate-50/80 border border-slate-200/80 rounded-2xl space-y-4">
+          <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Layers size={15} className="text-blue-600" />
+              2. Target Batch & Lecture Context
+            </span>
+            {requestType !== 'NEW_LECTURE' && dayLectures.length > 0 && (
+              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                {dayLectures.length} lecture{dayLectures.length > 1 ? 's' : ''} available
               </span>
             )}
           </div>
 
-          {!selectedBatch || !selectedDate ? (
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center text-xs text-slate-400 font-medium">
-              Please select a batch and date above to load scheduled lectures.
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Batch <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={selectedBatchId}
+                onChange={(e) => {
+                  setSelectedBatchId(Number(e.target.value) || '');
+                  setSelectedLectureId('');
+                  setError('');
+                }}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                required
+              >
+                <option value="">Choose a batch...</option>
+                {batches.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.code ? `(${b.code})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : dayLectures.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
-              {dayLectures.map((lec) => {
-                const isSelected = selectedLectureId === lec.id;
-                const roomName = getRoomName(lec.roomId) || 'Room TBA';
-                return (
-                  <div
-                    key={lec.id}
-                    onClick={() => {
-                      setSelectedLectureId(lec.id);
-                      setError('');
-                    }}
-                    className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                      isSelected
-                        ? 'border-blue-600 bg-blue-50/60 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <Clock size={13} className={isSelected ? 'text-blue-600' : 'text-slate-400'} />
-                          {lec.startTime} – {lec.endTime}
-                        </span>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                          isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {lec.lectureType || 'Regular'}
-                        </span>
+
+            {requestType === 'NEW_LECTURE' ? (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Subject <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={selectedSubjectId}
+                  onChange={(e) => {
+                    setSelectedSubjectId(Number(e.target.value) || '');
+                    setError('');
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                  required
+                >
+                  <option value="">Choose a subject...</option>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.code ? `(${s.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Lecture Day / Date <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setRequestedDate(e.target.value);
+                    setSelectedLectureId('');
+                    setError('');
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                  required
+                />
+              </div>
+            )}
+          </div>
+
+          {/* If existing lecture mode, show lectures list */}
+          {requestType !== 'NEW_LECTURE' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Select Scheduled Lecture to Modify <span className="text-rose-500">*</span>
+              </label>
+
+              {!selectedBatchId || !selectedDate ? (
+                <div className="p-4 bg-white border border-slate-200 rounded-xl text-center text-xs text-slate-400">
+                  Select batch and date above to view scheduled lectures.
+                </div>
+              ) : dayLectures.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-52 overflow-y-auto pr-1">
+                  {dayLectures.map((lec) => {
+                    const isSelected = Number(selectedLectureId) === Number(lec.id);
+                    const roomName = lec.classroom?.name || getRoomLabel(lec.roomId);
+                    const subjectName = lec.subject?.name || lec.subjectName || 'Lecture';
+                    return (
+                      <div
+                        key={lec.id}
+                        onClick={() => handleSelectLecture(lec)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/90 shadow-sm ring-2 ring-blue-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                              <Clock size={13} className={isSelected ? 'text-blue-600' : 'text-slate-400'} />
+                              {lec.startTime} – {lec.endTime}
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-500 uppercase bg-slate-100 px-1.5 py-0.5 rounded">
+                              {lec.lectureType || 'Regular'}
+                            </span>
+                          </div>
+                          <div className="text-sm font-bold text-slate-900 mt-1.5 truncate">
+                            {subjectName}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-500 mt-2.5 pt-2 border-t border-slate-100">
+                          <span className="flex items-center gap-1 text-[11px] truncate">
+                            <MapPin size={11} className="flex-shrink-0" /> {roomName}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[11px] font-bold text-blue-700 flex items-center gap-1">
+                              <CheckCircle2 size={12} /> Selected
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-sm font-bold text-blue-800 mt-1.5 truncate">
-                        {lec.subjectId}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">
-                      <span className="flex items-center gap-1">
-                        <MapPin size={11} /> {roomName}
-                      </span>
-                      {isSelected && (
-                        <span className="text-xs font-bold text-blue-700 flex items-center gap-1">
-                          <CheckCircle2 size={13} /> Selected
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center text-xs text-amber-800">
+                  No scheduled lectures found for this batch on this date.
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-center text-xs text-amber-800 font-medium">
-              No scheduled lectures found for <strong>{selectedBatch}</strong> on <strong>{selectedDate}</strong>. Please choose another date or batch.
+          )}
+
+          {/* CURRENT DETAILS SUMMARY BADGE */}
+          {selectedLecture && (
+            <div className="p-3.5 bg-white border border-slate-200 rounded-xl text-xs space-y-1.5 shadow-sm">
+              <div className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
+                Current Database Slot:
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-700">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Date:</span>
+                  <span className="font-semibold">{selectedLecture.date || selectedDate}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Time Window:</span>
+                  <span className="font-semibold">{selectedLecture.startTime} - {selectedLecture.endTime}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Classroom:</span>
+                  <span className="font-semibold truncate block">{selectedLecture.classroom?.name || getRoomLabel(selectedLecture.roomId)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Faculty:</span>
+                  <span className="font-semibold truncate block">{getTeacherLabel(selectedLecture.teacherId || currentTeacher?.id)}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* STEP 4: CHANGE TYPE, PROPOSED VALUES & MESSAGE */}
-        {selectedLecture && (
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 animate-fade-in">
-            <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              4. Request Details & Note
+        {/* ── 3. SEPARATE FIELDS FOR ALL REQUESTED COLUMNS ── */}
+        {(selectedLecture || requestType === 'NEW_LECTURE') && (
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles size={15} className="text-blue-600" />
+                3. Requested Column Values (Proposed Changes)
+              </div>
+              <span className="text-xs text-slate-400">
+                Specify all desired slot values for admin review
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* ROW A: REQUESTED DATE & REQUESTED TIME WINDOW */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Requested Date */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Change Request Type <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={changeType}
-                  onChange={(e) => setChangeType(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="RESCHEDULED">Reschedule Lecture (Time / Date)</option>
-                  <option value="ROOM_CHANGE">Room Change Request</option>
-                  <option value="CANCELLED">Lecture Cancellation</option>
-                  <option value="SUBSTITUTE">Substitute Faculty Request</option>
-                  <option value="OTHER">Other Modification</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {changeType === 'ROOM_CHANGE'
-                    ? 'Preferred Room (Optional)'
-                    : changeType === 'RESCHEDULED'
-                    ? 'Proposed Date / Time (Optional)'
-                    : changeType === 'SUBSTITUTE'
-                    ? 'Suggested Faculty (Optional)'
-                    : 'Proposed Value / Modification (Optional)'}
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <Calendar size={13} className="text-blue-600" />
+                  Requested Date
+                  {requestType === 'RESCHEDULE' || requestType === 'NEW_LECTURE' ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
+                  )}
                 </label>
                 <input
-                  type="text"
-                  placeholder={
-                    changeType === 'ROOM_CHANGE'
-                      ? 'e.g. Room 201, Lab 1'
-                      : changeType === 'RESCHEDULED'
-                      ? 'e.g. Tomorrow 11:00 AM, Fri 2:00 PM'
-                      : 'e.g. Details of change'
-                  }
-                  value={proposedValue}
-                  onChange={(e) => setProposedValue(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  type="date"
+                  value={requestedDate}
+                  onChange={(e) => setRequestedDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                />
+              </div>
+
+              {/* Requested Start Time */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <Clock size={13} className="text-blue-600" />
+                  Requested Start Time
+                  {requestType === 'RESCHEDULE' || requestType === 'NEW_LECTURE' ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
+                  )}
+                </label>
+                <input
+                  type="time"
+                  value={requestedStartTime}
+                  onChange={(e) => setRequestedStartTime(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                />
+              </div>
+
+              {/* Requested End Time */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <Clock size={13} className="text-blue-600" />
+                  Requested End Time
+                  {requestType === 'RESCHEDULE' || requestType === 'NEW_LECTURE' ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
+                  )}
+                </label>
+                <input
+                  type="time"
+                  value={requestedEndTime}
+                  onChange={(e) => setRequestedEndTime(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
                 />
               </div>
             </div>
 
+            {/* ROW B: REQUESTED CLASSROOM & REQUESTED TEACHER */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Requested Classroom / Room */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <MapPin size={13} className="text-blue-600" />
+                  Requested Classroom / Room
+                  {requestType === 'ROOM_CHANGE' || requestType === 'NEW_LECTURE' ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
+                  )}
+                </label>
+                <select
+                  value={requestedClassroomId}
+                  onChange={(e) => setRequestedClassroomId(Number(e.target.value) || '')}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                >
+                  <option value="">Keep current / Choose room...</option>
+                  {classrooms.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.room_number ? `(${c.room_number})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Requested Substitute / Teacher */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <User size={13} className="text-blue-600" />
+                  Requested Faculty / Substitute
+                  {requestType === 'TEACHER_CHANGE' ? (
+                    <span className="text-rose-500">*</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
+                  )}
+                </label>
+                <select
+                  value={requestedTeacherUserId}
+                  onChange={(e) => setRequestedTeacherUserId(Number(e.target.value) || '')}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                >
+                  <option value="">Current faculty / Choose substitute...</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.email ? `(${t.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* REASON / JUSTIFICATION */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Request Message / Reason <span className="text-rose-500">*</span>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Reason / Note for Administration <span className="text-rose-500">*</span>
               </label>
               <textarea
                 rows={3}
-                placeholder="Explain the reason for this schedule change request (e.g. medical emergency, lab maintenance, student request)..."
-                value={message}
+                placeholder="Explain why this change is requested (e.g., student lab conflict, medical leave, room maintenance, syllabus catchup)..."
+                value={reason}
                 onChange={(e) => {
-                  setMessage(e.target.value);
+                  setReason(e.target.value);
                   setError('');
                 }}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-sm"
                 required
               />
             </div>
           </div>
         )}
 
-        {/* FOOTER ACTIONS */}
-        <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
-          <Button type="button" variant="secondary" onClick={onClose}>
+        {/* ── 4. FOOTER ACTIONS ── */}
+        <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
           <Button
             type="submit"
             variant="primary"
-            disabled={!selectedBatch || !selectedDate || !selectedLecture || !message.trim()}
-            className="flex items-center gap-2"
+            disabled={
+              submitting ||
+              !selectedBatchId ||
+              (!selectedLecture && requestType !== 'NEW_LECTURE') ||
+              !reason.trim()
+            }
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm"
           >
             <Send size={15} />
-            Submit Request
+            {submitting ? 'Submitting...' : 'Submit Change Request'}
           </Button>
         </div>
       </form>
