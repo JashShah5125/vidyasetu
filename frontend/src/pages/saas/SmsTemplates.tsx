@@ -8,6 +8,7 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Modal } from '../../components/ui/Modal';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { smsTemplateService, type SmsTemplate } from '../../services/smsTemplateService';
+import { formatDate } from '../../utils/dateFormatter';
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All Statuses' },
@@ -377,7 +378,7 @@ export const SmsTemplates: React.FC = () => {
                 <td className="px-3 py-3 font-semibold text-slate-900 text-base">
                   <div>{t.template_name}</div>
                   <div className="text-xs text-slate-500 mt-0.5">
-                    Created: {new Date(t.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    Created: {formatDate(t.created_at)}
                   </div>
                 </td>
                 <td className="px-3 py-3 text-sm font-semibold text-blue-600 whitespace-nowrap font-mono">

@@ -20,8 +20,20 @@ const createCollectionInvoice = async (payload) => {
     return await paymentModel.createCollectionInvoice(payload);
 };
 
+const collectBranchPayment = async (payload) => {
+    return await paymentModel.collectBranchPayment(payload);
+};
+
 const getInvoiceById = async (tenantId, invoiceId, accessContext = null) => {
     return await paymentModel.getInvoiceById(tenantId, invoiceId, accessContext);
+};
+
+const updateCollectionInvoice = async (payload) => {
+    return await paymentModel.updateCollectionInvoice(payload);
+};
+
+const deleteCollectionInvoice = async (payload) => {
+    return await paymentModel.deleteCollectionInvoice(payload);
 };
 
 module.exports = {
@@ -30,5 +42,8 @@ module.exports = {
     updateStudentFeeAssignment,
     recordPayment,
     createCollectionInvoice,
+    collectBranchPayment,
+    updateCollectionInvoice,
+    deleteCollectionInvoice,
     getInvoiceById
 };

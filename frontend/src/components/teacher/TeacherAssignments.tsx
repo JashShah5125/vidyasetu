@@ -139,10 +139,6 @@ export const TeacherAssignments: React.FC = () => {
 
   const [showHwForm, setShowHwForm] = useState<boolean>(false);
   const [hwForm, setHwForm] = useState<HomeworkFormState>(EMPTY_HW_FORM);
-  const [cascade, setCascade] = useState<{ course: number; program: number; level: number }>({ course: 0, program: 0, level: 0 });
-  const [batchPick, setBatchPick] = useState<number>(0);
-  const [levelSubjectOptions, setLevelSubjectOptions] = useState<ScopingOption[]>([]);
-  const [subjectsLoadedForLevel, setSubjectsLoadedForLevel] = useState(false);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [showHwDetail, setShowHwDetail] = useState<HomeworkItem | null>(null);
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
@@ -219,40 +215,6 @@ export const TeacherAssignments: React.FC = () => {
     setCurrentPage(1);
   }, [activePrimaryTab, activeSubTab, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
 
-  useEffect(() => {
-    if (!cascade.level) {
-      setLevelSubjectOptions([]);
-      setSubjectsLoadedForLevel(false);
-      return;
-    }
-    let alive = true;
-    setSubjectsLoadedForLevel(false);
-    subjectApi.list({ levelId: String(cascade.level), limit: 500, status: 'active' })
-      .then((res: any) => {
-        if (!alive) return;
-        const list: any[] = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
-        const teacherIds = new Set((scoping?.subjects || []).map(s => Number(s.id)));
-        const filtered = list
-          .filter(s => teacherIds.has(Number(s.id)))
-          .map(s => ({ id: String(s.id), name: s.name, code: s.code || '' }));
-        setLevelSubjectOptions(filtered);
-        setSubjectsLoadedForLevel(true);
-        setHwForm(prev => {
-          if (prev.subjectId && !filtered.some(s => Number(s.id) === prev.subjectId)) {
-            return { ...prev, subjectId: 0 };
-          }
-          return prev;
-        });
-      })
-      .catch(() => {
-        if (alive) {
-          setLevelSubjectOptions([]);
-          setSubjectsLoadedForLevel(true);
-        }
-      });
-    return () => { alive = false; };
-  }, [cascade.level, scoping]);
-
   const filteredHomeworks = useMemo(() => {
     return homeworks.filter(item => {
       if (activeSubTab === 'active' && item.status === 'Draft') return false;
@@ -290,17 +252,18 @@ export const TeacherAssignments: React.FC = () => {
 
   const openCreateForm = (type?: string) => {
     const selectedType = type || (activePrimaryTab === 'homework' ? 'homework' : 'assignment');
-    const bId = isBranchAdmin && activeBranchId ? Number(activeBranchId) : (scoping?.branches?.[0] ? Number(scoping.branches[0].id) : 0);
+    const bId = scoping?.branches?.[0] ? Number(scoping.branches[0].id) : (isBranchAdmin && activeBranchId ? Number(activeBranchId) : 0);
+    const ayId = scoping?.academicYears?.[0] ? Number(scoping.academicYears[0].id) : 0;
+    const sId = scoping?.subjects?.[0] ? Number(scoping.subjects[0].id) : 0;
+
     setHwForm({
       ...EMPTY_HW_FORM,
       assignmentType: selectedType,
       branchId: bId,
-      academicYearId: scoping?.academicYears?.[0] ? Number(scoping.academicYears[0].id) : 0,
-      subjectId: scoping?.subjects?.[0] ? Number(scoping.subjects[0].id) : 0,
+      academicYearId: ayId,
+      subjectId: sId,
       dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
     });
-    setCascade({ course: 0, program: 0, level: 0 });
-    setBatchPick(0);
     setNewFiles([]);
     setShowHwForm(true);
   };
@@ -320,121 +283,57 @@ export const TeacherAssignments: React.FC = () => {
       maxMarks: item.maxMarks !== null && item.maxMarks !== undefined ? String(item.maxMarks) : '',
       existingFiles: item.files || []
     });
-    const firstBatch = (batches || []).find(b => item.batchIds.includes(Number(b.id)));
-    setCascade({
-      course: firstBatch?.courseId ? Number(firstBatch.courseId) : 0,
-      program: firstBatch?.programId ? Number(firstBatch.programId) : 0,
-      level: firstBatch?.levelId ? Number(firstBatch.levelId) : 0
-    });
-    setBatchPick(0);
     setNewFiles([]);
     setShowHwForm(true);
   };
 
-  // ─── Course → Program → Level cascade against the teacher's allocated batches ───
-  const allocatedBatches = useMemo(() => {
-    const scopeIds = new Set((scoping?.batches || []).map(sb => Number(sb.id)));
-    return (batches || []).filter(b => scopeIds.has(Number(b.id)));
-  }, [batches, scoping]);
-
-  const candidateBatches = useMemo(
-    () => allocatedBatches.filter(b =>
-      (hwForm.branchId === 0 || Number(b.branchId) === hwForm.branchId) &&
-      (hwForm.academicYearId === 0 || Number(b.academicYearId) === hwForm.academicYearId)
-    ),
-    [allocatedBatches, hwForm.branchId, hwForm.academicYearId]
-  );
-
-  const cascadeCourses = useMemo(() => {
-    const seen = new Map<number, string>();
-    candidateBatches.forEach(b => {
-      const id = Number(b.courseId);
-      if (id) seen.set(id, b.courseName || `Course ${id}`);
-    });
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-  }, [candidateBatches]);
-
-  const cascadePrograms = useMemo(() => {
-    const seen = new Map<number, string>();
-    candidateBatches.forEach(b => {
-      if (cascade.course && Number(b.courseId) === cascade.course) {
-        const id = Number(b.programId);
-        if (id) seen.set(id, b.programName || `Program ${id}`);
-      }
-    });
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-  }, [candidateBatches, cascade.course]);
-
-  const cascadeLevels = useMemo(() => {
-    const seen = new Map<number, string>();
-    candidateBatches.forEach(b => {
-      if (cascade.course && Number(b.courseId) === cascade.course && cascade.program && Number(b.programId) === cascade.program) {
-        const id = Number(b.levelId);
-        if (id) seen.set(id, b.levelName || `Level ${id}`);
-      }
-    });
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-  }, [candidateBatches, cascade.course, cascade.program]);
-
-  const hasCascadeMeta = cascadeCourses.length > 0;
-
-  const levelBatches = useMemo(
-    () => candidateBatches.filter(b =>
-      cascade.course && Number(b.courseId) === cascade.course &&
-      cascade.program && Number(b.programId) === cascade.program &&
-      cascade.level && Number(b.levelId) === cascade.level
-    ),
-    [candidateBatches, cascade.course, cascade.program, cascade.level]
-  );
+  // ─── Direct Assigned Batches for Teacher ───
+  const assignedTeacherBatches = useMemo(() => {
+    if (!scoping?.batches) return [];
+    if (hwForm.branchId === 0) return scoping.batches;
+    return scoping.batches.filter(b => !b.branchId || Number(b.branchId) === hwForm.branchId);
+  }, [scoping?.batches, hwForm.branchId]);
 
   const batchNameById = useMemo(() => {
     const m = new Map<number, string>();
-    allocatedBatches.forEach(b => m.set(Number(b.id), b.name));
+    (scoping?.batches || []).forEach(b => m.set(Number(b.id), b.name));
+    (batches || []).forEach(b => m.set(Number(b.id), b.name));
     return m;
-  }, [allocatedBatches]);
+  }, [scoping?.batches, batches]);
 
   const subjectOptions = useMemo(() => {
-    if (cascade.level && subjectsLoadedForLevel) return levelSubjectOptions;
     return scoping?.subjects || [];
-  }, [cascade.level, subjectsLoadedForLevel, levelSubjectOptions, scoping]);
+  }, [scoping?.subjects]);
 
-  const addTargetBatch = (batchId: number) => {
-    if (!batchId) return;
-    setHwForm(prev => prev.batchIds.includes(batchId) ? prev : { ...prev, batchIds: [...prev.batchIds, batchId] });
+  const toggleTargetBatch = (batchId: number) => {
+    const numId = Number(batchId);
+    setHwForm(prev => {
+      const exists = prev.batchIds.includes(numId);
+      return {
+        ...prev,
+        batchIds: exists ? prev.batchIds.filter(x => x !== numId) : [...prev.batchIds, numId]
+      };
+    });
   };
 
-  const removeTargetBatch = (batchId: number) => {
-    setHwForm(prev => ({ ...prev, batchIds: prev.batchIds.filter(x => x !== batchId) }));
+  const selectAllAssignedBatches = () => {
+    const allIds = assignedTeacherBatches.map(b => Number(b.id));
+    setHwForm(prev => ({
+      ...prev,
+      batchIds: Array.from(new Set([...prev.batchIds, ...allIds]))
+    }));
+  };
+
+  const deselectAllBatches = () => {
+    setHwForm(prev => ({ ...prev, batchIds: [] }));
   };
 
   const changeBranch = (branchId: number) => {
-    setHwForm(prev => ({ ...prev, branchId, batchIds: [] }));
-    setCascade({ course: 0, program: 0, level: 0 });
-    setBatchPick(0);
+    setHwForm(prev => ({ ...prev, branchId }));
   };
 
   const changeAcademicYear = (academicYearId: number) => {
-    setHwForm(prev => ({ ...prev, academicYearId, batchIds: [] }));
-    setCascade({ course: 0, program: 0, level: 0 });
-    setBatchPick(0);
-  };
-
-  const changeCourse = (course: number) => {
-    setCascade(prev => ({ ...prev, course, program: 0, level: 0 }));
-    setHwForm(prev => ({ ...prev, batchIds: [] }));
-    setBatchPick(0);
-  };
-
-  const changeProgram = (program: number) => {
-    setCascade(prev => ({ ...prev, program, level: 0 }));
-    setHwForm(prev => ({ ...prev, batchIds: [] }));
-    setBatchPick(0);
-  };
-
-  const changeLevel = (level: number) => {
-    setCascade(prev => ({ ...prev, level }));
-    if (!level) setHwForm(prev => ({ ...prev, batchIds: [], subjectId: 0 }));
-    setBatchPick(0);
+    setHwForm(prev => ({ ...prev, academicYearId }));
   };
 
   const submitHomeworkForm = async (mode: 'draft' | 'publish') => {
@@ -1589,11 +1488,7 @@ export const TeacherAssignments: React.FC = () => {
                     value={hwForm.subjectId}
                     onChange={e => setHwForm({ ...hwForm, subjectId: Number(e.target.value) })}
                   >
-                    <option value={0}>
-                      {cascade.level && subjectsLoadedForLevel && levelSubjectOptions.length === 0
-                        ? 'No subjects mapped to this level'
-                        : 'Select a subject...'}
-                    </option>
+                    <option value={0}>Select a subject...</option>
                     {subjectOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
@@ -1602,25 +1497,23 @@ export const TeacherAssignments: React.FC = () => {
               {/* Row: Branch + Academic Year */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Branch</label>
-                  {!isBranchAdmin ? (
-                    <select
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                      value={hwForm.branchId}
-                      onChange={e => changeBranch(Number(e.target.value))}
-                    >
-                      <option value={0}>Select a branch...</option>
-                      {(scoping?.branches || []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
-                  ) : (
-                    <select
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-600 cursor-not-allowed opacity-70 outline-none"
-                      value={activeBranchId}
-                      disabled={true}
-                    >
-                      <option value={activeBranchId}>{activeBranchName}</option>
-                    </select>
-                  )}
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Branch <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    value={hwForm.branchId}
+                    onChange={e => changeBranch(Number(e.target.value))}
+                  >
+                    {(!scoping?.branches || scoping.branches.length === 0) && (
+                      <option value={0}>No branches assigned</option>
+                    )}
+                    {(scoping?.branches || []).map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Academic Year</label>
@@ -1639,115 +1532,103 @@ export const TeacherAssignments: React.FC = () => {
 
           {/* ── Section 2: Target Batch Allocation ── */}
           <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-              <Layers size={16} className="text-blue-600" />
-              <h3 className="font-bold text-sm text-slate-700">Target Batch Allocation</h3>
-              <p className="text-xs text-slate-400 ml-2">— Filter by Course → Program → Level, then add batches</p>
-            </div>
-            <div className="p-6 space-y-5">
-              {/* Step 1: cascade filters */}
-              <div>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Step 1 — Narrow by hierarchy</div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Course</label>
-                    <select
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
-                      value={cascade.course}
-                      onChange={e => changeCourse(Number(e.target.value))}
-                      disabled={!hasCascadeMeta}
-                    >
-                      <option value={0}>{hasCascadeMeta ? 'All courses...' : 'No batch data'}</option>
-                      {cascadeCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Program</label>
-                    <select
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
-                      value={cascade.program}
-                      onChange={e => changeProgram(Number(e.target.value))}
-                      disabled={!hasCascadeMeta || !cascade.course}
-                    >
-                      <option value={0}>{!cascade.course ? 'Select course first' : 'Select program...'}</option>
-                      {cascadePrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Level</label>
-                    <select
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
-                      value={cascade.level}
-                      onChange={e => changeLevel(Number(e.target.value))}
-                      disabled={!hasCascadeMeta || !cascade.program}
-                    >
-                      <option value={0}>{!cascade.program ? 'Select program first' : 'Select level...'}</option>
-                      {cascadeLevels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                    </select>
-                  </div>
+            <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Layers size={16} className="text-blue-600" />
+                <div>
+                  <h3 className="font-bold text-sm text-slate-800">Target Batch Allocation</h3>
+                  <p className="text-xs text-slate-500">Select from your allocated batches</p>
                 </div>
               </div>
-
-              {/* Step 2: pick & add batch */}
-              <div>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Step 2 — Add batch</div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <select
-                    className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
-                    value={batchPick}
-                    onChange={e => setBatchPick(Number(e.target.value))}
-                    disabled={!hasCascadeMeta || !cascade.level}
-                  >
-                    <option value={0}>
-                      {!cascade.level ? 'Complete the filter above to see batches' : 'Select a batch to add...'}
-                    </option>
-                    {levelBatches.map(b => {
-                      const added = hwForm.batchIds.includes(Number(b.id));
-                      return (
-                        <option key={b.id} value={b.id} disabled={added}>
-                          {b.name}{added ? ' ✓ Added' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <Button
+              <div className="flex items-center gap-2">
+                {assignedTeacherBatches.length > 1 && (
+                  <button
                     type="button"
-                    variant="primary"
-                    style={{ backgroundColor: '#2563eb', color: 'white' }}
-                    className="cursor-pointer font-semibold px-5 whitespace-nowrap shadow-sm disabled:opacity-40"
-                    onClick={() => { addTargetBatch(batchPick); setBatchPick(0); }}
-                    disabled={!batchPick || hwForm.batchIds.includes(batchPick)}
+                    onClick={selectAllAssignedBatches}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg transition-colors cursor-pointer"
                   >
-                    <Plus className="w-4 h-4 mr-1.5" /> Add Batch
-                  </Button>
-                </div>
+                    Select All ({assignedTeacherBatches.length})
+                  </button>
+                )}
+                {hwForm.batchIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={deselectAllBatches}
+                    className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 border border-red-200 px-3 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Deselect All
+                  </button>
+                )}
               </div>
-
-              {/* Allocated batch chips */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    Allocated Batches ({hwForm.batchIds.length}) <span className="text-red-500">*</span>
-                  </span>
-                  {hwForm.batchIds.length > 0 && (
-                    <button type="button" onClick={() => setHwForm(prev => ({ ...prev, batchIds: [] }))} className="text-xs text-red-500 hover:underline cursor-pointer">
-                      Clear all
-                    </button>
-                  )}
+            </div>
+            <div className="p-6 space-y-4">
+              {assignedTeacherBatches.length === 0 ? (
+                <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
+                  <p className="text-sm font-medium text-slate-600">No allocated batches found for your profile in this branch.</p>
+                  <p className="text-xs text-slate-400 mt-1">Please ensure you are allocated to batches in this branch.</p>
                 </div>
-                {hwForm.batchIds.length > 0 ? (
-                  <div className="flex flex-wrap gap-2.5 p-3.5 bg-blue-50/40 border border-blue-100 rounded-xl min-h-[48px]">
-                    {hwForm.batchIds.map(id => (
-                      <span key={id} className="inline-flex items-center gap-2 bg-white border border-blue-200 text-blue-900 text-xs font-semibold rounded-lg px-3 py-1.5">
-                        {batchNameById.get(id) || `Batch #${id}`}
-                        <button type="button" className="text-slate-400 hover:text-red-500 cursor-pointer" onClick={() => removeTargetBatch(id)}><X size={13} /></button>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center">
-                    <p className="text-xs text-slate-400">No batches added yet. Use the filter above to find and add batches.</p>
-                  </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {assignedTeacherBatches.map(b => {
+                    const isSelected = hwForm.batchIds.includes(Number(b.id));
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => toggleTargetBatch(Number(b.id))}
+                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                          isSelected
+                            ? 'bg-blue-50/70 border-blue-500 shadow-2xs'
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="mt-0.5 h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 pointer-events-none"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-sm text-slate-900 truncate" title={b.name}>
+                              {b.name}
+                            </span>
+                            {b.code && (
+                              <span className="text-[10px] font-mono font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                                {b.code}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-500 flex-wrap">
+                            {b.levelName && (
+                              <span className="font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                {b.levelName}
+                              </span>
+                            )}
+                            {b.academicYearName && (
+                              <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {b.academicYearName}
+                              </span>
+                            )}
+                            {b.branchName && (
+                              <span className="truncate text-slate-400">
+                                {b.branchName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Selected batches summary */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">
+                  Allocated Batches: <span className="text-blue-600 font-extrabold">{hwForm.batchIds.length}</span> selected
+                </span>
+                {hwForm.batchIds.length === 0 && (
+                  <span className="text-rose-600 font-semibold">At least one target batch is required *</span>
                 )}
               </div>
             </div>

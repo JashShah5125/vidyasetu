@@ -14,6 +14,7 @@ import { DefaultTimetableTab } from './DefaultTimetableTab';
 import type { CreateTimetableContext } from './CreateTimetableWizard';
 import type { Lecture } from '../types/scheduler';
 import { lectureRequestApi } from '../../../services/lectureRequestApi';
+import { branchApi } from '../../../services/branchApi';
 
 const getTeacherName = (id?: string) => {
   if (!id) return '';
@@ -125,7 +126,9 @@ export const LectureScheduler = () => {
     }
   }, [editorContext, lectures]);
 
-  // Derived options
+  // Load branch-assigned courses directly from branchApi
+  const [branchAssignedCourses, setBranchAssignedCourses] = useState<any[]>([]);
+
   // Resolve selected Branch Object
   const selectedBranchObj = useMemo(() => {
     if (!options) return null;
@@ -133,21 +136,39 @@ export const LectureScheduler = () => {
     return branchList.find(b => b.code === branch || b.name === branch || String(b.id) === branch) || null;
   }, [options, branches, branch]);
 
-  // Derived available courses (scoped by branch if branch is selected)
+  useEffect(() => {
+    const branchIdToFetch = selectedBranchObj?.id || assignedBranch?.id;
+    if (!branchIdToFetch) {
+      setBranchAssignedCourses([]);
+      return;
+    }
+    branchApi.getCourses(branchIdToFetch, { assignment_status: 'assigned' })
+      .then(res => {
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        setBranchAssignedCourses(Array.isArray(list) ? list : []);
+      })
+      .catch(err => {
+        console.error('Failed to fetch assigned courses for branch in LectureScheduler:', err);
+        setBranchAssignedCourses([]);
+      });
+  }, [selectedBranchObj?.id, assignedBranch?.id]);
+
+  // Derived available courses (strictly assigned to branch when branch is selected)
   const availableCourseList = useMemo(() => {
+    if (branchAssignedCourses && branchAssignedCourses.length > 0) {
+      return branchAssignedCourses.map((c: any) => ({
+        id: Number(c.id),
+        name: c.name,
+        code: c.code || '',
+        assigned_programs: c.assigned_programs || c.programs || [],
+        programs: c.programs || []
+      }));
+    }
     if (!options?.courses || options.courses.length === 0) return [];
     if (!selectedBranchObj) return options.courses;
 
-    // Batches in this branch
-    const branchBatches = (options.batches || []).filter(b => Number(b.branch_id) === Number(selectedBranchObj.id));
-    if (branchBatches.length === 0) return options.courses;
-
-    const branchLevelIds = new Set(branchBatches.map(b => b.level_id));
-    const branchProgramIds = new Set((options.levels || []).filter(l => branchLevelIds.has(l.id)).map(l => l.program_id));
-    const branchCourseIds = new Set((options.programs || []).filter(p => branchProgramIds.has(p.id)).map(p => p.course_id));
-
-    return options.courses.filter(c => branchCourseIds.size === 0 || branchCourseIds.has(c.id));
-  }, [options, selectedBranchObj]);
+    return options.courses;
+  }, [branchAssignedCourses, options, selectedBranchObj]);
 
   const uniqueCourses = useMemo(() => {
     return availableCourseList.map(c => c.name);
@@ -156,30 +177,39 @@ export const LectureScheduler = () => {
   // Resolve selected Course Object
   const selectedCourseObj = useMemo(() => {
     if (!course || !availableCourseList.length) return null;
-    return availableCourseList.find(c => c.name === course || String(c.id) === course || c.code === course) || null;
+    return availableCourseList.find(c => c.name === course || String(c.id) === String(course) || c.code === course) || null;
   }, [availableCourseList, course]);
 
   // Derived available programs strictly under selected Course
   const availableProgramList = useMemo(() => {
-    if (!options?.programs || !selectedCourseObj) return [];
-    return options.programs.filter(p => p.course_id === selectedCourseObj.id);
-  }, [options, selectedCourseObj]);
+    if (!selectedCourseObj) return [];
+    if (selectedCourseObj.assigned_programs && selectedCourseObj.assigned_programs.length > 0) {
+      return selectedCourseObj.assigned_programs;
+    }
+    if (selectedCourseObj.programs && selectedCourseObj.programs.length > 0) {
+      return selectedCourseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
+    }
+    if (options?.programs) {
+      return options.programs.filter(p => Number(p.course_id) === Number(selectedCourseObj.id));
+    }
+    return [];
+  }, [selectedCourseObj, options]);
 
   const availablePrograms = useMemo(() => {
-    return Array.from(new Set(availableProgramList.map(p => p.name)));
+    return Array.from(new Set(availableProgramList.map((p: any) => p.name)));
   }, [availableProgramList]);
 
   // Resolve selected Program Object
   const selectedProgramObj = useMemo(() => {
     if (!program || !availableProgramList.length) return null;
-    return availableProgramList.find(p => p.name === program || String(p.id) === program || p.code === program) || null;
+    return availableProgramList.find((p: any) => p.name === program || String(p.id) === String(program) || p.code === program) || null;
   }, [availableProgramList, program]);
 
   // Derived available levels strictly under selected Program
   const availableLevelList = useMemo(() => {
     if (!options?.levels || !selectedProgramObj) return [];
-    return options.levels.filter(l => l.program_id === selectedProgramObj.id);
-  }, [options, selectedProgramObj]);
+    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number(l.course_id) === Number(selectedCourseObj.id)));
+  }, [options, selectedProgramObj, selectedCourseObj]);
 
   const availableLevels = useMemo(() => {
     return availableLevelList.map(l => ({ levelId: l.name, levelName: l.name, id: l.id }));
@@ -188,15 +218,15 @@ export const LectureScheduler = () => {
   // Resolve selected Level Object
   const selectedLevelObj = useMemo(() => {
     if (!level || !availableLevelList.length) return null;
-    return availableLevelList.find(l => l.name === level || String(l.id) === level || l.code === level) || null;
+    return availableLevelList.find(l => l.name === level || String(l.id) === String(level) || l.code === level) || null;
   }, [availableLevelList, level]);
 
   // Derived available batches strictly under selected Level (and selected Branch if set)
   const availableBatchList = useMemo(() => {
     if (!options?.batches || !selectedLevelObj) return [];
     return options.batches.filter(b => {
-      const matchLevel = Number(b.level_id) === Number(selectedLevelObj.id);
-      const matchBranch = !selectedBranchObj || Number(b.branch_id) === Number(selectedBranchObj.id);
+      const matchLevel = Number(b.level_id || (b as any).levelId) === Number(selectedLevelObj.id);
+      const matchBranch = !selectedBranchObj || Number(b.branch_id || (b as any).branchId) === Number(selectedBranchObj.id);
       return matchLevel && matchBranch;
     });
   }, [options, selectedLevelObj, selectedBranchObj]);
@@ -783,7 +813,7 @@ export const LectureScheduler = () => {
           batchId={editorContext ? editorContext.batchId : batch}
           existingLecture={editingLecture}
           initialDate={initialDate}
-          onSave={(lectureData) => {
+          onSave={async (lectureData) => {
             if (editorContext) {
               if (lectureData.id) {
                 setLocalLectures(prev => prev.map(l => l.id === lectureData.id ? { ...l, ...lectureData } as Lecture : l));
@@ -792,20 +822,35 @@ export const LectureScheduler = () => {
                 setLocalLectures(prev => [...prev, { ...lectureData, id: tempId } as Lecture]);
               }
             } else {
-              if (lectureData.id) {
-                updateLecture(lectureData.id, lectureData);
-                addToast('Lecture updated successfully.', 'success');
-              } else {
-                addLectures([{
-                  ...lectureData,
-                  batchId: batch,
-                  branchId: branch || 'MUM-WEST',
-                  publishStatus: 'PUBLISHED',
-                  status: 'SCHEDULED'
-                } as any]);
-                addToast('Lecture scheduled successfully.', 'success');
+              try {
+                const actualBatchId = resolvedBatchObj?.id || (lectureData.batchId && !isNaN(Number(lectureData.batchId)) ? Number(lectureData.batchId) : lectureData.batchId) || batch;
+                const actualBranchId = resolvedBatchObj?.branch_id || selectedBranchObj?.id || assignedBranch?.id || 1;
+                const actualAcademicYearId = resolvedBatchObj?.academic_year_id || 1;
+
+                if (lectureData.id) {
+                  await updateLecture(lectureData.id, {
+                    ...lectureData,
+                    batchId: actualBatchId,
+                    branchId: actualBranchId,
+                    academicYearId: actualAcademicYearId
+                  });
+                  addToast('Lecture updated successfully.', 'success');
+                } else {
+                  await addLectures([{
+                    ...lectureData,
+                    batchId: actualBatchId,
+                    branchId: actualBranchId,
+                    academicYearId: actualAcademicYearId,
+                    publishStatus: 'PUBLISHED',
+                    status: 'SCHEDULED'
+                  } as any]);
+                  addToast('Lecture scheduled successfully.', 'success');
+                }
+                setIsFormOpen(false);
+              } catch (err: any) {
+                const msg = err?.response?.data?.message || err?.message || 'Failed to save lecture';
+                addToast(msg, 'error');
               }
-              setIsFormOpen(false);
             }
           }}
           onDelete={(id) => {

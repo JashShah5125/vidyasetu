@@ -161,4 +161,50 @@ const verifyFileSignature = (req, res, next) => {
     next();
 };
 
-module.exports = { uploadLogo, uploadSupportAttachment, verifyFileSignature, uploadHomeworkFiles, uploadSubmissionFiles };
+// Attendance CSV upload middleware (in-memory buffer for immediate parsing)
+const uploadAttendanceCsv = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedExtensions = ['.csv', '.txt'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedMimes = ['text/csv', 'text/plain', 'application/vnd.ms-excel', 'application/csv', 'text/x-csv', 'application/x-csv', 'text/comma-separated-values', 'text/x-comma-separated-values'];
+        if (allowedExtensions.includes(ext) || allowedMimes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only CSV (.csv) files are allowed.'));
+        }
+    }
+}).single('file');
+
+// Doubt attachments (student & teacher doubts/replies, up to 5 files, 10MB each).
+const doubtStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, '../../uploads/doubts');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const baseName = (file.originalname || 'attachment').replace(/[^\w.\- ]/g, '').replace(/\s+/g, '-').slice(0, 100);
+        cb(null, baseName + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const uploadDoubtAttachments = multer({
+    storage: doubtStorage,
+    limits: { fileSize: 10 * 1024 * 1024, files: 5 }, // 10MB each, up to 5 files
+    fileFilter: homeworkFileFilter
+}).array('attachments', 5);
+
+module.exports = {
+    uploadLogo,
+    uploadSupportAttachment,
+    verifyFileSignature,
+    uploadHomeworkFiles,
+    uploadSubmissionFiles,
+    uploadAttendanceCsv,
+    uploadDoubtAttachments
+};

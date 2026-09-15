@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { formatDate } from '../utils/dateFormatter';
 
 export const ExpenseLedger: React.FC = () => {
   const navigate = useNavigate();
@@ -277,34 +278,34 @@ export const ExpenseLedger: React.FC = () => {
           </span>
         </CardHeader>
 
-        <Table headers={['Date', 'Voucher ID', 'Category', 'Description', 'Paid To / From', 'Method', 'Debit (Outflow)', 'Credit (Inflow)', 'Status']}>
+        <Table dense headers={['Date', 'Voucher ID', 'Category', 'Description', 'Paid To / From', 'Method', 'Debit (Outflow)', 'Credit (Inflow)', 'Status']}>
           {paginatedVouchers.length === 0 ? (
             <tr>
-              <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-medium">
+              <td colSpan={9} className="px-4 py-12 text-center text-slate-400 font-medium">
                 No matching voucher entries found in the ledger.
               </td>
             </tr>
           ) : (
             paginatedVouchers.map((v, idx) => (
               <tr key={idx} className="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
-                <td className="px-6 py-4 text-xs font-semibold text-slate-600 font-mono whitespace-nowrap">{v.date}</td>
-                <td className="px-6 py-4 text-xs font-bold text-blue-600 font-mono tracking-tight">{v.id}</td>
-                <td className="px-6 py-4">
+                <td className="px-3 py-2 text-xs font-semibold text-slate-600 font-mono whitespace-nowrap">{formatDate(v.date)}</td>
+                <td className="px-3 py-2 text-xs font-bold text-blue-600 font-mono tracking-tight">{v.id}</td>
+                <td className="px-3 py-2">
                   <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wide bg-slate-100 text-slate-700 border border-slate-200">
                     {v.category}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-700 font-medium">{v.description}</td>
-                <td className="px-6 py-4 text-xs font-semibold text-slate-600">{v.paidTo}</td>
-                <td className="px-6 py-4 text-xs font-medium text-slate-500 font-mono">{v.paymentMethod}</td>
-                <td className="px-6 py-4 text-sm font-bold text-red-600 font-mono">
+                <td className="px-3 py-2 text-xs text-slate-700 font-medium">{v.description}</td>
+                <td className="px-3 py-2 text-xs font-semibold text-slate-600">{v.paidTo}</td>
+                <td className="px-3 py-2 text-xs font-medium text-slate-500 font-mono">{v.paymentMethod}</td>
+                <td className="px-3 py-2 text-xs font-bold text-red-600 font-mono">
                   {v.direction === 'Debit' ? `₹${v.amount.toLocaleString()}` : '—'}
                 </td>
-                <td className="px-6 py-4 text-sm font-bold text-emerald-600 font-mono">
+                <td className="px-3 py-2 text-xs font-bold text-emerald-600 font-mono">
                   {v.direction === 'Credit' ? `₹${v.amount.toLocaleString()}` : '—'}
                 </td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
+                <td className="px-3 py-2">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
                     v.status === 'Paid' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
                   }`}>
                     {v.status}

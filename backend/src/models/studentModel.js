@@ -26,6 +26,10 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         branchId,
         batchId,
         bundleId,
+        courseId,
+        programId,
+        levelId,
+        academicYearId,
         status,
         feeStatus,
         limit = 10,
@@ -40,9 +44,47 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         const authBranchId = accessContext.authorizedBranchId;
         whereClause += ` AND se.branch_id = ? AND se.status = 'active' AND se.deleted_at IS NULL`;
         params.push(authBranchId);
+    } else if (accessContext && accessContext.scope === 'TEACHER') {
+        // Teacher sees only students enrolled in their allocated batches
+        if (accessContext.assignedBatchIds && accessContext.assignedBatchIds.length > 0) {
+            whereClause += ` AND se.batch_id IN (?) AND se.status = 'active' AND se.deleted_at IS NULL`;
+            params.push(accessContext.assignedBatchIds);
+        } else {
+            whereClause += ` AND 1 = 0`;
+        }
     } else if (branchId && branchId !== 'All') {
         whereClause += ` AND (s.primary_branch_id = ? OR se.branch_id = ?)`;
         params.push(branchId, branchId);
+    }
+
+    if (academicYearId && academicYearId !== 'All') {
+        whereClause += ` AND se.academic_year_id = ?`;
+        params.push(Number(academicYearId));
+    }
+
+    if (batchId && batchId !== 'All') {
+        whereClause += ` AND se.batch_id = ?`;
+        params.push(Number(batchId));
+    }
+
+    if (levelId && levelId !== 'All') {
+        whereClause += ` AND bat.level_id = ?`;
+        params.push(Number(levelId));
+    }
+
+    if (programId && programId !== 'All') {
+        whereClause += ` AND l.program_id = ?`;
+        params.push(Number(programId));
+    }
+
+    if (courseId && courseId !== 'All') {
+        whereClause += ` AND (l.course_id = ? OR p.course_id = ?)`;
+        params.push(Number(courseId), Number(courseId));
+    }
+
+    if (bundleId && bundleId !== 'All') {
+        whereClause += ` AND se.bundle_id = ?`;
+        params.push(Number(bundleId));
     }
 
     // Latest fee assignment per student (latest row per student_id via rn=1)
@@ -50,21 +92,22 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         LEFT JOIN (
             SELECT student_id, tenant_id, gross_amount, total_concession, net_amount,
                    down_payment, installment_count, installment_amount,
-                   paid_amount, balance_amount, status,
+                   paid_amount, balance_amount, status, created_at,
                    ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY id DESC) AS rn
             FROM student_fee_assignments
         ) fa ON fa.student_id = s.id AND fa.tenant_id = s.tenant_id AND fa.rn = 1
+    `;
+
+    const academicJoins = `
+        LEFT JOIN batches bat ON se.batch_id = bat.id AND bat.tenant_id = s.tenant_id
+        LEFT JOIN levels l ON bat.level_id = l.id AND l.tenant_id = s.tenant_id
+        LEFT JOIN programs p ON (l.program_id = p.id OR (l.program_id IS NULL AND l.course_id = p.course_id)) AND p.tenant_id = s.tenant_id
     `;
 
     if (search && search.trim() !== '') {
         const term = `%${search.trim()}%`;
         whereClause += ` AND (s.full_name LIKE ? OR s.student_code LIKE ? OR s.mobile LIKE ? OR s.email LIKE ?)`;
         params.push(term, term, term, term);
-    }
-
-    if (batchId && batchId !== 'All') {
-        whereClause += ` AND se.batch_id = ?`;
-        params.push(batchId);
     }
 
     if (status !== undefined && status !== 'All' && status !== '') {
@@ -74,20 +117,88 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
     }
 
     if (feeStatus && feeStatus !== 'All') {
-        whereClause += ` AND fa.status = ?`;
-        params.push(feeStatus);
+        const lowerFeeStatus = feeStatus.toLowerCase().trim();
+        if (lowerFeeStatus === 'paid') {
+            whereClause += ` AND (fa.status = 'paid' OR (fa.net_amount > 0 AND (fa.net_amount - fa.paid_amount) <= 0) OR fa.balance_amount = 0)`;
+        } else if (lowerFeeStatus === 'overdue') {
+            whereClause += ` AND (fa.status = 'overdue' OR (fa.balance_amount > 0 AND fa.down_payment > fa.paid_amount))`;
+        } else if (lowerFeeStatus === 'on_schedule') {
+            whereClause += ` AND ((fa.status = 'pending' OR fa.status = 'partially_paid' OR fa.status = 'partial') AND (fa.balance_amount > 0 OR fa.balance_amount IS NULL) AND (fa.down_payment <= fa.paid_amount))`;
+        } else if (lowerFeeStatus === 'unpaid') {
+            whereClause += ` AND (fa.status = 'unpaid' OR fa.status = 'pending' OR fa.paid_amount = 0 OR fa.paid_amount IS NULL)`;
+        } else if (lowerFeeStatus === 'partial' || lowerFeeStatus === 'partially_paid') {
+            whereClause += ` AND (fa.status = 'partial' OR fa.status = 'partially_paid' OR (fa.paid_amount > 0 AND fa.balance_amount > 0))`;
+        } else {
+            whereClause += ` AND fa.status = ?`;
+            params.push(feeStatus);
+        }
     }
 
     const countQuery = `
         SELECT COUNT(DISTINCT s.id) as total 
         FROM students s
         LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+        ${academicJoins}
         ${faJoin}
         ${whereClause}
     `;
 
     const [countRows] = await pool.query(countQuery, params);
     const total = countRows[0] ? countRows[0].total : 0;
+
+    // Calculate aggregate financial summary across the entire filtered population
+    const summaryDataQuery = `
+        SELECT 
+            fa.net_amount,
+            fa.paid_amount,
+            fa.balance_amount,
+            fa.down_payment,
+            fa.installment_count,
+            fa.installment_amount,
+            COALESCE(se.enrolled_date, fa.created_at, s.created_at) AS start_date
+        FROM students s
+        LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+        ${academicJoins}
+        ${faJoin}
+        ${whereClause}
+    `;
+
+    const [summaryRows] = await pool.query(summaryDataQuery, params);
+    const now = new Date();
+    let totalExpected = 0;
+    let totalCollected = 0;
+    let totalRemaining = 0;
+    let totalOverdue = 0;
+    let defaulterCount = 0;
+
+    for (const r of summaryRows) {
+        const net = Number(r.net_amount) || 0;
+        const paid = Number(r.paid_amount) || 0;
+        const balance = Number(r.balance_amount) !== undefined && r.balance_amount !== null ? Number(r.balance_amount) : Math.max(0, net - paid);
+        const down = Number(r.down_payment) || 0;
+        const instCount = Math.max(1, Number(r.installment_count) || 1);
+        const instAmount = Number(r.installment_amount) || 0;
+        const startDate = new Date(r.start_date || now);
+
+        totalExpected += net;
+        totalCollected += paid;
+        totalRemaining += balance;
+
+        let expectedDue = down;
+        for (let i = 1; i <= instCount; i++) {
+            const dueDate = new Date(startDate);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            if (dueDate <= now) {
+                expectedDue += instAmount;
+            }
+        }
+        expectedDue = Math.min(net, expectedDue);
+        const overdue = Math.max(0, expectedDue - paid);
+        if (overdue > 0) {
+            totalOverdue += overdue;
+            defaulterCount += 1;
+        }
+    }
 
     const selectQuery = `
         SELECT 
@@ -122,6 +233,7 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             bat.code AS batch_code,
             se.academic_year_id,
             ay.name AS academic_year_name,
+            se.enrolled_date,
             g.id AS guardian_id,
             g.user_id AS guardian_user_id,
             g.full_name AS guardian_name,
@@ -136,11 +248,12 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             fa.installment_amount AS installment_amount,
             fa.paid_amount AS fees_paid,
             fa.balance_amount AS fees_outstanding,
-            fa.status AS fee_status
+            fa.status AS fee_status,
+            fa.created_at AS fee_created_at
         FROM students s
         LEFT JOIN branches b ON s.primary_branch_id = b.id AND b.tenant_id = s.tenant_id
         LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
-        LEFT JOIN batches bat ON se.batch_id = bat.id AND bat.tenant_id = s.tenant_id
+        ${academicJoins}
         LEFT JOIN academic_years ay ON se.academic_year_id = ay.id AND ay.tenant_id = s.tenant_id
         LEFT JOIN student_guardians sg ON s.id = sg.student_id AND sg.tenant_id = s.tenant_id AND sg.is_primary = 1
         LEFT JOIN guardians g ON sg.guardian_id = g.id AND g.tenant_id = s.tenant_id
@@ -153,9 +266,48 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
     const selectParams = [...params, Number(limit), Number(offset)];
     const [rows] = await pool.query(selectQuery, selectParams);
 
+    const formattedData = rows.map(row => {
+        const net = Number(row.total_fees) || 0;
+        const paid = Number(row.fees_paid) || 0;
+        const balance = Number(row.fees_outstanding) !== undefined && row.fees_outstanding !== null ? Number(row.fees_outstanding) : Math.max(0, net - paid);
+        const down = Number(row.down_payment) || 0;
+        const instCount = Math.max(1, Number(row.installment_count) || 1);
+        const instAmount = Number(row.installment_amount) || 0;
+        const startDate = new Date(row.enrolled_date || row.fee_created_at || row.created_at || now);
+
+        let expectedDue = down;
+        for (let i = 1; i <= instCount; i++) {
+            const dueDate = new Date(startDate);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            if (dueDate <= now) {
+                expectedDue += instAmount;
+            }
+        }
+        expectedDue = Math.min(net, expectedDue);
+        const overdue = Math.max(0, expectedDue - paid);
+
+        return {
+            ...row,
+            total_fees: net,
+            fees_paid: paid,
+            fees_remaining: balance,
+            expected_due_till_date: Math.round(expectedDue),
+            fees_overdue: Math.round(overdue),
+            is_defaulter: overdue > 0,
+            fee_status: row.fee_status || (balance <= 0 ? 'paid' : (paid > 0 ? 'partial' : 'unpaid'))
+        };
+    });
+
     return {
         total,
-        data: rows
+        summary: {
+            totalExpected: Math.round(totalExpected),
+            totalCollected: Math.round(totalCollected),
+            totalRemaining: Math.round(totalRemaining),
+            totalOverdue: Math.round(totalOverdue),
+            defaulterCount
+        },
+        data: formattedData
     };
 };
 
@@ -169,6 +321,13 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
     if (accessContext && accessContext.scope === 'BRANCH') {
         whereBranchClause = ` AND se.branch_id = ? AND se.status = 'active'`;
         queryParams.push(accessContext.authorizedBranchId);
+    } else if (accessContext && accessContext.scope === 'TEACHER') {
+        if (accessContext.assignedBatchIds && accessContext.assignedBatchIds.length > 0) {
+            whereBranchClause = ` AND se.batch_id IN (?) AND se.status = 'active'`;
+            queryParams.push(accessContext.assignedBatchIds);
+        } else {
+            whereBranchClause = ` AND 1 = 0`;
+        }
     }
 
     const query = `
@@ -1083,58 +1242,58 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
         );
     }
 
-    // 2. Courses
+    // 2. Courses (Assigned to branch if in branch scope, otherwise all active courses)
     let courses = [];
     if (isBranchScope) {
         courses = await safeQuery('courses',
-            `SELECT DISTINCT c.id, c.name 
+            `SELECT DISTINCT c.id, c.name, c.code 
              FROM courses c
              JOIN course_branches cb ON cb.course_id = c.id
              WHERE c.tenant_id = ? AND cb.branch_id = ? AND c.deleted_at IS NULL AND c.is_active = 1
              ORDER BY c.name ASC`,
             [tid, branchId]
         );
-        // Fallback to all tenant courses if no explicit branch course mappings exist
-        if (!courses.length) {
-            courses = await safeQuery('courses_fallback',
-                `SELECT id, name FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
-                [tid]
-            );
-        }
     } else {
         courses = await safeQuery('courses',
-            `SELECT id, name FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            `SELECT id, name, code FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
             [tid]
         );
     }
 
-    // 3. Programs
+    // 3. Programs (Assigned to branch if in branch scope, otherwise all active programs)
     let programs = [];
     if (isBranchScope) {
         programs = await safeQuery('programs',
             `SELECT DISTINCT p.id, p.course_id, p.name, p.code 
              FROM programs p
              JOIN branch_programs bp ON bp.program_id = p.id
-             WHERE p.tenant_id = ? AND bp.branch_id = ? AND p.deleted_at IS NULL
+             WHERE p.tenant_id = ? AND bp.branch_id = ? AND p.deleted_at IS NULL AND p.is_active = 1
              ORDER BY p.name ASC`,
             [tid, branchId]
         );
-        // Fallback to programs under the available courses if no explicit branch program mappings exist
-        if (!programs.length) {
-            const courseIds = courses.map(c => c.id);
-            if (courseIds.length > 0) {
-                programs = await safeQuery('programs_fallback',
-                    `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND course_id IN (?) AND deleted_at IS NULL ORDER BY name ASC`,
-                    [tid, courseIds]
-                );
-            }
-        }
     } else {
         programs = await safeQuery('programs',
-            `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`,
+            `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
             [tid]
         );
     }
+
+    // 3b. Course & Program branch assignment mappings for frontend filtering
+    const courseBranches = await safeQuery('courseBranches',
+        `SELECT DISTINCT cb.course_id, cb.branch_id 
+         FROM course_branches cb
+         JOIN courses c ON c.id = cb.course_id AND c.deleted_at IS NULL AND c.is_active = 1
+         WHERE c.tenant_id = ?`,
+        [tid]
+    );
+
+    const branchPrograms = await safeQuery('branchPrograms',
+        `SELECT DISTINCT bp.program_id, bp.course_id, bp.branch_id 
+         FROM branch_programs bp
+         JOIN programs p ON p.id = bp.program_id AND p.deleted_at IS NULL AND p.is_active = 1
+         WHERE bp.tenant_id = ?`,
+        [tid]
+    );
 
     // 4. Levels
     let levels = [];
@@ -1195,12 +1354,12 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
         [tid]
     );
 
-    // 8. Level Subjects
+    // 8. Level Subjects with fees
     const levelSubjects = await safeQuery('levelSubjects',
         `SELECT 
             ls.level_id, 
-            l.course_id, 
-            l.program_id, 
+            l.course_id,
+            l.program_id,
             s.id, 
             s.name, 
             s.code, 
@@ -1239,6 +1398,8 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
         branches,
         courses,
         programs,
+        courseBranches,
+        branchPrograms,
         levels,
         batches,
         bundles: parsedBundles,

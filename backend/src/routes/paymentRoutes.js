@@ -10,5 +10,7 @@ router.get('/students/:id/fee-assignment', requirePermission('fee.view'), paymen
 router.put('/students/:id/fee-assignment', requirePermission('fee.update'), paymentController.updateStudentFeeAssignment);
 router.post('/collect', requirePermission('fee.create'), paymentController.recordPayment);
 router.post('/invoices', requirePermission('fee.create'), paymentController.createInvoice);
+router.put('/invoices/:id', requirePermission('fee.update'), paymentController.updateInvoice);
+router.delete('/invoices/:id', requirePermission('fee.delete'), paymentController.deleteInvoice);
 
 module.exports = router;

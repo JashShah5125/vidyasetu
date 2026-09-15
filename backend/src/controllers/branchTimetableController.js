@@ -298,33 +298,54 @@ const createLecture = async (req, res) => {
         const branchId = accessContext.authorizedBranchId || data.branchId || data.branch_id || 1;
 
         // 1. Validate batch belongs to branch
+        let validatedBatch = null;
         if (data.batchId || data.batch_id) {
-            await timetableAccessService.validateBatchInBranch(tenantId, branchId, data.batchId || data.batch_id);
+            validatedBatch = await timetableAccessService.validateBatchInBranch(tenantId, branchId, data.batchId || data.batch_id);
         }
 
         // 2. Validate classroom belongs to branch
+        let validatedRoom = null;
         const roomId = data.classroomId || data.classroom_id || data.roomId;
-        if (roomId && accessContext.authorizedBranchId) {
-            await timetableAccessService.validateClassroomInBranch(tenantId, branchId, roomId);
+        if (roomId) {
+            validatedRoom = await timetableAccessService.validateClassroomInBranch(tenantId, branchId, roomId);
         }
 
         // 3. Validate teacher is authorized for branch
+        let validatedTeacher = null;
         const teacherId = data.teacherUserId || data.teacher_user_id || data.teacherId;
-        if (teacherId && accessContext.authorizedBranchId) {
-            await timetableAccessService.validateTeacherInBranch(tenantId, branchId, teacherId);
+        if (teacherId) {
+            validatedTeacher = await timetableAccessService.validateTeacherInBranch(tenantId, branchId, teacherId);
         }
 
         // 4. Validate subject exists
+        let validatedSubject = null;
         const subjectId = data.subjectId || data.subject_id;
         if (subjectId) {
-            await timetableAccessService.validateSubjectInBranch(tenantId, branchId, subjectId);
+            validatedSubject = await timetableAccessService.validateSubjectInBranch(tenantId, branchId, subjectId);
         }
 
-        // Force branch_id from access context
+        const resolvedBranchId = validatedBatch ? validatedBatch.branch_id : branchId;
+        const resolvedAcademicYearId = validatedBatch ? (validatedBatch.academic_year_id || data.academicYearId || data.academic_year_id || 1) : (data.academicYearId || data.academic_year_id || 1);
+        const resolvedBatchId = validatedBatch ? validatedBatch.id : (data.batch_id || data.batchId);
+        const resolvedSubjectId = validatedSubject ? validatedSubject.id : (data.subject_id || data.subjectId);
+        const resolvedTeacherId = validatedTeacher ? validatedTeacher.id : (data.teacher_user_id || data.teacherId || data.teacherUserId);
+        const resolvedRoomId = validatedRoom ? validatedRoom.id : (roomId ? (isNaN(Number(roomId)) ? null : Number(roomId)) : null);
+
+        // Force clean resolved IDs
         const lectureData = {
             ...data,
-            branch_id: branchId,
-            branchId: branchId
+            branch_id: resolvedBranchId,
+            branchId: resolvedBranchId,
+            academic_year_id: resolvedAcademicYearId,
+            academicYearId: resolvedAcademicYearId,
+            batch_id: resolvedBatchId,
+            batchId: resolvedBatchId,
+            subject_id: resolvedSubjectId,
+            subjectId: resolvedSubjectId,
+            teacher_user_id: resolvedTeacherId,
+            teacherId: resolvedTeacherId,
+            classroom_id: resolvedRoomId,
+            roomId: resolvedRoomId
         };
 
         const result = await timetableModel.createLecture(tenantId, lectureData, userId);
@@ -354,33 +375,41 @@ const updateLecture = async (req, res) => {
         const targetBranchId = branchId || existingLecture.branch_id;
 
         // 2. Validate new batch if provided
+        let validatedBatch = null;
         const newBatchId = data.batchId || data.batch_id;
-        if (newBatchId && accessContext.authorizedBranchId) {
-            await timetableAccessService.validateBatchInBranch(tenantId, targetBranchId, newBatchId);
+        if (newBatchId) {
+            validatedBatch = await timetableAccessService.validateBatchInBranch(tenantId, targetBranchId, newBatchId);
         }
 
         // 3. Validate new classroom if provided
+        let validatedRoom = null;
         const newRoomId = data.classroomId || data.classroom_id || data.roomId;
-        if (newRoomId && accessContext.authorizedBranchId) {
-            await timetableAccessService.validateClassroomInBranch(tenantId, targetBranchId, newRoomId);
+        if (newRoomId) {
+            validatedRoom = await timetableAccessService.validateClassroomInBranch(tenantId, targetBranchId, newRoomId);
         }
 
         // 4. Validate new teacher if provided
+        let validatedTeacher = null;
         const newTeacherId = data.teacherUserId || data.teacher_user_id || data.teacherId;
-        if (newTeacherId && accessContext.authorizedBranchId) {
-            await timetableAccessService.validateTeacherInBranch(tenantId, targetBranchId, newTeacherId);
+        if (newTeacherId) {
+            validatedTeacher = await timetableAccessService.validateTeacherInBranch(tenantId, targetBranchId, newTeacherId);
         }
 
         // 5. Validate new subject if provided
+        let validatedSubject = null;
         const newSubjectId = data.subjectId || data.subject_id;
         if (newSubjectId) {
-            await timetableAccessService.validateSubjectInBranch(tenantId, targetBranchId, newSubjectId);
+            validatedSubject = await timetableAccessService.validateSubjectInBranch(tenantId, targetBranchId, newSubjectId);
         }
 
         const lectureData = {
             ...data,
-            branch_id: targetBranchId,
-            branchId: targetBranchId,
+            branch_id: validatedBatch ? validatedBatch.branch_id : targetBranchId,
+            branchId: validatedBatch ? validatedBatch.branch_id : targetBranchId,
+            batch_id: validatedBatch ? validatedBatch.id : (data.batch_id || data.batchId),
+            subject_id: validatedSubject ? validatedSubject.id : (data.subject_id || data.subjectId),
+            teacher_user_id: validatedTeacher ? validatedTeacher.id : (data.teacher_user_id || data.teacherId || data.teacherUserId),
+            classroom_id: validatedRoom ? validatedRoom.id : (newRoomId ? (isNaN(Number(newRoomId)) ? null : Number(newRoomId)) : null),
             is_modified_from_default: 1
         };
 

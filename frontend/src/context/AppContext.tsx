@@ -143,8 +143,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (tenantsRes?.data) setTenants(tenantsRes.data);
           if (plansRes?.data) setPlans(plansRes.data);
           if (subsRes?.data) setTenantSubscriptions(subsRes.data);
-        } else {
-          // Fetch institute-level data
+        } else if (currentUser.role === 'inst-admin' || currentUser.role === 'branch-admin') {
+          // Institute-level master data (admin roles only; other roles use scoped APIs)
           const [branchesRes, coursesRes, staffRes, batchesRes] = await Promise.all([
             branchApi.list(),
             courseApi.list(),

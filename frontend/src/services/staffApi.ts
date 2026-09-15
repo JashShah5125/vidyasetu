@@ -13,9 +13,9 @@ export interface StaffFilters {
 
 const getStaffBasePath = (): string => {
     try {
-        const savedUser = localStorage.getItem('vs_current_user');
-        if (savedUser) {
-            const user = JSON.parse(savedUser);
+        const raw = localStorage.getItem('vs_current_user') || localStorage.getItem('user');
+        if (raw) {
+            const user = JSON.parse(raw);
             const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
             if (role === 'branch-admin') {
                 return '/branch/staff';

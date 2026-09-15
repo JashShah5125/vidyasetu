@@ -201,7 +201,8 @@ const getStaffList = async (tenantId, filters = {}, accessContext = { scope: 'TE
             COALESCE(GROUP_CONCAT(DISTINCT r.name SEPARATOR ', '), IF(sp.employee_type = 'Teaching', 'Teacher', sp.designation)) as role_name,
             COALESCE(GROUP_CONCAT(DISTINCT r.code SEPARATOR ', '), LOWER(sp.employee_type)) as role_code,
             COALESCE(GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', '), '') as subjects_taught,
-            COALESCE(GROUP_CONCAT(DISTINCT ts.subject_id ORDER BY ts.subject_id SEPARATOR ','), '') as subject_ids_str
+            COALESCE(GROUP_CONCAT(DISTINCT ts.subject_id ORDER BY ts.subject_id SEPARATOR ','), '') as subject_ids_str,
+            COALESCE(GROUP_CONCAT(DISTINCT ta.batch_id ORDER BY ta.batch_id SEPARATOR ','), '') as allocated_batch_ids_str
         FROM staff_profiles sp
         JOIN users u ON sp.user_id = u.id
         LEFT JOIN branches b ON b.id = JSON_UNQUOTE(JSON_EXTRACT(sp.branch_ids, '$[0]'))
@@ -209,6 +210,7 @@ const getStaffList = async (tenantId, filters = {}, accessContext = { scope: 'TE
         LEFT JOIN roles r ON ur.role_id = r.id
         LEFT JOIN teacher_subjects ts ON ts.teacher_user_id = u.id AND ts.tenant_id = sp.tenant_id
         LEFT JOIN subjects s ON ts.subject_id = s.id AND s.deleted_at IS NULL
+        LEFT JOIN teacher_allocations ta ON ta.teacher_user_id = u.id AND ta.tenant_id = sp.tenant_id AND ta.deleted_at IS NULL
     `;
 
     // In BRANCH scope, join user_branch_access to strictly enforce branch boundary
@@ -299,8 +301,9 @@ const getStaffList = async (tenantId, filters = {}, accessContext = { scope: 'TE
             branch_ids: parsedBranchIds,
             branch_id: parsedBranchIds[0] || null,
             primary_branch_id: parsedBranchIds[0] || null,
-            subject_ids: r.subject_ids_str ? r.subject_ids_str.split(',').map(Number) : [],
+            subject_ids: r.subject_ids_str ? r.subject_ids_str.split(',').map(Number).filter(Boolean) : [],
             subjects: r.subjects_taught ? r.subjects_taught.split(', ') : [],
+            allocated_batch_ids: r.allocated_batch_ids_str ? r.allocated_batch_ids_str.split(',').map(Number).filter(Boolean) : [],
             working_days: parsedWorkingDays
         };
     });
@@ -579,14 +582,16 @@ const updateStaff = async (tenantId, staffId, staffData, accessContext = { scope
 
             if (batchIds.length > 0) {
                 const [batchRows] = await connection.query(
-                    `SELECT id, branch_id, academic_year_id FROM batches WHERE id IN (?) AND tenant_id = ?`,
+                    `SELECT id, branch_id, COALESCE(academic_year_id, 1) as academic_year_id FROM batches WHERE id IN (?) AND tenant_id = ?`,
                     [batchIds, tenantId]
                 );
                 for (const bRow of batchRows) {
+                    const branchIdToUse = bRow.branch_id || (accessContext.scope === 'BRANCH' ? accessContext.authorizedBranchId : 1);
                     await connection.query(
-                        `INSERT IGNORE INTO teacher_allocations (tenant_id, branch_id, academic_year_id, batch_id, teacher_user_id, created_by, updated_by)
-                         VALUES (?, ?, ?, ?, ?, NULL, NULL)`,
-                        [tenantId, bRow.branch_id, bRow.academic_year_id, bRow.id, userId]
+                        `INSERT INTO teacher_allocations (tenant_id, branch_id, academic_year_id, batch_id, teacher_user_id, created_by, updated_by)
+                         VALUES (?, ?, ?, ?, ?, NULL, NULL)
+                         ON DUPLICATE KEY UPDATE branch_id = VALUES(branch_id), academic_year_id = VALUES(academic_year_id), deleted_at = NULL, updated_at = CURRENT_TIMESTAMP`,
+                        [tenantId, branchIdToUse, bRow.academic_year_id, bRow.id, userId]
                     );
                 }
             }

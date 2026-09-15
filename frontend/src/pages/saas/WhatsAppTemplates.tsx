@@ -8,6 +8,7 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Modal } from '../../components/ui/Modal';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { whatsappTemplateService, type WhatsAppTemplate, type WhatsAppButton } from '../../services/whatsappTemplateService';
+import { formatDate } from '../../utils/dateFormatter';
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All Statuses' },
@@ -431,7 +432,7 @@ export const WhatsAppTemplates: React.FC = () => {
                     <div>
                       <span className="block font-bold">{t.template_name}</span>
                       <span className="text-xs text-slate-500 font-normal mt-0.5 block">
-                        Created: {new Date(t.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        Created: {formatDate(t.created_at)}
                       </span>
                     </div>
                   </div>

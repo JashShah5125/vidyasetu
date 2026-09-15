@@ -500,7 +500,9 @@ export const StaffCreate: React.FC = () => {
       roles: data.role_name ? data.role_name.split(', ') : (data.role ? [data.role] : (data.employee_type === 'Teaching' ? ['Teacher'] : [])),
       workingDays: staffWorkingDays.length > 0 ? staffWorkingDays : prev.workingDays,
       subjects: staffSubjects.length > 0 ? staffSubjects : prev.subjects,
-      allocatedBatchIds: staffAllocatedBatchIds.length > 0 ? staffAllocatedBatchIds : prev.allocatedBatchIds,
+      allocatedBatchIds: (data.allocated_batch_ids !== undefined || data.allocated_batches !== undefined)
+        ? staffAllocatedBatchIds
+        : (staffAllocatedBatchIds.length > 0 ? staffAllocatedBatchIds : prev.allocatedBatchIds),
       maxLecturesPerDay: data.max_lectures_per_day?.toString() || '',
       maxLecturesPerWeek: data.max_lectures_per_week?.toString() || '',
       salaryType: data.salary_type || 'Monthly',
@@ -516,9 +518,13 @@ export const StaffCreate: React.FC = () => {
   useEffect(() => {
     if (!isEditMode) return;
 
+    // Use passed state data as immediate initial fill if present
     if (staffData) {
       populateFormData(staffData);
-    } else if (id) {
+    }
+
+    // Always fetch canonical fresh staff record from backend to guarantee complete relations (batches, subjects)
+    if (id) {
       staffApi.getById(id)
         .then(res => {
           if (res?.data) {
@@ -529,7 +535,7 @@ export const StaffCreate: React.FC = () => {
           console.error('Failed to fetch staff by id:', err);
         });
     }
-  }, [staffData, isEditMode, id]);
+  }, [isEditMode, id]);
 
   const set = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
   const isTeacher = form.roles.includes('Teacher') || form.employeeType === 'Teaching';

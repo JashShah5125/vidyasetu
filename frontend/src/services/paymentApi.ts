@@ -60,6 +60,8 @@ export interface StudentLedger {
   feeAssignment: StudentFeeAssignment | null;
   invoices: StudentLedgerInvoice[];
   totalOutstanding: number;
+  expected_due_till_date?: number;
+  fees_overdue?: number;
 }
 
 export interface PaymentAllocation {
@@ -146,13 +148,14 @@ export interface CreateInvoiceResult {
   };
 }
 
-const isBranchAdmin = (): boolean => {
+const isBranchUser = (): boolean => {
   try {
     const savedUser = localStorage.getItem('vs_current_user');
     if (savedUser) {
       const user = JSON.parse(savedUser);
       const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
-      return role === 'branch-admin';
+      const userType = String(user.userType || '').toLowerCase();
+      return role === 'branch-admin' || role === 'branch_admin' || role === 'finance' || userType === 'finance' || Boolean(user.branchId);
     }
   } catch {
     // fallback
@@ -190,15 +193,15 @@ export interface UpdateFeeAssignmentPayload {
 }
 
 export const getStudentLedger = async (studentId: number): Promise<StudentLedger> => {
-  const url = isBranchAdmin()
-    ? `/branch/fees/students/${studentId}/ledger`
+  const url = isBranchUser()
+    ? `/branch/finance/students/${studentId}/ledger`
     : `/admin/payments/students/${studentId}/ledger`;
   const response = await api.get(url);
   return response.data.data;
 };
 
 export const getStudentFeeAssignment = async (studentId: number): Promise<StudentFeeAssignmentDetails> => {
-  const url = isBranchAdmin()
+  const url = isBranchUser()
     ? `/branch/fees/students/${studentId}/fee-assignment`
     : `/admin/payments/students/${studentId}/fee-assignment`;
   const response = await api.get(url);
@@ -206,7 +209,7 @@ export const getStudentFeeAssignment = async (studentId: number): Promise<Studen
 };
 
 export const updateStudentFeeAssignment = async (studentId: number, payload: UpdateFeeAssignmentPayload): Promise<StudentFeeAssignmentDetails> => {
-  const url = isBranchAdmin()
+  const url = isBranchUser()
     ? `/branch/fees/students/${studentId}/fee-assignment`
     : `/admin/payments/students/${studentId}/fee-assignment`;
   const response = await api.put(url, payload);
@@ -218,8 +221,62 @@ export const recordPayment = async (payload: RecordPaymentPayload): Promise<Reco
   return response.data.data;
 };
 
+export const collectBranchPayment = async (
+  studentId: number,
+  payload: {
+    feeAssignmentId?: number;
+    amount: number;
+    paymentMode: string;
+    transactionReference?: string;
+    remarks?: string;
+  }
+) => {
+  const response = await api.post(`/branch/finance/students/${studentId}/payments`, payload);
+  return response.data.data;
+};
+
 export const createInvoice = async (payload: CreateInvoicePayload): Promise<CreateInvoiceResult> => {
-  const url = isBranchAdmin() ? '/branch/fees/invoices' : '/admin/payments/invoices';
-  const response = await api.post(url, payload);
+  if (isBranchUser()) {
+    const response = await api.post(`/branch/finance/students/${payload.student_id}/payments`, {
+      amount: payload.amount,
+      paymentMode: payload.payment_mode,
+      transactionReference: payload.transaction_reference,
+      remarks: payload.remarks || payload.description
+    });
+    return response.data.data;
+  }
+  const response = await api.post('/admin/payments/invoices', payload);
+  return response.data.data;
+};
+
+export interface UpdateInvoicePayload {
+  amount?: number;
+  payment_mode?: string;
+  paymentMode?: string;
+  transaction_reference?: string;
+  transactionReference?: string;
+  description?: string;
+  remarks?: string;
+  issue_date?: string;
+  issueDate?: string;
+  due_date?: string;
+  dueDate?: string;
+  payment_date?: string;
+  paymentDate?: string;
+}
+
+export const updateInvoice = async (invoiceId: number, payload: UpdateInvoicePayload) => {
+  const url = isBranchUser()
+    ? `/branch/finance/invoices/${invoiceId}`
+    : `/admin/payments/invoices/${invoiceId}`;
+  const response = await api.put(url, payload);
+  return response.data.data;
+};
+
+export const deleteInvoice = async (invoiceId: number) => {
+  const url = isBranchUser()
+    ? `/branch/finance/invoices/${invoiceId}`
+    : `/admin/payments/invoices/${invoiceId}`;
+  const response = await api.delete(url);
   return response.data.data;
 };

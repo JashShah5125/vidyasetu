@@ -89,10 +89,58 @@ const updateStudentFeeAssignment = async (req, res) => {
     }
 };
 
+const updateInvoice = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+        const invoiceId = Number(req.params.id);
+
+        const result = await paymentService.updateCollectionInvoice({
+            tenantId: Number(tenantId),
+            invoiceId,
+            amount: req.body.amount !== undefined ? Number(req.body.amount) : undefined,
+            paymentMode: req.body.payment_mode || req.body.paymentMode,
+            transactionReference: req.body.transaction_reference !== undefined ? req.body.transaction_reference : req.body.transactionReference,
+            description: req.body.description,
+            remarks: req.body.remarks,
+            issueDate: req.body.issue_date || req.body.issueDate,
+            dueDate: req.body.due_date || req.body.dueDate,
+            paymentDate: req.body.payment_date || req.body.paymentDate,
+            accessContext: null,
+            updatedBy: Number(userId)
+        });
+
+        res.status(200).json({ status: 'success', message: 'Invoice updated successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error updating invoice:');
+    }
+};
+
+const deleteInvoice = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+        const invoiceId = Number(req.params.id);
+
+        const result = await paymentService.deleteCollectionInvoice({
+            tenantId: Number(tenantId),
+            invoiceId,
+            accessContext: null,
+            deletedBy: Number(userId)
+        });
+
+        res.status(200).json({ status: 'success', message: 'Invoice deleted successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error deleting invoice:');
+    }
+};
+
 module.exports = {
     getStudentLedger,
     getStudentFeeAssignment,
     updateStudentFeeAssignment,
     recordPayment,
-    createInvoice
+    createInvoice,
+    updateInvoice,
+    deleteInvoice
 };

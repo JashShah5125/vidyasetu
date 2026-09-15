@@ -156,6 +156,28 @@ export const DEFAULT_INTEGRATIONS: IntegrationConfig = {
   biometricDevices: false
 };
 
-export const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+export const formatDate = (dateString?: string | Date | null) => {
+  if (!dateString) return '—';
+  try {
+    if (typeof dateString === 'string') {
+      const cleanStr = dateString.split('T')[0].split(' ')[0];
+      const parts = cleanStr.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(cleanStr)) {
+        return cleanStr;
+      }
+    }
+    const d = new Date(dateString);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+    return String(dateString);
+  } catch {
+    return String(dateString || '');
+  }
 };

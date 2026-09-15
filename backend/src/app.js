@@ -53,6 +53,7 @@ const studentRoutes = require('./routes/studentRoutes');
 const branchStudentRoutes = require('./routes/branchStudentRoutes');
 const branchStaffRoutes = require('./routes/branchStaffRoutes');
 const branchFeeRoutes = require('./routes/branchFeeRoutes');
+const branchFinanceRoutes = require('./routes/branchFinanceRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const timetableRoutes = require('./routes/timetableRoutes');
 const branchTimetableRoutes = require('./routes/branchTimetableRoutes');
@@ -61,7 +62,11 @@ const branchHomeworkRoutes = require('./routes/branchHomeworkRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const branchAttendanceRoutes = require('./routes/branchAttendanceRoutes');
 const teacherScheduleRoutes = require('./routes/teacherScheduleRoutes');
+const teacherStudentRoutes = require('./routes/teacherStudentRoutes');
+const teacherHomeworkRoutes = require('./routes/teacherHomeworkRoutes');
 const lectureRequestRoutes = require('./routes/lectureRequestRoutes');
+const studentDoubtRoutes = require('./routes/studentDoubtRoutes');
+const teacherDoubtRoutes = require('./routes/teacherDoubtRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -85,6 +90,7 @@ app.use('/api/admin/subjects', subjectRoutes);
 app.use('/api/admin/bundles', bundleRoutes);
 app.use('/api/admin/fee-plans', feeRoutes);
 app.use('/api/branch/fees', branchFeeRoutes);
+app.use('/api/branch/finance', branchFinanceRoutes);
 app.use('/api/admin/classrooms', classroomRoutes);
 app.use('/api/admin/staff', staffRoutes);
 app.use('/api/branch/staff', branchStaffRoutes);
@@ -98,6 +104,10 @@ app.use('/api/admin/payments', paymentRoutes);
 app.use('/api/admin/timetable', timetableRoutes);
 app.use('/api/branch/timetable', branchTimetableRoutes);
 app.use('/api/teacher/schedule', teacherScheduleRoutes);
+app.use('/api/teacher/students', teacherStudentRoutes);
+app.use('/api/teacher/homeworks', teacherHomeworkRoutes);
+app.use('/api/teacher/doubts', teacherDoubtRoutes);
+app.use('/api/student/doubts', studentDoubtRoutes);
 app.use('/api/admin/lecture-requests', lectureRequestRoutes);
 app.use('/api/admin/attendance', attendanceRoutes);
 app.use('/api/branch/attendance', branchAttendanceRoutes);

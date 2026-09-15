@@ -285,6 +285,54 @@ const getInvoiceById = async (req, res) => {
     }
 };
 
+const updateInvoice = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { id } = req.params;
+        const userId = req.user?.userId || req.user?.id || 1;
+        const accessContext = await feeAccessService.resolveAccessContext(tenantId, req.user);
+
+        const result = await paymentService.updateCollectionInvoice({
+            tenantId,
+            invoiceId: Number(id),
+            amount: req.body.amount !== undefined ? Number(req.body.amount) : undefined,
+            paymentMode: req.body.payment_mode || req.body.paymentMode,
+            transactionReference: req.body.transaction_reference !== undefined ? req.body.transaction_reference : req.body.transactionReference,
+            description: req.body.description,
+            remarks: req.body.remarks,
+            issueDate: req.body.issue_date || req.body.issueDate,
+            dueDate: req.body.due_date || req.body.dueDate,
+            paymentDate: req.body.payment_date || req.body.paymentDate,
+            accessContext,
+            updatedBy: Number(userId)
+        });
+
+        res.json({ status: 'success', message: 'Invoice updated successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error updating branch invoice:');
+    }
+};
+
+const deleteInvoice = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { id } = req.params;
+        const userId = req.user?.userId || req.user?.id || 1;
+        const accessContext = await feeAccessService.resolveAccessContext(tenantId, req.user);
+
+        const result = await paymentService.deleteCollectionInvoice({
+            tenantId,
+            invoiceId: Number(id),
+            accessContext,
+            deletedBy: Number(userId)
+        });
+
+        res.json({ status: 'success', message: 'Invoice deleted successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error deleting branch invoice:');
+    }
+};
+
 module.exports = {
     getProgramFeePlans,
     getLevelSubjectFees,
@@ -295,5 +343,7 @@ module.exports = {
     getStudentFeeAssignment,
     updateStudentFeeAssignment,
     createInvoice,
+    updateInvoice,
+    deleteInvoice,
     getInvoiceById
 };

@@ -97,6 +97,9 @@ const getBaseUrl = () => {
     const raw = localStorage.getItem('vs_current_user') || localStorage.getItem('user') || '{}';
     const user = JSON.parse(raw);
     const role = String(user.role || user.userType || user.user_type || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (role === 'teacher' || role === 'faculty') {
+      return '/teacher/homeworks';
+    }
     if (role === 'branch_admin' || role === 'branch_manager') {
       return '/branch/homeworks';
     }

@@ -635,7 +635,7 @@ export const TeacherSchedule: React.FC = () => {
                     </div>
 
                     {/* 2. Timeline Grid & Flight Path Lane */}
-                    <div className="relative min-h-[165px] my-3 rounded-2xl bg-gradient-to-b from-slate-50/90 to-slate-100/60 border border-slate-200/90 p-3 overflow-hidden shadow-inner">
+                    <div className="relative min-h-[165px] my-3 rounded-2xl bg-gradient-to-b from-slate-50/90 to-slate-100/60 border border-slate-200/90 p-3 pt-4 overflow-hidden shadow-inner">
                       {/* Background Vertical Hour Grid Lines */}
                       {timelineBounds.hours.map(hour => {
                         const percent = ((hour * 60 - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
@@ -656,10 +656,10 @@ export const TeacherSchedule: React.FC = () => {
                             left: `${((nowMinutes - timelineBounds.startMin) / timelineBounds.totalDuration) * 100}%`
                           }}
                         >
-                          <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full shadow-md -mt-1.5 tracking-wider uppercase ring-2 ring-white">
+                          <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full shadow-md mt-1 tracking-wider uppercase ring-2 ring-white">
                             NOW
                           </span>
-                          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500 to-rose-600 shadow-sm" />
+                          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500 to-rose-600 shadow-sm mt-0.5" />
                         </div>
                       )}
 
@@ -679,7 +679,7 @@ export const TeacherSchedule: React.FC = () => {
                         return (
                           <div
                             key={`gap-${idx}`}
-                            className="absolute top-3 bottom-3 rounded-xl border border-dashed border-slate-300 bg-white/60 backdrop-blur-2xs flex items-center justify-center text-center p-2 transition-all hover:bg-white/90 shadow-2xs"
+                            className="absolute top-3 bottom-3 rounded-xl border border-dashed border-slate-300 bg-white/60 backdrop-blur-2xs flex items-center justify-center text-center p-2 transition-all hover:bg-white/80 shadow-2xs"
                             style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                           >
                             <span className="text-[10px] font-extrabold text-slate-400 tracking-tight select-none">
@@ -705,9 +705,9 @@ export const TeacherSchedule: React.FC = () => {
                           <div
                             key={lecture.id}
                             onClick={() => setSelectedGridLecture(lecture)}
-                            className={`absolute top-2 bottom-2 rounded-xl p-3 flex flex-col justify-between cursor-pointer transition-all z-10 select-none shadow-xs hover:shadow-lg hover:scale-[1.005] ${
+                            className={`absolute top-2.5 bottom-2.5 rounded-xl p-3 flex flex-col justify-between cursor-pointer transition-colors z-10 select-none shadow-xs hover:border-slate-300 ${
                               state === 'COMPLETED'
-                                ? 'bg-white/90 border border-slate-200/90 opacity-75 hover:opacity-100 text-slate-600'
+                                ? 'bg-slate-50/95 border border-slate-200/90 text-slate-700'
                                 : state === 'LIVE'
                                 ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/70 border-2 border-emerald-500 text-emerald-950 shadow-emerald-500/15'
                                 : state === 'UP_NEXT'

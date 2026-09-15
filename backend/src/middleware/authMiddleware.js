@@ -54,9 +54,17 @@ const requirePermission = (action) => {
         try {
             // Resolve the user's effective permissions per-request from
             // role_permissions + overridden_permissions (not from the JWT).
-            const permissions = await userModel.getUserPermissions(req.user.userId);
-            if (!permissions.includes(action)) {
-                return res.status(403).json({ status: 'error', message: `Forbidden. Missing permission: ${action}` });
+            const userId = req.user.userId || req.user.id;
+            const permissions = await userModel.getUserPermissions(userId);
+            
+            const requiredActions = Array.isArray(action) ? action : [action];
+            const hasPermission = requiredActions.some(act => permissions.includes(act));
+
+            if (!hasPermission) {
+                return res.status(403).json({ 
+                    status: 'error', 
+                    message: `Forbidden. Missing required permission: ${requiredActions.join(' or ')}` 
+                });
             }
             next();
         } catch (error) {

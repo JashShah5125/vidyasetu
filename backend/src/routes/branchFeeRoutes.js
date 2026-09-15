@@ -28,5 +28,7 @@ router.get('/students/:studentId/ledger', requirePermission('fee.view'), branchF
 // Fee Collection / Invoices (branch scoped)
 router.post('/invoices', requirePermission('fee.create'), branchFeeController.createInvoice);
 router.get('/invoices/:id', requirePermission('fee.view'), branchFeeController.getInvoiceById);
+router.put('/invoices/:id', requirePermission('fee.update'), branchFeeController.updateInvoice);
+router.delete('/invoices/:id', requirePermission('fee.delete'), branchFeeController.deleteInvoice);
 
 module.exports = router;

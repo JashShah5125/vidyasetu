@@ -29,7 +29,20 @@ import {
   Mail,
   Plug,
   MailOpen,
-  MessageCircle
+  MessageCircle,
+  TrendingUp,
+  TrendingDown,
+  PlusCircle,
+  Briefcase,
+  Clock,
+  AlertCircle,
+  PieChart,
+  ArrowRightLeft,
+  Tag,
+  Megaphone,
+  Truck,
+  Phone,
+  Wrench
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -47,7 +60,7 @@ const roleLabels: Record<string, string> = {
   'branch-admin': 'Branch Admin',
   'counsellor': 'Counsellor',
   'teacher': 'Teacher',
-  'finance': 'Finance Staff',
+  'finance': 'Branch Finance',
   'parent': 'Parent',
   'student': 'Student'
 };
@@ -282,8 +295,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Classroom Operations',
             links: [
-              { name: 'My Schedule', label: 'Academic Schedule', path: '/my-schedule', icon: Calendar },
-              { name: 'Mark Attendance', label: 'Roll Call Attendance', path: '/attendance', icon: CheckSquare },
+              { name: 'My Schedule', label: 'Lecture Schedule', path: '/my-schedule', icon: Calendar },
+              { name: 'Mark Attendance', label: 'Attendance', path: '/attendance', icon: CheckSquare },
               { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
               { name: 'Students Roster', label: 'My Students', path: '/students', icon: GraduationCap }
             ]
@@ -292,7 +305,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Communication',
             links: [
               { name: 'Notifications', label: 'Notifications', path: '/teacher-notifications', icon: Bell, badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined },
-              { name: 'Doubt Chats', label: 'Student Doubt Chats', path: '/doubts', icon: MessageSquare, badge: 1 }
+              { name: 'Doubt Chats', label: 'Doubts', path: '/doubts', icon: MessageSquare, badge: 1 }
             ]
           },
           {
@@ -305,25 +318,72 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
       case 'finance':
         return [
-          { links: [{ name: 'Dashboard', label: 'Expense Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
           {
-            title: 'Expense Management',
+            title: 'Branch Finance',
             links: [
-              { name: 'Expense Voucher', label: 'Expense Voucher', path: '/expense-voucher', icon: FileText },
-              { name: 'Expense Ledger', label: 'Expense Ledger', path: '/expense-ledger', icon: ClipboardList }
-            ]
-          },
-          {
-            title: 'Finance Hub',
-            links: [
-              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
-              { name: 'Defaulters Ledger', label: 'Dues & Defaulters', path: '/defaulters', icon: AlertTriangle }
-            ]
-          },
-          {
-            title: 'Settings',
-            links: [
-              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
+              { name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }
+            ],
+            groups: [
+              {
+                groupLabel: 'Income',
+                groupIcon: TrendingUp,
+                links: [
+                  { name: 'Fee Collection', label: 'Fee Collection', path: '/fees', icon: DollarSign },
+                  { name: 'Other Income', label: 'Other Income', path: '/finance/income/other', icon: PlusCircle }
+                ]
+              },
+              {
+                groupLabel: 'Expenses',
+                groupIcon: TrendingDown,
+                links: [
+                  { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users },
+                  { name: 'Rent', label: 'Rent', path: '/finance/expenses/rent', icon: Building2 },
+                  { name: 'Electricity / Utilities', label: 'Electricity / Utilities', path: '/finance/expenses/utilities', icon: Zap },
+                  { name: 'Stationery', label: 'Stationery', path: '/finance/expenses/stationery', icon: BookOpen },
+                  { name: 'Maintenance', label: 'Maintenance', path: '/finance/expenses/maintenance', icon: Wrench },
+                  { name: 'Marketing', label: 'Marketing', path: '/finance/expenses/marketing', icon: Megaphone },
+                  { name: 'Transport', label: 'Transport', path: '/finance/expenses/transport', icon: Truck },
+                  { name: 'Internet / Phone', label: 'Internet / Phone', path: '/finance/expenses/internet-phone', icon: Phone },
+                  { name: 'Other Expenses', label: 'Other Expenses', path: '/finance/expenses/other', icon: FileText }
+                ]
+              },
+              {
+                groupLabel: 'Staff Payroll',
+                groupIcon: Briefcase,
+                links: [
+                  { name: 'Salary Structure', label: 'Salary Structure', path: '/finance/payroll/structure', icon: Layers },
+                  { name: 'Monthly Payroll', label: 'Monthly Payroll', path: '/finance/payroll/monthly', icon: Calendar },
+                  { name: 'Salary History', label: 'Salary History', path: '/finance/payroll/history', icon: Clock }
+                ]
+              },
+              {
+                groupLabel: 'Payables',
+                groupIcon: AlertTriangle,
+                links: [
+                  { name: 'Pending Salaries', label: 'Pending Salaries', path: '/finance/payables/salaries', icon: Users },
+                  { name: 'Vendor Bills', label: 'Vendor Bills', path: '/finance/payables/vendors', icon: FileText },
+                  { name: 'Other Outstanding', label: 'Other Outstanding', path: '/finance/payables/other', icon: AlertCircle }
+                ]
+              },
+              {
+                groupLabel: 'Reports',
+                groupIcon: BarChart3,
+                links: [
+                  { name: 'Income Report', label: 'Income Report', path: '/finance/reports/income', icon: TrendingUp },
+                  { name: 'Expense Report', label: 'Expense Report', path: '/finance/reports/expense', icon: TrendingDown },
+                  { name: 'Fee Outstanding', label: 'Fee Outstanding', path: '/defaulters', icon: AlertTriangle },
+                  { name: 'Profit / Loss', label: 'Profit / Loss', path: '/finance/reports/profit-loss', icon: PieChart },
+                  { name: 'Cash Flow', label: 'Cash Flow', path: '/finance/reports/cash-flow', icon: ArrowRightLeft }
+                ]
+              },
+              {
+                groupLabel: 'Finance Settings',
+                groupIcon: Settings,
+                links: [
+                  { name: 'Expense Categories', label: 'Expense Categories', path: '/finance/settings/expense-categories', icon: Tag },
+                  { name: 'Payment Modes', label: 'Payment Modes', path: '/finance/settings/payment-modes', icon: CreditCard }
+                ]
+              }
             ]
           }
         ];
@@ -335,7 +395,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Learning',
             links: [
-              { name: 'Homework', label: 'My Homework', path: '/homework', icon: BookOpen }
+              { name: 'Homework', label: 'My Homework', path: '/homework', icon: BookOpen },
+              { name: 'Doubts', label: 'Doubts', path: '/doubts', icon: MessageSquare }
             ]
           },
           {

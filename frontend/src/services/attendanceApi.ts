@@ -179,6 +179,34 @@ export const attendanceApi = {
     return response.data;
   },
 
+  async downloadTemplate(lectureId: string | number): Promise<Blob> {
+    const basePath = getAttendanceBasePath();
+    const response = await api.get(`${basePath}/template/${lectureId}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  async bulkUploadAttendance(lectureId: string | number, fileOrContent: File | string | AttendanceRecord[], dryRun = false): Promise<any> {
+    const basePath = getAttendanceBasePath();
+    const qs = dryRun ? '?dryRun=true' : '';
+
+    if (fileOrContent instanceof File) {
+      const formData = new FormData();
+      formData.append('file', fileOrContent);
+      const response = await api.post(`${basePath}/bulk-upload/${lectureId}${qs}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      return response.data;
+    } else if (typeof fileOrContent === 'string') {
+      const response = await api.post(`${basePath}/bulk-upload/${lectureId}${qs}`, { csv: fileOrContent });
+      return response.data;
+    } else {
+      const response = await api.post(`${basePath}/bulk-upload/${lectureId}${qs}`, { records: fileOrContent });
+      return response.data;
+    }
+  },
+
   async getBatchReport(batchId: string | number, startDate: string, endDate: string, academicYearId?: string | number): Promise<BatchReportRow[]> {
     const basePath = getAttendanceBasePath();
     const params = new URLSearchParams({ startDate, endDate });

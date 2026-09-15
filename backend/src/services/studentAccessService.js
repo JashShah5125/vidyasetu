@@ -70,6 +70,42 @@ const resolveAccessContext = async (tenantId, user) => {
 };
 
 /**
+ * Resolves access context for teacher student operations based on authenticatated teacher user.
+ * Teachers can only see students enrolled in batches they are allocated to (teacher_allocations)
+ * or batches where they have scheduled lectures.
+ * Returns: { scope: 'TEACHER', tenantId: number, assignedBatchIds: number[] }
+ */
+const resolveTeacherAccessContext = async (tenantId, user) => {
+    const tid = Number(tenantId);
+    const uid = Number(user?.userId || user?.id);
+
+    if (!uid) {
+        const err = new Error('Forbidden: Unable to resolve teacher identity.');
+        err.statusCode = 401;
+        err.code = 'ER_TEACHER_IDENTITY';
+        throw err;
+    }
+
+    // 1. Teacher's assigned batches strictly from teacher_allocations
+    const [allocRows] = await pool.query(
+        `SELECT DISTINCT ta.batch_id
+         FROM teacher_allocations ta
+         WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL`,
+        [tid, uid]
+    );
+
+    const assignedBatchIds = Array.from(new Set(
+        allocRows.map(r => Number(r.batch_id)).filter(Boolean)
+    ));
+
+    return {
+        scope: 'TEACHER',
+        tenantId: tid,
+        assignedBatchIds: assignedBatchIds || []
+    };
+};
+
+/**
  * Validates that a batch belongs to the specified tenant and branch.
  */
 const validateBatchInBranch = async (tenantId, branchId, batchId) => {
@@ -114,6 +150,7 @@ const verifyStudentInBranch = async (tenantId, branchId, studentId) => {
 
 module.exports = {
     resolveAccessContext,
+    resolveTeacherAccessContext,
     validateBatchInBranch,
     verifyStudentInBranch,
     isBranchAdminRole

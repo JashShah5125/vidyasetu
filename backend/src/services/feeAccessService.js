@@ -33,13 +33,20 @@ const resolveAccessContext = async (tenantId, user) => {
     }
 
     const normalizedRole = String(user.role || user.userType || '').toLowerCase().replace(/[\s_]+/g, '-');
-    const isBranchAdmin = normalizedRole === 'branch-admin'
+    const isBranchScoped = normalizedRole === 'branch-admin'
         || normalizedRole === 'branch-manager'
-        || (roleCodes && (roleCodes.includes('branch_admin') || roleCodes.includes('branch_manager')));
+        || normalizedRole === 'finance'
+        || normalizedRole === 'branch-finance'
+        || normalizedRole === 'branch_finance'
+        || normalizedRole === 'staff'
+        || (roleCodes && (roleCodes.includes('branch_admin') || roleCodes.includes('branch_manager') || roleCodes.includes('finance') || roleCodes.includes('branch_finance') || roleCodes.includes('staff')));
 
-    if (isBranchAdmin) {
+    if (isBranchScoped || user.branchId || user.branch_id || user.primary_branch_id) {
         let branchId = null;
-        if (uid) {
+        if (user.branchId || user.branch_id || user.primary_branch_id) {
+            branchId = Number(user.branchId || user.branch_id || user.primary_branch_id);
+        }
+        if (!branchId && uid) {
             const userBranchIds = await branchModel.getUserBranchIds(tid, uid);
             if (userBranchIds && userBranchIds.length > 0) {
                 branchId = Number(userBranchIds[0]);
@@ -56,11 +63,13 @@ const resolveAccessContext = async (tenantId, user) => {
             }
         }
 
-        return {
-            scope: 'BRANCH',
-            authorizedBranchId: branchId,
-            role: 'branch-admin'
-        };
+        if (branchId) {
+            return {
+                scope: 'BRANCH',
+                authorizedBranchId: branchId,
+                role: normalizedRole || 'branch-finance'
+            };
+        }
     }
 
     return {

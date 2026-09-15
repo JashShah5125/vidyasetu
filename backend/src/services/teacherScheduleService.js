@@ -13,7 +13,7 @@ class TeacherScheduleService {
         const tid = Number(tenantId);
         const uid = Number(teacherUserId);
 
-        // 1. Get teacher's assigned batches from teacher_allocations
+        // 1. Get teacher's assigned batches strictly from teacher_allocations
         const [allocRows] = await pool.query(
             `SELECT DISTINCT ta.batch_id, ta.branch_id, ta.academic_year_id
              FROM teacher_allocations ta
@@ -21,23 +21,13 @@ class TeacherScheduleService {
             [tid, uid]
         );
 
-        // Also check if teacher has any scheduled lectures in batches even if allocation row wasn't created
-        const [lectureBatchRows] = await pool.query(
-            `SELECT DISTINCT l.batch_id, l.branch_id, l.academic_year_id
-             FROM lectures l
-             WHERE l.tenant_id = ? AND l.teacher_user_id = ? AND l.deleted_at IS NULL`,
-            [tid, uid]
-        );
+        const assignedBatchIds = Array.from(new Set(
+            allocRows.map(r => r.batch_id).filter(Boolean)
+        ));
 
-        const assignedBatchIds = Array.from(new Set([
-            ...allocRows.map(r => r.batch_id),
-            ...lectureBatchRows.map(r => r.batch_id)
-        ].filter(Boolean)));
-
-        const assignedBranchIds = Array.from(new Set([
-            ...allocRows.map(r => r.branch_id),
-            ...lectureBatchRows.map(r => r.branch_id)
-        ].filter(Boolean)));
+        const assignedBranchIds = Array.from(new Set(
+            allocRows.map(r => r.branch_id).filter(Boolean)
+        ));
 
         // If no explicit batches found, fallback to teacher profile branch
         if (assignedBranchIds.length === 0) {
@@ -134,7 +124,7 @@ class TeacherScheduleService {
         }
 
         // 8. Fetch Subjects taught by this teacher
-        const [teacherSubRows] = await pool.query(
+        const [subjects] = await pool.query(
             `SELECT s.id, s.name, s.code, s.type
              FROM teacher_subjects ts
              JOIN subjects s ON ts.subject_id = s.id

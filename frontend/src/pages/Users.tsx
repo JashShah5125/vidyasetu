@@ -12,6 +12,7 @@ import { Plus, ArrowLeft, Upload, Loader2, Eye, Edit3, Trash2, AlertTriangle } f
 import type { Staff } from '../types';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { staffApi } from '../services/staffApi';
+import { formatDate } from '../utils/dateFormatter';
 
 export type StaffColumnKey =
   | 'contact_number'
@@ -71,7 +72,7 @@ const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
     case 'designation':
       return <span className="text-xs font-medium text-slate-700">{s.designation || '—'}</span>;
     case 'joining_date':
-      return <span className="text-xs text-slate-600">{s.joining_date ? new Date(s.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : (s.joiningDate || '—')}</span>;
+      return <span className="text-xs text-slate-600">{s.joining_date ? formatDate(s.joining_date) : (s.joiningDate ? formatDate(s.joiningDate) : '—')}</span>;
     case 'employment_type':
       return <span className="capitalize text-xs font-medium text-slate-700">{(s.employment_type || '').replace(/_/g, ' ') || 'Full Time'}</span>;
     case 'employment_status':
@@ -89,7 +90,7 @@ const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
     case 'gender':
       return <span className="text-xs text-slate-700">{s.gender || '—'}</span>;
     case 'dob':
-      return <span className="text-xs text-slate-600">{s.dob ? new Date(s.dob).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span>;
+      return <span className="text-xs text-slate-600">{s.dob ? formatDate(s.dob) : '—'}</span>;
     case 'aadhaar_number':
       return <span className="font-mono text-xs text-slate-700">{s.aadhaar_number || '—'}</span>;
     case 'pan_number':

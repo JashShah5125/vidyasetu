@@ -56,6 +56,16 @@ export const FeeConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const refreshFees = useCallback(async () => {
     setIsLoadingFees(true);
+    const canManageFees =
+      currentUser?.role === 'saas-admin' ||
+      currentUser?.role === 'inst-admin' ||
+      currentUser?.role === 'branch-admin';
+    if (!canManageFees) {
+      setPlans([]);
+      setCustomBundles([]);
+      setIsLoadingFees(false);
+      return;
+    }
     try {
       const planResponse = await feeApi.listFeePlans({ page: 1, limit: 500 });
       setPlans(planResponse.data || []);
@@ -67,7 +77,7 @@ export const FeeConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
     } finally {
       setIsLoadingFees(false);
     }
-  }, []);
+  }, [currentUser?.role]);
 
   useEffect(() => {
     refreshFees();

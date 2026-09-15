@@ -92,20 +92,31 @@ const resolveAccessContext = async (tenantId, user) => {
  */
 const validateBatchInBranch = async (tenantId, branchId, batchId) => {
     if (!batchId) return null;
-    const [rows] = await pool.query(
-        `SELECT id, branch_id, level_id, academic_year_id, name, code 
-         FROM batches 
-         WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-        [Number(batchId), tenantId]
-    );
+    const isNum = !isNaN(Number(batchId)) && String(batchId).trim() !== '';
+    let rows;
+    if (isNum) {
+        [rows] = await pool.query(
+            `SELECT id, branch_id, level_id, academic_year_id, name, code 
+             FROM batches 
+             WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+            [Number(batchId), tenantId]
+        );
+    } else {
+        [rows] = await pool.query(
+            `SELECT id, branch_id, level_id, academic_year_id, name, code 
+             FROM batches 
+             WHERE (name = ? OR code = ?) AND tenant_id = ? AND deleted_at IS NULL`,
+            [String(batchId), String(batchId), tenantId]
+        );
+    }
     if (!rows.length) {
-        const err = new Error(`Batch not found (ID: ${batchId}).`);
+        const err = new Error(`Batch not found ('${batchId}').`);
         err.statusCode = 404;
         err.code = 'ER_BATCH_NOT_FOUND';
         throw err;
     }
-    if (Number(rows[0].branch_id) !== Number(branchId)) {
-        const err = new Error(`Forbidden: Batch '${rows[0].name}' (ID: ${batchId}) belongs to branch ${rows[0].branch_id}, not your authorized branch (ID: ${branchId}).`);
+    if (branchId && Number(rows[0].branch_id) !== Number(branchId)) {
+        const err = new Error(`Forbidden: Batch '${rows[0].name}' belongs to branch ${rows[0].branch_id}, not your authorized branch (ID: ${branchId}).`);
         err.statusCode = 403;
         err.code = 'ER_BATCH_NOT_IN_BRANCH';
         throw err;
@@ -153,20 +164,31 @@ const validateBatchesInBranch = async (tenantId, branchId, batchIds = []) => {
  */
 const validateClassroomInBranch = async (tenantId, branchId, classroomId) => {
     if (!classroomId) return null;
-    const [rows] = await pool.query(
-        `SELECT id, branch_id, name, room_number 
-         FROM classrooms 
-         WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-        [Number(classroomId), tenantId]
-    );
+    const isNum = !isNaN(Number(classroomId)) && String(classroomId).trim() !== '';
+    let rows;
+    if (isNum) {
+        [rows] = await pool.query(
+            `SELECT id, branch_id, name, room_number 
+             FROM classrooms 
+             WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+            [Number(classroomId), tenantId]
+        );
+    } else {
+        [rows] = await pool.query(
+            `SELECT id, branch_id, name, room_number 
+             FROM classrooms 
+             WHERE (name = ? OR room_number = ?) AND tenant_id = ? AND deleted_at IS NULL`,
+            [String(classroomId), String(classroomId), tenantId]
+        );
+    }
     if (!rows.length) {
-        const err = new Error(`Classroom not found (ID: ${classroomId}).`);
+        const err = new Error(`Classroom not found ('${classroomId}').`);
         err.statusCode = 404;
         err.code = 'ER_CLASSROOM_NOT_FOUND';
         throw err;
     }
-    if (Number(rows[0].branch_id) !== Number(branchId)) {
-        const err = new Error(`Forbidden: Classroom '${rows[0].name}' (ID: ${classroomId}) belongs to branch ${rows[0].branch_id}, not your authorized branch (ID: ${branchId}).`);
+    if (branchId && Number(rows[0].branch_id) !== Number(branchId)) {
+        const err = new Error(`Forbidden: Classroom '${rows[0].name}' belongs to branch ${rows[0].branch_id}, not your authorized branch (ID: ${branchId}).`);
         err.statusCode = 403;
         err.code = 'ER_CLASSROOM_NOT_IN_BRANCH';
         throw err;
@@ -179,13 +201,18 @@ const validateClassroomInBranch = async (tenantId, branchId, classroomId) => {
  */
 const validateTeacherInBranch = async (tenantId, branchId, teacherUserId) => {
     if (!teacherUserId) return null;
+    const isNum = !isNaN(Number(teacherUserId)) && String(teacherUserId).trim() !== '';
+    const teacherParam = isNum ? Number(teacherUserId) : String(teacherUserId);
+    const idClause = isNum ? `u.id = ?` : `(u.name = ? OR u.email = ?)`;
+    const idParams = isNum ? [teacherParam] : [teacherParam, teacherParam];
+
     const [rows] = await pool.query(
         `SELECT u.id, u.name, u.email
          FROM users u
          LEFT JOIN staff_profiles sp ON u.id = sp.user_id AND sp.tenant_id = u.tenant_id
          LEFT JOIN user_branch_access uba ON u.id = uba.user_id AND uba.branch_id = ?
          WHERE u.tenant_id = ?
-           AND u.id = ?
+           AND ${idClause}
            AND u.deleted_at IS NULL
            AND (
              uba.id IS NOT NULL 
@@ -193,11 +220,11 @@ const validateTeacherInBranch = async (tenantId, branchId, teacherUserId) => {
              OR EXISTS (SELECT 1 FROM teacher_allocations ta WHERE ta.teacher_user_id = u.id AND ta.branch_id = ? AND ta.tenant_id = ?)
            )
          LIMIT 1`,
-        [Number(branchId), tenantId, Number(teacherUserId), Number(branchId), Number(branchId), tenantId]
+        [Number(branchId), tenantId, ...idParams, Number(branchId), Number(branchId), tenantId]
     );
 
     if (!rows.length) {
-        const err = new Error(`Forbidden: Faculty / Teacher (ID: ${teacherUserId}) is not authorized or associated with branch ID ${branchId}.`);
+        const err = new Error(`Forbidden: Faculty / Teacher ('${teacherUserId}') is not authorized or associated with branch ID ${branchId}.`);
         err.statusCode = 403;
         err.code = 'ER_TEACHER_NOT_IN_BRANCH';
         throw err;
@@ -210,14 +237,25 @@ const validateTeacherInBranch = async (tenantId, branchId, teacherUserId) => {
  */
 const validateSubjectInBranch = async (tenantId, branchId, subjectId) => {
     if (!subjectId) return null;
-    const [rows] = await pool.query(
-        `SELECT id, name, code, status 
-         FROM subjects 
-         WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
-        [Number(subjectId), tenantId]
-    );
+    const isNum = !isNaN(Number(subjectId)) && String(subjectId).trim() !== '';
+    let rows;
+    if (isNum) {
+        [rows] = await pool.query(
+            `SELECT id, name, code, status 
+             FROM subjects 
+             WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+            [Number(subjectId), tenantId]
+        );
+    } else {
+        [rows] = await pool.query(
+            `SELECT id, name, code, status 
+             FROM subjects 
+             WHERE (name = ? OR code = ?) AND tenant_id = ? AND deleted_at IS NULL`,
+            [String(subjectId), String(subjectId), tenantId]
+        );
+    }
     if (!rows.length) {
-        const err = new Error(`Subject not found (ID: ${subjectId}).`);
+        const err = new Error(`Subject not found ('${subjectId}').`);
         err.statusCode = 404;
         err.code = 'ER_SUBJECT_NOT_FOUND';
         throw err;

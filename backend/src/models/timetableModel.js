@@ -740,6 +740,18 @@ const timetableModel = {
      * Create single calendar lecture
      */
     async createLecture(tenantId, data, userId) {
+        const branchId = data.branch_id || data.branchId || 1;
+        const academicYearId = data.academic_year_id || data.academicYearId || 1;
+        const batchId = data.batch_id || data.batchId;
+        const subjectId = data.subject_id || data.subjectId || null;
+        const teacherUserId = data.teacher_user_id || data.teacherId || data.teacherUserId || null;
+        const classroomId = data.classroom_id !== undefined ? data.classroom_id : (data.roomId !== undefined ? data.roomId : (data.classroomId !== undefined ? data.classroomId : null));
+        const lectureDate = data.lecture_date || data.date || null;
+        let startTime = data.start_time || data.startTime || '09:00:00';
+        let endTime = data.end_time || data.endTime || '10:30:00';
+        if (startTime && startTime.length === 5) startTime = `${startTime}:00`;
+        if (endTime && endTime.length === 5) endTime = `${endTime}:00`;
+
         const [res] = await pool.query(
             `INSERT INTO lectures (
                 tenant_id, branch_id, academic_year_id, batch_id,
@@ -751,23 +763,23 @@ const timetableModel = {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 tenantId,
-                data.branch_id || data.branchId,
-                data.academic_year_id || data.academicYearId || 1,
-                data.batch_id || data.batchId,
+                branchId,
+                academicYearId,
+                batchId,
                 data.is_default ? 1 : 0,
                 data.parent_template_id || null,
                 data.day_of_week || null,
-                data.lecture_date || data.date || null,
-                data.start_time || data.startTime,
-                data.end_time || data.endTime,
-                data.subject_id || data.subjectId,
-                data.teacher_user_id || data.teacherId || data.teacherUserId,
-                data.classroom_id || data.roomId || data.classroomId || null,
+                lectureDate,
+                startTime,
+                endTime,
+                subjectId,
+                teacherUserId,
+                classroomId || null,
                 data.lecture_type || data.lectureType || 'Regular',
                 data.activity_type || data.activityType || 'Lecture',
                 data.slot_label || data.slotLabel || null,
                 data.topic || null,
-                data.status || 'scheduled',
+                (data.status || 'scheduled').toLowerCase(),
                 data.is_modified_from_default || 0,
                 null,
                 1,

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const branchAttendanceController = require('../controllers/branchAttendanceController');
 const { requireAuth } = require('../middleware/authMiddleware');
+const { uploadAttendanceCsv } = require('../middleware/uploadMiddleware');
 
 router.use(requireAuth);
 
@@ -15,6 +16,8 @@ router.get('/lectures/daily', branchAttendanceController.getDailyLectures);
 router.get('/roster/:lectureId', branchAttendanceController.getRoster);
 router.post('/save/:lectureId', branchAttendanceController.saveAttendance);
 router.post('/submit/:lectureId', branchAttendanceController.submitAttendance);
+router.get('/template/:lectureId', branchAttendanceController.getTemplate);
+router.post('/bulk-upload/:lectureId', uploadAttendanceCsv, branchAttendanceController.bulkUpload);
 
 // Reports
 router.get('/report/batch/:batchId', branchAttendanceController.getBatchReport);

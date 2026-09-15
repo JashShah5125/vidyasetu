@@ -3,6 +3,7 @@ import courseHierarchy from '../../../data/courseHierarchy.json';
 import { useApp } from '../../../context/AppContext';
 import { useScheduler } from '../context/SchedulerContext';
 import { timetableApi, type DefaultTimetableSlot } from '../../../services/timetableApi';
+import { branchApi } from '../../../services/branchApi';
 import { Modal } from '../../../components/ui/Modal';
 import { Select } from '../../../components/ui/Select';
 import { Button } from '../../../components/ui/Button';
@@ -77,6 +78,9 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
   const [creationMode, setCreationMode] = useState<'BLANK' | 'DEFAULT'>('DEFAULT');
   const [defaultSlots, setDefaultSlots] = useState<DefaultTimetableSlot[]>([]);
   
+  // Load branch-assigned courses directly from branchApi
+  const [branchAssignedCourses, setBranchAssignedCourses] = useState<any[]>([]);
+
   // Derived Options
   const selectedBranchObj = useMemo(() => {
     if (!options) return null;
@@ -84,19 +88,38 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
     return branchList.find(b => b.code === branchId || b.name === branchId || String(b.id) === branchId) || null;
   }, [options, branches, branchId]);
 
+  useEffect(() => {
+    const branchIdToFetch = selectedBranchObj?.id || (currentUser?.branch ? branches.find(b => b.name === currentUser.branch || b.code === currentUser.branch)?.id : null);
+    if (!branchIdToFetch) {
+      setBranchAssignedCourses([]);
+      return;
+    }
+    branchApi.getCourses(branchIdToFetch, { assignment_status: 'assigned' })
+      .then(res => {
+        const list = res?.data || (Array.isArray(res) ? res : []);
+        setBranchAssignedCourses(Array.isArray(list) ? list : []);
+      })
+      .catch(err => {
+        console.error('Failed to fetch assigned courses for branch in CreateTimetableWizard:', err);
+        setBranchAssignedCourses([]);
+      });
+  }, [selectedBranchObj?.id, currentUser?.branch, branches]);
+
   const availableCourseList = useMemo(() => {
+    if (branchAssignedCourses && branchAssignedCourses.length > 0) {
+      return branchAssignedCourses.map((c: any) => ({
+        id: Number(c.id),
+        name: c.name,
+        code: c.code || '',
+        assigned_programs: c.assigned_programs || c.programs || [],
+        programs: c.programs || []
+      }));
+    }
     if (!options?.courses || options.courses.length === 0) return [];
     if (!selectedBranchObj) return options.courses;
 
-    const branchBatches = (options.batches || []).filter(b => Number(b.branch_id) === Number(selectedBranchObj.id));
-    if (branchBatches.length === 0) return options.courses;
-
-    const branchLevelIds = new Set(branchBatches.map(b => b.level_id));
-    const branchProgramIds = new Set((options.levels || []).filter(l => branchLevelIds.has(l.id)).map(l => l.program_id));
-    const branchCourseIds = new Set((options.programs || []).filter(p => branchProgramIds.has(p.id)).map(p => p.course_id));
-
-    return options.courses.filter(c => branchCourseIds.size === 0 || branchCourseIds.has(c.id));
-  }, [options, selectedBranchObj]);
+    return options.courses;
+  }, [branchAssignedCourses, options, selectedBranchObj]);
 
   const uniqueCourses = useMemo(() => {
     if (availableCourseList.length > 0) {
@@ -107,17 +130,26 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const selectedCourseObj = useMemo(() => {
     if (!courseId || !availableCourseList.length) return null;
-    return availableCourseList.find(c => c.name === courseId || String(c.id) === courseId || c.code === courseId) || null;
+    return availableCourseList.find(c => c.name === courseId || String(c.id) === String(courseId) || c.code === courseId) || null;
   }, [availableCourseList, courseId]);
 
   const availableProgramList = useMemo(() => {
-    if (!options?.programs || !selectedCourseObj) return [];
-    return options.programs.filter(p => p.course_id === selectedCourseObj.id);
-  }, [options, selectedCourseObj]);
+    if (!selectedCourseObj) return [];
+    if (selectedCourseObj.assigned_programs && selectedCourseObj.assigned_programs.length > 0) {
+      return selectedCourseObj.assigned_programs;
+    }
+    if (selectedCourseObj.programs && selectedCourseObj.programs.length > 0) {
+      return selectedCourseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
+    }
+    if (options?.programs) {
+      return options.programs.filter(p => Number(p.course_id) === Number(selectedCourseObj.id));
+    }
+    return [];
+  }, [selectedCourseObj, options]);
 
   const availablePrograms = useMemo(() => {
     if (availableProgramList.length > 0) {
-      return Array.from(new Set(availableProgramList.map(p => p.name)));
+      return Array.from(new Set(availableProgramList.map((p: any) => p.name)));
     }
     const course = courseHierarchy.find(c => c.courseName === courseId);
     return course ? course.programs.map(p => p.programName) : [];
@@ -125,13 +157,13 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const selectedProgramObj = useMemo(() => {
     if (!programId || !availableProgramList.length) return null;
-    return availableProgramList.find(p => p.name === programId || String(p.id) === programId || p.code === programId) || null;
+    return availableProgramList.find((p: any) => p.name === programId || String(p.id) === String(programId) || p.code === programId) || null;
   }, [availableProgramList, programId]);
 
   const availableLevelList = useMemo(() => {
     if (!options?.levels || !selectedProgramObj) return [];
-    return options.levels.filter(l => l.program_id === selectedProgramObj.id);
-  }, [options, selectedProgramObj]);
+    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number(l.course_id) === Number(selectedCourseObj.id)));
+  }, [options, selectedProgramObj, selectedCourseObj]);
 
   const availableLevels = useMemo(() => {
     if (availableLevelList.length > 0) {
@@ -144,14 +176,14 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const selectedLevelObj = useMemo(() => {
     if (!levelId || !availableLevelList.length) return null;
-    return availableLevelList.find(l => l.name === levelId || String(l.id) === levelId || l.code === levelId) || null;
+    return availableLevelList.find(l => l.name === levelId || String(l.id) === String(levelId) || l.code === levelId) || null;
   }, [availableLevelList, levelId]);
 
   const availableBatchList = useMemo(() => {
     if (!options?.batches || !selectedLevelObj) return [];
     return options.batches.filter(b => {
-      const matchLevel = Number(b.level_id) === Number(selectedLevelObj.id);
-      const matchBranch = !selectedBranchObj || Number(b.branch_id) === Number(selectedBranchObj.id);
+      const matchLevel = Number(b.level_id || (b as any).levelId) === Number(selectedLevelObj.id);
+      const matchBranch = !selectedBranchObj || Number(b.branch_id || (b as any).branchId) === Number(selectedBranchObj.id);
       return matchLevel && matchBranch;
     });
   }, [options, selectedLevelObj, selectedBranchObj]);
@@ -163,8 +195,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
     const course = courseHierarchy.find(c => c.courseName === courseId);
     const program = course?.programs.find(p => p.programName === programId);
     const level = program?.levels.find(l => l.levelId === levelId);
-    if (!level) return [];
-    return level.batches;
+    return level ? level.batches.map(b => b.name) : [];
   }, [availableBatchList, courseId, programId, levelId]);
 
   // Resolve numerical batchId

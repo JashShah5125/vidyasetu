@@ -22,6 +22,7 @@ import type {
   StudentDetail, 
   AcademicOptions 
 } from '../services/studentApi';
+import { formatDate } from '../utils/dateFormatter';
 
 export const Students: React.FC = () => {
   const { addToast, currentUser } = useApp();
@@ -207,7 +208,7 @@ export const Students: React.FC = () => {
             current_class: d.current_class,
             target_exam: d.target_exam,
             year_of_attempt: d.year_of_attempt,
-            status: d.status,
+            status: d.status !== undefined && d.status !== null ? String(d.status) : '1',
             guardian_name: d.guardian_name,
             guardian_mobile: d.guardian_mobile,
             guardian_relation: d.guardian_relation,
@@ -357,7 +358,7 @@ export const Students: React.FC = () => {
                       <span>&bull;</span>
                       <span>Category: <strong className="text-slate-700">{selectedStudentDetail.category || 'General'}</strong></span>
                       <span>&bull;</span>
-                      <span>Enrolled Date: <strong className="text-slate-700">{selectedStudentDetail.enrolled_date ? new Date(selectedStudentDetail.enrolled_date).toLocaleDateString() : 'Active'}</strong></span>
+                      <span>Enrolled Date: <strong className="text-slate-700">{selectedStudentDetail.enrolled_date ? formatDate(selectedStudentDetail.enrolled_date) : 'Active'}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -370,7 +371,7 @@ export const Students: React.FC = () => {
                     <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Date of Birth</span>
-                        <strong className="text-slate-700">{selectedStudentDetail.dob ? new Date(selectedStudentDetail.dob).toLocaleDateString() : 'N/A'}</strong>
+                        <strong className="text-slate-700">{selectedStudentDetail.dob ? formatDate(selectedStudentDetail.dob) : 'N/A'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Gender</span>
@@ -650,7 +651,7 @@ export const Students: React.FC = () => {
                         <div>
                           <span className="text-slate-400 text-xs font-semibold uppercase block mb-0.5">Contract Created Date</span>
                           <strong className="text-slate-700">
-                            {selectedStudentDetail.feeAssignment.created_at ? new Date(selectedStudentDetail.feeAssignment.created_at).toLocaleDateString() : 'N/A'}
+                            {selectedStudentDetail.feeAssignment.created_at ? formatDate(selectedStudentDetail.feeAssignment.created_at) : 'N/A'}
                           </strong>
                         </div>
                       </div>
@@ -666,33 +667,33 @@ export const Students: React.FC = () => {
                       </h3>
 
                       {selectedStudentDetail.invoicesList && selectedStudentDetail.invoicesList.length > 0 ? (
-                        <Table headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status']}>
+                        <Table dense headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status']}>
                           {selectedStudentDetail.invoicesList.map((inv) => (
                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-4 font-mono font-bold text-xs text-blue-700">
+                              <td className="px-3 py-2 font-mono font-bold text-xs text-blue-700">
                                 {inv.invoice_number}
                               </td>
-                              <td className="px-6 py-4 text-xs font-semibold text-slate-700">
+                              <td className="px-3 py-2 text-xs font-semibold text-slate-700">
                                 {inv.installment_number === 0 ? 'Downpayment' : `Installment #${inv.installment_number}`}
                               </td>
-                              <td className="px-6 py-4 text-xs text-slate-600">
-                                {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '-'}
+                              <td className="px-3 py-2 text-xs text-slate-600">
+                                {inv.due_date ? formatDate(inv.due_date) : '-'}
                               </td>
-                              <td className="px-6 py-4 text-xs font-bold text-slate-800">
+                              <td className="px-3 py-2 text-xs font-bold text-slate-800">
                                 ₹{Number(inv.amount ?? inv.billed_amount ?? 0).toLocaleString('en-IN')}
                               </td>
-                              <td className="px-6 py-4 text-xs font-bold text-emerald-600">
+                              <td className="px-3 py-2 text-xs font-bold text-emerald-600">
                                 ₹{Number(inv.paid_amount || 0).toLocaleString('en-IN')}
                               </td>
-                              <td className="px-6 py-4 text-xs font-bold text-amber-600">
+                              <td className="px-3 py-2 text-xs font-bold text-amber-600">
                                 ₹{Number(inv.balance_due || 0).toLocaleString('en-IN')}
                               </td>
-                              <td className="px-6 py-4 text-xs text-slate-500">
+                              <td className="px-3 py-2 text-xs text-slate-500">
                                 {inv.payment_mode ? (
                                   <div>
                                     <span className="font-semibold text-slate-700">{inv.payment_mode}</span>
                                     {inv.payment_date && (
-                                      <div className="text-[10px] text-slate-400">{new Date(inv.payment_date).toLocaleDateString()}</div>
+                                      <div className="text-[10px] text-slate-400">{formatDate(inv.payment_date)}</div>
                                     )}
                                     {(inv.transaction_reference || inv.transaction_ref) && (
                                       <div className="text-[10px] font-mono text-slate-400">{inv.transaction_reference || inv.transaction_ref}</div>

@@ -43,6 +43,10 @@ export interface StudentRosterItem {
   installment_amount?: number;
   fees_paid?: number;
   fees_outstanding?: number;
+  fees_remaining?: number;
+  expected_due_till_date?: number;
+  fees_overdue?: number;
+  is_defaulter?: boolean;
   fee_status?: string;
 }
 
@@ -106,8 +110,10 @@ export interface StudentDetail extends StudentRosterItem {
 export interface AcademicOptions {
   branch?: { id: number; name: string };
   branches: Array<{ id: number; name: string }>;
-  courses: Array<{ id: number; name: string }>;
+  courses: Array<{ id: number; name: string; code?: string }>;
   programs: Array<{ id: number; course_id: number; name: string; code?: string }>;
+  courseBranches?: Array<{ course_id: number; branch_id: number }>;
+  branchPrograms?: Array<{ program_id: number; course_id: number; branch_id: number }>;
   levels: Array<{ id: number; course_id?: number; program_id?: number; name: string }>;
   batches: Array<{ id: number; branch_id: number; level_id: number; name: string; code: string }>;
   bundles: Array<{ id: number; branch_id: number; level_id: number; name: string; description: string; fee_amount?: number; subject_ids: number[] }>;
@@ -156,7 +162,11 @@ const getStudentBasePath = (): string => {
     if (savedUser) {
       const user = JSON.parse(savedUser);
       const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
-      if (role === 'branch-admin') {
+      const userType = String(user.userType || '').toLowerCase();
+      if (role === 'finance' || userType === 'finance') {
+        return '/branch/finance/students';
+      }
+      if (role === 'branch-admin' || role === 'branch_admin') {
         return '/branch/students';
       }
     }
@@ -173,6 +183,10 @@ export const getStudents = async (params: {
   branchId?: string | number;
   batchId?: string | number;
   bundleId?: string | number;
+  courseId?: string | number;
+  programId?: string | number;
+  levelId?: string | number;
+  academicYearId?: string | number;
   status?: string;
   feeStatus?: string;
 }) => {

@@ -4,8 +4,8 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Loader2, ArrowLeft, Edit, Receipt, Building2, CalendarDays, Hash, BadgeCheck, FileText, User } from 'lucide-react';
 import { billingService } from '../../services/billingService';
+import { formatDate } from '../../utils/dateFormatter';
 
-const formatDate = (d?: string) => d ? String(d).substring(0, 10) : '-';
 const formatINR = (n: number) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '-';
 

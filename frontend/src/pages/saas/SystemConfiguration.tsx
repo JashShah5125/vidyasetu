@@ -8,6 +8,7 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Modal } from '../../components/ui/Modal';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { platformSettingsService, type PlatformSetting } from '../../services/platformSettingsService';
+import { formatDate } from '../../utils/dateFormatter';
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All Statuses' },
@@ -278,7 +279,7 @@ export const SystemConfiguration: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap font-normal">
-                    {new Date(s.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    {formatDate(s.updated_at)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-3">

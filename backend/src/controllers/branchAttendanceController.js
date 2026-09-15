@@ -215,6 +215,78 @@ const submitAttendance = async (req, res) => {
 };
 
 /**
+ * 5b. GET /api/branch/attendance/template/:lectureId
+ * Download pre-filled CSV template for a lecture's student roster
+ */
+const getTemplate = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const { lectureId } = req.params;
+
+        if (accessContext.authorizedBranchId) {
+            await timetableAccessService.validateLectureInBranch(tenantId, accessContext.authorizedBranchId, lectureId);
+        }
+
+        const { filename, csvContent } = await attendanceModel.generateAttendanceTemplate(lectureId, tenantId);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.status(200).send(csvContent);
+    } catch (error) {
+        handleError(res, error, 'Error generating branch attendance template:');
+    }
+};
+
+/**
+ * 5c. POST /api/branch/attendance/bulk-upload/:lectureId
+ * Bulk upload and process attendance via CSV file or raw array
+ */
+const bulkUpload = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const { lectureId } = req.params;
+        const userId = resolveUserId(req);
+
+        let lecture = null;
+        if (accessContext.authorizedBranchId) {
+            lecture = await timetableAccessService.validateLectureInBranch(tenantId, accessContext.authorizedBranchId, lectureId);
+        } else {
+            const [rows] = await pool.query('SELECT * FROM lectures WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL', [Number(lectureId), tenantId]);
+            if (!rows.length) {
+                return res.status(404).json({ status: 'error', message: 'Lecture not found' });
+            }
+            lecture = rows[0];
+        }
+
+        if (lecture.attendance_taken === 1 && lecture.attendance_locked_at !== null) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Attendance for this lecture is already finalized and locked. Bulk upload is not permitted.'
+            });
+        }
+
+        const shouldSave = req.query.dryRun !== 'true' && req.body.dryRun !== true;
+
+        let content = null;
+        if (req.file && req.file.buffer) {
+            content = req.file.buffer.toString('utf-8');
+        } else if (req.body && req.body.csv) {
+            content = req.body.csv;
+        } else if (req.body && Array.isArray(req.body.records)) {
+            content = req.body.records;
+        } else {
+            return res.status(400).json({ status: 'error', message: 'CSV file or content is required.' });
+        }
+
+        const result = await attendanceModel.processBulkAttendance(tenantId, lectureId, content, userId, shouldSave);
+        res.status(200).json({ status: 'success', message: 'Bulk attendance processed successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error processing branch bulk attendance:');
+    }
+};
+
+/**
  * 6. GET /api/branch/attendance/staff
  * Get staff attendance roster for a day in the authorized branch
  */
@@ -384,6 +456,8 @@ module.exports = {
     getRoster,
     saveAttendance,
     submitAttendance,
+    getTemplate,
+    bulkUpload,
     getStaffAttendance,
     saveStaffAttendance,
     saveStaffLectureAttendance,

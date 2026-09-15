@@ -178,6 +178,154 @@ const attendanceModel = {
     },
 
     /**
+     * Generate pre-filled CSV template for a lecture's student roster.
+     */
+    async generateAttendanceTemplate(lectureId, tenantId) {
+        const roster = await this.getRoster(lectureId, tenantId);
+        const headers = ['Student ID', 'Student Code', 'Student Name', 'Status (Present/Late/Absent)', 'Remarks'];
+        const csvRows = [headers.join(',')];
+
+        const escapeCsv = (val) => {
+            if (val === null || val === undefined) return '""';
+            const str = String(val).replace(/"/g, '""');
+            return `"${str}"`;
+        };
+
+        for (const s of roster) {
+            let statusLabel = 'Present';
+            if (s.attendance_status === 0) statusLabel = 'Absent';
+            else if (s.attendance_status === 2) statusLabel = 'Late';
+            else if (s.attendance_status === 1) statusLabel = 'Present';
+
+            csvRows.push([
+                s.student_id,
+                escapeCsv(s.student_code || `ST-${s.student_id}`),
+                escapeCsv(s.full_name),
+                escapeCsv(statusLabel),
+                escapeCsv(s.remarks || '')
+            ].join(','));
+        }
+
+        return {
+            filename: `Attendance_Lecture_${lectureId}_Template.csv`,
+            csvContent: csvRows.join('\r\n'),
+            count: roster.length
+        };
+    },
+
+    /**
+     * Process bulk attendance CSV / raw records for a lecture.
+     */
+    async processBulkAttendance(tenantId, lectureId, rawContentOrRows, userId, shouldSave = true) {
+        const { parseCsv, normalizeAttendanceStatus } = require('../utils/csvParser');
+        let rawRows = [];
+
+        if (typeof rawContentOrRows === 'string') {
+            rawRows = parseCsv(rawContentOrRows);
+        } else if (Array.isArray(rawContentOrRows)) {
+            rawRows = rawContentOrRows;
+        } else {
+            throw new Error('Invalid input: CSV string or array of rows expected.');
+        }
+
+        if (rawRows.length === 0) {
+            throw new Error('The uploaded CSV file contains no data rows.');
+        }
+
+        // Fetch roster to map against
+        const roster = await this.getRoster(lectureId, tenantId);
+        if (roster.length === 0) {
+            throw new Error('No active students are enrolled in this batch for this lecture.');
+        }
+
+        const idMap = new Map();
+        const codeMap = new Map();
+        const nameMap = new Map();
+
+        for (const s of roster) {
+            idMap.set(Number(s.student_id), s);
+            if (s.student_code) {
+                codeMap.set(String(s.student_code).trim().toLowerCase(), s);
+            }
+            if (s.full_name) {
+                nameMap.set(String(s.full_name).trim().toLowerCase(), s);
+            }
+        }
+
+        const mappedRecords = [];
+        const unmatchedRows = [];
+        let presentCount = 0;
+        let lateCount = 0;
+        let absentCount = 0;
+
+        for (let i = 0; i < rawRows.length; i++) {
+            const row = rawRows[i];
+
+            // Resolve student ID / Code / Name across various possible column headers
+            const rawId = row.student_id || row.id || row.student_code_id || row.studentid;
+            const rawCode = row.student_code || row.code || row.roll_no || row.roll_number || row.studentcode;
+            const rawName = row.student_name || row.name || row.full_name || row.studentname;
+            const rawStatus = row.status !== undefined ? row.status : (row.attendance_status !== undefined ? row.attendance_status : row.attendance);
+            const rawRemarks = row.remarks || row.remark || row.note || row.notes || row.comments || '';
+
+            let matchedStudent = null;
+            if (rawId && !isNaN(Number(rawId)) && idMap.has(Number(rawId))) {
+                matchedStudent = idMap.get(Number(rawId));
+            } else if (rawCode && codeMap.has(String(rawCode).trim().toLowerCase())) {
+                matchedStudent = codeMap.get(String(rawCode).trim().toLowerCase());
+            } else if (rawName && nameMap.has(String(rawName).trim().toLowerCase())) {
+                matchedStudent = nameMap.get(String(rawName).trim().toLowerCase());
+            }
+
+            if (!matchedStudent) {
+                unmatchedRows.push({
+                    rowNumber: i + 2,
+                    rawId,
+                    rawCode,
+                    rawName,
+                    reason: 'Student not found in this lecture roster'
+                });
+                continue;
+            }
+
+            const normalizedStatus = normalizeAttendanceStatus(rawStatus);
+            const effectiveStatus = normalizedStatus !== null ? normalizedStatus : 1; // Default to 1 (Present) if omitted
+
+            if (effectiveStatus === 1) presentCount++;
+            else if (effectiveStatus === 2) lateCount++;
+            else if (effectiveStatus === 0) absentCount++;
+
+            mappedRecords.push({
+                student_id: matchedStudent.student_id,
+                student_code: matchedStudent.student_code,
+                full_name: matchedStudent.full_name,
+                status: effectiveStatus,
+                remarks: String(rawRemarks).trim() || null
+            });
+        }
+
+        if (mappedRecords.length === 0) {
+            throw new Error('None of the rows in the CSV file could be mapped to students in this batch.');
+        }
+
+        if (shouldSave) {
+            await this.saveAttendance(tenantId, lectureId, mappedRecords, userId);
+        }
+
+        return {
+            success: true,
+            totalRowsInFile: rawRows.length,
+            mappedCount: mappedRecords.length,
+            presentCount,
+            lateCount,
+            absentCount,
+            unmatchedCount: unmatchedRows.length,
+            unmatchedRows,
+            records: mappedRecords
+        };
+    },
+
+    /**
      * Get dropdown/options data for attendance filters (branches, batches).
      */
     async getAttendanceOptions(tenantId) {

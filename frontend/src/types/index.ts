@@ -577,17 +577,30 @@ export const INITIAL_ATTENDANCE_HISTORY: AttendanceSubmission[] = [];
 export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [];
 export const EXAM_RESULTS: ExamResult[] = [];
 
-export const formatDate = (dateStr: string | undefined): string => {
+export const formatDate = (dateStr: string | Date | undefined | null): string => {
   if (!dateStr) return '';
-  const cleanStr = dateStr.split('T')[0];
-  const parts = cleanStr.split('-');
-  if (parts.length === 3) {
-    if (parts[0].length === 4) {
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  try {
+    if (typeof dateStr === 'string') {
+      const cleanStr = dateStr.split('T')[0].split(' ')[0];
+      const parts = cleanStr.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(cleanStr)) {
+        return cleanStr;
+      }
     }
-    return cleanStr;
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+    return String(dateStr);
+  } catch {
+    return String(dateStr || '');
   }
-  return dateStr;
 };
 
 export const getTenantStatus = (t: { status: string; startDate?: string }): string => {

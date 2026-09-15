@@ -41,12 +41,15 @@ import { ExpenseVoucher } from './pages/ExpenseVoucher';
 import { ExpenseLedger } from './pages/ExpenseLedger';
 import { SubscriptionPlans } from './pages/SubscriptionPlans';
 import { TenantDetails } from './pages/TenantDetails';
+import { BranchFinancePage } from './pages/finance/BranchFinancePage';
+import { FinanceDashboard } from './components/finance/FinanceDashboard';
 
 // Teacher components
 import { TeacherDashboard } from './components/teacher/TeacherDashboard';
 import { TeacherAttendance } from './components/teacher/TeacherAttendance';
 import { TeacherAssignments } from './components/teacher/TeacherAssignments';
 import { StudentHomework } from './pages/StudentHomework';
+import { StudentDoubts } from './pages/StudentDoubts';
 import { TeacherDoubts } from './components/teacher/TeacherDoubts';
 import { TeacherStudents } from './components/teacher/TeacherStudents';
 import { TeacherSchedule } from './components/teacher/TeacherSchedule';
@@ -312,12 +315,22 @@ const ContentRouter = () => {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="/change-password" element={<ChangePassword />} />
-      <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : <Dashboard />} />
+      <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : currentUser?.role === 'finance' ? <FinanceDashboard /> : <Dashboard />} />
       <Route path="/tenants" element={<TenantsManager initialOpenCreate={false} />} />
       <Route path="/tenants/create" element={<TenantsManager initialOpenCreate={true} />} />
       <Route path="/tenants/:id" element={<TenantDetailsWrapper />} />
       <Route path="/plans" element={<SubscriptionPlans />} />
       <Route path="/feature-flags" element={<FeatureFlags />} />
+
+      {/* ── Branch Finance Routes ── */}
+      <Route path="/finance/income/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance/expenses/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance/payroll/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance/payables/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance/reports/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance/settings/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance/:section/:subSection" element={<BranchFinancePage />} />
+      <Route path="/finance" element={<BranchFinancePage />} />
 
 
       <Route path="/support" element={<SupportTickets />} />
@@ -378,7 +391,9 @@ const ContentRouter = () => {
       <Route path="/expense-ledger" element={<ExpenseLedger />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/settings" element={<Settings />} />
-      <Route path="/doubts" element={isTeacher ? <TeacherDoubts /> : <DoubtChatsPlaceholder />} />
+      <Route path="/doubts" element={isTeacher ? <TeacherDoubts /> : <StudentDoubts />} />
+      <Route path="/teacher/doubts" element={<TeacherDoubts />} />
+      <Route path="/student/doubts" element={<StudentDoubts />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

@@ -91,10 +91,35 @@ const getStudentLedger = async (tenantId, studentId, accessContext = null) => {
         };
     }
 
+    let expectedDueTillDate = 0;
+    let feesOverdue = 0;
+    if (feeAssignment) {
+        const net = feeAssignment.net_amount;
+        const paid = feeAssignment.paid_amount;
+        const down = feeAssignment.down_payment;
+        const instCount = Math.max(1, feeAssignment.installment_count);
+        const instAmount = feeAssignment.installment_amount;
+        const startDate = new Date(student.enrolled_date || feeAssignment.created_at || new Date());
+        const now = new Date();
+
+        let expected = down;
+        for (let i = 1; i <= instCount; i++) {
+            const dueDate = new Date(startDate);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            if (dueDate <= now) {
+                expected += instAmount;
+            }
+        }
+        expectedDueTillDate = Math.min(net, expected);
+        feesOverdue = Math.max(0, expectedDueTillDate - paid);
+    }
+
     return {
         ...student,
         feeAssignment,
         invoices,
+        expected_due_till_date: Math.round(expectedDueTillDate),
+        fees_overdue: Math.round(feesOverdue),
         totalOutstanding: feeAssignment
             ? round2(Math.max(feeAssignment.balance_amount, invoices.reduce((s, i) => s + i.outstanding, 0)))
             : round2(invoices.reduce((s, i) => s + i.outstanding, 0))
@@ -458,6 +483,11 @@ const createCollectionInvoice = async ({
         );
 
         const fee = ledger.feeAssignment;
+        const currentBalance = round2(Number(fee.balance_amount) || 0);
+        if (amountNum > currentBalance) {
+            throw httpError(400, `Invoice amount ₹${amountNum.toLocaleString('en-IN')} exceeds current balance ₹${currentBalance.toLocaleString('en-IN')}`);
+        }
+
         const newPaidFee = round2(fee.paid_amount + amountNum);
         const newBalanceFee = round2(Math.max(0, (fee.net_amount || 0) - newPaidFee));
         const newFeeStatus = newBalanceFee <= 0 ? 'paid' : (newPaidFee > 0 ? 'partial' : 'unpaid');
@@ -493,6 +523,160 @@ const createCollectionInvoice = async ({
                 net_amount: fee.net_amount,
                 paid_amount: newPaidFee,
                 balance_amount: newBalanceFee,
+                status: newFeeStatus
+            }
+        };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
+/**
+ * Collects a branch fee payment against a student's fee assignment:
+ * - Checks tenant and branch ownership (student & feeAssignment must belong to branch)
+ * - Uses SELECT ... FOR UPDATE on student_fee_assignments
+ * - Validates amount > 0 and amount <= balance_amount
+ * - Generates unique invoice_number
+ * - Inserts a row in student_invoices with paid_amount = amount, balance_due = 0.00, status = 'paid'
+ * - Updates student_fee_assignments (paid_amount += amount, balance_amount, status)
+ * - Commits transaction and returns clean response
+ */
+const collectBranchPayment = async ({
+    tenantId,
+    branchId,
+    studentId,
+    feeAssignmentId = null,
+    amount,
+    paymentMode,
+    transactionReference = null,
+    remarks = null,
+    createdBy = 1
+}) => {
+    const tid = Number(tenantId);
+    const sid = Number(studentId);
+    const bid = branchId ? Number(branchId) : null;
+    const amountNum = round2(Number(amount) || 0);
+
+    if (isNaN(amountNum) || amountNum <= 0) {
+        throw httpError(400, 'Payment amount must be greater than zero');
+    }
+
+    validateAdditionalFields({ payment_mode: paymentMode, transaction_reference: transactionReference, remarks });
+    const mode = String(paymentMode).trim();
+    const reference = transactionReference ? String(transactionReference).trim() : null;
+    const note = remarks ? String(remarks).trim() : null;
+    const today = new Date().toISOString().split('T')[0];
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // 1. Verify student and branch
+        const [students] = await conn.query(
+            `SELECT s.id, s.primary_branch_id, s.full_name, s.student_code, se.id AS enrollment_id
+             FROM students s
+             JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+             WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
+             FOR UPDATE`,
+            [tid, sid]
+        );
+        if (students.length === 0) throw httpError(404, 'Active student enrollment not found');
+
+        const student = students[0];
+        if (bid && Number(student.primary_branch_id) !== bid) {
+            throw httpError(403, 'Forbidden: Student does not belong to your authorized branch.');
+        }
+
+        // 2. Lock fee assignment
+        let faQuery = `SELECT * FROM student_fee_assignments WHERE student_id = ? AND tenant_id = ?`;
+        const faParams = [sid, tid];
+        if (feeAssignmentId) {
+            faQuery += ` AND id = ?`;
+            faParams.push(Number(feeAssignmentId));
+        }
+        faQuery += ` ORDER BY id DESC LIMIT 1 FOR UPDATE`;
+
+        const [feeRows] = await conn.query(faQuery, faParams);
+        if (feeRows.length === 0) throw httpError(404, 'Fee assignment not found for this student');
+
+        const fee = feeRows[0];
+        if (bid && fee.branch_id && Number(fee.branch_id) !== bid) {
+            throw httpError(403, 'Forbidden: Fee assignment does not belong to your authorized branch.');
+        }
+
+        const currentBalance = round2(Number(fee.balance_amount) || 0);
+        if (amountNum > currentBalance) {
+            throw httpError(400, `Payment amount ₹${amountNum.toLocaleString('en-IN')} exceeds the current balance ₹${currentBalance.toLocaleString('en-IN')}`);
+        }
+
+        // 3. Generate invoice number
+        const invoiceNumber = await generateCollectionInvoiceNumber(tid, sid);
+        const effectiveBranchId = fee.branch_id || student.primary_branch_id || bid || 1;
+
+        // 4. Create student_invoices record
+        const [invRes] = await conn.query(
+            `INSERT INTO student_invoices (
+                tenant_id, branch_id, student_id, enrollment_id, fee_assignment_id,
+                invoice_number, installment_number, description, issue_date, due_date,
+                payment_date, amount, paid_amount, balance_due, payment_mode,
+                transaction_reference, remarks, status, created_by
+             ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NOW(), ?, ?, 0.00, ?, ?, ?, 'paid', ?)`,
+            [
+                tid, effectiveBranchId, sid, student.enrollment_id, fee.id,
+                invoiceNumber,
+                `Fee collection ${invoiceNumber}`,
+                today,
+                today,
+                amountNum, amountNum, mode, reference, note, createdBy
+            ]
+        );
+
+        // 5. Update student_fee_assignments
+        const newPaidFee = round2((Number(fee.paid_amount) || 0) + amountNum);
+        const newBalanceFee = round2(Math.max(0, (Number(fee.net_amount) || 0) - newPaidFee));
+        const newFeeStatus = newBalanceFee <= 0 ? 'paid' : (newPaidFee > 0 ? 'partial' : 'unpaid');
+
+        await conn.query(
+            `UPDATE student_fee_assignments SET
+                paid_amount = ?, balance_amount = ?, status = ?,
+                updated_by = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
+        );
+
+        await conn.commit();
+
+        return {
+            invoice: {
+                id: invRes.insertId,
+                invoiceNumber,
+                invoice_number: invoiceNumber,
+                description: `Fee collection ${invoiceNumber}`,
+                issueDate: today,
+                dueDate: today,
+                paymentDate: today,
+                amount: amountNum,
+                paidAmount: amountNum,
+                paid_amount: amountNum,
+                balanceDue: 0,
+                balance_due: 0,
+                paymentMode: mode,
+                payment_mode: mode,
+                transactionReference: reference,
+                transaction_reference: reference,
+                remarks: note,
+                status: 'paid'
+            },
+            feeAssignment: {
+                id: fee.id,
+                grossAmount: Number(fee.gross_amount) || 0,
+                totalConcession: Number(fee.total_concession) || 0,
+                netAmount: Number(fee.net_amount) || 0,
+                paidAmount: newPaidFee,
+                balanceAmount: newBalanceFee,
                 status: newFeeStatus
             }
         };
@@ -710,11 +894,222 @@ const getInvoiceById = async (tenantId, invoiceId, accessContext = null) => {
     return inv;
 };
 
+/**
+ * Updates a student invoice and recalculates fee assignment balances atomically.
+ */
+const updateCollectionInvoice = async ({
+    tenantId,
+    invoiceId,
+    amount,
+    paymentMode,
+    transactionReference = null,
+    description = null,
+    remarks = null,
+    issueDate = null,
+    dueDate = null,
+    paymentDate = null,
+    accessContext = null,
+    updatedBy = 1
+}) => {
+    const tid = Number(tenantId);
+    const invId = Number(invoiceId);
+    const isBranchScope = accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId;
+    const bid = isBranchScope ? Number(accessContext.authorizedBranchId) : null;
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // 1. Fetch & lock invoice
+        const [invoices] = await conn.query(
+            `SELECT * FROM student_invoices WHERE id = ? AND tenant_id = ? FOR UPDATE`,
+            [invId, tid]
+        );
+        if (invoices.length === 0) throw httpError(404, 'Invoice not found');
+        const inv = invoices[0];
+
+        if (bid && inv.branch_id && Number(inv.branch_id) !== bid) {
+            throw httpError(403, 'Forbidden: Invoice does not belong to your authorized branch.');
+        }
+
+        // 2. Fetch & lock fee assignment
+        const [feeRows] = await conn.query(
+            `SELECT * FROM student_fee_assignments WHERE id = ? AND tenant_id = ? FOR UPDATE`,
+            [inv.fee_assignment_id, tid]
+        );
+        const fee = feeRows[0] || null;
+
+        const oldPaid = Number(inv.paid_amount) || Number(inv.amount) || 0;
+        let newAmount = amount !== undefined ? round2(Number(amount)) : Number(inv.amount);
+        if (isNaN(newAmount) || newAmount <= 0) {
+            throw httpError(400, 'Invoice amount must be greater than zero');
+        }
+
+        const delta = round2(newAmount - oldPaid);
+
+        let newFeePaid = 0;
+        let newFeeBalance = 0;
+        let newFeeStatus = 'unpaid';
+
+        if (fee) {
+            const currentFeePaid = Number(fee.paid_amount) || 0;
+            const currentFeeNet = Number(fee.net_amount) || 0;
+            newFeePaid = round2(Math.max(0, currentFeePaid + delta));
+            newFeeBalance = round2(Math.max(0, currentFeeNet - newFeePaid));
+            newFeeStatus = newFeeBalance <= 0 ? 'paid' : (newFeePaid > 0 ? 'partial' : 'unpaid');
+
+            await conn.query(
+                `UPDATE student_fee_assignments SET
+                    paid_amount = ?, balance_amount = ?, status = ?,
+                    updated_by = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [newFeePaid, newFeeBalance, newFeeStatus, updatedBy, fee.id]
+            );
+        }
+
+        const mode = paymentMode !== undefined ? String(paymentMode).trim() : inv.payment_mode;
+        const ref = transactionReference !== undefined ? (transactionReference ? String(transactionReference).trim() : null) : inv.transaction_reference;
+        const desc = description !== undefined ? (description ? String(description).trim() : null) : inv.description;
+        const note = remarks !== undefined ? (remarks ? String(remarks).trim() : null) : inv.remarks;
+        const iDate = issueDate || inv.issue_date;
+        const dDate = dueDate || inv.due_date;
+        const pDate = paymentDate || inv.payment_date || new Date().toISOString().split('T')[0];
+
+        await conn.query(
+            `UPDATE student_invoices SET
+                amount = ?, paid_amount = ?, balance_due = 0.00,
+                payment_mode = ?, transaction_reference = ?,
+                description = ?, remarks = ?,
+                issue_date = ?, due_date = ?, payment_date = ?,
+                status = 'paid', updated_by = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [newAmount, newAmount, mode, ref, desc, note, iDate, dDate, pDate, updatedBy, invId]
+        );
+
+        await conn.commit();
+
+        return {
+            id: invId,
+            invoiceNumber: inv.invoice_number,
+            amount: newAmount,
+            paidAmount: newAmount,
+            paymentMode: mode,
+            transactionReference: ref,
+            description: desc,
+            remarks: note,
+            issueDate: iDate,
+            dueDate: dDate,
+            paymentDate: pDate,
+            status: 'paid',
+            feeAssignment: fee ? {
+                id: fee.id,
+                paidAmount: newFeePaid,
+                balanceAmount: newFeeBalance,
+                status: newFeeStatus
+            } : null
+        };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
+/**
+ * Deletes a student invoice and adjusts student fee assignment balances atomically.
+ */
+const deleteCollectionInvoice = async ({
+    tenantId,
+    invoiceId,
+    accessContext = null,
+    deletedBy = 1
+}) => {
+    const tid = Number(tenantId);
+    const invId = Number(invoiceId);
+    const isBranchScope = accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId;
+    const bid = isBranchScope ? Number(accessContext.authorizedBranchId) : null;
+
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // 1. Fetch & lock invoice
+        const [invoices] = await conn.query(
+            `SELECT * FROM student_invoices WHERE id = ? AND tenant_id = ? FOR UPDATE`,
+            [invId, tid]
+        );
+        if (invoices.length === 0) throw httpError(404, 'Invoice not found');
+        const inv = invoices[0];
+
+        if (bid && inv.branch_id && Number(inv.branch_id) !== bid) {
+            throw httpError(403, 'Forbidden: Invoice does not belong to your authorized branch.');
+        }
+
+        // 2. Fetch & lock fee assignment
+        const [feeRows] = await conn.query(
+            `SELECT * FROM student_fee_assignments WHERE id = ? AND tenant_id = ? FOR UPDATE`,
+            [inv.fee_assignment_id, tid]
+        );
+        const fee = feeRows[0] || null;
+
+        const paidToRevert = Number(inv.paid_amount) || Number(inv.amount) || 0;
+
+        let newFeePaid = 0;
+        let newFeeBalance = 0;
+        let newFeeStatus = 'unpaid';
+
+        if (fee) {
+            const currentFeePaid = Number(fee.paid_amount) || 0;
+            const currentFeeNet = Number(fee.net_amount) || 0;
+            newFeePaid = round2(Math.max(0, currentFeePaid - paidToRevert));
+            newFeeBalance = round2(Math.max(0, currentFeeNet - newFeePaid));
+            newFeeStatus = newFeeBalance <= 0 ? 'paid' : (newFeePaid > 0 ? 'partial' : 'unpaid');
+
+            await conn.query(
+                `UPDATE student_fee_assignments SET
+                    paid_amount = ?, balance_amount = ?, status = ?,
+                    updated_by = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [newFeePaid, newFeeBalance, newFeeStatus, deletedBy, fee.id]
+            );
+        }
+
+        // 3. Delete invoice row
+        await conn.query(
+            `DELETE FROM student_invoices WHERE id = ? AND tenant_id = ?`,
+            [invId, tid]
+        );
+
+        await conn.commit();
+
+        return {
+            success: true,
+            invoiceId: invId,
+            studentId: inv.student_id,
+            feeAssignment: fee ? {
+                id: fee.id,
+                paidAmount: newFeePaid,
+                balanceAmount: newFeeBalance,
+                status: newFeeStatus
+            } : null
+        };
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
+};
+
 module.exports = {
     getStudentLedger,
     getStudentFeeAssignment,
     updateStudentFeeAssignment,
     recordPayment,
     createCollectionInvoice,
+    collectBranchPayment,
+    updateCollectionInvoice,
+    deleteCollectionInvoice,
     getInvoiceById
 };

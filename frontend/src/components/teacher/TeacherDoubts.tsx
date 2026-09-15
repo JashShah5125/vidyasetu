@@ -1,409 +1,690 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
-import { HelpCircle, CheckCircle2, MessageCircle, Send, Paperclip, Clock, BookOpen, AlertCircle, RefreshCw } from 'lucide-react';
-import { TEACHER_ASSIGNED_BATCHES } from '../../types';
-import teachersList from '../../data/teachers.json';
-import courseHierarchy from '../../data/courseHierarchy.json';
+import {
+  HelpCircle,
+  MessageSquare,
+  Send,
+  Paperclip,
+  Clock,
+  BookOpen,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Search,
+  RefreshCw,
+  FileText,
+  Image as ImageIcon,
+  ExternalLink,
+  User,
+  GraduationCap
+} from 'lucide-react';
+import { doubtApi } from '../../services/doubtApi';
+import type { DoubtItem, DoubtReply } from '../../services/doubtApi';
+import { teacherHomeworkApi } from '../../services/teacherHomeworkApi';
 
 export const TeacherDoubts: React.FC = () => {
-  const { doubts, addDoubtMessage, updateDoubtStatus, batches, students, currentUser } = useApp();
+  const { addToast } = useApp();
 
-  // Find logged-in teacher from teachers.json
-  const currentTeacher = useMemo(() => {
-    return teachersList.find(t =>
-      t.id === currentUser?.id ||
-      t.name === currentUser?.name ||
-      (currentUser?.email && t.name.toLowerCase().includes(currentUser.email.split('@')[0]))
-    ) || teachersList.find(t => t.id === 'EMP-002') || teachersList[0];
-  }, [currentUser]);
+  // Data states
+  const [doubts, setDoubts] = useState<DoubtItem[]>([]);
+  const [selectedDoubt, setSelectedDoubt] = useState<DoubtItem | null>(null);
+  const [teacherBatches, setTeacherBatches] = useState<{ id: number; name: string; code?: string }[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<{ id: number; name: string; code?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingThread, setLoadingThread] = useState(false);
 
-  const teacherAssignedBatches = useMemo(() => {
-    if (currentTeacher?.batches && currentTeacher.batches.length > 0) {
-      return currentTeacher.batches;
-    }
-    return TEACHER_ASSIGNED_BATCHES;
-  }, [currentTeacher]);
-  
-  // States
-  const [activeDoubtId, setActiveDoubtId] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState('');
+  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [filterCourse, setFilterCourse] = useState('All');
-  const [filterProgram, setFilterProgram] = useState('All');
-  const [filterLevel, setFilterLevel] = useState('All');
-  const [filterBatch, setFilterBatch] = useState('All');
-  const [filterSubject, setFilterSubject] = useState('All');
-  
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [batchFilter, setBatchFilter] = useState('All');
+  const [subjectFilter, setSubjectFilter] = useState('All');
+
+  // Reply form states
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom on new message or doubt selection
+  // Lightbox modal state
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+  // Fetch teacher scoping & doubts list
+  const loadDoubts = async (retainSelectedId?: number) => {
+    try {
+      setLoading(true);
+      const [scoping, data] = await Promise.all([
+        teacherHomeworkApi.getScoping().catch(() => ({ batches: [], subjects: [] })),
+        doubtApi.getTeacherDoubts()
+      ]);
+
+      if (scoping) {
+        setTeacherBatches(scoping.batches || []);
+        setTeacherSubjects(scoping.subjects || []);
+      }
+      setDoubts(data);
+
+      const targetId = retainSelectedId || selectedDoubt?.id || (data.length > 0 ? data[0].id : null);
+      if (targetId) {
+        loadDoubtThread(targetId);
+      } else {
+        setSelectedDoubt(null);
+      }
+    } catch (err: any) {
+      addToast(err.message || 'Failed to load assigned doubts.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch full thread with replies and mark as read
+  const loadDoubtThread = async (doubtId: number) => {
+    try {
+      setLoadingThread(true);
+      const fullDoubt = await doubtApi.getTeacherDoubt(doubtId);
+      setSelectedDoubt(fullDoubt);
+      // Update unread count in local list
+      setDoubts(prev => prev.map(d => (d.id === doubtId ? { ...d, unreadCount: 0, status: fullDoubt.status, statusLabel: fullDoubt.statusLabel } : d)));
+    } catch (err: any) {
+      addToast(err.message || 'Failed to load discussion thread.', 'error');
+    } finally {
+      setLoadingThread(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDoubts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Scroll chat to bottom when thread updates
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [activeDoubtId, doubts]);
+  }, [selectedDoubt?.replies, loadingThread]);
 
-  // Derived Data (Scope to teacher's assigned batches)
-  const teacherBatchesInfo = useMemo(() => {
-    return batches.filter(b => teacherAssignedBatches.includes(b.name));
-  }, [batches, teacherAssignedBatches]);
-
-  const uniqueCourses = useMemo(() => courseHierarchy.map(c => c.courseName), []);
-  const uniquePrograms = Array.from(new Set(teacherBatchesInfo.filter(b => filterCourse === 'All' || b.course === filterCourse).map(b => b.program).filter(Boolean))) as string[];
-  const uniqueLevels = Array.from(new Set(teacherBatchesInfo.filter(b => (filterCourse === 'All' || b.course === filterCourse) && (filterProgram === 'All' || b.program === filterProgram)).map(b => b.level).filter(Boolean))) as string[];
-  const availableBatches = teacherBatchesInfo.filter(b => {
-      const matchC = filterCourse === 'All' || b.course === filterCourse;
-      const matchP = filterProgram === 'All' || b.program === filterProgram;
-      const matchL = filterLevel === 'All' || b.level === filterLevel;
-      return matchC && matchP && matchL;
-  });
-  const uniqueBatches = Array.from(new Set(availableBatches.map(b => b.name)));
-  
-  const allowedBatchesSet = new Set(uniqueBatches);
-
-  const teacherDoubts = useMemo(() => {
-    return doubts.filter(d => teacherAssignedBatches.includes(d.batch));
-  }, [doubts, teacherAssignedBatches]);
-
-  const uniqueSubjects = Array.from(new Set(teacherDoubts.filter(d => allowedBatchesSet.has(d.batch)).map(d => d.subject)));
-
-  // Filtered Doubts
-  const filteredDoubts = useMemo(() => {
-    return teacherDoubts.filter(d => {
-      const matchSearch = d.studentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          d.studentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          d.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          d.messages.some(m => m.text.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchStatus = filterStatus === 'All' || d.status === filterStatus;
-      const matchSubject = filterSubject === 'All' || d.subject === filterSubject;
-      const matchBatch = filterBatch === 'All' ? allowedBatchesSet.has(d.batch) : d.batch === filterBatch;
-      
-      return matchSearch && matchStatus && matchSubject && matchBatch;
+  // Fallback unique batches & subjects if scoping returns empty
+  const allBatches = useMemo(() => {
+    if (teacherBatches.length > 0) return teacherBatches;
+    const map = new Map<number, string>();
+    doubts.forEach(d => {
+      if (d.batch?.id) map.set(d.batch.id, d.batch.name);
     });
-  }, [teacherDoubts, searchTerm, filterStatus, filterSubject, filterBatch, allowedBatchesSet]);
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [teacherBatches, doubts]);
 
-  // Grouped Doubts for Inbox
-  const reopenedDoubts = filteredDoubts.filter(d => d.status === 'Reopened');
-  const pendingDoubts = filteredDoubts.filter(d => d.status === 'Pending');
-  const inProgressDoubts = filteredDoubts.filter(d => d.status === 'In Progress');
-  const resolvedDoubts = filteredDoubts.filter(d => d.status === 'Resolved');
+  const allSubjects = useMemo(() => {
+    if (teacherSubjects.length > 0) return teacherSubjects;
+    const map = new Map<number, string>();
+    doubts.forEach(d => {
+      if (d.subject?.id) map.set(d.subject.id, d.subject.name);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [teacherSubjects, doubts]);
 
-  const orderedDoubts = [
-    ...reopenedDoubts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-    ...pendingDoubts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-    ...inProgressDoubts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-    ...resolvedDoubts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
-  ];
+  const filteredDoubts = useMemo(() => {
+    return doubts.filter(d => {
+      const matchSearch =
+        !searchTerm.trim() ||
+        d.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        d.student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (d.student.code && d.student.code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        d.subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (d.lastMessage && d.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const activeDoubt = teacherDoubts.find(d => d.id === activeDoubtId);
-  const activeStudentInfo = activeDoubt ? students.find(s => s.id === activeDoubt.studentId || s.studentId === activeDoubt.studentId) : null;
-  const activeBatchInfo = activeDoubt ? batches.find(b => b.name === activeDoubt.batch) : null;
+      let matchStatus = true;
+      if (statusFilter !== 'All') {
+        const statusCode = Number(statusFilter);
+        matchStatus = d.status === statusCode;
+      }
 
-  const handleReplySubmit = (e: React.FormEvent) => {
+      const matchBatch = batchFilter === 'All' || Number(d.batch?.id) === Number(batchFilter);
+      const matchSubject = subjectFilter === 'All' || Number(d.subject?.id) === Number(subjectFilter);
+
+      return matchSearch && matchStatus && matchBatch && matchSubject;
+    });
+  }, [doubts, searchTerm, statusFilter, batchFilter, subjectFilter]);
+
+  // Reply submission
+  const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeDoubtId && replyText.trim()) {
-      addDoubtMessage(activeDoubtId, 'teacher', replyText.trim());
-      setReplyText('');
+    if (!selectedDoubt) return;
+    if (!replyMessage.trim() && replyFiles.length === 0) {
+      addToast('Please write a reply or attach a file.', 'error');
+      return;
+    }
+
+    try {
+      setIsSendingReply(true);
+      const formData = new FormData();
+      formData.append('message', replyMessage.trim());
+      replyFiles.forEach(file => {
+        formData.append('attachments', file);
+      });
+
+      const updated = await doubtApi.addTeacherReply(selectedDoubt.id, formData);
+      setSelectedDoubt(updated);
+      setReplyMessage('');
+      setReplyFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      // Update list status and last message
+      setDoubts(prev => prev.map(d => (d.id === updated.id ? {
+        ...d,
+        status: updated.status,
+        statusLabel: updated.statusLabel,
+        lastMessage: replyMessage.trim() || 'Attachment',
+        updatedAt: updated.updatedAt
+      } : d)));
+
+      addToast('Reply sent.', 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to send reply.', 'error');
+    } finally {
+      setIsSendingReply(false);
     }
   };
 
-  const handleAttachment = () => {
-    // Mock attachment handler
-    if (activeDoubtId) {
-      addDoubtMessage(activeDoubtId, 'teacher', 'Please refer to the attached reference material.', ['reference_material.pdf']);
+  // Status transition by teacher
+  const handleUpdateStatus = async (newStatus: number) => {
+    if (!selectedDoubt) return;
+    try {
+      const updated = await doubtApi.updateTeacherDoubtStatus(selectedDoubt.id, newStatus);
+      setSelectedDoubt(updated);
+      setDoubts(prev => prev.map(d => (d.id === updated.id ? {
+        ...d,
+        status: updated.status,
+        statusLabel: updated.statusLabel
+      } : d)));
+      addToast(`Doubt marked as ${updated.statusLabel}.`, 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to update status.', 'error');
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Pending': return <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Pending</span>;
-      case 'In Progress': return <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">In Progress</span>;
-      case 'Reopened': return <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Reopened</span>;
-      case 'Resolved': return <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Resolved</span>;
-      default: return null;
+  const getStatusBadge = (statusCode: number, statusLabel: string) => {
+    switch (statusCode) {
+      case 0:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">Open</span>;
+      case 1:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">In Progress</span>;
+      case 2:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">Resolved</span>;
+      case 3:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">Reopened</span>;
+      default:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">{statusLabel || 'Open'}</span>;
     }
+  };
+
+  const isImageFile = (url: string) => {
+    const ext = url.split('.').pop()?.toLowerCase() || '';
+    return ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
   };
 
   return (
-    <div className="space-y-6 animate-fade-in h-[calc(100vh-8rem)] flex flex-col">
-      <div>
-        <h2 className="text-2xl font-display font-bold text-slate-900">Doubt Resolution</h2>
-        <p className="text-sm text-slate-500 mt-1">Answer student academic queries and manage doubt conversations.</p>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+            <HelpCircle className="w-7 h-7 text-indigo-600" />
+            Student Doubts & Questions
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Review and resolve doubts asked by students from your assigned batches and subjects.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadDoubts(selectedDoubt?.id)}
+            disabled={loading}
+            className="flex items-center gap-1.5"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-        
-        {/* LEFT PANE: INBOX */}
-        <div className="lg:col-span-5 xl:col-span-5 flex flex-col h-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-100 bg-slate-50 space-y-3 flex-none">
-            <Input 
-              label="Search"
-              placeholder="Search student, doubt, subject..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Select 
-                label="Course" 
-                value={filterCourse} 
-                onChange={e => { setFilterCourse(e.target.value); setFilterProgram('All'); setFilterLevel('All'); setFilterBatch('All'); }}
-                options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
-              />
-              <Select 
-                label="Program" 
-                value={filterProgram} 
-                onChange={e => { setFilterProgram(e.target.value); setFilterLevel('All'); setFilterBatch('All'); }}
-                options={[{ value: 'All', label: 'All Programs' }, ...uniquePrograms.map(p => ({ value: p, label: p }))]}
-              />
-              <Select 
-                label="Level" 
-                value={filterLevel} 
-                onChange={e => { setFilterLevel(e.target.value); setFilterBatch('All'); }}
-                options={[{ value: 'All', label: 'All Levels' }, ...uniqueLevels.map(l => ({ value: l, label: l }))]}
-              />
-              <Select 
-                label="Batch" 
-                value={filterBatch} 
-                onChange={e => setFilterBatch(e.target.value)}
-                options={[{ value: 'All', label: 'All Batches' }, ...uniqueBatches.map(b => ({ value: b, label: b }))]}
-              />
-              <Select 
-                label="Subject" 
-                value={filterSubject} 
-                onChange={e => setFilterSubject(e.target.value)}
-                options={[{ value: 'All', label: 'All Subjects' }, ...uniqueSubjects.map(s => ({ value: s, label: s }))]}
-              />
-              <Select 
-                label="Status" 
-                value={filterStatus} 
-                onChange={e => setFilterStatus(e.target.value)}
-                options={[
-                  { value: 'All', label: 'All Statuses' },
-                  { value: 'Pending', label: 'Pending' },
-                  { value: 'In Progress', label: 'In Progress' },
-                  { value: 'Reopened', label: 'Reopened' },
-                  { value: 'Resolved', label: 'Resolved' },
-                ]}
+      {/* Main Split Pane Container */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Doubts Inbox & Filters (5 cols) */}
+        <div className="lg:col-span-5 space-y-3">
+          {/* Filters Card */}
+          <Card className="p-3.5 space-y-3 border border-gray-200 bg-white">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search student, topic or message..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="pl-9 h-9 text-sm"
               />
             </div>
-            {(searchTerm || filterStatus !== 'All' || filterCourse !== 'All' || filterProgram !== 'All' || filterLevel !== 'All' || filterSubject !== 'All' || filterBatch !== 'All') && (
-              <div className="text-right">
-                <button 
-                  onClick={() => { setSearchTerm(''); setFilterStatus('All'); setFilterCourse('All'); setFilterProgram('All'); setFilterLevel('All'); setFilterSubject('All'); setFilterBatch('All'); }}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-800"
-                >
-                  Clear Filters
-                </button>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                options={[
+                  { value: 'All', label: 'All Status' },
+                  { value: '0', label: 'Open' },
+                  { value: '1', label: 'In Progress' },
+                  { value: '2', label: 'Resolved' },
+                  { value: '3', label: 'Reopened' }
+                ]}
+                className="h-9 text-xs"
+              />
+
+              <Select
+                value={batchFilter}
+                onChange={e => setBatchFilter(e.target.value)}
+                options={[
+                  { value: 'All', label: 'All Batches' },
+                  ...allBatches.map(b => ({ value: String(b.id), label: b.name }))
+                ]}
+                className="h-9 text-xs"
+              />
+
+              <Select
+                value={subjectFilter}
+                onChange={e => setSubjectFilter(e.target.value)}
+                options={[
+                  { value: 'All', label: 'All Subjects' },
+                  ...allSubjects.map(s => ({ value: String(s.id), label: s.name }))
+                ]}
+                className="h-9 text-xs"
+              />
+            </div>
+          </Card>
+
+          {/* Doubt List */}
+          <Card className="divide-y divide-gray-100 max-h-[620px] overflow-y-auto border border-gray-200 bg-white shadow-sm">
+            {loading && doubts.length === 0 ? (
+              <div className="p-8 text-center text-sm text-gray-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
+                Loading student doubts...
               </div>
-            )}
-          </div>
-          
-          <div className="flex-1 overflow-y-auto">
-            {orderedDoubts.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">
-                <p className="font-medium">No doubts found.</p>
+            ) : filteredDoubts.length === 0 ? (
+              <div className="p-8 text-center text-sm text-gray-500">
+                <HelpCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="font-medium text-gray-700">No doubts found</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {searchTerm || statusFilter !== 'All' || batchFilter !== 'All' || subjectFilter !== 'All'
+                    ? 'Try clearing some of the filters'
+                    : 'No students have submitted doubts for your subjects yet.'}
+                </p>
               </div>
             ) : (
-              orderedDoubts.map(d => (
-                <div 
-                  key={d.id}
-                  onClick={() => setActiveDoubtId(d.id)}
-                  className={`p-4 border-b border-slate-100 cursor-pointer transition-colors ${
-                    activeDoubtId === d.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'hover:bg-slate-50 border-l-4 border-l-transparent'
-                  } ${d.status === 'Resolved' ? 'opacity-75' : ''}`}
-                >
-                  <div className="flex justify-between items-start mb-1 gap-2">
-                    <span className="text-sm font-bold text-slate-800 truncate">{d.studentName}</span>
-                    <span className="whitespace-nowrap">{getStatusBadge(d.status)}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="text-xs text-slate-500 font-medium truncate">{d.subject} • <span className="text-blue-700">{d.batch}</span></div>
-                    <div className="text-[10px] text-slate-400 whitespace-nowrap">
-                      {new Date(d.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              filteredDoubts.map(doubt => {
+                const isSelected = selectedDoubt?.id === doubt.id;
+                return (
+                  <div
+                    key={doubt.id}
+                    onClick={() => loadDoubtThread(doubt.id)}
+                    className={`p-3.5 cursor-pointer transition-all hover:bg-indigo-50/50 ${
+                      isSelected ? 'bg-indigo-50/80 border-l-4 border-indigo-600 pl-2.5' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-gray-900 line-clamp-1 flex-1">
+                        {doubt.topic}
+                      </h4>
+                      {getStatusBadge(doubt.status, doubt.statusLabel)}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 flex-wrap">
+                      <span className="font-medium text-gray-800 flex items-center gap-1">
+                        <GraduationCap className="w-3 h-3 text-indigo-600" />
+                        {doubt.student.name}
+                        {doubt.student.code ? ` (${doubt.student.code})` : ''}
+                      </span>
+                      <span>•</span>
+                      <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                        {doubt.subject.name}
+                      </span>
+                      <span>•</span>
+                      <span className="text-gray-400 text-[11px]">
+                        {doubt.batch.name}
+                      </span>
+                    </div>
+
+                    {doubt.lastMessage && (
+                      <p className="text-xs text-gray-600 line-clamp-1 mt-1.5">
+                        {doubt.lastMessage}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between mt-2 pt-1 border-t border-gray-50 text-[11px] text-gray-400">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(doubt.updatedAt || doubt.createdAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {doubt.unreadCount && doubt.unreadCount > 0 ? (
+                          <span className="bg-rose-500 text-white font-bold px-1.5 py-0.2 rounded-full text-[10px]">
+                            {doubt.unreadCount} unread
+                          </span>
+                        ) : null}
+                        <span className="flex items-center gap-0.5 text-gray-500">
+                          <MessageSquare className="w-3 h-3" />
+                          {doubt.replyCount || 1}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 line-clamp-2">
-                    {d.messages[d.messages.length - 1]?.text}
-                  </p>
-                </div>
-              ))
+                );
+              })
             )}
-          </div>
+          </Card>
         </div>
 
-        {/* RIGHT PANE: WORKSPACE */}
-        <div className="lg:col-span-7 xl:col-span-7 flex flex-col h-full bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm relative">
-          {activeDoubt ? (
-            <>
-              {/* Header */}
-              <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 flex-none">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h3 className="text-xl font-display font-bold text-slate-900">{activeDoubt.studentName}</h3>
-                    <span className="text-xs font-mono font-bold text-slate-400 border border-slate-200 px-2 py-0.5 rounded bg-white">
-                      {activeDoubt.studentId}
-                    </span>
+        {/* Right Column: Active Doubt Thread Workspace (7 cols) */}
+        <div className="lg:col-span-7">
+          {selectedDoubt ? (
+            <Card className="flex flex-col h-[700px] border border-gray-200 bg-white shadow-sm overflow-hidden">
+              {/* Thread Header */}
+              <div className="p-4 border-b border-gray-200 bg-gray-50/70">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-gray-900 leading-snug">
+                        {selectedDoubt.topic}
+                      </h3>
+                      {getStatusBadge(selectedDoubt.status, selectedDoubt.statusLabel)}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-600 flex-wrap">
+                      <span className="flex items-center gap-1 font-medium text-gray-800">
+                        <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                        Student: <span className="text-gray-900 font-semibold">{selectedDoubt.student.name}</span>
+                        {selectedDoubt.student.code ? <span className="text-gray-400 font-normal">({selectedDoubt.student.code})</span> : null}
+                      </span>
+                      <span className="text-gray-300">•</span>
+                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">{selectedDoubt.subject.name}</span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-gray-500">{selectedDoubt.batch.name}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-sm text-slate-600 font-medium">
-                    <span>{activeDoubt.subject}</span>
-                    {activeBatchInfo && (
-                      <>
-                        <span className="text-slate-300">•</span>
-                        <span>{activeBatchInfo.course}</span>
-                        <span className="text-slate-300">•</span>
-                        <span>{activeBatchInfo.program}</span>
-                        <span className="text-slate-300">•</span>
-                        <span>{activeBatchInfo.level}</span>
-                      </>
+
+                  {/* Status Change Controls for Teacher */}
+                  <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+                    <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 shadow-xs">
+                      <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">Status:</span>
+                      <select
+                        value={String(selectedDoubt.status)}
+                        onChange={e => handleUpdateStatus(Number(e.target.value))}
+                        className="text-xs font-semibold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-0 cursor-pointer pr-1"
+                      >
+                        <option value="0">Open</option>
+                        <option value="1">In Progress</option>
+                        <option value="2">Resolved</option>
+                        <option value="3">Reopened</option>
+                      </select>
+                    </div>
+
+                    {selectedDoubt.status !== 2 ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateStatus(2)}
+                        className="h-8 text-xs font-medium text-emerald-700 border-emerald-300 hover:bg-emerald-50 flex items-center gap-1.5 shadow-xs whitespace-nowrap"
+                        title="Quickly mark this doubt as resolved"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Mark Resolved
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateStatus(3)}
+                        className="h-8 text-xs font-medium text-purple-700 border-purple-300 hover:bg-purple-50 flex items-center gap-1.5 shadow-xs whitespace-nowrap"
+                        title="Reopen this doubt thread"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-purple-600" />
+                        Reopen
+                      </Button>
                     )}
-                    <span className="text-slate-300">•</span>
-                    <span className="text-blue-700 font-bold">{activeDoubt.batch}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status:</span>
-                    {getStatusBadge(activeDoubt.status)}
-                  </div>
-                  <div className="text-[10px] font-bold text-slate-400">
-                    Received: {new Date(activeDoubt.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                   </div>
                 </div>
               </div>
-              
-              {/* Conversation Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30" ref={chatScrollRef}>
-                
-                {/* Original Question Segment */}
-                {activeDoubt.messages.length > 0 && (
-                  <div className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="h-px bg-slate-200 flex-1"></div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-white border border-slate-200 px-3 py-1 rounded-full flex items-center gap-1.5">
-                        <HelpCircle size={12} /> Student Question
-                      </div>
-                      <div className="h-px bg-slate-200 flex-1"></div>
-                    </div>
-                    
-                    <div className="bg-white border border-indigo-100 shadow-sm rounded-2xl p-5 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="font-bold text-indigo-900">{activeDoubt.studentName}</div>
-                        <div className="text-xs font-medium text-slate-400">{activeDoubt.messages[0].time}</div>
-                      </div>
-                      <p className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed">{activeDoubt.messages[0].text}</p>
-                      {activeDoubt.messages[0].attachments && activeDoubt.messages[0].attachments.length > 0 && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {activeDoubt.messages[0].attachments.map((att, i) => (
-                            <div key={i} className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded border border-indigo-100 text-xs font-semibold cursor-pointer hover:bg-indigo-100 transition-colors">
-                              <Paperclip size={14} /> {att}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
 
-                {/* Follow up conversation */}
-                {activeDoubt.messages.length > 1 && (
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="h-px bg-slate-200 flex-1"></div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversation</div>
-                      <div className="h-px bg-slate-200 flex-1"></div>
-                    </div>
-                    
-                    {activeDoubt.messages.slice(1).map((m) => (
-                      <div key={m.id} className={`flex ${m.sender === 'teacher' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] rounded-2xl px-5 py-3 ${
-                          m.sender === 'teacher' 
-                            ? 'bg-blue-600 text-white rounded-tr-sm shadow-md shadow-blue-900/10' 
-                            : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm'
-                        }`}>
-                          <div className={`text-[10px] font-bold mb-1 flex justify-between gap-4 ${m.sender === 'teacher' ? 'text-blue-200' : 'text-slate-400'}`}>
-                            <span>{m.sender === 'teacher' ? 'YOU' : activeDoubt.studentName.toUpperCase()}</span>
-                            <span>{m.time}</span>
-                          </div>
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.text}</p>
-                          {m.attachments && m.attachments.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {m.attachments.map((att, i) => (
-                                <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded border text-xs font-semibold cursor-pointer transition-colors ${
-                                  m.sender === 'teacher' 
-                                    ? 'bg-blue-700/50 border-blue-500/50 hover:bg-blue-700' 
-                                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
-                                }`}>
-                                  <Paperclip size={14} /> {att}
-                                </div>
-                              ))}
+              {/* Chat Thread Message Area */}
+              <div
+                ref={chatScrollRef}
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50"
+              >
+                {loadingThread ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-400">
+                    <RefreshCw className="w-5 h-5 animate-spin mr-2 text-indigo-500" />
+                    Loading discussion...
+                  </div>
+                ) : (
+                  (selectedDoubt.replies || []).map((reply: DoubtReply) => {
+                    const isTeacher = reply.senderRole === 'teacher';
+                    return (
+                      <div
+                        key={reply.id}
+                        className={`flex flex-col ${isTeacher ? 'items-end' : 'items-start'}`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1 px-1">
+                          <span className="text-xs font-semibold text-gray-700">
+                            {reply.senderName}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                            isTeacher ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {isTeacher ? 'You (Teacher)' : 'Student'}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {new Date(reply.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        <div
+                          className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-xs text-sm leading-relaxed ${
+                            isTeacher
+                              ? 'bg-indigo-600 text-white rounded-br-xs'
+                              : 'bg-white text-gray-900 border border-gray-200 rounded-bl-xs'
+                          }`}
+                        >
+                          {reply.message && (
+                            <p className="whitespace-pre-wrap">{reply.message}</p>
+                          )}
+
+                          {/* Attachments */}
+                          {reply.attachments && reply.attachments.length > 0 && (
+                            <div className={`mt-2.5 pt-2 border-t space-y-2 ${
+                              isTeacher ? 'border-indigo-500/50' : 'border-gray-100'
+                            }`}>
+                              <div className="text-[11px] font-medium opacity-80 flex items-center gap-1">
+                                <Paperclip className="w-3 h-3" />
+                                Attachments ({reply.attachments.length})
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {reply.attachments.map((attUrl, idx) => {
+                                  const isImg = isImageFile(attUrl);
+                                  const filename = attUrl.split('/').pop() || 'Attachment';
+                                  return isImg ? (
+                                    <div
+                                      key={idx}
+                                      onClick={() => setPreviewImageUrl(attUrl)}
+                                      className="group relative cursor-pointer rounded-lg overflow-hidden border border-black/10 bg-gray-100 hover:opacity-90 transition-opacity"
+                                    >
+                                      <img
+                                        src={attUrl}
+                                        alt="attachment"
+                                        className="w-24 h-24 object-cover"
+                                        onError={(e) => {
+                                          const target = e.currentTarget;
+                                          target.style.display = 'none';
+                                          const parent = target.parentElement;
+                                          if (parent) {
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'w-24 h-24 flex flex-col items-center justify-center p-2 text-center bg-gray-100 text-gray-500 text-[10px]';
+                                            fallback.innerHTML = `<span class="truncate max-w-[80px] font-medium">${filename}</span>`;
+                                            parent.appendChild(fallback);
+                                          }
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs">
+                                        View
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <a
+                                      key={idx}
+                                      href={attUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border transition-colors ${
+                                        isTeacher
+                                          ? 'bg-indigo-700/60 hover:bg-indigo-700 border-indigo-400/40 text-white'
+                                          : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
+                                      }`}
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span className="max-w-[130px] truncate">{filename}</span>
+                                      <ExternalLink className="w-3 h-3 opacity-70" />
+                                    </a>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })
                 )}
               </div>
 
-              {/* Composer */}
-              <div className="p-4 bg-white border-t border-slate-200 flex-none">
-                {activeDoubt.status === 'Resolved' ? (
-                  <div className="text-center py-3 bg-slate-50 rounded-xl border border-slate-200 mb-2">
-                    <p className="text-sm font-medium text-slate-500 mb-2">This doubt is marked as resolved.</p>
-                    <Button variant="secondary" size="sm" onClick={() => updateDoubtStatus(activeDoubt.id, 'Reopened')} className="gap-2">
-                      <RefreshCw size={14} /> Reopen Thread
-                    </Button>
+              {/* Reply Input Box */}
+              <div className="p-3.5 border-t border-gray-200 bg-white">
+                {/* Pending attachments previews */}
+                {replyFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    {replyFiles.map((f, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-50 border border-indigo-200 text-xs text-indigo-700"
+                      >
+                        {f.type.startsWith('image/') ? (
+                          <ImageIcon className="w-3.5 h-3.5 text-indigo-500" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                        )}
+                        <span className="max-w-[150px] truncate">{f.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setReplyFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
                   </div>
-                ) : (
-                  <>
-                    <form onSubmit={handleReplySubmit} className="flex flex-col gap-3">
-                      <textarea
-                        rows={3}
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Write your response..."
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 resize-none"
-                      />
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-2">
-                          <Button type="button" variant="secondary" onClick={handleAttachment} className="gap-2">
-                            <Paperclip size={16} /> Attach
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Button 
-                            type="button" 
-                            variant="secondary" 
-                            onClick={() => updateDoubtStatus(activeDoubt.id, 'Resolved')}
-                            className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300"
-                          >
-                            Mark as Resolved
-                          </Button>
-                          <Button type="submit" variant="primary" className="px-6 gap-2" disabled={!replyText.trim()}>
-                            <Send size={16} /> Send
-                          </Button>
-                        </div>
-                      </div>
-                    </form>
-                  </>
                 )}
+
+                <form onSubmit={handleSendReply} className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    multiple
+                    accept="image/*,application/pdf,.doc,.docx,.txt"
+                    className="hidden"
+                    onChange={e => {
+                      if (e.target.files) {
+                        const newFiles = Array.from(e.target.files);
+                        if (replyFiles.length + newFiles.length > 5) {
+                          addToast('Maximum 5 attachments allowed per reply.', 'error');
+                          return;
+                        }
+                        setReplyFiles(prev => [...prev, ...newFiles]);
+                      }
+                    }}
+                  />
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach image or file"
+                    className="h-10 px-3 text-gray-500 hover:text-indigo-600"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+
+                  <Input
+                    type="text"
+                    placeholder="Write explanation or response to student..."
+                    value={replyMessage}
+                    onChange={e => setReplyMessage(e.target.value)}
+                    className="flex-1 h-10 text-sm"
+                  />
+
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isSendingReply || (!replyMessage.trim() && replyFiles.length === 0)}
+                    className="h-10 px-4 flex items-center gap-1.5"
+                  >
+                    <Send className="w-4 h-4" />
+                    Reply
+                  </Button>
+                </form>
               </div>
-            </>
+            </Card>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
-              <MessageCircle size={48} className="mb-4 text-slate-300" />
-              <p className="font-medium text-slate-600 text-lg">Select a doubt thread</p>
-              <p className="text-sm mt-1">Choose a student question from the inbox to read and respond.</p>
-            </div>
+            <Card className="h-[700px] border border-dashed border-gray-300 flex flex-col items-center justify-center text-center p-8 bg-gray-50/50">
+              <MessageSquare className="w-12 h-12 text-gray-300 mb-3" />
+              <h3 className="text-base font-semibold text-gray-700">No Doubt Selected</h3>
+              <p className="text-xs text-gray-500 max-w-sm mt-1">
+                Select a student's doubt from the left pane to view the question, see any attachments, and provide your explanation.
+              </p>
+            </Card>
           )}
         </div>
       </div>
+
+      {/* Lightbox Image Preview Modal */}
+      {previewImageUrl && (
+        <div
+          onClick={() => setPreviewImageUrl(null)}
+          className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <img
+              src={previewImageUrl}
+              alt="Preview"
+              className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain"
+            />
+            <button
+              onClick={() => setPreviewImageUrl(null)}
+              className="absolute -top-3 -right-3 bg-white text-gray-800 rounded-full p-1.5 shadow-lg hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

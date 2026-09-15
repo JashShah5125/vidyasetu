@@ -125,30 +125,52 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const createdList: Lecture[] = [];
     for (const item of newLectures) {
       try {
+        const resolvedBatch = options?.batches?.find(b => String(b.id) === String(item.batchId) || b.name === item.batchId || b.code === item.batchId);
+        const batchId = resolvedBatch?.id || (item.batchId && !isNaN(Number(item.batchId)) ? Number(item.batchId) : item.batchId);
+        const branchId = resolvedBatch?.branch_id || (item.branchId && !isNaN(Number(item.branchId)) ? Number(item.branchId) : item.branchId) || 1;
+        const academicYearId = resolvedBatch?.academic_year_id || item.academicYearId || 1;
+
+        const resolvedSubject = options?.subjects?.find(s => String(s.id) === String(item.subjectId) || s.name === item.subjectId || s.code === item.subjectId);
+        const subjectId = resolvedSubject?.id || (item.subjectId && !isNaN(Number(item.subjectId)) ? Number(item.subjectId) : item.subjectId);
+
+        const resolvedTeacher = options?.teachers?.find(t => String(t.id) === String(item.teacherId) || t.name === item.teacherId || t.full_name === item.teacherId);
+        const teacherId = resolvedTeacher?.id || (item.teacherId && !isNaN(Number(item.teacherId)) ? Number(item.teacherId) : item.teacherId);
+
+        const resolvedRoom = (rooms || options?.classrooms)?.find(c => String(c.id) === String(item.roomId) || c.name === item.roomId || c.room_number === item.roomId);
+        const roomId = resolvedRoom?.id || (item.roomId && !isNaN(Number(item.roomId)) ? Number(item.roomId) : null);
+
         const created = await timetableApi.createLecture({
-          branch_id: item.branchId,
-          academic_year_id: item.academicYearId || 1,
-          batch_id: item.batchId,
-          subject_id: item.subjectId,
-          teacher_user_id: item.teacherId,
-          classroom_id: item.roomId || null,
+          branch_id: branchId,
+          academic_year_id: academicYearId,
+          batch_id: batchId,
+          subject_id: subjectId,
+          teacher_user_id: teacherId,
+          classroom_id: roomId,
           lecture_date: item.date,
-          start_time: item.startTime,
-          end_time: item.endTime,
+          start_time: item.startTime.length === 5 ? `${item.startTime}:00` : item.startTime,
+          end_time: item.endTime.length === 5 ? `${item.endTime}:00` : item.endTime,
           lecture_type: item.lectureType || 'Regular',
           activity_type: item.activityType || 'Lecture',
           slot_label: item.slotLabel || null,
           topic: item.topic || null,
           status: 'scheduled'
         });
+
         createdList.push({
           ...item,
           id: String(created.id),
+          batchId: String(batchId),
+          branchId: String(branchId),
+          academicYearId: Number(academicYearId),
+          subjectId: String(subjectId),
+          teacherId: String(teacherId),
+          roomId: roomId ? String(roomId) : undefined,
           publishStatus: item.publishStatus || 'PUBLISHED',
           status: 'SCHEDULED'
         } as Lecture);
       } catch (err) {
         console.error('Failed to create single lecture on API:', err);
+        throw err;
       }
     }
 
@@ -160,26 +182,40 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Update lecture on backend & local state
   const updateLecture = async (id: string | number, updates: Partial<Lecture>) => {
     try {
+      const resolvedBatch = options?.batches?.find(b => String(b.id) === String(updates.batchId) || b.name === updates.batchId || b.code === updates.batchId);
+      const batchId = resolvedBatch?.id || (updates.batchId && !isNaN(Number(updates.batchId)) ? Number(updates.batchId) : updates.batchId);
+      const branchId = resolvedBatch?.branch_id || (updates.branchId && !isNaN(Number(updates.branchId)) ? Number(updates.branchId) : updates.branchId);
+
+      const resolvedSubject = options?.subjects?.find(s => String(s.id) === String(updates.subjectId) || s.name === updates.subjectId || s.code === updates.subjectId);
+      const subjectId = resolvedSubject ? resolvedSubject.id : (updates.subjectId && !isNaN(Number(updates.subjectId)) ? Number(updates.subjectId) : updates.subjectId);
+
+      const resolvedTeacher = options?.teachers?.find(t => String(t.id) === String(updates.teacherId) || t.name === updates.teacherId || t.full_name === updates.teacherId);
+      const teacherId = resolvedTeacher ? resolvedTeacher.id : (updates.teacherId && !isNaN(Number(updates.teacherId)) ? Number(updates.teacherId) : updates.teacherId);
+
+      const resolvedRoom = (rooms || options?.classrooms)?.find(c => String(c.id) === String(updates.roomId) || c.name === updates.roomId || c.room_number === updates.roomId);
+      const roomId = resolvedRoom ? resolvedRoom.id : (updates.roomId !== undefined ? (isNaN(Number(updates.roomId)) ? null : Number(updates.roomId)) : undefined);
+
       await timetableApi.updateLecture(id, {
-        branch_id: updates.branchId,
-        batch_id: updates.batchId,
-        subject_id: updates.subjectId,
-        teacher_user_id: updates.teacherId,
-        classroom_id: updates.roomId,
+        branch_id: branchId,
+        batch_id: batchId,
+        subject_id: subjectId,
+        teacher_user_id: teacherId,
+        classroom_id: roomId,
         lecture_date: updates.date,
-        start_time: updates.startTime,
-        end_time: updates.endTime,
+        start_time: updates.startTime && updates.startTime.length === 5 ? `${updates.startTime}:00` : updates.startTime,
+        end_time: updates.endTime && updates.endTime.length === 5 ? `${updates.endTime}:00` : updates.endTime,
         lecture_type: updates.lectureType,
         activity_type: updates.activityType,
         slot_label: updates.slotLabel,
         topic: updates.topic,
         status: updates.status ? updates.status.toLowerCase() : undefined
       });
+
+      setLectures(prev => prev.map(l => (l.id === id ? { ...l, ...updates, updatedAt: new Date().toISOString() } : l)));
     } catch (err) {
       console.error('Failed to update lecture on API:', err);
+      throw err;
     }
-
-    setLectures(prev => prev.map(l => (l.id === id ? { ...l, ...updates, updatedAt: new Date().toISOString() } : l)));
   };
 
   // Cancel lecture on backend & local state

@@ -8,7 +8,7 @@ const resolveTenantId = (req) => {
 
 const getStudents = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = '', branchId, batchId, bundleId, status, feeStatus } = req.query;
+        const { page = 1, limit = 10, search = '', branchId, batchId, bundleId, courseId, programId, levelId, academicYearId, status, feeStatus } = req.query;
         const offset = (page - 1) * limit;
 
         const tenantId = resolveTenantId(req);
@@ -17,6 +17,10 @@ const getStudents = async (req, res) => {
             branchId,
             batchId,
             bundleId,
+            courseId,
+            programId,
+            levelId,
+            academicYearId,
             status,
             feeStatus,
             limit: Number(limit),
@@ -25,6 +29,13 @@ const getStudents = async (req, res) => {
 
         res.json({
             status: 'success',
+            summary: result.summary || {
+                totalExpected: 0,
+                totalCollected: 0,
+                totalRemaining: 0,
+                totalOverdue: 0,
+                defaulterCount: 0
+            },
             data: result.data,
             pagination: {
                 total: result.total,

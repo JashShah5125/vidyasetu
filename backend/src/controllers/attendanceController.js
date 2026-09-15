@@ -87,6 +87,46 @@ const submitAttendance = async (req, res) => {
     }
 };
 
+const getTemplate = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { lectureId } = req.params;
+        const { filename, csvContent } = await attendanceModel.generateAttendanceTemplate(lectureId, tenantId);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.status(200).send(csvContent);
+    } catch (error) {
+        console.error('Error generating attendance template:', error);
+        res.status(500).json({ status: 'error', message: error.message || 'Failed to generate attendance template' });
+    }
+};
+
+const bulkUpload = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { lectureId } = req.params;
+        const userId = resolveUserId(req);
+        const shouldSave = req.query.dryRun !== 'true' && req.body.dryRun !== true;
+
+        let content = null;
+        if (req.file && req.file.buffer) {
+            content = req.file.buffer.toString('utf-8');
+        } else if (req.body && req.body.csv) {
+            content = req.body.csv;
+        } else if (req.body && Array.isArray(req.body.records)) {
+            content = req.body.records;
+        } else {
+            return res.status(400).json({ status: 'error', message: 'CSV file or content is required.' });
+        }
+
+        const result = await attendanceModel.processBulkAttendance(tenantId, lectureId, content, userId, shouldSave);
+        res.status(200).json({ status: 'success', message: 'Bulk attendance processed successfully', data: result });
+    } catch (error) {
+        console.error('Error processing bulk attendance:', error);
+        res.status(400).json({ status: 'error', message: error.message || 'Failed to process bulk attendance' });
+    }
+};
+
 const getBatchReport = async (req, res) => {
     try {
         const tenantId = resolveTenantId(req);
@@ -171,6 +211,8 @@ module.exports = {
     getRoster,
     saveAttendance,
     submitAttendance,
+    getTemplate,
+    bulkUpload,
     getBatchReport,
     getStudentReport,
     getStaffAttendance,
