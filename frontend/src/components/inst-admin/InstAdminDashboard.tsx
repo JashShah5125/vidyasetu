@@ -1,41 +1,81 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2, ChevronRight, GraduationCap, Users, DollarSign,
   Wallet, Network, Filter, ArrowUpRight, TrendingUp, HelpCircle,
   Activity, Check, AlertCircle, MessageSquare, BookOpen,
-  Layers, Send, Clock, Play, BarChart2, PieChart, ShieldCheck
+  Layers, Send, Clock, Play, BarChart2, PieChart, ShieldCheck,
+  Loader2, UserCheck, Briefcase
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { PieChart as RechartsPieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import api from '../../services/api';
 
-// ─── Simple KPI Card Component ──────────────────────────────────────────────
+export interface InstituteStats {
+  total_students: number;
+  active_students: number;
+  inactive_students: number;
+  total_staff: number;
+  active_staff: number;
+  teaching_staff: number;
+  non_teaching_staff: number;
+  total_branches: number;
+  active_branches: number;
+  total_courses: number;
+  active_courses: number;
+  branches_summary?: Array<{
+    id: number;
+    name: string;
+    code: string;
+    city: string;
+    capacity: number;
+    status: string;
+    student_count: number;
+  }>;
+}
+
+// ─── Modern KPI Card Component ──────────────────────────────────────────────
 const KpiCard: React.FC<{
-  title: string;
-  value: string | number;
-  subValue?: string;
-  icon: React.ReactNode;
-  iconBg?: string;
-  iconColor?: string;
-}> = ({ title, value, subValue, icon, iconBg = 'bg-slate-50 border-slate-100', iconColor = 'text-slate-600' }) => (
-  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col gap-3 hover:shadow-md transition duration-200">
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{title}</p>
-        <p className="text-3xl font-display font-bold text-slate-900 mt-1">{value}</p>
+  label: string;
+  value: React.ReactNode;
+  subtext?: string;
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+  border: string;
+  loading?: boolean;
+  onClick?: () => void;
+}> = ({ label, value, subtext, icon: Icon, color, bg, border, loading = false, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all duration-200 group ${
+      onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300 hover:-translate-y-0.5' : ''
+    }`}
+  >
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">{label}</span>
+        {onClick && (
+          <ArrowUpRight size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
       </div>
-      <div className={`w-10 h-10 border rounded-lg flex items-center justify-center ${iconBg} ${iconColor}`}>
-        {icon}
+      <div className={`w-10 h-10 ${bg} ${color} rounded-xl flex items-center justify-center ${border} shadow-xs transition-transform duration-200 group-hover:scale-105`}>
+        <Icon size={20} />
       </div>
     </div>
-    {subValue && (
-      <p className="text-sm font-medium text-slate-500">{subValue}</p>
-    )}
+    <div className="mt-3">
+      <span className={`text-3xl font-extrabold tracking-tight block ${color}`}>
+        {loading ? <Loader2 size={24} className="animate-spin text-slate-300" /> : value}
+      </span>
+      {subtext && <span className="text-xs text-slate-500 font-medium block mt-1">{subtext}</span>}
+    </div>
   </div>
 );
 
 export const InstAdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const {
     currentUser, students, staff, branches, courses, batches,
     leads, doubts, auditLogs, exams, approveStudentRegistration,
@@ -44,6 +84,10 @@ export const InstAdminDashboard: React.FC = () => {
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [barTooltip, setBarTooltip] = useState<{ name: string; count: number; x: number; y: number } | null>(null);
+
+  // Live Institute Stats from API
+  const [instStats, setInstStats] = useState<InstituteStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState<boolean>(false);
 
   // Filter states persisted in localStorage to ensure matching values and state retention on refresh
   const [filters, setFilters] = useState(() => {
@@ -90,6 +134,30 @@ export const InstAdminDashboard: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('inst_admin_filters', JSON.stringify(filters));
   }, [filters]);
+
+  // Fetch live stats whenever branch filter changes
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      try {
+        const selectedBranchObj = branches.find(b => b.name === filters.branch || String(b.id) === filters.branch);
+        const branchId = selectedBranchObj?.id || (filters.branch !== 'all' ? filters.branch : undefined);
+        const res = await api.get('/admin/dashboard/institute-stats', {
+          params: { branch_id: branchId }
+        });
+        if (isMounted && res.data?.data) {
+          setInstStats(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to load institute dashboard stats:', err);
+      } finally {
+        if (isMounted) setLoadingStats(false);
+      }
+    };
+    fetchStats();
+    return () => { isMounted = false; };
+  }, [filters.branch, branches]);
 
   // Local state for doubt reply inputs
   const [doubtReplies, setDoubtReplies] = useState<Record<string, string>>({});
@@ -516,46 +584,73 @@ export const InstAdminDashboard: React.FC = () => {
       </div>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* 1. Total Students */}
         <KpiCard
-          title="Total Students"
-          value={filteredStudents.length}
-          subValue={`${filteredStudents.filter(s => s.status === 'Active Student').length} active currently`}
-          icon={<GraduationCap size={20} />}
-          iconBg="bg-blue-50 border-blue-100"
-          iconColor="text-blue-600"
+          label="Total Students"
+          value={instStats ? instStats.total_students.toLocaleString('en-IN') : filteredStudents.length.toLocaleString('en-IN')}
+          subtext={
+            instStats
+              ? `${instStats.active_students.toLocaleString('en-IN')} active enrolled students`
+              : `${filteredStudents.filter(s => s.status === 'Active Student' || s.status === 1 || (s as any).status === '1').length} active currently`
+          }
+          icon={GraduationCap}
+          color="text-blue-600"
+          bg="bg-blue-50"
+          border="border-blue-100"
+          loading={loadingStats}
+          onClick={() => navigate('/students')}
         />
+
+        {/* 2. Total Staff */}
         <KpiCard
-          title="Total Staff"
-          value={filteredStaff.length}
-          subValue={currentUser?.role === 'branch-admin' ? "Assigned to branch" : "Across all branches"}
-          icon={<Users size={20} />}
-          iconBg="bg-violet-50 border-violet-100"
-          iconColor="text-violet-600"
+          label="Total Staff"
+          value={instStats ? instStats.total_staff.toLocaleString('en-IN') : filteredStaff.length.toLocaleString('en-IN')}
+          subtext={
+            instStats
+              ? `${instStats.teaching_staff.toLocaleString('en-IN')} faculty · ${instStats.non_teaching_staff.toLocaleString('en-IN')} non-teaching`
+              : (currentUser?.role === 'branch-admin' ? "Assigned to branch" : "Across all branches")
+          }
+          icon={Users}
+          color="text-violet-600"
+          bg="bg-violet-50"
+          border="border-violet-100"
+          loading={loadingStats}
+          onClick={() => navigate('/staff')}
         />
+
+        {/* 3. Total Branches */}
         <KpiCard
-          title="Fee Collection"
-          value={`${feePercentage}%`}
-          subValue={`₹${(totalFeesPaid / 100000).toFixed(2)}L of ₹${(totalFeesTarget / 100000).toFixed(2)}L`}
-          icon={<Wallet size={20} />}
-          iconBg="bg-emerald-50 border-emerald-100"
-          iconColor="text-emerald-600"
+          label="Total Branches"
+          value={instStats ? instStats.total_branches.toLocaleString('en-IN') : filteredBranches.length.toLocaleString('en-IN')}
+          subtext={
+            instStats
+              ? `${instStats.active_branches} active operating centers`
+              : (currentUser?.role === 'branch-admin' ? "Active assigned branch" : "Currently operational")
+          }
+          icon={Building2}
+          color="text-amber-600"
+          bg="bg-amber-50"
+          border="border-amber-100"
+          loading={loadingStats}
+          onClick={() => navigate('/branches')}
         />
+
+        {/* 4. Total Courses */}
         <KpiCard
-          title="Outstanding Fees"
-          value={formatCurrency(totalFeesPending)}
-          subValue="Pending to be collected"
-          icon={<DollarSign size={20} />}
-          iconBg="bg-rose-50 border-rose-100"
-          iconColor="text-rose-600"
-        />
-        <KpiCard
-          title="Active Branches"
-          value={filteredBranches.length}
-          subValue={currentUser?.role === 'branch-admin' ? "Active assigned branch" : "Currently operational"}
-          icon={<Network size={20} />}
-          iconBg="bg-amber-50 border-amber-100"
-          iconColor="text-amber-600"
+          label="Total Courses"
+          value={instStats ? instStats.total_courses.toLocaleString('en-IN') : courses.length.toLocaleString('en-IN')}
+          subtext={
+            instStats
+              ? `${instStats.active_courses} active curriculum courses`
+              : `${courses.length} active programs`
+          }
+          icon={BookOpen}
+          color="text-emerald-600"
+          bg="bg-emerald-50"
+          border="border-emerald-100"
+          loading={loadingStats}
+          onClick={() => navigate('/courses')}
         />
       </div>
 

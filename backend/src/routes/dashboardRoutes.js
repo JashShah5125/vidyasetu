@@ -4,13 +4,118 @@ const db = require('../config/db');
 const { requireAuth, requireSaasAdmin } = require('../middleware/authMiddleware');
 
 router.use(requireAuth);
-router.use(requireSaasAdmin);
+
+/**
+ * GET /api/admin/dashboard/institute-stats
+ * Returns key metrics for Institute Admin dashboard KPI cards.
+ */
+router.get('/institute-stats', async (req, res) => {
+    try {
+        let tenantId = req.user?.tenantId;
+        if (req.user?.isSaasAdmin && req.query.tenant_id) {
+            tenantId = Number(req.query.tenant_id);
+        }
+        if (!tenantId || tenantId === 1) {
+            tenantId = req.query.tenant_id ? Number(req.query.tenant_id) : 2;
+        }
+
+        const branchId = req.query.branch_id && req.query.branch_id !== 'all' ? Number(req.query.branch_id) : null;
+
+        // 1. Student stats
+        let studentQuery = `
+            SELECT
+                COUNT(*) AS total_students,
+                SUM(CASE WHEN status = 1 OR status = '1' OR status = 'active' OR status = 'Active Student' THEN 1 ELSE 0 END) AS active_students,
+                SUM(CASE WHEN status = 0 OR status = '0' OR status = 'inactive' THEN 1 ELSE 0 END) AS inactive_students
+            FROM students
+            WHERE tenant_id = ? AND deleted_at IS NULL
+        `;
+        const studentParams = [tenantId];
+        if (branchId) {
+            studentQuery += ` AND primary_branch_id = ?`;
+            studentParams.push(branchId);
+        }
+        const [[studentStats]] = await db.query(studentQuery, studentParams);
+
+        // 2. Staff stats
+        let staffQuery = `
+            SELECT
+                COUNT(*) AS total_staff,
+                SUM(CASE WHEN status = 'active' OR status = 'Active' OR status = 1 OR status = '1' THEN 1 ELSE 0 END) AS active_staff,
+                SUM(CASE WHEN LOWER(employee_type) LIKE '%teach%' THEN 1 ELSE 0 END) AS teaching_staff,
+                SUM(CASE WHEN LOWER(employee_type) NOT LIKE '%teach%' THEN 1 ELSE 0 END) AS non_teaching_staff
+            FROM staff_profiles
+            WHERE tenant_id = ? AND deleted_at IS NULL
+        `;
+        const staffParams = [tenantId];
+        if (branchId) {
+            staffQuery += ` AND JSON_CONTAINS(branch_ids, CAST(? AS CHAR))`;
+            staffParams.push(branchId);
+        }
+        const [[staffStats]] = await db.query(staffQuery, staffParams);
+
+        // 3. Branch stats
+        let branchQuery = `
+            SELECT
+                COUNT(*) AS total_branches,
+                SUM(CASE WHEN status = 'active' OR status = 'Active' OR status = 1 OR status = '1' THEN 1 ELSE 0 END) AS active_branches
+            FROM branches
+            WHERE tenant_id = ? AND deleted_at IS NULL
+        `;
+        const branchParams = [tenantId];
+        if (branchId) {
+            branchQuery += ` AND id = ?`;
+            branchParams.push(branchId);
+        }
+        const [[branchStats]] = await db.query(branchQuery, branchParams);
+
+        // 4. Course stats
+        const [[courseStats]] = await db.query(`
+            SELECT
+                COUNT(*) AS total_courses,
+                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active_courses
+            FROM courses
+            WHERE tenant_id = ? AND deleted_at IS NULL
+        `, [tenantId]);
+
+        // 5. Branches summary list
+        const [branchesSummary] = await db.query(`
+            SELECT 
+                b.id, b.name, b.code, b.city, b.capacity, b.status,
+                (SELECT COUNT(*) FROM students s WHERE s.primary_branch_id = b.id AND s.deleted_at IS NULL) as student_count
+            FROM branches b
+            WHERE b.tenant_id = ? AND b.deleted_at IS NULL
+            ORDER BY b.name ASC
+        `, [tenantId]);
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                total_students: Number(studentStats?.total_students) || 0,
+                active_students: Number(studentStats?.active_students) || 0,
+                inactive_students: Number(studentStats?.inactive_students) || 0,
+                total_staff: Number(staffStats?.total_staff) || 0,
+                active_staff: Number(staffStats?.active_staff) || 0,
+                teaching_staff: Number(staffStats?.teaching_staff) || 0,
+                non_teaching_staff: Number(staffStats?.non_teaching_staff) || 0,
+                total_branches: Number(branchStats?.total_branches) || 0,
+                active_branches: Number(branchStats?.active_branches) || 0,
+                total_courses: Number(courseStats?.total_courses) || 0,
+                active_courses: Number(courseStats?.active_courses) || 0,
+                branches_summary: branchesSummary || []
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching institute dashboard stats:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to load institute dashboard stats' });
+    }
+});
 
 /**
  * GET /api/admin/dashboard/saas-stats
  * Returns key metrics for the SaaS Admin dashboard KPI cards.
  */
-router.get('/saas-stats', async (req, res) => {
+router.get('/saas-stats', requireSaasAdmin, async (req, res) => {
     try {
         const [[tenantStats]] = await db.query(`
             SELECT
@@ -226,7 +331,7 @@ router.get('/academic-years', async (req, res) => {
  * Returns revenue KPIs + monthly revenue trend, sourced entirely from saas_invoices.
  * Trend = total_amount of paid invoices grouped by month of payment_date.
  */
-router.get('/saas-revenue', async (req, res) => {
+router.get('/saas-revenue', requireSaasAdmin, async (req, res) => {
     try {
         const selectedYear = (req.query.year && req.query.year !== 'all') ? Number(req.query.year) : new Date().getFullYear();
         const selectedMonth = (req.query.month && req.query.month !== 'all') ? Number(req.query.month) : null;
