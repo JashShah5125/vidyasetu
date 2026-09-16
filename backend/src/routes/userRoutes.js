@@ -14,6 +14,7 @@ router.get('/tenants', requirePermission('user.view'), userController.getTenants
 // User CRUD endpoints
 router.get('/', requirePermission('user.view'), userController.listUsers);
 router.get('/:id', requirePermission('user.view'), userController.getUserById);
+router.get('/:id/inherited-permissions', requirePermission('user.view'), userController.getUserInheritedPermissions);
 router.post('/', requirePermission('user.create'), userController.createUser);
 router.put('/:id', requirePermission('user.update'), userController.updateUser);
 router.delete('/:id', requirePermission('user.delete'), userController.deleteUser);

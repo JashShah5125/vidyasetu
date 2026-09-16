@@ -667,7 +667,7 @@ export const Students: React.FC = () => {
                       </h3>
 
                       {selectedStudentDetail.invoicesList && selectedStudentDetail.invoicesList.length > 0 ? (
-                        <Table dense headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status']}>
+                        <Table dense minWidth="850px" headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status']}>
                           {selectedStudentDetail.invoicesList.map((inv) => (
                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-3 py-2 font-mono font-bold text-xs text-blue-700">

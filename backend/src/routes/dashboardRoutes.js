@@ -15,18 +15,18 @@ router.get('/saas-stats', async (req, res) => {
         const [[tenantStats]] = await db.query(`
             SELECT
                 COUNT(*) AS total_tenants,
-                SUM(status = 'active') AS active_tenants,
-                SUM(status = 'suspended') AS suspended_tenants,
-                SUM(status = 'draft') AS draft_tenants,
-                SUM(status = 'expired' OR (end_date IS NOT NULL AND end_date < CURRENT_DATE AND status NOT IN ('suspended', 'draft'))) AS expired_tenants
+                SUM(status = 1) AS active_tenants,
+                SUM(status = 0) AS suspended_tenants,
+                SUM(status = 2) AS draft_tenants,
+                SUM(end_date IS NOT NULL AND end_date < CURRENT_DATE AND status = 1) AS expired_tenants
             FROM tenants
-            WHERE tenant_type != 'master' AND id != 1
+            WHERE tenant_type != 'master' AND id != 1 AND status != 3
         `);
 
         const [statusRows] = await db.query(`
             SELECT status, COUNT(*) AS count
             FROM tenants
-            WHERE tenant_type != 'master' AND id != 1
+            WHERE tenant_type != 'master' AND id != 1 AND status != 3
             GROUP BY status
         `);
 
@@ -39,7 +39,7 @@ router.get('/saas-stats', async (req, res) => {
             FROM tenants t
             LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
             LEFT JOIN users u ON t.primary_admin_user_id = u.id
-            WHERE t.tenant_type != 'master' AND t.id != 1
+            WHERE t.tenant_type != 'master' AND t.id != 1 AND t.status != 3
             ORDER BY
                 CASE
                     WHEN t.end_date IS NULL THEN 3
@@ -67,7 +67,7 @@ router.get('/saas-stats', async (req, res) => {
             SELECT sp.name as plan, COUNT(t.id) as count
             FROM tenants t
             JOIN subscription_plans sp ON t.plan_id = sp.id
-            WHERE t.tenant_type != 'master' AND t.id != 1
+            WHERE t.tenant_type != 'master' AND t.id != 1 AND t.status != 3
             GROUP BY sp.name
             ORDER BY count DESC
         `);
@@ -76,14 +76,14 @@ router.get('/saas-stats', async (req, res) => {
         const [[mrrStats]] = await db.query(`
             SELECT SUM(subscription_final_price) as total_mrr
             FROM tenants
-            WHERE tenant_type != 'master' AND id != 1 AND status = 'active'
+            WHERE tenant_type != 'master' AND id != 1 AND status = 1
         `);
 
         // MRR Trend
         const [allActive] = await db.query(`
             SELECT start_date, subscription_final_price
             FROM tenants
-            WHERE tenant_type != 'master' AND id != 1 AND status = 'active'
+            WHERE tenant_type != 'master' AND id != 1 AND status = 1
         `);
 
         const currentYear = new Date().getFullYear();
@@ -119,6 +119,11 @@ router.get('/saas-stats', async (req, res) => {
             h: Math.round((t.raw_val / maxMrr) * 85) + '%' // Max height 85% to fit tooltip
         }));
 
+        const timeRange = req.query.time_range || 'monthly';
+        let intervalDays = 30;
+        if (timeRange === 'daily') intervalDays = 1;
+        else if (timeRange === 'weekly') intervalDays = 7;
+
         // User Metrics across all tenants
         const [[userStats]] = await db.query(`
             SELECT
@@ -127,10 +132,10 @@ router.get('/saas-stats', async (req, res) => {
                 SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_users,
                 SUM(CASE WHEN status = 'suspended' OR app_access_suspended = 1 THEN 1 ELSE 0 END) AS suspended_users,
                 SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) AS expired_users,
-                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_users
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN 1 ELSE 0 END) AS new_users
             FROM users
             WHERE deleted_at IS NULL
-        `);
+        `, [intervalDays]);
 
         const [userRoleDistribution] = await db.query(`
             SELECT user_type, COUNT(*) AS count
@@ -175,12 +180,44 @@ router.get('/saas-stats', async (req, res) => {
                 total_plans: Number(planStats.total_plans) || 0,
                 total_mrr: Number(mrrStats.total_mrr) || 0,
                 plan_distribution: planAdoption,
-                mrr_trend: trendWithHeights
+                mrr_trend: trendWithHeights,
+                time_range: timeRange
             }
         });
     } catch (error) {
         console.error('Error fetching SaaS dashboard stats:', error);
         res.status(500).json({ status: 'error', message: 'Failed to load dashboard stats' });
+    }
+});
+
+/**
+ * GET /api/admin/dashboard/academic-years
+ * Returns distinct academic years from database for dynamic year filters.
+ */
+router.get('/academic-years', async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT DISTINCT name, YEAR(start_date) as start_year, YEAR(end_date) as end_year
+            FROM academic_years
+            WHERE deleted_at IS NULL
+            ORDER BY start_year DESC
+        `);
+
+        const years = rows.map((r, idx) => ({
+            id: idx + 1,
+            name: r.name,
+            start_year: Number(r.start_year),
+            end_year: Number(r.end_year),
+            value: String(r.start_year || r.name)
+        }));
+
+        res.status(200).json({
+            status: 'success',
+            data: years
+        });
+    } catch (error) {
+        console.error('Error fetching academic years:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to load academic years' });
     }
 });
 
@@ -248,3 +285,4 @@ router.get('/saas-revenue', async (req, res) => {
 });
 
 module.exports = router;
+

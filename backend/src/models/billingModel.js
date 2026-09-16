@@ -19,7 +19,8 @@ const buildDateRangeClause = (params, startDate, endDate) => {
 const buildInvoiceDateFilter = (alias, params, { year, month, startDate, endDate } = {}) => {
     const p = (field) => `${alias}${field}`;
     let clause = '';
-    if (year && year !== 'all') {
+    // Only apply YEAR(...) = year if explicit date range is NOT provided
+    if (year && year !== 'all' && !startDate && !endDate) {
         clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
         params.push(Number(year));
     }
@@ -224,10 +225,8 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
 };
 
 // Monthly collected revenue trend (paid invoices) grouped by month.
-// Filters: year (for the 12-month cumulative chart), plus optional startDate/endDate range.
+// Supports Financial Year (Apr-Mar) as well as calendar years.
 const getRevenueTrend = async (year = null, startDate = null, endDate = null) => {
-    const selectedYear = year && year !== 'all' ? Number(year) : new Date().getFullYear();
-
     let where = `WHERE i.status = 'paid' AND i.deleted_at IS NULL AND t.tenant_type = 'customer' AND t.id != 1`;
     const params = [];
     where += buildInvoiceDateFilter('i.', params, { year, startDate, endDate });
@@ -245,31 +244,53 @@ const getRevenueTrend = async (year = null, startDate = null, endDate = null) =>
             MONTH(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))
     `, params);
 
-    let baseTotal = 0;
-    let monthTotals = Array(12).fill(0);
-    rows.forEach(row => {
-        const yr = Number(row.yr);
-        const mo = Number(row.mo) - 1;
-        const rev = Number(row.rev) || 0;
-        if (yr < selectedYear) {
-            baseTotal += rev;
-        } else if (yr === selectedYear && mo >= 0 && mo < 12) {
-            monthTotals[mo] += rev;
+    let monthSlots = [];
+    const isFinancialYear = (startDate && endDate) && (new Date(startDate).getMonth() === 3 && new Date(endDate).getMonth() === 2);
+    
+    if (isFinancialYear) {
+        const startYr = new Date(startDate).getFullYear();
+        // Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec of startYr, and Jan, Feb, Mar of startYr + 1
+        for (let m = 4; m <= 12; m++) {
+            monthSlots.push({ yr: startYr, mo: m, label: new Date(startYr, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
         }
+        for (let m = 1; m <= 3; m++) {
+            monthSlots.push({ yr: startYr + 1, mo: m, label: new Date(startYr + 1, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
+        }
+    } else {
+        const selectedYear = year && year !== 'all' ? Number(year) : (startDate ? new Date(startDate).getFullYear() : new Date().getFullYear());
+        for (let m = 1; m <= 12; m++) {
+            monthSlots.push({ yr: selectedYear, mo: m, label: new Date(selectedYear, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
+        }
+    }
+
+    const rowMap = new Map();
+    rows.forEach(r => {
+        rowMap.set(`${r.yr}-${r.mo}`, Number(r.rev) || 0);
     });
 
-    let runningTotal = baseTotal;
-    const trend = monthTotals.map((added, index) => {
+    let runningTotal = 0;
+    const today = new Date();
+    const currentYr = today.getFullYear();
+    const currentMo = today.getMonth() + 1;
+
+    const trend = monthSlots.map(slot => {
+        const added = rowMap.get(`${slot.yr}-${slot.mo}`) || 0;
         runningTotal += added;
         return {
-            month: new Date(selectedYear, index, 1).toLocaleString('en-US', { month: 'short' }),
+            month: slot.label,
             raw: Math.round(runningTotal),
             added: Math.round(added),
-            isCurrent: selectedYear === new Date().getFullYear() && index === new Date().getMonth()
+            year: slot.yr,
+            isCurrent: slot.yr === currentYr && slot.mo === currentMo
         };
     });
 
-    return { year: selectedYear, trend };
+    return { 
+        year: isFinancialYear 
+            ? `FY ${new Date(startDate).getFullYear()}-${String(new Date(endDate).getFullYear()).slice(-2)}` 
+            : (year || 'all'), 
+        trend 
+    };
 };
 
 // Collected revenue split by payment method (paid invoices only).

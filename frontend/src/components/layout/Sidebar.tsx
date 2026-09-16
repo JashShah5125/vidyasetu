@@ -158,7 +158,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                   { name: 'SMS Configuration', label: 'SMS Configuration', path: '/system-settings/sms', icon: Smartphone },
                   { name: 'Email Configuration', label: 'Email Configuration', path: '/system-settings/email', icon: Mail },
                   { name: 'WhatsApp Configuration', label: 'WhatsApp Configuration', path: '/system-settings/whatsapp', icon: MessageCircle },
-                  { name: 'Global Providers', label: 'Integrations', path: '/providers', icon: Plug },
                   { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
                   { name: 'System Configuration', label: 'System Config', path: '/system-config', icon: Settings }
                 ]
@@ -191,7 +190,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Finance Hub',
             links: [
               { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign }
+              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/payroll/monthly', icon: Users }
             ]
           },
           {
@@ -244,7 +244,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Finance Hub',
             links: [
               { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign }
+              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/payroll/monthly', icon: Users }
             ]
           },
           {
@@ -352,8 +353,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 groupIcon: Briefcase,
                 links: [
                   { name: 'Salary Structure', label: 'Salary Structure', path: '/finance/payroll/structure', icon: Layers },
-                  { name: 'Monthly Payroll', label: 'Monthly Payroll', path: '/finance/payroll/monthly', icon: Calendar },
-                  { name: 'Salary History', label: 'Salary History', path: '/finance/payroll/history', icon: Clock }
+                  { name: 'Monthly Payroll', label: 'Monthly Payroll', path: '/finance/payroll/monthly', icon: Calendar }
                 ]
               },
               {

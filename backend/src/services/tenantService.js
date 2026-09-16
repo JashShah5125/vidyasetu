@@ -13,7 +13,7 @@ const generateTemporaryPassword = () => {
 
 const createTenantWithAdmin = async (tenantData) => {
     const { 
-        name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, 
+        name, legal_name, slug, adminEmail, mobile, planId, address, city, state, pincode, panNo, gstNo,
         timezone, billingCycle, logoUrl, alternateEmails,
         discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
         maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
@@ -37,15 +37,15 @@ const createTenantWithAdmin = async (tenantData) => {
         const [tenantResult] = await connection.query(
             `INSERT INTO tenants (
                 name, slug, code, tenant_type, status, owner_name, primary_email, owner_mobile, plan_id, 
-                subscription_status, address_line1, city, state, pincode, pan_number, timezone, billing_cycle, 
+                subscription_status, address_line1, city, state, pincode, pan_number, gst_number, timezone, billing_cycle, 
                 logo_url, alternate_emails, subscription_discount, subscription_final_price, subscription_tax, 
                 subscription_invoice_number, override_max_branches, override_max_staff_users, override_max_students, 
                 override_max_parents, override_max_teachers, override_max_storage, override_max_file_size, 
                 override_max_sms_credits, override_max_whatsapp_msgs
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                name, slug, code, 'customer', 'active', legal_name || name, adminEmail, '', planId || null, 
-                'active', address || null, city || null, state || null, pincode || null, panNo || null, 
+                name, slug, code, 'customer', 1, legal_name || name, adminEmail, mobile || '', planId || null, 
+                'active', address || null, city || null, state || null, pincode || null, panNo || null, gstNo || null,
                 timezone || 'Asia/Kolkata', billingCycle || 'annual', logoUrl || null, 
                 alternateEmails ? JSON.stringify(alternateEmails) : null,
                 discount !== undefined ? discount : null, 

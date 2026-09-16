@@ -235,6 +235,17 @@ export const StudentRegistration = () => {
     return true;
   };
 
+  const handleStepClick = (targetStep: number) => {
+    if (targetStep > currentStep) {
+      for (let s = currentStep; s < targetStep; s++) {
+        if (!validateStep(s)) {
+          return;
+        }
+      }
+    }
+    setCurrentStep(targetStep);
+  };
+
   const handleNext = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(prev => prev + 1);
@@ -286,7 +297,7 @@ export const StudentRegistration = () => {
           <React.Fragment key={step.num}>
             <button
               type="button"
-              onClick={() => setCurrentStep(step.num)}
+              onClick={() => handleStepClick(step.num)}
               className={`flex flex-col items-center gap-2 cursor-pointer transition-transform hover:scale-105 ${currentStep >= step.num ? 'text-blue-600' : 'text-slate-400'}`}
             >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${

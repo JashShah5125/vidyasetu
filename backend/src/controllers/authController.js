@@ -83,14 +83,14 @@ const login = async (req, res) => {
         // Login resolves identity (users) + role (user_roles) only.
         // Check whether user has at least one active assigned role in user_roles table.
         const roleCodes = await userModel.getUserRoleCodes(user.id);
-        if (!roleCodes || roleCodes.length === 0) {
+        let isSaasAdmin = user.tenant_id === MASTER_TENANT_ID || user.tenant_id === 1 || roleCodes.includes('saas_admin') || roleCodes.includes('saas-admin') || user.user_type === 'saas_admin' || user.user_type === 'saas-admin';
+
+        if (!isSaasAdmin && (!roleCodes || roleCodes.length === 0)) {
             return res.status(403).json({
                 status: 'error',
                 message: 'Login failed. No security role assigned to your account. Please contact system administrator.'
             });
         }
-
-        let isSaasAdmin = user.tenant_id === MASTER_TENANT_ID || roleCodes.includes('saas_admin') || user.user_type === 'saas_admin';
 
         const ROLE_PRIORITY = ['saas_admin', 'inst_admin', 'branch_admin', 'counsellor', 'finance', 'teacher'];
         let effectiveUserType = user.user_type;
@@ -109,7 +109,7 @@ const login = async (req, res) => {
             userId: user.id,
             tenantId: user.tenant_id,
             userType: effectiveUserType,
-            isSaasAdmin
+            isSaasAdmin: Boolean(isSaasAdmin)
         };
 
         const token = generateToken(tokenPayload);
@@ -123,7 +123,20 @@ const login = async (req, res) => {
             const tenant = user.tenant_id === MASTER_TENANT_ID
                 ? null
                 : await tenantModel.getTenantById(user.tenant_id);
-            tenantName = tenant && tenant.name ? tenant.name : null;
+            if (tenant) {
+                if (tenant.status !== 1) {
+                    const statusMsg = tenant.status === 2
+                        ? 'Institute account is pending setup or approval.'
+                        : tenant.status === 3
+                        ? 'Institute account has been deleted.'
+                        : 'Institute account is inactive or suspended. Please contact administrator.';
+                    return res.status(403).json({
+                        status: 'error',
+                        message: statusMsg
+                    });
+                }
+                tenantName = tenant.name || null;
+            }
 
             if (user.id) {
                 const [branchRows] = await pool.query(`

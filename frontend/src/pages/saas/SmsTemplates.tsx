@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Eye, Edit, Trash2, Search, Loader2, Copy, Check, Smartphone, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, Search, Loader2, Copy, Check, Smartphone, AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -35,15 +35,19 @@ const STATUS_BADGE: Record<string, string> = {
 const ITEMS_PER_PAGE = 10;
 
 export const SmsTemplates: React.FC = () => {
+  const [view, setView] = useState<'list' | 'editor'>('list');
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   // Modals
   const [showAddEditModal, setShowAddEditModal] = useState(false);
@@ -68,7 +72,7 @@ export const SmsTemplates: React.FC = () => {
       setIsLoading(true);
       const res = await smsTemplateService.getTemplates({
         page: currentPage,
-        limit: ITEMS_PER_PAGE,
+        limit: pageSize,
         search: searchQuery,
         category: filterCategory === 'ALL' ? '' : filterCategory,
         status: filterStatus === 'ALL' ? '' : filterStatus
@@ -89,7 +93,7 @@ export const SmsTemplates: React.FC = () => {
 
   useEffect(() => {
     fetchTemplates();
-  }, [currentPage, filterCategory, filterStatus]);
+  }, [currentPage, pageSize, filterCategory, filterStatus]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -119,7 +123,7 @@ export const SmsTemplates: React.FC = () => {
     setFormStatus('active');
     setFormMessage('');
     setFormError('');
-    setShowAddEditModal(true);
+    setView('editor');
   };
 
   const handleOpenEdit = (t: SmsTemplate) => {
@@ -130,7 +134,7 @@ export const SmsTemplates: React.FC = () => {
     setFormStatus(t.status as 'active' | 'inactive');
     setFormMessage(t.message_body);
     setFormError('');
-    setShowAddEditModal(true);
+    setView('editor');
   };
 
   const handleOpenPreview = (t: SmsTemplate) => {
@@ -162,8 +166,8 @@ export const SmsTemplates: React.FC = () => {
     }, 0);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!formName.trim()) {
       setFormError('Template Name is required');
       return;
@@ -207,7 +211,7 @@ export const SmsTemplates: React.FC = () => {
         await smsTemplateService.createTemplate(payload);
         showToast('SMS template created successfully');
       }
-      setShowAddEditModal(false);
+      setView('list');
       fetchTemplates();
     } catch (err: any) {
       setFormError(err.message || 'Failed to save SMS template');
@@ -272,7 +276,6 @@ export const SmsTemplates: React.FC = () => {
     showToast('Copied to clipboard!');
   };
 
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
   const smsPartCount = Math.ceil((formMessage.length || 1) / 160);
 
   const dynamicCategoriesOptions = [
@@ -289,266 +292,419 @@ export const SmsTemplates: React.FC = () => {
         </div>
       )}
 
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <Smartphone size={32} className="text-indigo-600" />
-            SMS Templates
-          </h2>
-          <p className="text-base text-slate-500 mt-2">
-            Manage SMS message templates that control content for instant mobile notifications, fee alerts, and system messages.
-          </p>
-        </div>
-        <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={handleOpenAdd}>
-          + Create Template
-        </Button>
-      </div>
-
-      {/* Dynamic Filter and Search Bar */}
-      <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 items-start w-full">
-          <div className="relative">
-            <Input
-              label="Search"
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              wrapperClassName="mb-0"
-            />
-            <Search size={14} className="absolute right-3 top-[38px] text-slate-400 pointer-events-none" />
-          </div>
-
-          <Select
-            label="Category"
-            value={filterCategory}
-            onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
-            options={dynamicCategoriesOptions}
-          />
-
-          <Select
-            label="Status"
-            value={filterStatus}
-            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-            options={STATUS_OPTIONS}
-          />
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-transparent select-none opacity-0" aria-hidden="true">Action</span>
-            <Button
-              variant="outline"
-              onClick={handleClearFilters}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[38px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
-            >
-              <RotateCcw size={14} />
-              Clear Filters
+      {view === 'list' ? (
+        <>
+          {/* Header Section */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+                SMS Templates
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Manage SMS message templates and notification alerts.
+              </p>
+            </div>
+            <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={handleOpenAdd}>
+              + Create Template
             </Button>
           </div>
-        </div>
-      </div>
 
-      {/* Table Container */}
-      <Card>
-        <CardHeader>
-          <CardTitle>SMS Templates</CardTitle>
-        </CardHeader>
-
-        {isLoading && templates.length === 0 ? (
-          <div className="p-12 text-center">
-            <Loader2 size={32} className="mx-auto text-blue-500 animate-spin mb-3" />
-            <p className="text-sm text-slate-500 font-semibold">Loading SMS templates...</p>
-          </div>
-        ) : templates.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="text-slate-300 mb-3">
-              <Smartphone className="mx-auto h-12 w-12 text-slate-300" />
-            </div>
-            <p className="text-sm text-slate-500 font-semibold">No SMS templates found</p>
-            <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
-          </div>
-        ) : (
-          <Table headers={['ID', 'Name', 'DLT Template ID', 'Category', 'Status', 'Actions']} dense colWidths={['44px', '22%', '18%', '13%', '10%', '140px']}>
-            {templates.map((t) => (
-              <tr
-                key={t.id}
-                className="hover:bg-slate-50 cursor-pointer transition-colors"
-                onClick={() => handleOpenPreview(t)}
-              >
-                <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{t.id}</td>
-                <td className="px-3 py-3 font-semibold text-slate-900 text-base">
-                  <div>{t.template_name}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    Created: {formatDate(t.created_at)}
-                  </div>
-                </td>
-                <td className="px-3 py-3 text-sm font-semibold text-blue-600 whitespace-nowrap font-mono">
-                  {t.dlt_template_id}
-                </td>
-                <td className="px-3 py-3 whitespace-nowrap">
-                  <span className={`text-sm font-semibold px-2 py-0.5 rounded border uppercase ${CATEGORY_BADGE[t.category] || CATEGORY_BADGE['General']}`}>
-                    {t.category}
-                  </span>
-                </td>
-                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={(e) => handleToggleStatus(t, e)}
-                    className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold cursor-pointer transition hover:opacity-80 ${STATUS_BADGE[t.status]}`}
-                  >
-                    {t.status.toUpperCase()}
-                  </button>
-                </td>
-                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleOpenPreview(t)}
-                      title="Preview template"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition"
-                    >
-                      <Eye size={13} /> Preview
-                    </button>
-                    <button
-                      onClick={() => handleOpenEdit(t)}
-                      title="Edit template"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleOpenDelete(t)}
-                      title="Delete template"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 cursor-pointer transition"
-                    >
-                      <Trash2 size={13} /> Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </Table>
-        )}
-
-        {totalItems > ITEMS_PER_PAGE && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            pageSize={ITEMS_PER_PAGE}
-            onPageChange={setCurrentPage}
-          />
-        )}
-      </Card>
-
-      {/* ADD / EDIT MODAL */}
-      {showAddEditModal && (
-        <Modal
-          isOpen={showAddEditModal}
-          onClose={() => setShowAddEditModal(false)}
-          title={editingTemplate ? 'Edit SMS Template' : 'Create SMS Template'}
-          description="Manage TRAI-compliant SMS template parameters and message text"
-          size="lg"
-        >
-          <form onSubmit={handleSave} className="space-y-4">
-            {formError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-800 flex items-center gap-2">
-                <AlertTriangle size={16} />
-                {formError}
+          {/* Dynamic Filter and Search Bar */}
+          <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-4 items-start w-full">
+              <div className="relative">
+                <Input
+                  label="Search"
+                  placeholder="Search templates..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    const sanitized = e.target.value.replace(/[^a-zA-Z0-9\s]/g, '');
+                    setSearchQuery(sanitized);
+                    setCurrentPage(1);
+                  }}
+                  wrapperClassName="mb-0"
+                />
+                <Search size={14} className="absolute right-3 top-[38px] text-slate-400 pointer-events-none" />
               </div>
+
+              <Select
+                label="Category"
+                value={filterCategory}
+                onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
+                options={dynamicCategoriesOptions}
+              />
+
+              <Select
+                label="Status"
+                value={filterStatus}
+                onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                options={STATUS_OPTIONS}
+              />
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-transparent select-none opacity-0" aria-hidden="true">Action</span>
+                <Button
+                  variant="outline"
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[38px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
+                >
+                  <RotateCcw size={14} />
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <Card>
+            <CardHeader>
+              <CardTitle>SMS Templates</CardTitle>
+            </CardHeader>
+
+            {isLoading && templates.length === 0 ? (
+              <div className="p-12 text-center">
+                <Loader2 size={32} className="mx-auto text-blue-500 animate-spin mb-3" />
+                <p className="text-sm text-slate-500 font-semibold">Loading SMS templates...</p>
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="text-slate-300 mb-3">
+                  <Smartphone className="mx-auto h-12 w-12 text-slate-300" />
+                </div>
+                <p className="text-sm text-slate-500 font-semibold">No SMS templates found</p>
+                <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
+              </div>
+            ) : (
+              <Table minWidth="860px" headers={['ID', 'Name', 'DLT Template ID', 'Category', 'Status', 'Actions']} dense colWidths={['50px', '30%', '20%', '16%', '12%', '110px']}>
+                {templates.map((t) => (
+                  <tr
+                    key={t.id}
+                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => handleOpenPreview(t)}
+                  >
+                    <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{t.id}</td>
+                    <td className="px-3 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">
+                      {t.template_name}
+                    </td>
+                    <td className="px-3 py-3 text-sm font-semibold text-blue-600 whitespace-nowrap font-mono">
+                      {t.dlt_template_id}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded border uppercase ${CATEGORY_BADGE[t.category] || CATEGORY_BADGE['General']}`}>
+                        {t.category}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={(e) => handleToggleStatus(t, e)}
+                        className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold cursor-pointer transition hover:opacity-80 ${STATUS_BADGE[t.status]}`}
+                      >
+                        {t.status.toUpperCase()}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenPreview(t)}
+                          title="Preview template"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition cursor-pointer"
+                        >
+                          <Eye size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEdit(t)}
+                          title="Edit template"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition cursor-pointer"
+                        >
+                          <Edit size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDelete(t)}
+                          title="Delete template"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition cursor-pointer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Template Name *"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g., Fee Due Reminder"
-                required
+            {totalItems > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50]}
               />
-
-              <Select
-                label="Category *"
-                value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value)}
-                options={categoriesList.map(c => ({ value: c, label: c }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            )}
+          </Card>
+        </>
+      ) : (
+        /* FULL COMPLETE PAGE EDITOR VIEW */
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition cursor-pointer text-slate-600"
+                title="Back to templates"
+              >
+                <ArrowLeft size={20} />
+              </button>
               <div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  {editingTemplate ? `Edit: ${editingTemplate.template_name}` : 'Create SMS Template'}
+                </h2>
+                <p className="text-xs text-slate-500">Configure TRAI-compliant SMS template parameters and message text.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setPreviewTemplate({
+                    id: editingTemplate?.id || 0,
+                    tenant_id: 1,
+                    template_name: formName || 'Untitled Template',
+                    template_key: formName.toUpperCase().replace(/[^A-Z0-9]/g, '_'),
+                    category: formCategory,
+                    dlt_template_id: formDltId || 'DLT_PENDING',
+                    message_body: formMessage,
+                    status: formStatus,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  });
+                  setShowPreviewModal(true);
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <Eye size={16} /> Preview Template
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setView('list')}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => handleSave()}
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 size={16} className="animate-spin mr-1.5" /> : null}
+                {editingTemplate ? 'Update Template' : 'Save Template'}
+              </Button>
+            </div>
+          </div>
+
+          <Card>
+            <div className="p-6 space-y-5">
+              {formError && (
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-800 flex items-center gap-2">
+                  <AlertTriangle size={18} className="text-red-600 shrink-0" />
+                  {formError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
-                  label="DLT Template ID *"
-                  value={formDltId}
-                  onChange={(e) => setFormDltId(e.target.value)}
-                  placeholder="e.g., 14071628192038102"
+                  label="Template Name *"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="e.g., Fee Due Reminder"
                   required
                 />
-                <span className="block text-xs text-slate-400 mt-1">
-                  Distributed Ledger Technology ID registered on DLT portal (Jio, Airtel, Vodafone)
-                </span>
+
+                <Select
+                  label="Category *"
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  options={categoriesList.map(c => ({ value: c, label: c }))}
+                />
               </div>
 
-              <Select
-                label="Status *"
-                value={formStatus}
-                onChange={(e) => setFormStatus(e.target.value as 'active' | 'inactive')}
-                options={[
-                  { value: 'active', label: 'Active' },
-                  { value: 'inactive', label: 'Inactive' },
-                ]}
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Input
+                    label="DLT Template ID *"
+                    value={formDltId}
+                    onChange={(e) => setFormDltId(e.target.value)}
+                    placeholder="e.g., 14071628192038102"
+                    required
+                  />
+                  <span className="block text-xs text-slate-400 mt-1">
+                    Distributed Ledger Technology ID registered on DLT portal (Jio, Airtel, Vodafone)
+                  </span>
+                </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-bold text-slate-700">
-                  Message Text Body *
-                </label>
-                <span className="text-xs text-slate-500 font-mono">
-                  {formMessage.length} characters ({smsPartCount} SMS parts)
-                </span>
+                <Select
+                  label="Status *"
+                  value={formStatus}
+                  onChange={(e) => setFormStatus(e.target.value as 'active' | 'inactive')}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' },
+                  ]}
+                />
               </div>
-              <textarea
-                ref={textareaRef}
-                rows={4}
-                placeholder="Enter SMS message text containing {{placeholders}}..."
-                value={formMessage}
-                onChange={(e) => setFormMessage(e.target.value)}
-                className="w-full text-sm font-mono p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+
+              {/* Dynamic Available Placeholders (From Database) */}
+              <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white">Dynamic Placeholders (Click to Insert)</h4>
+                  <span className="text-xs text-slate-400">Inserts at cursor position in text body</span>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {getDynamicPlaceholders(editingTemplate).map((token) => (
+                    <button
+                      key={token}
+                      type="button"
+                      onClick={() => insertPlaceholder(token)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-white border border-slate-700 transition cursor-pointer"
+                    >
+                      <Copy size={11} className="text-slate-400" />
+                      {`{{${token}}}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message Body & Live Preview */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-bold text-slate-700">
+                      Message Text Body *
+                    </label>
+                    <span className="text-xs text-slate-500 font-mono">
+                      {formMessage.length} characters ({smsPartCount} SMS part{smsPartCount > 1 ? 's' : ''})
+                    </span>
+                  </div>
+                  <textarea
+                    ref={textareaRef}
+                    rows={8}
+                    placeholder="Enter SMS message text containing {{placeholders}}..."
+                    value={formMessage}
+                    onChange={(e) => setFormMessage(e.target.value)}
+                    className="w-full text-sm font-mono p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-bold text-slate-700">
+                      Live Dynamic Preview
+                    </label>
+                    <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                      <Check size={13} /> Sample Values
+                    </span>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-sans text-slate-800 leading-relaxed min-h-[175px] flex flex-col justify-between">
+                    <div>
+                      {formMessage ? (
+                        formatDynamicPreviewText(formMessage, editingTemplate)
+                      ) : (
+                        <span className="text-slate-400 italic">Type message text on the left to see live preview here...</span>
+                      )}
+                    </div>
+                    <div className="pt-3 mt-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                      <span>Sender: <strong className="font-mono text-slate-700">VSETU-DLT</strong></span>
+                      <span>Category: <strong className="text-slate-700">{formCategory}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* DYNAMIC PREVIEW MODAL */}
+      {showPreviewModal && previewTemplate && (
+        <Modal
+          isOpen={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          title="SMS Template Preview"
+          description="Live mobile preview rendering dynamic sample data"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between bg-slate-100 p-3 rounded-xl">
+              <div>
+                <p className="text-sm font-bold text-slate-900">{previewTemplate.template_name}</p>
+                <span className="text-xs text-slate-500 font-mono">DLT ID: {previewTemplate.dlt_template_id}</span>
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase border ${CATEGORY_BADGE[previewTemplate.category] || CATEGORY_BADGE['General']}`}>
+                {previewTemplate.category}
+              </span>
             </div>
 
-            {/* Dynamic Available Placeholders (From Database) */}
-            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl space-y-2">
-              <h4 className="text-sm font-bold text-white">Dynamic Placeholders (From Database)</h4>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {getDynamicPlaceholders(editingTemplate).map((token) => (
-                  <button
-                    key={token}
-                    type="button"
-                    onClick={() => insertPlaceholder(token)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-white border border-slate-700 transition cursor-pointer"
-                  >
-                    <Copy size={11} className="text-slate-400" />
-                    {`{{${token}}}`}
-                  </button>
-                ))}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Dynamic Message Preview</label>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-sans text-slate-800 leading-relaxed min-h-[90px]">
+                {formatDynamicPreviewText(previewTemplate.message_body, previewTemplate)}
               </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <Button
-                type="button"
                 variant="outline"
-                onClick={() => setShowAddEditModal(false)}
-                className="text-sm font-semibold"
+                onClick={() => copyToClipboard(previewTemplate.message_body)}
+                className="text-xs font-semibold gap-1.5"
               >
-                Cancel
+                <Copy size={14} />
+                Copy Raw Template
               </Button>
-              <Button type="submit" variant="primary" disabled={isLoading} className="text-sm font-bold px-5">
-                {isLoading ? <Loader2 size={16} className="animate-spin mr-1.5" /> : null}
-                {editingTemplate ? 'Update Template' : 'Save Template'}
+              <Button onClick={() => setShowPreviewModal(false)} className="text-xs font-bold px-4">
+                Close
               </Button>
             </div>
-          </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* DELETE MODAL */}
+      {showDeleteModal && deletingTemplate && (
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="Delete SMS Template"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-900">Warning: This action cannot be undone.</p>
+                <p className="mt-1 text-red-700 leading-relaxed">
+                  Are you sure you want to delete SMS template <strong className="text-slate-900 font-bold">{deletingTemplate.template_name}</strong> (DLT ID: <span className="font-mono">{deletingTemplate.dlt_template_id}</span>)?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="text-xs font-semibold">
+                Cancel
+              </Button>
+              <Button onClick={handleDelete} disabled={isLoading} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4">
+                {isLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : null}
+                Delete Template
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
 
@@ -602,15 +758,20 @@ export const SmsTemplates: React.FC = () => {
           isOpen={showDeleteModal}
           onClose={() => setShowDeleteModal(false)}
           title="Delete SMS Template"
-          description="Are you sure you want to delete this template?"
           size="sm"
         >
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              This action will mark SMS template <strong className="text-slate-900">{deletingTemplate.template_name}</strong> (DLT: {deletingTemplate.dlt_template_id}) as <strong className="text-red-600">deleted</strong>.
-            </p>
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-900">Warning: This action cannot be undone.</p>
+                <p className="mt-1 text-red-700 leading-relaxed">
+                  Are you sure you want to delete SMS template <strong className="text-slate-900 font-bold">{deletingTemplate.template_name}</strong> (DLT ID: <span className="font-mono">{deletingTemplate.dlt_template_id}</span>)?
+                </p>
+              </div>
+            </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
               <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="text-xs font-semibold">
                 Cancel
               </Button>

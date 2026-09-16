@@ -51,6 +51,8 @@ import {
   type OtherIncomeSummary
 } from '../../services/otherIncomeApi';
 import { getAcademicOptions } from '../../services/studentApi';
+import { StaffSalaryMasterView } from '../../components/finance/StaffSalaryMasterView';
+import { StaffSalaryStatusView } from '../../components/finance/StaffSalaryStatusView';
 
 const fmt = (n: number) => '₹' + (Number(n) || 0).toLocaleString('en-IN');
 
@@ -301,16 +303,6 @@ export const BranchFinancePage: React.FC = () => {
         icon: Calendar,
         color: 'emerald',
         defaultCategory: 'Monthly Payroll'
-      };
-    }
-    if (currentPath.includes('/payroll/history')) {
-      return {
-        module: 'Staff Payroll',
-        title: 'Salary History',
-        subtitle: 'Archived staff pay-slips, annual bonus summaries, and tax clearance records.',
-        icon: Clock,
-        color: 'indigo',
-        defaultCategory: 'Salary History'
       };
     }
 
@@ -645,6 +637,67 @@ export const BranchFinancePage: React.FC = () => {
 
   const IconComponent = viewInfo.icon;
   const totalOtherPages = Math.ceil(otherIncomeTotal / otherIncomeLimit) || 1;
+
+  const isSalaryStructure = currentPath.includes('/payroll/structure') || currentPath.includes('/salary-structure');
+  const isSalaryStatus = currentPath.includes('/payroll/monthly') || currentPath.includes('/expenses/salaries') || currentPath.includes('/payables/salaries') || currentPath.includes('/salary-status');
+
+  if (isSalaryStructure) {
+    return (
+      <div className="space-y-6">
+        {/* Sub-navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-slate-200">
+          <button
+            onClick={() => navigate('/finance/payroll/structure')}
+            className="px-4 py-2.5 text-sm font-bold text-blue-700 border-b-2 border-blue-600 bg-blue-50/50 rounded-t-lg transition-all"
+          >
+            1. Salary Structure (Master)
+          </button>
+          <button
+            onClick={() => navigate('/finance/payroll/monthly')}
+            className="px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 rounded-t-lg transition-colors"
+          >
+            2. Monthly Salary Status (Operations)
+          </button>
+        </div>
+
+        <StaffSalaryMasterView
+          branchFilter={branchFilter}
+          branchOptions={branchOptions}
+          onBranchChange={setBranchFilter}
+          onNavigateToStatus={() => navigate('/finance/payroll/monthly')}
+        />
+      </div>
+    );
+  }
+
+  if (isSalaryStatus) {
+    return (
+      <div className="space-y-6">
+        {/* Sub-navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-slate-200">
+          <button
+            onClick={() => navigate('/finance/payroll/structure')}
+            className="px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 rounded-t-lg transition-colors"
+          >
+            1. Salary Structure (Master)
+          </button>
+          <button
+            onClick={() => navigate('/finance/payroll/monthly')}
+            className="px-4 py-2.5 text-sm font-bold text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50/50 rounded-t-lg transition-all"
+          >
+            2. Monthly Salary Status (Operations)
+          </button>
+        </div>
+
+        <StaffSalaryStatusView
+          branchFilter={branchFilter}
+          branchOptions={branchOptions}
+          onBranchChange={setBranchFilter}
+          onNavigateToMaster={() => navigate('/finance/payroll/structure')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -8,7 +8,7 @@ import {
   Download, UploadCloud, CheckCircle, Save,
   Plus, Trash2, Star, ShieldAlert
 } from 'lucide-react';
-import { formatDate } from '../types';
+import { formatDate, getTenantStatusLabel } from '../types';
 import type { InstituteProfile, UpdateInstituteProfilePayload } from '../services/instituteApi';
 import { getInstituteProfile, updateInstituteProfile } from '../services/instituteApi';
 
@@ -72,7 +72,7 @@ export const Institute: React.FC = () => {
   const myPlan = profile?.plan;
 
   // ── State ──
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'billing' | 'limits' | 'features' | 'integrations'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'billing' | 'limits' | 'features'>('profile');
   
   // Profile State
   const [emails, setEmails] = useState<{address: string, isDefault: boolean}[]>([
@@ -84,9 +84,6 @@ export const Institute: React.FC = () => {
   const [address, setAddress] = useState(myTenant?.address || '');
   const [academicYear, setAcademicYear] = useState('2026 - 2027');
 
-  // Integrations State
-  const [razorpayKey, setRazorpayKey] = useState('');
-  const [whatsappKey, setWhatsappKey] = useState('');
   const [overrideRequests, setOverrideRequests] = useState([{ resource: 'Max Students', value: '' }]);
   const [pastRequests, setPastRequests] = useState([
     { resource: 'Max Branches', value: '3', status: 'Approved', date: '2026-07-15' },
@@ -192,7 +189,7 @@ export const Institute: React.FC = () => {
       )}
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">Institute Configuration</h2>
-        <p className="text-sm text-slate-500 mt-1">Manage your identity, view subscription limits, and configure integrations.</p>
+        <p className="text-sm text-slate-500 mt-1">Manage your identity, view subscription limits, and plan details.</p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
@@ -207,11 +204,23 @@ export const Institute: React.FC = () => {
             <div className="text-sm text-slate-500 font-mono mt-1">Tenant ID: {myTenant.id}</div>
           </div>
           <div className="flex items-center gap-3 select-none flex-shrink-0">
-            <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
-              myTenant.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-            }`}>
-              {myTenant.status}
-            </span>
+            {(() => {
+              const s = myTenant.status;
+              const label = getTenantStatusLabel(s);
+              let badgeColors = 'bg-slate-50 text-slate-700 border border-slate-200';
+              if (s === 1 || s === '1' || label === 'Active') {
+                badgeColors = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+              } else if (s === 0 || s === '0' || label === 'Inactive') {
+                badgeColors = 'bg-red-50 text-red-700 border border-red-200';
+              } else if (s === 2 || s === '2' || label === 'Draft') {
+                badgeColors = 'bg-amber-50 text-amber-700 border border-amber-200';
+              }
+              return (
+                <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${badgeColors}`}>
+                  {label}
+                </span>
+              );
+            })()}
             {myPlan && (
               <span className="text-[11px] text-slate-600 font-bold bg-white border border-slate-200 shadow-sm px-3 py-1.5 rounded-full uppercase tracking-wider">
                 {myPlan.name}
@@ -228,7 +237,6 @@ export const Institute: React.FC = () => {
             { id: 'billing', label: 'Plan & Billing' },
             { id: 'limits', label: 'Resource Quotas' },
             { id: 'features', label: 'Features & Support' },
-            { id: 'integrations', label: 'Integrations' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -257,11 +265,23 @@ export const Institute: React.FC = () => {
                     <h3 className="font-bold text-slate-800">Locked Identity Data</h3>
                     <p className="text-xs text-slate-500 mt-1">Managed by SaaS Super Admin.</p>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${
-                    myTenant.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {myTenant.status}
-                  </span>
+                  {(() => {
+                    const s = myTenant.status;
+                    const label = getTenantStatusLabel(s);
+                    let badgeColors = 'bg-slate-50 text-slate-700 border border-slate-200';
+                    if (s === 1 || s === '1' || label === 'Active') {
+                      badgeColors = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                    } else if (s === 0 || s === '0' || label === 'Inactive') {
+                      badgeColors = 'bg-red-50 text-red-700 border border-red-200';
+                    } else if (s === 2 || s === '2' || label === 'Draft') {
+                      badgeColors = 'bg-amber-50 text-amber-700 border border-amber-200';
+                    }
+                    return (
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${badgeColors}`}>
+                        {label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/30">
                   <div>
@@ -789,74 +809,6 @@ export const Institute: React.FC = () => {
                   </div>
                 </div>
               </Card>
-            </div>
-          )}
-
-          {/* TAB: Integrations */}
-          {activeTab === 'integrations' && myPlan && (
-            <div className="space-y-6 animate-fade-in">
-              <form onSubmit={handleSave}>
-                <Card>
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
-                    <div>
-                      <h3 className="font-bold text-slate-800">3rd Party Integrations</h3>
-                      <p className="text-xs text-slate-500 mt-1">Configure your own gateways and API keys.</p>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-slate-100">
-                    
-                    {/* Razorpay */}
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="font-bold text-sm text-slate-800">Razorpay Payment Gateway</h4>
-                          <p className="text-xs text-slate-500 mt-0.5">Collect fees online directly into your account.</p>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${myPlan.integrations.razorpay ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                          {myPlan.integrations.razorpay ? 'Allowed' : 'Locked'}
-                        </span>
-                      </div>
-                      <div className="max-w-md">
-                        <Input 
-                          label="Razorpay Key ID" 
-                          placeholder={myPlan.integrations.razorpay ? 'rzp_live_xxxxxxxxxxx' : 'Upgrade plan to unlock'} 
-                          value={razorpayKey} 
-                          onChange={e => setRazorpayKey(e.target.value)}
-                          disabled={!myPlan.integrations.razorpay}
-                        />
-                      </div>
-                    </div>
-
-                    {/* WhatsApp */}
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h4 className="font-bold text-sm text-slate-800">WhatsApp Business API</h4>
-                          <p className="text-xs text-slate-500 mt-0.5">Automated attendance and fee reminders.</p>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest ${myPlan.integrations.whatsappBusiness ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                          {myPlan.integrations.whatsappBusiness ? 'Allowed' : 'Locked'}
-                        </span>
-                      </div>
-                      <div className="max-w-md">
-                        <Input 
-                          label="WABA Auth Token" 
-                          placeholder={myPlan.integrations.whatsappBusiness ? 'EAAxxxxxxxxx' : 'Upgrade plan to unlock'} 
-                          value={whatsappKey} 
-                          onChange={e => setWhatsappKey(e.target.value)}
-                          disabled={!myPlan.integrations.whatsappBusiness}
-                        />
-                      </div>
-                    </div>
-
-                  </div>
-                  <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end rounded-b-2xl">
-                    <Button type="submit" variant="primary" disabled={isSaving} style={{ gap: '8px' }}>
-                      <Save size={16} /> {isSaving ? 'Saving...' : 'Save Keys'}
-                    </Button>
-                  </div>
-                </Card>
-              </form>
             </div>
           )}
 

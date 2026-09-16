@@ -168,9 +168,54 @@ export const CourseDetail: React.FC = () => {
     }
   };
 
+  const validateStep = (tab: 'general' | 'programs' | 'levels' | 'subjects'): { isValid: boolean; error?: string } => {
+    if (tab === 'general') {
+      if (!formData.name?.trim()) {
+        return { isValid: false, error: 'Please enter Course Name.' };
+      }
+      if (!formData.code?.trim()) {
+        return { isValid: false, error: 'Please enter Course Code.' };
+      }
+    }
+    return { isValid: true };
+  };
+
+  const handleTabChange = (targetTab: 'general' | 'programs' | 'levels' | 'subjects') => {
+    if (isReadOnly) {
+      setActiveTab(targetTab);
+      return;
+    }
+    const order: Array<'general' | 'programs' | 'levels' | 'subjects'> = ['general', 'programs', 'levels', 'subjects'];
+    const currentIdx = order.indexOf(activeTab);
+    const targetIdx = order.indexOf(targetTab);
+    if (targetIdx > currentIdx) {
+      for (let i = 0; i < targetIdx; i++) {
+        const res = validateStep(order[i]);
+        if (!res.isValid) {
+          addToast(res.error || 'Please fill required details in previous steps.', 'error');
+          setActiveTab(order[i]);
+          return;
+        }
+      }
+    }
+    setActiveTab(targetTab);
+  };
+
+  const handleNextStep = (nextTab: 'general' | 'programs' | 'levels' | 'subjects') => {
+    if (!isReadOnly) {
+      const res = validateStep(activeTab);
+      if (!res.isValid) {
+        addToast(res.error || 'Please complete all required fields before proceeding.', 'error');
+        return;
+      }
+    }
+    setActiveTab(nextTab);
+  };
+
   const handleSave = async () => {
-    if (!formData.name || !formData.code) {
-      addToast('Please enter both Course Name and Course Code.', 'error');
+    const generalCheck = validateStep('general');
+    if (!generalCheck.isValid) {
+      addToast(generalCheck.error || 'Please enter both Course Name and Course Code.', 'error');
       setActiveTab('general');
       return;
     }
@@ -272,7 +317,8 @@ export const CourseDetail: React.FC = () => {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            type="button"
+            onClick={() => handleTabChange(tab.id as any)}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors cursor-pointer select-none ${activeTab === tab.id
                 ? 'border-blue-600 text-blue-600 bg-blue-50/40'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -745,7 +791,7 @@ export const CourseDetail: React.FC = () => {
           <div>
             {activeTab === 'programs' && (
               <Button type="button" variant="secondary" onClick={() => setActiveTab('general')} className="flex items-center gap-1.5 font-bold">
-                <ArrowLeft size={16} /> Back: Courses Details
+                <ArrowLeft size={16} /> Back: Course Details
               </Button>
             )}
             {activeTab === 'levels' && (
@@ -761,6 +807,21 @@ export const CourseDetail: React.FC = () => {
           </div>
 
           <div className="flex gap-3">
+            {activeTab === 'general' && (
+              <Button type="button" variant="primary" onClick={() => handleNextStep('programs')} className="flex items-center gap-1.5 font-bold">
+                Next: Programs &rarr;
+              </Button>
+            )}
+            {activeTab === 'programs' && (
+              <Button type="button" variant="primary" onClick={() => handleNextStep('levels')} className="flex items-center gap-1.5 font-bold">
+                Next: Academic Levels &rarr;
+              </Button>
+            )}
+            {activeTab === 'levels' && (
+              <Button type="button" variant="primary" onClick={() => handleNextStep('subjects')} className="flex items-center gap-1.5 font-bold">
+                Next: Level Subjects &rarr;
+              </Button>
+            )}
             {!isReadOnly && (
               <Button
                 type="button"
@@ -768,6 +829,7 @@ export const CourseDetail: React.FC = () => {
                 onClick={handleSave}
                 disabled={isSaving}
                 className="px-6 py-2.5 text-sm font-bold shadow-sm"
+                style={{ backgroundColor: activeTab === 'subjects' ? '#10b981' : undefined }}
               >
                 {isSaving ? 'Saving Course...' : 'Save Course'}
               </Button>

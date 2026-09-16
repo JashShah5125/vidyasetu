@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Eye, Search, Loader2, RotateCcw, Copy, Code, FileText, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Eye, Edit, Search, Loader2, RotateCcw, Copy, Code, FileText, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -39,6 +39,7 @@ export const EmailTemplates: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showPreview, setShowPreview] = useState(false);
   const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -48,6 +49,8 @@ export const EmailTemplates: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   const [editName, setEditName] = useState('');
   const [editTemplateKey, setEditTemplateKey] = useState('');
@@ -66,7 +69,7 @@ export const EmailTemplates: React.FC = () => {
       setErrorMsg('');
       const result = await emailTemplateService.getTemplates({
         page: currentPage,
-        limit: ITEMS_PER_PAGE,
+        limit: pageSize,
         search: searchQuery,
         category: filterCategory === 'ALL' ? '' : filterCategory,
         status: filterStatus === 'ALL' ? '' : filterStatus,
@@ -86,9 +89,7 @@ export const EmailTemplates: React.FC = () => {
 
   useEffect(() => {
     fetchTemplates();
-  }, [currentPage, searchQuery, filterCategory, filterStatus]);
-
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  }, [currentPage, pageSize, searchQuery, filterCategory, filterStatus]);
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -289,8 +290,8 @@ export const EmailTemplates: React.FC = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Email Templates</h2>
-              <p className="text-base text-slate-500 mt-2">
-                Manage system and transactional email layouts used across authentication, billing, and onboarding.
+              <p className="text-sm text-slate-500 mt-1">
+                Manage system and transactional email layouts.
               </p>
             </div>
             <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={openCreateEditor}>
@@ -307,7 +308,8 @@ export const EmailTemplates: React.FC = () => {
                   placeholder="Search templates..."
                   value={searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    const sanitized = e.target.value.replace(/[^a-zA-Z0-9\s]/g, '');
+                    setSearchQuery(sanitized);
                     setCurrentPage(1);
                   }}
                   wrapperClassName="mb-0"
@@ -363,7 +365,7 @@ export const EmailTemplates: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
               </div>
             ) : (
-              <Table headers={['ID', 'Name', 'Subject', 'Category', 'Status', 'Actions']} dense colWidths={['44px', '22%', '28%', '13%', '10%', '150px']}>
+              <Table minWidth="860px" headers={['ID', 'Name', 'Subject', 'Category', 'Status', 'Actions']} dense colWidths={['50px', '25%', '30%', '16%', '12%', '110px']}>
                 {templates.map((template) => (
                   <tr
                     key={template.id}
@@ -371,13 +373,10 @@ export const EmailTemplates: React.FC = () => {
                     onClick={() => openEditor(template)}
                   >
                     <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{template.id}</td>
-                    <td className="px-3 py-3 font-semibold text-slate-900 text-base">
-                      <div className="leading-snug">{template.name}</div>
-                      {template.description && (
-                        <div className="text-xs text-slate-500 font-normal mt-0.5 truncate">{template.description}</div>
-                      )}
+                    <td className="px-3 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">
+                      {template.name}
                     </td>
-                    <td className="px-3 py-3 text-sm text-slate-600">{template.subject}</td>
+                    <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap truncate max-w-xs">{template.subject}</td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase border ${CATEGORY_BADGE[template.category] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                         {template.category}
@@ -392,30 +391,30 @@ export const EmailTemplates: React.FC = () => {
                       </button>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <button
                           onClick={() => {
                             setSelectedTemplate(template);
                             setShowPreview(true);
                           }}
                           title="Preview template"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 cursor-pointer transition"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition cursor-pointer"
                         >
-                          <Eye size={13} /> Preview
+                          <Eye size={15} />
                         </button>
                         <button
                           onClick={() => openEditor(template)}
                           title="Edit template"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 cursor-pointer transition"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition cursor-pointer"
                         >
-                          Edit
+                          <Edit size={15} />
                         </button>
                         <button
                           onClick={() => handleOpenDelete(template)}
                           title="Delete template"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 cursor-pointer transition"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition cursor-pointer"
                         >
-                          <Trash2 size={13} /> Delete
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -424,13 +423,18 @@ export const EmailTemplates: React.FC = () => {
               </Table>
             )}
 
-            {totalItems > ITEMS_PER_PAGE && (
+            {totalItems > 0 && (
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalItems}
-                pageSize={ITEMS_PER_PAGE}
+                pageSize={pageSize}
                 onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50]}
               />
             )}
           </Card>

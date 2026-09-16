@@ -74,29 +74,6 @@ import { SmsConfiguration } from './pages/saas/SmsConfiguration';
 import { WhatsAppConfiguration } from './pages/saas/WhatsAppConfiguration';
 import { UsersAndRoles } from './pages/saas/UsersAndRoles';
 
-const GlobalProvidersPlaceholder = () => (
-  <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-    <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-3">Global Infrastructure Providers</h3>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-      <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">SMS Gateway API</span>
-        <strong className="text-slate-700">Twilio SMS (Active)</strong>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">WhatsApp Provider</span>
-        <strong className="text-slate-700">Meta Business API (Active)</strong>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">SMTP Email Client</span>
-        <strong className="text-slate-700">Amazon SES (Active)</strong>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-slate-400 font-semibold uppercase text-[10px]">Payment Gateway</span>
-        <strong className="text-slate-700">Razorpay (Active)</strong>
-      </div>
-    </div>
-  </div>
-);
 
 const AuditLogsPlaceholder = () => {
   const { auditLogs: allLogs, currentUser, staff } = useApp();
@@ -351,7 +328,6 @@ const ContentRouter = () => {
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
-      <Route path="/providers" element={<GlobalProvidersPlaceholder />} />
       <Route path="/audit-logs" element={<AuditLogsPlaceholder />} />
       <Route path="/branches" element={<BranchSetup />} />
       <Route path="/branches/:id" element={<BranchDetail />} />

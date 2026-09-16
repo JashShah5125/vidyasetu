@@ -188,9 +188,73 @@ export const BranchDetail: React.FC = () => {
     return () => { cancelled = true; };
   }, [id, isNew]);
 
+  const validateStep = (tab: 'general' | 'admin' | 'courses' | 'operations'): { isValid: boolean; error?: string } => {
+    if (tab === 'general') {
+      if (!formData.name?.trim()) {
+        return { isValid: false, error: 'Please enter the Branch Name.' };
+      }
+      if (!formData.code?.trim()) {
+        return { isValid: false, error: 'Please enter the Branch Code.' };
+      }
+    }
+    if (tab === 'admin') {
+      if (!formData.admin?.trim()) {
+        return { isValid: false, error: 'Please enter the Branch Head / Admin Name.' };
+      }
+      if (!formData.adminEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.adminEmail.trim())) {
+        return { isValid: false, error: 'Please enter a valid Admin Email address.' };
+      }
+      const cleanPhone = (formData.adminMobile || '').replace(/[^0-9]/g, '');
+      if (cleanPhone.length < 10) {
+        return { isValid: false, error: 'Please enter a valid 10-digit Admin Mobile number.' };
+      }
+    }
+    return { isValid: true };
+  };
+
+  const handleTabChange = (targetTab: 'general' | 'admin' | 'courses' | 'operations') => {
+    if (isReadOnly) {
+      setActiveTab(targetTab);
+      return;
+    }
+    const order: Array<'general' | 'admin' | 'courses' | 'operations'> = ['general', 'admin', 'courses', 'operations'];
+    const currentIdx = order.indexOf(activeTab);
+    const targetIdx = order.indexOf(targetTab);
+    if (targetIdx > currentIdx) {
+      for (let i = 0; i < targetIdx; i++) {
+        const res = validateStep(order[i]);
+        if (!res.isValid) {
+          addToast(res.error || 'Please fill required details in previous steps.', 'error');
+          setActiveTab(order[i]);
+          return;
+        }
+      }
+    }
+    setActiveTab(targetTab);
+  };
+
+  const handleNext = (nextTab: 'general' | 'admin' | 'courses' | 'operations') => {
+    if (!isReadOnly) {
+      const res = validateStep(activeTab);
+      if (!res.isValid) {
+        addToast(res.error || 'Please complete all required fields before proceeding.', 'error');
+        return;
+      }
+    }
+    setActiveTab(nextTab);
+  };
+
   const handleSave = async () => {
-    if (!formData.name || !formData.code) {
-      addToast('Branch name and code are required.');
+    const generalCheck = validateStep('general');
+    if (!generalCheck.isValid) {
+      addToast(generalCheck.error || 'Please complete General Setup details.', 'error');
+      setActiveTab('general');
+      return;
+    }
+    const adminCheck = validateStep('admin');
+    if (!adminCheck.isValid) {
+      addToast(adminCheck.error || 'Please complete Admin & Access details.', 'error');
+      setActiveTab('admin');
       return;
     }
     try {
@@ -320,17 +384,17 @@ export const BranchDetail: React.FC = () => {
       </div>
 
       <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none mt-6 px-6">
-        <button onClick={() => setActiveTab('general')} className={tabClass('general')}>General Setup</button>
-        <button onClick={() => setActiveTab('admin')} className={tabClass('admin')}>Admin & Access</button>
-        <button onClick={() => setActiveTab('courses')} className={tabClass('courses')}>
-          Courses & Programs
+        <button type="button" onClick={() => handleTabChange('general')} className={tabClass('general')}>1. General Setup</button>
+        <button type="button" onClick={() => handleTabChange('admin')} className={tabClass('admin')}>2. Admin &amp; Access</button>
+        <button type="button" onClick={() => handleTabChange('courses')} className={tabClass('courses')}>
+          3. Courses &amp; Programs
           {courseMappings.length > 0 && (
             <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">
               {courseMappings.length}
             </span>
           )}
         </button>
-        <button onClick={() => setActiveTab('operations')} className={tabClass('operations')}>Operations & Finance</button>
+        <button type="button" onClick={() => handleTabChange('operations')} className={tabClass('operations')}>4. Operations &amp; Finance</button>
       </div>
 
       <fieldset disabled={isReadOnly} className="contents">
@@ -660,38 +724,40 @@ export const BranchDetail: React.FC = () => {
       </fieldset>
 
       {/* Bottom navigation */}
-      <div className="flex justify-end gap-3 p-6 pt-0 border-t border-slate-200 mt-6 pb-6">
-        {activeTab === 'general' && (
-          <Button variant="primary" onClick={() => setActiveTab('admin')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-            {isReadOnly ? 'Next' : 'Save & Next'} <ChevronLeft size={16} className="ml-2 rotate-180" />
-          </Button>
-        )}
-        {activeTab === 'admin' && (
-          <>
-            <Button variant="secondary" onClick={() => setActiveTab('general')}>Back</Button>
-            <Button variant="primary" onClick={() => setActiveTab('courses')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-              {isReadOnly ? 'Next' : 'Save & Next'} <ChevronLeft size={16} className="ml-2 rotate-180" />
+      <div className="flex justify-between items-center p-6 pt-0 border-t border-slate-200 mt-6 pb-6">
+        <div>
+          {activeTab === 'admin' && (
+            <Button type="button" variant="secondary" onClick={() => setActiveTab('general')}>&larr; Back</Button>
+          )}
+          {activeTab === 'courses' && (
+            <Button type="button" variant="secondary" onClick={() => setActiveTab('admin')}>&larr; Back</Button>
+          )}
+          {activeTab === 'operations' && (
+            <Button type="button" variant="secondary" onClick={() => setActiveTab('courses')}>&larr; Back</Button>
+          )}
+        </div>
+        <div className="flex gap-3">
+          {activeTab === 'general' && (
+            <Button type="button" variant="primary" onClick={() => handleNext('admin')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+              Next: Admin &amp; Access <ChevronLeft size={16} className="ml-2 rotate-180" />
             </Button>
-          </>
-        )}
-        {activeTab === 'courses' && (
-          <>
-            <Button variant="secondary" onClick={() => setActiveTab('admin')}>Back</Button>
-            <Button variant="primary" onClick={() => setActiveTab('operations')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-              {isReadOnly ? 'Next' : 'Save & Next'} <ChevronLeft size={16} className="ml-2 rotate-180" />
+          )}
+          {activeTab === 'admin' && (
+            <Button type="button" variant="primary" onClick={() => handleNext('courses')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+              Next: Courses &amp; Programs <ChevronLeft size={16} className="ml-2 rotate-180" />
             </Button>
-          </>
-        )}
-        {activeTab === 'operations' && (
-          <>
-            <Button variant="secondary" onClick={() => setActiveTab('courses')}>Back</Button>
-            {!isReadOnly && (
-              <Button variant="primary" onClick={handleSave} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
-                Save Branch Details
-              </Button>
-            )}
-          </>
-        )}
+          )}
+          {activeTab === 'courses' && (
+            <Button type="button" variant="primary" onClick={() => handleNext('operations')} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+              Next: Operations &amp; Finance <ChevronLeft size={16} className="ml-2 rotate-180" />
+            </Button>
+          )}
+          {activeTab === 'operations' && !isReadOnly && (
+            <Button type="button" variant="primary" onClick={handleSave} style={{ backgroundColor: '#2563eb', color: 'white', borderColor: '#2563eb' }}>
+              Save Branch Details
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ADD COURSE MODAL */}

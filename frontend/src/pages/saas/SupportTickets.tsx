@@ -15,7 +15,6 @@ import {
   Paperclip,
   FileText,
   X,
-  Ticket,
   Building2,
   Send,
   HelpCircle,
@@ -451,29 +450,22 @@ export const SupportTickets: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl">
-              <Ticket size={24} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-display font-bold text-slate-900">
-                {isBranchAdmin
-                  ? 'Branch Support Desk'
-                  : isInstAdmin
-                  ? 'Support & Communications'
-                  : 'SaaS Support Console'}
-              </h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                {isBranchAdmin
-                  ? 'Submit queries, track resolution logs, and interact directly with your Institute Head Office.'
-                  : isInstAdmin
-                  ? 'Resolve support queries from branch centers or escalate platform requests to SaaS Support.'
-                  : 'Review issues, debug configurations, and reply directly to Tenant Operators.'}
-              </p>
-            </div>
-          </div>
+          <h2 className="text-4xl font-display font-extrabold text-slate-900 tracking-tight">
+            {isBranchAdmin
+              ? 'Branch Support Desk'
+              : isInstAdmin
+              ? 'Support & Communications'
+              : 'Support Tickets'}
+          </h2>
+          <p className="text-base text-slate-500 mt-2">
+            {isBranchAdmin
+              ? 'Submit queries, track resolution logs, and interact directly with your Institute Head Office.'
+              : isInstAdmin
+              ? 'Resolve support queries from branch centers or escalate platform requests to SaaS Support.'
+              : 'Review issues, debug configurations, and reply directly to Tenant Operators.'}
+          </p>
         </div>
 
         {/* Action Button: Branch Admins can raise to Institute, Institute Admins can raise to SaaS */}

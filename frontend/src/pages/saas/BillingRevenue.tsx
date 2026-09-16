@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { billingService } from '../../services/billingService';
 import { useApp } from '../../context/AppContext';
@@ -10,12 +11,13 @@ import { Pagination } from '../../components/ui/Pagination';
 import { Table } from '../../components/ui/Table';
 import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import {
   Download, TrendingUp, Banknote, CheckCircle, AlertOctagon,
   Layers, Loader2, Wallet, FileText, Calendar, RotateCcw, Search, Filter,
-  Plus, Eye, Edit2, Trash2, Upload
+  Plus, Eye, Edit2, Trash2, Upload, X
 } from 'lucide-react';
 
 interface Invoice {
@@ -77,6 +79,68 @@ export const BillingRevenue: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 8;
+
+  // Generate list of proper Financial Years dynamically (April 1 to March 31)
+  const financialYears = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1; // 1-12
+    const currentYear = today.getFullYear();
+    const currentFyStart = currentMonth >= 4 ? currentYear : currentYear - 1;
+    
+    const fys = [];
+    for (let i = 0; i < 6; i++) {
+      const startYr = currentFyStart - i;
+      const endYr = startYr + 1;
+      const label = `FY ${startYr}-${String(endYr).slice(-2)}${i === 0 ? ' (Current FY)' : ''}`;
+      const startDate = `${startYr}-04-01`;
+      const endDate = `${endYr}-03-31`;
+      fys.push({
+        value: String(startYr),
+        label,
+        startDate,
+        endDate
+      });
+    }
+    return fys;
+  }, []);
+
+  const handleSelectFy = (fyValue: string) => {
+    if (fyValue === 'all') {
+      setPeriodYear('all');
+      setPeriodStartDate('');
+      setPeriodEndDate('');
+    } else {
+      const found = financialYears.find(f => f.value === fyValue);
+      if (found) {
+        setPeriodYear(fyValue);
+        setPeriodStartDate(found.startDate);
+        setPeriodEndDate(found.endDate);
+      }
+    }
+    setCurrentPage(1);
+  };
+
+  const currentFyLabel = useMemo(() => {
+    if (periodYear === 'all' && !periodStartDate && !periodEndDate) {
+      return 'All Financial Years';
+    }
+    const found = financialYears.find(f => f.value === periodYear);
+    if (found && periodStartDate === found.startDate && periodEndDate === found.endDate) {
+      return `FY ${found.value}-${String(Number(found.value) + 1).slice(-2)}`;
+    }
+    if (periodStartDate && periodEndDate) {
+      const startD = new Date(periodStartDate);
+      const endD = new Date(periodEndDate);
+      if (startD.getMonth() === 3 && startD.getDate() === 1 && endD.getMonth() === 2 && endD.getDate() === 31) {
+        return `FY ${startD.getFullYear()}-${String(endD.getFullYear()).slice(-2)}`;
+      }
+      return `${periodStartDate} to ${periodEndDate}`;
+    }
+    if (periodYear !== 'all') {
+      return `FY ${periodYear}-${String(Number(periodYear) + 1).slice(-2)}`;
+    }
+    return 'All Financial Years';
+  }, [periodYear, periodStartDate, periodEndDate, financialYears]);
 
   const isPeriodFilterActive = useMemo(
     () => periodYear !== 'all' || Boolean(periodStartDate) || Boolean(periodEndDate),
@@ -189,10 +253,45 @@ export const BillingRevenue: React.FC = () => {
     addToast(`Parsed ${rows.length} invoice rows. Bulk import endpoint not built yet.`, 'warning');
   };
 
+  const [trendChartType, setTrendChartType] = useState<'area' | 'bar'>('area');
+  const [planViewType, setPlanViewType] = useState<'stacked' | 'donut'>('stacked');
+
   const planChartData = useMemo(
     () => byPlan.map(p => ({ name: p.plan_name, collected: p.collected, outstanding: p.outstanding })),
     [byPlan]
   );
+
+  const planTotals = useMemo(() => {
+    const totalCollected = planChartData.reduce((acc, p) => acc + (Number(p.collected) || 0), 0);
+    const totalOutstanding = planChartData.reduce((acc, p) => acc + (Number(p.outstanding) || 0), 0);
+    const totalRevenue = totalCollected + totalOutstanding;
+    return { totalCollected, totalOutstanding, totalRevenue };
+  }, [planChartData]);
+
+  const planDonutData = useMemo(() => {
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
+    return planChartData.map((p, idx) => {
+      const val = (Number(p.collected) || 0) + (Number(p.outstanding) || 0);
+      return {
+        name: p.name,
+        value: val,
+        collected: Number(p.collected) || 0,
+        outstanding: Number(p.outstanding) || 0,
+        color: colors[idx % colors.length]
+      };
+    }).filter(d => d.value > 0);
+  }, [planChartData]);
+
+  const peakTrendMonth = useMemo(() => {
+    if (!trend || trend.length === 0) return null;
+    let maxItem = trend[0];
+    for (const t of trend) {
+      if (Number(t.raw || 0) > Number(maxItem?.raw || 0)) {
+        maxItem = t;
+      }
+    }
+    return maxItem && Number(maxItem.raw || 0) > 0 ? maxItem : null;
+  }, [trend]);
 
   const yoyDelta = useMemo(() => {
     if (trend.length < 2) return null;
@@ -207,11 +306,11 @@ export const BillingRevenue: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-end gap-4">
         <div>
           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Billing &amp; SaaS Revenue</h2>
           <p className="text-base text-slate-500 mt-2">
-            Monthly recurring revenue, collected vs. outstanding receivables, payment and plan breakdowns, and the full invoice register.
+            Track recurring revenue, receivables, plan performance, and invoices.
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -221,7 +320,7 @@ export const BillingRevenue: React.FC = () => {
             className="flex items-center gap-2 text-xs font-semibold cursor-pointer shadow-sm"
           >
             <Filter size={15} />
-            <span>{showPeriodFilter ? 'Hide Period Filter' : 'Filter Period'}</span>
+            <span>{showPeriodFilter ? 'Close Filter' : 'Filter Period'}</span>
             {isPeriodFilterActive && (
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
             )}
@@ -238,55 +337,166 @@ export const BillingRevenue: React.FC = () => {
         </div>
       </div>
 
-      {/* Period Filter Bar (Hidden by default, toggled via Filter Period button) */}
-      {showPeriodFilter && (
-        <div className="bg-white border border-indigo-100 p-4 rounded-xl shadow-md space-y-2 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wider">
-              <Calendar size={15} className="text-indigo-600" />
-              <span>Period Filter (Calculates KPI Cards &amp; Charts)</span>
+      {/* Right-Side Period & Metrics Filter Drawer */}
+      {showPeriodFilter && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] flex justify-end bg-slate-900/40 backdrop-blur-xs transition-opacity animate-fade-in"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          onClick={() => setShowPeriodFilter(false)}
+        >
+          <div 
+            className="w-full sm:w-[380px] h-full bg-white shadow-2xl border-l border-slate-200 flex flex-col animate-slide-left overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                  <Filter size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Period Filter</h3>
+                  <p className="text-xs text-slate-500">Filter KPIs, charts, and invoice calculations</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPeriodFilter(false)}
+                className="w-8 h-8 rounded-lg hover:bg-slate-200/70 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            {isPeriodFilterActive && (
-              <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                Active Period Filter
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1.5fr_1.5fr_auto] gap-4 items-end w-full">
-            <Select
-              label="Year"
-              value={periodYear}
-              onChange={(e) => { setPeriodYear(e.target.value); setCurrentPage(1); }}
-              options={[
-                { value: 'all', label: 'All Years' },
-                ...(summary?.available_years || []).map(y => ({ value: String(y), label: String(y) }))
-              ]}
-            />
-            <Input
-              label="Start Date"
-              type="date"
-              value={periodStartDate}
-              onChange={(e) => { setPeriodStartDate(e.target.value); setCurrentPage(1); }}
-            />
-            <Input
-              label="End Date"
-              type="date"
-              value={periodEndDate}
-              onChange={(e) => { setPeriodEndDate(e.target.value); setCurrentPage(1); }}
-            />
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-transparent select-none opacity-0" aria-hidden="true">Action</span>
+
+            {/* Drawer Body */}
+            <div className="p-5 space-y-6 flex-1">
+              {/* Quick Presets */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Quick Presets</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectFy('all')}
+                    className={`px-3 py-2 text-xs font-semibold rounded-lg border text-left transition-all cursor-pointer ${
+                      periodYear === 'all' && !periodStartDate && !periodEndDate
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm font-bold'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    All Financial Years
+                  </button>
+                  {financialYears.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFy(financialYears[0].value)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-lg border text-left transition-all cursor-pointer ${
+                        periodYear === financialYears[0].value && periodStartDate === financialYears[0].startDate
+                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {financialYears[0].label.replace(' (Current FY)', '')} (Current)
+                    </button>
+                  )}
+                  {financialYears.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectFy(financialYears[1].value)}
+                      className={`px-3 py-2 text-xs font-semibold rounded-lg border text-left transition-all cursor-pointer ${
+                        periodYear === financialYears[1].value && periodStartDate === financialYears[1].startDate
+                          ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {financialYears[1].label} (Prev FY)
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const today = new Date();
+                      const d30 = new Date();
+                      d30.setDate(today.getDate() - 30);
+                      setPeriodYear('all');
+                      setPeriodStartDate(d30.toISOString().split('T')[0]);
+                      setPeriodEndDate(today.toISOString().split('T')[0]);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-3 py-2 text-xs font-semibold rounded-lg border text-left transition-all cursor-pointer ${
+                      periodStartDate && !periodEndDate
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm font-bold'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Last 30 Days
+                  </button>
+                </div>
+              </div>
+
+              {/* Financial Year Selector */}
+              <div className="space-y-2">
+                <Select
+                  label="Financial Year (April – March)"
+                  value={periodYear}
+                  onChange={(e) => handleSelectFy(e.target.value)}
+                  options={[
+                    { value: 'all', label: 'All Financial Years' },
+                    ...financialYears.map(f => ({ value: f.value, label: f.label }))
+                  ]}
+                />
+              </div>
+
+              {/* Custom Date Range */}
+              <div className="space-y-3 pt-3 border-t border-slate-100">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Custom Date Range</span>
+                <Input
+                  label="Start Date"
+                  type="date"
+                  value={periodStartDate}
+                  onChange={(e) => { setPeriodStartDate(e.target.value); setCurrentPage(1); }}
+                />
+                <Input
+                  label="End Date"
+                  type="date"
+                  value={periodEndDate}
+                  onChange={(e) => { setPeriodEndDate(e.target.value); setCurrentPage(1); }}
+                />
+              </div>
+
+              {/* Active Filter State Notice */}
+              {isPeriodFilterActive && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    Active Filter Applied
+                  </div>
+                  <p className="text-amber-700">
+                    Charts, metrics, and trends are currently scoped to this custom period.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
               <Button
                 variant="outline"
                 onClick={handleClearPeriodFilters}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[38px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
+                className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 border-slate-200 cursor-pointer"
               >
-                <RotateCcw size={14} />
-                Reset Period
+                <RotateCcw size={14} /> Reset
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setShowPeriodFilter(false)}
+                className="flex-1 text-xs font-bold cursor-pointer"
+              >
+                Apply &amp; Close
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* KPI Cards */}
@@ -345,74 +555,316 @@ export const BillingRevenue: React.FC = () => {
 
       {/* Revenue charts: trend + by plan */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
-              <div>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <TrendingUp size={16} className="text-purple-600" />
-                  Cumulative Revenue Trend ({periodYear === 'all' ? 'All Years' : periodYear})
-                </CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">Monthly cumulative subscription earnings from paid invoices</p>
-              </div>
-            </div>
+        <Card className="overflow-hidden relative">
+          {/* Toggle pinned top-right */}
+          <div className="absolute top-3 right-3 z-10 inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setTrendChartType('area')}
+              className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                trendChartType === 'area'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Area
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrendChartType('bar')}
+              className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                trendChartType === 'bar'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Bars
+            </button>
+          </div>
+          <CardHeader className="py-3 px-4 pr-28">
+            <CardTitle className="text-sm font-bold text-slate-900 leading-snug truncate">
+              Cumulative Revenue Trend
+            </CardTitle>
+            <p className="text-[11px] text-slate-400 truncate">{currentFyLabel}</p>
           </CardHeader>
-          <div className="w-full h-72">
+          <div className="w-full h-48">
             {loading ? (
               <div className="w-full h-full flex items-center justify-center"><Loader2 size={24} className="animate-spin text-slate-300" /></div>
             ) : trend.length === 0 ? (
               <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No revenue data found</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trend} margin={{ top: 10, right: 20, left: 10, bottom: 5 }} barCategoryGap="25%">
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={8} />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    width={70}
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    tickFormatter={(v: number) => {
-                      if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
-                      return `₹${v.toLocaleString('en-IN')}`;
-                    }}
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#f1f5f9' }}
-                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 600 }}
-                    formatter={(value) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Cumulative Revenue']}
-                  />
-                  <Bar dataKey="raw" fill="#7c3aed" radius={[6, 6, 0, 0]} />
-                </BarChart>
+                {trendChartType === 'area' ? (
+                  <AreaChart data={trend} margin={{ top: 10, right: 16, left: 0, bottom: 4 }}>
+                    <defs>
+                      <linearGradient id="revAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} dy={4} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      width={52}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tickFormatter={(v: number) => {
+                        if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                        if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                        return `₹${v.toLocaleString('en-IN')}`;
+                      }}
+                    />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const val = Number(payload[0].value || 0);
+                          return (
+                            <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-slate-700/50 text-xs space-y-1 min-w-[150px]">
+                              <div className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">{label}</div>
+                              <div className="text-base font-extrabold text-indigo-300">₹{val.toLocaleString('en-IN')}</div>
+                              <div className="text-[10px] text-slate-400">Cumulative Subscription Revenue</div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="raw"
+                      stroke="#6366f1"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#revAreaGrad)"
+                      activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 3 }}
+                    />
+                  </AreaChart>
+                ) : (
+                  <BarChart data={trend} margin={{ top: 10, right: 16, left: 0, bottom: 4 }} barCategoryGap="25%">
+                    <defs>
+                      <linearGradient id="revBarGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#818cf8" />
+                        <stop offset="100%" stopColor="#6366f1" />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} dy={4} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      width={52}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      tickFormatter={(v: number) => {
+                        if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                        if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                        return `₹${v.toLocaleString('en-IN')}`;
+                      }}
+                    />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const val = Number(payload[0].value || 0);
+                          return (
+                            <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-slate-700/50 text-xs space-y-1 min-w-[150px]">
+                              <div className="font-bold text-slate-300 uppercase tracking-wider text-[10px]">{label}</div>
+                              <div className="text-base font-extrabold text-indigo-300">₹{val.toLocaleString('en-IN')}</div>
+                              <div className="text-[10px] text-slate-400">Cumulative Subscription Revenue</div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar dataKey="raw" fill="url(#revBarGrad)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                )}
               </ResponsiveContainer>
             )}
           </div>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Layers size={16} className="text-indigo-600" />
+        <Card className="overflow-hidden relative">
+          {/* Toggle pinned top-right */}
+          <div className="absolute top-3 right-3 z-10 inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setPlanViewType('stacked')}
+              className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                planViewType === 'stacked'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Stacked
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlanViewType('donut')}
+              className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                planViewType === 'donut'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Donut
+            </button>
+          </div>
+          <CardHeader className="py-3 px-4 pr-28">
+            <CardTitle className="text-sm font-bold text-slate-900 leading-snug truncate">
               Revenue by Plan
             </CardTitle>
-            <span className="text-xs text-slate-500">Collected vs. outstanding</span>
+            <p className="text-[11px] text-slate-400 truncate">Collected vs. outstanding</p>
           </CardHeader>
-          <div className="w-full h-72">
+          <div className="w-full h-48">
             {loading ? (
               <div className="w-full h-full flex items-center justify-center"><Loader2 size={24} className="animate-spin text-slate-300" /></div>
             ) : planChartData.length === 0 ? (
               <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">No plan data</div>
-            ) : (
+            ) : planViewType === 'stacked' ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={planChartData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <BarChart data={planChartData} layout="vertical" margin={{ top: 10, right: 20, left: 8, bottom: 4 }}>
+                  <defs>
+                    <linearGradient id="collectedGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#34d399" />
+                    </linearGradient>
+                    <linearGradient id="outstandingGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#f59e0b" />
+                      <stop offset="100%" stopColor="#fbbf24" />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} tickFormatter={(v: number) => (v >= 100000 ? `₹${(v / 100000).toFixed(1)}L` : `₹${v.toLocaleString('en-IN')}`)} />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} width={110} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }} formatter={(v: any) => `₹${Number(v).toLocaleString('en-IN')}`} />
-                  <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[0, 4, 4, 0]} stackId="a" />
-                  <Bar dataKey="outstanding" name="Outstanding" fill="#f59e0b" radius={[0, 4, 4, 0]} stackId="a" />
+                  <XAxis
+                    type="number"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    tickFormatter={(v: number) => (v >= 100000 ? `₹${(v / 100000).toFixed(1)}L` : `₹${v.toLocaleString('en-IN')}`)}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#334155', fontSize: 12, fontWeight: 600 }}
+                    width={110}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        const collected = Number(data.collected || 0);
+                        const outstanding = Number(data.outstanding || 0);
+                        const total = collected + outstanding;
+                        const rate = total > 0 ? Math.round((collected / total) * 100) : 0;
+                        return (
+                          <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-slate-700/50 text-xs space-y-1.5 min-w-[180px]">
+                            <div className="font-bold text-slate-200">{data.name || label}</div>
+                            <div className="space-y-1 pt-1 border-t border-slate-800">
+                              <div className="flex justify-between items-center text-emerald-400">
+                                <span>Collected:</span>
+                                <span className="font-bold">₹{collected.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-amber-400">
+                                <span>Outstanding:</span>
+                                <span className="font-bold">₹{outstanding.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-slate-300 font-bold pt-1 border-t border-slate-800">
+                                <span>Total:</span>
+                                <span>₹{total.toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="text-[10px] text-indigo-300 font-semibold text-right">
+                                {rate}% Realization
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="collected" name="Collected" fill="url(#collectedGrad)" radius={[0, 0, 0, 0]} stackId="a" />
+                  <Bar dataKey="outstanding" name="Outstanding" fill="url(#outstandingGrad)" radius={[0, 6, 6, 0]} stackId="a" />
                 </BarChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-between h-full px-4">
+                <div className="w-1/2 h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            const collected = Number(data.collected || 0);
+                            const outstanding = Number(data.outstanding || 0);
+                            const total = collected + outstanding;
+                            const rate = total > 0 ? Math.round((collected / total) * 100) : 0;
+                            return (
+                              <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-xl shadow-xl border border-slate-700/50 text-xs space-y-1.5 min-w-[180px]">
+                                <div className="font-bold text-slate-200">{data.name}</div>
+                                <div className="space-y-1 pt-1 border-t border-slate-800">
+                                  <div className="flex justify-between items-center text-emerald-400">
+                                    <span>Collected:</span>
+                                    <span className="font-bold">₹{collected.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-amber-400">
+                                    <span>Outstanding:</span>
+                                    <span className="font-bold">₹{outstanding.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-slate-300 font-bold pt-1 border-t border-slate-800">
+                                    <span>Total:</span>
+                                    <span>₹{total.toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="text-[10px] text-indigo-300 font-semibold text-right">
+                                    {rate}% Realization
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Pie
+                        data={planDonutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={82}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {planDonutData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="w-1/2 space-y-2.5 pr-2">
+                  {planDonutData.map((p, idx) => {
+                    const percent = planTotals.totalRevenue > 0 ? Math.round((p.value / planTotals.totalRevenue) * 100) : 0;
+                    return (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }}></span>
+                          <span className="font-semibold text-slate-700 truncate">{p.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-bold text-slate-900">₹{p.value >= 100000 ? `${(p.value / 100000).toFixed(1)}L` : p.value.toLocaleString('en-IN')}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">({percent}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+                    <span>Total Portfolio</span>
+                    <span className="text-slate-900">{formatINR(planTotals.totalRevenue)}</span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </Card>
@@ -421,14 +873,13 @@ export const BillingRevenue: React.FC = () => {
       {/* Invoice Register Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileText size={16} className="text-slate-700" />
+          <CardTitle className="text-base font-bold text-slate-900">
             Invoices Register
           </CardTitle>
           <p className="text-xs text-slate-500">Filter, search, and view individual SaaS billing invoices</p>
         </CardHeader>
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] gap-3 w-full">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-3 w-full items-end">
             <div className="relative">
               <Input
                 label="Search Invoice / Tenant"
@@ -436,8 +887,9 @@ export const BillingRevenue: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 wrapperClassName="mb-0"
+                className="pr-8"
               />
-              <Search size={14} className="absolute right-3 top-[38px] text-slate-400 pointer-events-none" />
+              <Search size={14} className="absolute right-3 top-[34px] text-slate-400 pointer-events-none" />
             </div>
             <Select
               label="Status"
@@ -465,10 +917,10 @@ export const BillingRevenue: React.FC = () => {
               <Button
                 variant="outline"
                 onClick={handleClearTableFilters}
-                className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[38px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
+                className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-50 rounded-lg gap-1.5 h-[34px] shrink-0 cursor-pointer shadow-sm whitespace-nowrap"
               >
                 <RotateCcw size={14} />
-                Clear Table Filters
+                Clear Filters
               </Button>
             </div>
           </div>
@@ -484,15 +936,29 @@ export const BillingRevenue: React.FC = () => {
             No invoices match the specified period or table filters.
           </div>
         ) : (
-          <Table dense headers={['Invoice No', 'Tenant', 'Plan / Cycle', 'Start Date', 'Due Date', 'Total (INR)', 'Status', '']}>
+          <Table
+            dense
+            minWidth="1050px"
+            colWidths={['140px', '22%', '16%', '110px', '110px', '125px', '100px', '120px']}
+            headers={[
+              'Invoice No',
+              'Tenant',
+              'Plan / Cycle',
+              'Start Date',
+              'Due Date',
+              'Total (INR)',
+              'Status',
+              { label: 'Actions', align: 'center', minWidth: '120px' }
+            ]}
+          >
             {invoices.map((inv) => (
               <tr
                 key={inv.id}
                 onClick={() => openEditInvoice(inv)}
                 className="hover:bg-slate-50 cursor-pointer transition-colors"
               >
-                <td className="px-3 py-3 font-mono text-xs font-bold text-indigo-600 whitespace-nowrap">{inv.id}</td>
-                <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[180px]">{inv.tenantName}</td>
+                <td className="px-3 py-3 text-sm font-semibold text-slate-900 whitespace-nowrap">{inv.id}</td>
+                <td className="px-3 py-3 text-sm font-semibold text-slate-900 whitespace-nowrap">{inv.tenantName}</td>
                 <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">
                   <span className="font-semibold text-slate-800">{inv.planName}</span>
                   <span className="text-slate-400 capitalize block text-xs">{inv.billingCycle}</span>
@@ -501,12 +967,12 @@ export const BillingRevenue: React.FC = () => {
                 <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">{inv.dueDate || '-'}</td>
                 <td className="px-3 py-3 font-bold text-slate-900 text-sm whitespace-nowrap">{formatINR(inv.total)}</td>
                 <td className="px-3 py-3 whitespace-nowrap">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColors[inv.status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColors[inv.status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                     {inv.status}
                   </span>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-1.5">
+                <td className="px-3 py-3 whitespace-nowrap text-center min-w-[120px]" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-1.5 min-w-[100px]">
                     <button
                       onClick={() => navigate(`/billing/invoices/${inv.dbId}`)}
                       title="View invoice"

@@ -432,12 +432,17 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           </div>
           <div className="flex items-center gap-3 select-none flex-shrink-0">
             {(() => {
+              const s = viewingTenant.status;
               const status = getTenantStatus(viewingTenant);
-              let badgeColors = 'bg-red-50 text-red-750 border border-red-200';
-              if (status === 'Active') {
-                badgeColors = 'bg-emerald-50 text-emerald-705 border border-emerald-200';
+              let badgeColors = 'bg-slate-50 text-slate-700 border border-slate-200';
+              if (s === 1 || s === '1' || status === 'Active') {
+                badgeColors = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+              } else if (s === 0 || s === '0' || status === 'Inactive') {
+                badgeColors = 'bg-red-50 text-red-700 border border-red-200';
+              } else if (s === 2 || s === '2' || status === 'Draft') {
+                badgeColors = 'bg-amber-50 text-amber-700 border border-amber-200';
               } else if (status === 'Pending') {
-                badgeColors = 'bg-amber-50 text-amber-705 border border-amber-200';
+                badgeColors = 'bg-amber-50 text-amber-700 border border-amber-200';
               }
               return (
                 <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${badgeColors}`}>
@@ -446,7 +451,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
               );
             })()}
             <span className="text-[11px] text-slate-600 font-bold bg-white border border-slate-200 shadow-sm px-3 py-1.5 rounded-full uppercase tracking-wider">
-              {viewingTenant.plan}
+              {viewingTenant.plan_name || viewingTenant.plan || 'Standard'}
             </span>
           </div>
         </div>
@@ -570,8 +575,8 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                 <h5 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Payment &amp; Invoice History</h5>
                 <span className="text-xs text-slate-400 font-medium">Click any invoice to view itemization & details</span>
               </div>
-              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm bg-white">
-                <table className="w-full text-left border-collapse text-sm">
+              <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm bg-white">
+                <table className="w-full min-w-[700px] text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-600 uppercase text-xs tracking-wider">
                       <th className="px-5 py-4 w-10"></th>
@@ -949,11 +954,12 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                   <h6 className="text-base font-bold text-slate-900">
                     Current Access Status:{' '}
                     {(() => {
+                      const s = viewingTenant.status;
                       const status = getTenantStatus(viewingTenant);
                       let colorClass = 'text-red-600';
-                      if (status === 'Active') {
+                      if (s === 1 || s === '1' || status === 'Active') {
                         colorClass = 'text-emerald-600';
-                      } else if (status === 'Pending') {
+                      } else if (s === 2 || s === '2' || status === 'Draft' || status === 'Pending') {
                         colorClass = 'text-amber-600';
                       }
                       return <span className={colorClass}>{status}</span>;
@@ -965,14 +971,24 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                 </div>
                 <button
                   type="button"
-                  onClick={() => toggleTenantStatus(viewingTenant.id)}
+                  onClick={async () => {
+                    const isActive = viewingTenant.status === 1 || viewingTenant.status === 'Active' || viewingTenant.status === 'active';
+                    const nextStatus = isActive ? 0 : 1;
+                    try {
+                      await tenantService.updateTenantStatus(viewingTenant.id, nextStatus);
+                      setViewingTenant((prev: any) => ({ ...prev, status: nextStatus }));
+                      addToast(`Tenant status updated to ${nextStatus === 1 ? 'Active' : 'Inactive'}`, 'success');
+                    } catch (e) {
+                      addToast('Failed to update tenant status', 'error');
+                    }
+                  }}
                   className={`inline-flex items-center gap-2 text-sm font-bold px-6 py-3 border rounded-xl cursor-pointer transition-all shadow-sm ${
-                    viewingTenant.status === 'Active'
+                    (viewingTenant.status === 1 || viewingTenant.status === 'Active' || viewingTenant.status === 'active')
                       ? 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100'
                       : 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
                   }`}
                 >
-                  {viewingTenant.status === 'Active' ? 'Suspend Access' : 'Activate Access'}
+                  {(viewingTenant.status === 1 || viewingTenant.status === 'Active' || viewingTenant.status === 'active') ? 'Suspend Access' : 'Activate Access'}
                 </button>
               </div>
             </div>

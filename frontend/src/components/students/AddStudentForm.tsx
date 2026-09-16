@@ -304,14 +304,87 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
     });
   };
 
+  const validateStep = (tab: TabId): { isValid: boolean; error?: string } => {
+    if (tab === 'personal') {
+      if (!formData.full_name?.trim()) {
+        return { isValid: false, error: 'Student Full Name is required.' };
+      }
+      if (formData.mobile?.trim()) {
+        const cleanMobile = formData.mobile.replace(/[^0-9]/g, '');
+        if (cleanMobile.length < 10) {
+          return { isValid: false, error: 'Student Mobile Number must be at least 10 digits.' };
+        }
+      }
+    }
+    if (tab === 'guardian') {
+      if (!formData.guardian_name?.trim()) {
+        return { isValid: false, error: 'Guardian Full Name is required.' };
+      }
+      const cleanParentMobile = (formData.guardian_mobile || '').replace(/[^0-9]/g, '');
+      if (!formData.guardian_mobile?.trim() || cleanParentMobile.length < 10) {
+        return { isValid: false, error: 'Guardian Mobile Number must be a valid 10-digit number.' };
+      }
+    }
+    if (tab === 'academic') {
+      if (!formData.primary_branch_id) {
+        return { isValid: false, error: 'Please select an Institute Branch.' };
+      }
+      if (!formData.academic_year_id) {
+        return { isValid: false, error: 'Please select an Academic Year.' };
+      }
+      if (!selectedCourseId) {
+        return { isValid: false, error: 'Please select a Course.' };
+      }
+      if (!selectedLevelId) {
+        return { isValid: false, error: 'Please select an Academic Level.' };
+      }
+      if (!formData.batch_id) {
+        return { isValid: false, error: 'Please select a Batch.' };
+      }
+    }
+    return { isValid: true };
+  };
+
+  const handleTabClick = (targetTab: TabId) => {
+    const order: TabId[] = ['personal', 'guardian', 'academic', 'fees'];
+    const currentIdx = order.indexOf(activeTab);
+    const targetIdx = order.indexOf(targetTab);
+    if (targetIdx > currentIdx) {
+      for (let i = 0; i < targetIdx; i++) {
+        const res = validateStep(order[i]);
+        if (!res.isValid) {
+          addToast(res.error || 'Please complete previous step details.', 'error');
+          setActiveTab(order[i]);
+          return;
+        }
+      }
+    }
+    setActiveTab(targetTab);
+  };
+
+  const handleNextStep = (nextTab: TabId) => {
+    const res = validateStep(activeTab);
+    if (!res.isValid) {
+      addToast(res.error || 'Please fill in all required fields before proceeding.', 'error');
+      return;
+    }
+    if (activeTab === 'academic' && calculatedCurriculumFee > 0 && (!formData.gross_amount || formData.gross_amount === 95000)) {
+      set('gross_amount', calculatedCurriculumFee);
+    }
+    setActiveTab(nextTab);
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!formData.full_name.trim()) { addToast('Student Full Name is required', 'error'); setActiveTab('personal'); return; }
-    if (!formData.primary_branch_id) { addToast('Please select an Institute Branch (Tab 3)', 'error'); setActiveTab('academic'); return; }
-    if (!formData.academic_year_id) { addToast('Please select an Academic Year (Tab 3)', 'error'); setActiveTab('academic'); return; }
-    if (!selectedCourseId) { addToast('Please select a Course (Tab 3)', 'error'); setActiveTab('academic'); return; }
-    if (!selectedLevelId) { addToast('Please select a Level (Tab 3)', 'error'); setActiveTab('academic'); return; }
-    if (!formData.batch_id) { addToast('Please select a Batch (Tab 3)', 'error'); setActiveTab('academic'); return; }
+    const order: TabId[] = ['personal', 'guardian', 'academic'];
+    for (const tab of order) {
+      const res = validateStep(tab);
+      if (!res.isValid) {
+        addToast(res.error || 'Please complete all required fields.', 'error');
+        setActiveTab(tab);
+        return;
+      }
+    }
 
     try {
       setSubmitting(true);
@@ -391,7 +464,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
-              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+              <button key={tab.id} type="button" onClick={() => handleTabClick(tab.id)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                   activeTab === tab.id
                     ? 'bg-white text-blue-600 shadow border border-slate-200'
@@ -454,7 +527,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
             </Card>
 
             <div className="flex justify-end pt-2">
-              <Button type="button" variant="primary" onClick={() => setActiveTab('guardian')}>Next: Parent Details &rarr;</Button>
+              <Button type="button" variant="primary" onClick={() => handleNextStep('guardian')}>Next: Parent Details &rarr;</Button>
             </div>
           </div>
         )}
@@ -479,7 +552,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
             </Card>
             <div className="flex justify-between pt-2">
               <Button type="button" variant="secondary" onClick={() => setActiveTab('personal')}>&larr; Back</Button>
-              <Button type="button" variant="primary" onClick={() => setActiveTab('academic')}>Next: Course &amp; Batch &rarr;</Button>
+              <Button type="button" variant="primary" onClick={() => handleNextStep('academic')}>Next: Course &amp; Batch &rarr;</Button>
             </div>
           </div>
         )}
@@ -906,12 +979,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
               <Button
                 type="button"
                 variant="primary"
-                onClick={() => {
-                  if (calculatedCurriculumFee > 0 && (!formData.gross_amount || formData.gross_amount === 95000)) {
-                    set('gross_amount', calculatedCurriculumFee);
-                  }
-                  setActiveTab('fees');
-                }}
+                onClick={() => handleNextStep('fees')}
               >
                 Next: Fee Setup &rarr;
               </Button>

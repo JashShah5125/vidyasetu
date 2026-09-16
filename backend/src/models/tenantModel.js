@@ -1,9 +1,22 @@
 const pool = require('../config/db');
 
+const normalizeTenantStatus = (val) => {
+    if (val === undefined || val === null || val === '' || val === 'All' || val === 'all') return null;
+    if (typeof val === 'number') return [0, 1, 2, 3].includes(val) ? val : null;
+    const s = String(val).trim().toLowerCase();
+    if (s === '1' || s === 'active') return 1;
+    if (s === '0' || s === 'inactive' || s === 'suspended' || s === 'deactivated' || s === 'expired' || s === 'canceled') return 0;
+    if (s === '2' || s === 'draft' || s === 'trialing') return 2;
+    if (s === '3' || s === 'deleted') return 3;
+    return null;
+};
+
 const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan = '') => {
     // Fetch warning days setting
     const [settingsRows] = await pool.query(`SELECT value FROM platform_settings WHERE category = 'billing' AND key_name = 'plan_expiry_warning_days'`);
     const expiryDays = settingsRows.length > 0 ? Number(settingsRows[0].value) : 15;
+
+    const normStatus = normalizeTenantStatus(status);
 
     let query = `
         SELECT t.*, t.owner_name as legal_name, t.primary_email as contact_email, t.owner_mobile as contact_phone,
@@ -14,7 +27,7 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
                t.subscription_discount, t.subscription_final_price, t.subscription_tax, t.subscription_invoice_number,
                t.override_max_branches, t.override_max_staff_users, t.override_max_students, t.override_max_parents,
                t.override_max_teachers, t.override_max_storage, t.override_max_file_size, t.override_max_sms_credits, t.override_max_whatsapp_msgs,
-               (DATEDIFF(t.end_date, CURRENT_DATE) <= ${expiryDays} AND DATEDIFF(t.end_date, CURRENT_DATE) >= 0 AND t.status IN ('active', 'trialing')) AS is_expiring_soon
+               (DATEDIFF(t.end_date, CURRENT_DATE) <= ${expiryDays} AND DATEDIFF(t.end_date, CURRENT_DATE) >= 0 AND t.status = 1) AS is_expiring_soon
         FROM tenants t
         LEFT JOIN users u ON t.primary_admin_user_id = u.id
         LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
@@ -28,9 +41,12 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
         params.push(searchPattern, searchPattern, searchPattern);
     }
 
-    if (status) {
+    if (normStatus !== null) {
         query += ` AND t.status = ?`;
-        params.push(status);
+        params.push(normStatus);
+    } else {
+        // By default exclude soft-deleted tenants if no specific status requested
+        query += ` AND t.status != 3`;
     }
 
     if (plan && plan !== 'All') {
@@ -58,9 +74,11 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
         countParams.push(searchPattern, searchPattern, searchPattern);
     }
 
-    if (status) {
+    if (normStatus !== null) {
         countQuery += ` AND t.status = ?`;
-        countParams.push(status);
+        countParams.push(normStatus);
+    } else {
+        countQuery += ` AND t.status != 3`;
     }
 
     if (plan && plan !== 'All') {
@@ -70,7 +88,7 @@ const getTenants = async (limit = 10, offset = 0, search = '', status = '', plan
 
     const [countRows] = await pool.query(countQuery, countParams);
     
-    // Get unique statuses for dynamic filtering
+    // Get unique statuses for dynamic filtering (excluding deleted)
     const [statusRows] = await pool.query(`SELECT DISTINCT status FROM tenants WHERE tenant_type = 'customer' AND id != 1`);
     
     return {
@@ -101,7 +119,11 @@ const checkSlugExists = async (slug) => {
 };
 
 const updateTenantStatus = async (id, status) => {
-    const [result] = await pool.query('UPDATE tenants SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [status, id]);
+    const normStatus = normalizeTenantStatus(status);
+    if (normStatus === null) {
+        throw new Error('Invalid status code');
+    }
+    const [result] = await pool.query('UPDATE tenants SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [normStatus, id]);
     return result.affectedRows > 0;
 };
 

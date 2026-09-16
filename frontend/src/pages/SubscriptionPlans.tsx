@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { planService } from '../services/planService';
@@ -6,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft, Check, Trash2 } from 'lucide-react';
+import { Plus, Edit, ChevronRight, ChevronLeft, ArrowLeft, Check, Trash2, AlertTriangle } from 'lucide-react';
 import type { SubscriptionPlan, FeatureAccess, SupportConfig, BrandingConfig, IntegrationConfig } from '../types/saas';
 import {
   DEFAULT_FEATURES, DEFAULT_SUPPORT, DEFAULT_BRANDING, DEFAULT_INTEGRATIONS
@@ -99,6 +100,10 @@ export const SubscriptionPlans: React.FC = () => {
   const [managingVisibilityPlan, setManagingVisibilityPlan] = useState<SubscriptionPlan | null>(null);
   const [visAll, setVisAll] = useState(true);
   const [visTenants, setVisTenants] = useState<string[]>([]);
+
+  // Delete confirmation state
+  const [planToDelete, setPlanToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   // Section 1
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -248,18 +253,62 @@ export const SubscriptionPlans: React.FC = () => {
     setVisTenants(p.visibleTo ? p.visibleTo.filter(t => t !== 'All') : []);
   };
 
-  const handleOpenAddModal = () => {
-    setEditingPlanId(null); resetForm(); setShowAddModal(true);
+  const validateStep = (stepIdx: number): { isValid: boolean; error?: string } => {
+    if (stepIdx === 0) {
+      if (!name.trim()) {
+        return { isValid: false, error: 'Plan Name is required. Please enter a plan name.' };
+      }
+      if (!code.trim()) {
+        return { isValid: false, error: 'Plan Code is required. Please enter a plan code (e.g. PRO, STARTER).' };
+      }
+    }
+    if (stepIdx === 1) {
+      if (!currency) {
+        return { isValid: false, error: 'Please select a currency for billing.' };
+      }
+      const prices = [monthlyPrice, quarterlyPrice, halfYearlyPrice, yearlyPrice, lifetimePrice];
+      for (const p of prices) {
+        if (p !== '' && (isNaN(Number(p)) || Number(p) < 0)) {
+          return { isValid: false, error: 'Plan prices must be positive numbers or 0.' };
+        }
+      }
+    }
+    return { isValid: true };
   };
 
-  const handleOpenEditModal = (p: SubscriptionPlan) => {
-    setEditingPlanId(p.id); populateForm(p);
-    setCurrentStep(0); setShowViewModal(false); setShowAddModal(true);
+  const handleStepClick = (targetIdx: number) => {
+    if (targetIdx > currentStep) {
+      for (let i = 0; i < targetIdx; i++) {
+        const res = validateStep(i);
+        if (!res.isValid) {
+          addToast(res.error || 'Please complete required fields before proceeding.', 'error');
+          setCurrentStep(i);
+          return;
+        }
+      }
+    }
+    setCurrentStep(targetIdx);
+  };
+
+  const handleNext = () => {
+    const res = validateStep(currentStep);
+    if (!res.isValid) {
+      addToast(res.error || 'Please complete required fields before proceeding.', 'error');
+      return;
+    }
+    setCurrentStep(c => Math.min(STEPS.length - 1, c + 1));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !code) return;
+    for (let i = 0; i < STEPS.length; i++) {
+      const res = validateStep(i);
+      if (!res.isValid) {
+        addToast(res.error || 'Please complete all required fields.', 'error');
+        setCurrentStep(i);
+        return;
+      }
+    }
 
     if (editingPlanId) {
       const fields = buildPlanFields();
@@ -294,14 +343,89 @@ export const SubscriptionPlans: React.FC = () => {
     setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleDeletePlan = async (id: string, planName: string) => {
+  const handleConfirmDeletePlan = async () => {
+    if (!planToDelete) return;
     try {
-      await planService.deletePlan(id);
-      addToast(`Plan "${planName}" deleted successfully.`, 'success');
+      setIsDeleting(true);
+      await planService.deletePlan(planToDelete.id);
+      addToast(`Plan "${planToDelete.name}" deleted successfully.`, 'success');
+      setPlanToDelete(null);
+      if (showViewModal) {
+        searchParams.delete('view');
+        setSearchParams(searchParams);
+        setShowViewModal(false);
+      }
       loadPlans();
-    } catch (err) {
-      addToast('Error deleting plan', 'error');
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Error deleting plan', 'error');
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const renderDeleteConfirmationModal = () => {
+    if (!planToDelete) return null;
+    return createPortal(
+      <div 
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        onClick={() => !isDeleting && setPlanToDelete(null)}
+      >
+        <div 
+          className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 text-red-600">
+            <div className="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={24} className="text-red-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Subscription Plan</h3>
+              <p className="text-xs text-slate-500">Soft-delete confirmation warning</p>
+            </div>
+          </div>
+          
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Are you sure you want to delete <span className="font-bold text-slate-900">"{planToDelete.name}"</span>? 
+            Historical subscription records and tenant assignments will be preserved, but this plan will be removed from the active catalog.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={() => setPlanToDelete(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <button
+              type="button"
+              onClick={handleConfirmDeletePlan}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer flex items-center gap-2"
+            >
+              <Trash2 size={15} />
+              {isDeleting ? 'Deleting...' : 'Yes, Delete Plan'}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingPlanId(null);
+    resetForm();
+    setShowAddModal(true);
+  };
+
+  const handleOpenEditModal = (p: SubscriptionPlan) => {
+    setEditingPlanId(p.id);
+    populateForm(p);
+    setCurrentStep(0);
+    setShowAddModal(true);
   };
 
   const handleDuplicatePlan = (p: SubscriptionPlan) => {
@@ -320,8 +444,8 @@ export const SubscriptionPlans: React.FC = () => {
         <div className="space-y-4">
           <SectionHead n="01" title="Basic Information" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Plan Name" required placeholder="e.g. Professional" value={name} onChange={e => setName(e.target.value)} />
-            <Input label="Plan Code" required placeholder="e.g. PRO" value={code} onChange={e => setCode(e.target.value)} />
+            <Input label="Plan Name *" required placeholder="e.g. Professional" value={name} onChange={e => setName(e.target.value)} />
+            <Input label="Plan Code *" required placeholder="e.g. PRO" value={code} onChange={e => setCode(e.target.value)} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select label="Status" value={status} onChange={e => setStatus(e.target.value as 'Active' | 'Inactive' | 'Deleted')}
@@ -532,7 +656,7 @@ export const SubscriptionPlans: React.FC = () => {
                 const isCompleted = i < currentStep;
 
                 return (
-                  <div key={i} className="relative z-10 flex flex-col items-center group cursor-pointer" onClick={() => setCurrentStep(i)}>
+                  <div key={i} className="relative z-10 flex flex-col items-center group cursor-pointer" onClick={() => handleStepClick(i)}>
                     <div
                       className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 font-bold text-sm outline-none
                         ${isActive
@@ -577,7 +701,7 @@ export const SubscriptionPlans: React.FC = () => {
                 <button
                   type="button"
                   className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 transition-all duration-200 flex items-center gap-2 hover:-translate-y-[1px]"
-                  onClick={() => setCurrentStep(c => c + 1)}
+                  onClick={handleNext}
                 >
                   Save & Next <ChevronRight size={18} />
                 </button>
@@ -635,21 +759,8 @@ export const SubscriptionPlans: React.FC = () => {
               </div>
               <div className="flex items-center gap-3 mt-3">
                 <button
-                  onClick={async () => {
-                    if (window.confirm('Are you sure you want to delete this plan? Historical data will be preserved, but it will be removed from the active catalog.')) {
-                      try {
-                        await planService.deletePlan(viewingPlan.id.toString());
-                        setSuccessMsg('Plan soft deleted successfully');
-                        setTimeout(() => setSuccessMsg(''), 3000);
-                        searchParams.delete('view');
-                        setSearchParams(searchParams);
-                        loadPlans();
-                      } catch (err) {
-                        alert('Failed to delete plan');
-                      }
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg transition-colors shadow-sm"
+                  onClick={() => setPlanToDelete({ id: viewingPlan.id.toString(), name: viewingPlan.name })}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg transition-colors shadow-sm cursor-pointer"
                 >
                   <Trash2 size={14} /> Delete
                 </button>
@@ -886,6 +997,7 @@ export const SubscriptionPlans: React.FC = () => {
             )}
           </div>
         </div>
+        {renderDeleteConfirmationModal()}
       </div>
     );
   }
@@ -1056,7 +1168,7 @@ export const SubscriptionPlans: React.FC = () => {
                       Duplicate
                     </button>
                     <button
-                      onClick={() => handleDeletePlan(p.id, p.name)}
+                      onClick={() => setPlanToDelete({ id: p.id, name: p.name })}
                       className="flex-1 py-2 rounded-full text-sm font-bold border border-red-200 text-red-600 hover:bg-red-50/50 bg-red-50/20 transition-colors cursor-pointer text-center"
                     >
                       Delete
@@ -1186,6 +1298,7 @@ export const SubscriptionPlans: React.FC = () => {
         </Modal>
       )}
 
+      {renderDeleteConfirmationModal()}
     </div>
   );
 };

@@ -13,6 +13,8 @@ export interface UserProfile {
   mustChangePassword?: boolean;
 }
 
+export type TenantStatusCode = 0 | 1 | 2 | 3;
+
 export interface Tenant {
   id: string;
   name: string;
@@ -21,7 +23,7 @@ export interface Tenant {
   mobile: string;
   branchCount: number;
   studentCount: number;
-  status: 'Active' | 'Suspended' | 'Draft';
+  status: number | string;
   plan: string;
   renewalDate: string;
   address?: string;
@@ -603,7 +605,29 @@ export const formatDate = (dateStr: string | Date | undefined | null): string =>
   }
 };
 
-export const getTenantStatus = (t: { status: string; startDate?: string }): string => {
+export const TENANT_STATUS_MAP: Record<number, { label: string; badgeClass: string }> = {
+  1: { label: 'Active', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  0: { label: 'Inactive', badgeClass: 'bg-red-50 text-red-700 border-red-200' },
+  2: { label: 'Draft', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
+  3: { label: 'Deleted', badgeClass: 'bg-slate-50 text-slate-700 border-slate-200' }
+};
+
+export const getTenantStatusLabel = (status: number | string | undefined | null): string => {
+  if (status === 1 || status === '1' || status === 'Active' || status === 'active') return 'Active';
+  if (status === 0 || status === '0' || status === 'Inactive' || status === 'inactive' || status === 'Suspended' || status === 'suspended') return 'Inactive';
+  if (status === 2 || status === '2' || status === 'Draft' || status === 'draft') return 'Draft';
+  if (status === 3 || status === '3' || status === 'Deleted' || status === 'deleted') return 'Deleted';
+  return 'Active';
+};
+
+export const getTenantStatusCode = (status: number | string | undefined | null): number => {
+  if (status === 0 || status === '0' || status === 'Inactive' || status === 'inactive' || status === 'Suspended' || status === 'suspended') return 0;
+  if (status === 2 || status === '2' || status === 'Draft' || status === 'draft') return 2;
+  if (status === 3 || status === '3' || status === 'Deleted' || status === 'deleted') return 3;
+  return 1;
+};
+
+export const getTenantStatus = (t: { status?: number | string; startDate?: string }): string => {
   if (t.startDate) {
     const today = new Date();
     const start = new Date(t.startDate);
@@ -611,6 +635,6 @@ export const getTenantStatus = (t: { status: string; startDate?: string }): stri
       return 'Pending';
     }
   }
-  return t.status;
+  return getTenantStatusLabel(t.status);
 };
 

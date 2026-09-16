@@ -836,6 +836,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
             <Table
               dense
               borderless
+              minWidth="950px"
               headers={[
                 { label: 'Student & Batch', align: 'left' },
                 { label: 'Net Fee', align: 'right' },
@@ -1140,6 +1141,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                 <Table
                   dense
                   borderless
+                  minWidth="950px"
                   headers={[
                     { label: 'Invoice No', align: 'left' },
                     { label: 'Description', align: 'left' },

@@ -3,11 +3,13 @@ const smsTemplateService = require('../services/smsTemplateService');
 const getSmsTemplates = async (req, res) => {
     try {
         const { page = 1, limit = 10, search = '', category = '', status = '' } = req.query;
-        const offset = (page - 1) * limit;
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.max(1, parseInt(limit, 10) || 10);
+        const offset = (pageNum - 1) * limitNum;
 
         const result = await smsTemplateService.getSmsTemplates({
-            limit: Number(limit),
-            offset: Number(offset),
+            limit: limitNum,
+            offset,
             search,
             category,
             status
@@ -19,8 +21,9 @@ const getSmsTemplates = async (req, res) => {
             categories: result.categories,
             pagination: {
                 total: result.total,
-                page: Number(page),
-                limit: Number(limit)
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(result.total / limitNum) || 1
             }
         });
     } catch (error) {

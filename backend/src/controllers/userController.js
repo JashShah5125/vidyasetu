@@ -3,10 +3,11 @@ const userModel = require('../models/userModel');
 
 const listUsers = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = '', status = '', tenantId = '', userType = '' } = req.query;
+        const { page = 1, limit = 10, search = '', status = '', tenantId = '', userType = '', roleId = '', role = '' } = req.query;
+        const effectiveRoleId = roleId || role || '';
 
-        const users = await userModel.getUsersList({ page, limit, search, status, tenantId, userType });
-        const total = await userModel.getUsersCount({ search, status, tenantId, userType });
+        const users = await userModel.getUsersList({ page, limit, search, status, tenantId, userType, roleId: effectiveRoleId });
+        const total = await userModel.getUsersCount({ search, status, tenantId, userType, roleId: effectiveRoleId });
 
         res.status(200).json({
             status: 'success',
@@ -250,6 +251,18 @@ const removePermissionOverride = async (req, res) => {
     }
 };
 
+const getUserInheritedPermissions = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { page = 1, limit = 10, search = '', roleId = '' } = req.query;
+        const data = await userModel.getUserInheritedPermissions(id, { page, limit, search, roleId });
+        res.status(200).json({ status: 'success', data });
+    } catch (error) {
+        console.error('Error fetching user inherited permissions:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to fetch user inherited permissions' });
+    }
+};
+
 module.exports = {
     listUsers,
     getUserById,
@@ -263,5 +276,6 @@ module.exports = {
     assignUserRole,
     changeUserRole,
     addPermissionOverride,
-    removePermissionOverride
+    removePermissionOverride,
+    getUserInheritedPermissions
 };

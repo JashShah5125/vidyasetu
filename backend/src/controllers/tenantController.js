@@ -51,10 +51,6 @@ const createTenant = async (req, res) => {
             maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
         } = req.body;
         
-        if (!name || !slug || !adminEmail) {
-            return res.status(400).json({ status: 'error', message: 'Missing required fields (name, slug, email)' });
-        }
-
         // Data Validation Regex
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const mobileRegex = /^[0-9]{10}$/;
@@ -63,23 +59,48 @@ const createTenant = async (req, res) => {
         const pincodeRegex = /^[0-9]{6}$/;
         const slugRegex = /^[a-z0-9-]+$/;
 
-        if (!slugRegex.test(slug)) {
+        // Compulsory Fields Validation
+        if (!name || !name.trim()) {
+            return res.status(400).json({ status: 'error', message: 'Institute / Coaching Name is compulsory' });
+        }
+        if (!slug || !slug.trim()) {
+            return res.status(400).json({ status: 'error', message: 'Custom Subdomain Slug is compulsory' });
+        }
+        if (!slugRegex.test(slug.trim())) {
             return res.status(400).json({ status: 'error', message: 'Invalid format: Slug can only contain lowercase letters, numbers, and hyphens' });
         }
-        if (!emailRegex.test(adminEmail)) {
-            return res.status(400).json({ status: 'error', message: 'Invalid format: Admin Email is incorrectly formatted' });
+        if (!address || !address.trim()) {
+            return res.status(400).json({ status: 'error', message: 'Address Line 1 is compulsory' });
         }
-        if (mobile && !mobileRegex.test(mobile)) {
-            return res.status(400).json({ status: 'error', message: 'Invalid format: Mobile Number must be exactly 10 digits' });
+        if (!city || !city.trim()) {
+            return res.status(400).json({ status: 'error', message: 'City is compulsory' });
         }
+        if (!state || !state.trim()) {
+            return res.status(400).json({ status: 'error', message: 'State is compulsory' });
+        }
+        if (!pincode || !pincodeRegex.test(pincode.trim())) {
+            return res.status(400).json({ status: 'error', message: 'PIN Code is compulsory and must be exactly 6 digits' });
+        }
+        if (!adminEmail || !emailRegex.test(adminEmail.trim())) {
+            return res.status(400).json({ status: 'error', message: 'Admin Email is compulsory and must be a valid email address' });
+        }
+        const cleanMobile = (mobile || '').replace(/[^0-9]/g, '');
+        if (!cleanMobile || cleanMobile.length < 10) {
+            return res.status(400).json({ status: 'error', message: 'Primary Mobile Number is compulsory and must be at least 10 digits' });
+        }
+        if (!planId) {
+            return res.status(400).json({ status: 'error', message: 'Subscription Plan is compulsory' });
+        }
+        if (!billingCycle) {
+            return res.status(400).json({ status: 'error', message: 'Billing Cycle is compulsory' });
+        }
+
+        // Optional Format Validations
         if (panNo && !panRegex.test(panNo.toUpperCase())) {
             return res.status(400).json({ status: 'error', message: 'Invalid format: PAN Number must be 10 alphanumeric characters (e.g., ABCDE1234F)' });
         }
         if (gstNo && !gstRegex.test(gstNo.toUpperCase())) {
              return res.status(400).json({ status: 'error', message: 'Invalid format: GSTIN is incorrectly formatted' });
-        }
-        if (pincode && !pincodeRegex.test(pincode)) {
-            return res.status(400).json({ status: 'error', message: 'Invalid format: Pincode must be exactly 6 digits' });
         }
 
         let logoUrl = null;
@@ -132,8 +153,9 @@ const updateTenantStatus = async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
 
-        if (!['active', 'suspended', 'deactivated'].includes(status)) {
-            return res.status(400).json({ status: 'error', message: 'Invalid status' });
+        const validStatuses = [0, 1, 2, 3, '0', '1', '2', '3', 'active', 'inactive', 'suspended', 'deactivated', 'draft', 'trialing', 'deleted'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ status: 'error', message: 'Invalid status. Expected 0 (inactive), 1 (active), 2 (draft), or 3 (deleted)' });
         }
 
         const success = await tenantService.updateTenantStatus(id, status);
@@ -141,7 +163,7 @@ const updateTenantStatus = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Tenant not found' });
         }
 
-        res.status(200).json({ status: 'success', message: `Tenant status updated to ${status}` });
+        res.status(200).json({ status: 'success', message: `Tenant status updated successfully` });
     } catch (error) {
         console.error('Error updating tenant status:', error);
         res.status(500).json({ status: 'error', message: 'Internal server error' });
@@ -163,11 +185,16 @@ const updateTenant = async (req, res) => {
         const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
         const pincodeRegex = /^[0-9]{6}$/;
 
-        if (adminEmail && !emailRegex.test(adminEmail)) return res.status(400).json({ status: 'error', message: 'Invalid format: Admin Email is incorrectly formatted' });
-        if (mobile && !mobileRegex.test(mobile)) return res.status(400).json({ status: 'error', message: 'Invalid format: Mobile Number must be exactly 10 digits' });
+        if (name !== undefined && !name.trim()) return res.status(400).json({ status: 'error', message: 'Institute Name cannot be empty' });
+        if (address !== undefined && !address.trim()) return res.status(400).json({ status: 'error', message: 'Address Line 1 cannot be empty' });
+        if (city !== undefined && !city.trim()) return res.status(400).json({ status: 'error', message: 'City cannot be empty' });
+        if (state !== undefined && !state.trim()) return res.status(400).json({ status: 'error', message: 'State cannot be empty' });
+        if (pincode !== undefined && (!pincode.trim() || !pincodeRegex.test(pincode.trim()))) return res.status(400).json({ status: 'error', message: 'PIN Code must be exactly 6 digits' });
+        if (adminEmail && !emailRegex.test(adminEmail.trim())) return res.status(400).json({ status: 'error', message: 'Invalid format: Admin Email is incorrectly formatted' });
+        const cleanMobile = mobile ? mobile.replace(/[^0-9]/g, '') : '';
+        if (mobile && cleanMobile.length < 10) return res.status(400).json({ status: 'error', message: 'Invalid format: Mobile Number must be at least 10 digits' });
         if (panNo && !panRegex.test(panNo.toUpperCase())) return res.status(400).json({ status: 'error', message: 'Invalid format: PAN Number must be 10 alphanumeric characters' });
         if (gstNo && !gstRegex.test(gstNo.toUpperCase())) return res.status(400).json({ status: 'error', message: 'Invalid format: GSTIN is incorrectly formatted' });
-        if (pincode && !pincodeRegex.test(pincode)) return res.status(400).json({ status: 'error', message: 'Invalid format: Pincode must be exactly 6 digits' });
 
         let logoUrl;
         console.log("DEBUG: updateTenant req.file =", req.file, "req.body.logo =", req.body.logo, "req.body.removeLogo =", req.body.removeLogo);

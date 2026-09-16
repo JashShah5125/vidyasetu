@@ -13,17 +13,19 @@ const requireAuth = async (req, res, next) => {
         const decoded = verifyToken(token);
         req.user = decoded;
 
-        // Verify active role assignment in user_roles table
+        // Verify active role assignment in user_roles table or SaaS Admin status
         const roleCodes = await userModel.getUserRoleCodes(decoded.userId);
-        if (!roleCodes || roleCodes.length === 0) {
+        let isSaasAdmin = decoded.isSaasAdmin || decoded.tenantId === 1 || decoded.userType === 'saas_admin' || decoded.userType === 'saas-admin' || roleCodes.includes('saas_admin') || roleCodes.includes('saas-admin');
+
+        if (isSaasAdmin) {
+            req.user.isSaasAdmin = true;
+        }
+
+        if (!isSaasAdmin && (!roleCodes || roleCodes.length === 0)) {
             return res.status(403).json({
                 status: 'error',
                 message: 'Access denied. No active security role assigned to your account. Please contact system administrator.'
             });
-        }
-
-        if (roleCodes.includes('saas_admin') || decoded.isSaasAdmin || decoded.tenantId === 1) {
-            req.user.isSaasAdmin = true;
         }
 
         next();

@@ -175,8 +175,7 @@ export const SystemConfiguration: React.FC = () => {
       {/* Header Section Matching Tenants */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <Sliders size={32} className="text-indigo-600" />
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">
             System Configuration
           </h2>
           <p className="text-base text-slate-500 mt-2">
@@ -243,7 +242,7 @@ export const SystemConfiguration: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">Try adjusting your search or filter criteria.</p>
           </div>
         ) : (
-          <Table headers={['ID', 'Setting Key', 'Value', 'Category', 'Last Updated', 'Actions']} dense>
+          <Table headers={['ID', 'Setting Key', 'Category', 'Last Updated', 'Actions']} dense>
             {settings.map((s) => {
               const isRevealed = Boolean(showSecretsMap[s.id]);
               const displayValue = s.is_secret && !isRevealed ? '••••••••••••••••' : (s.value || '-');
@@ -258,21 +257,7 @@ export const SystemConfiguration: React.FC = () => {
                   <td className="px-3 py-3 font-mono font-bold text-blue-600 text-sm whitespace-nowrap min-w-[200px]">
                     {s.key_name}
                   </td>
-                  <td className="px-3 py-3 text-sm text-slate-800 font-mono max-w-xs truncate">
-                    <div className="flex items-center gap-2">
-                      <span>{displayValue}</span>
-                      {Boolean(s.is_secret) && (
-                        <button
-                          type="button"
-                          onClick={(e) => toggleSecretVisibility(s.id, e)}
-                          className="text-slate-400 hover:text-slate-700 transition cursor-pointer"
-                          title={isRevealed ? 'Mask value' : 'Reveal value'}
-                        >
-                          {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                      )}
-                    </div>
-                  </td>
+
                   <td className="px-3 py-3 whitespace-nowrap">
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full uppercase border bg-indigo-50 text-indigo-700 border-indigo-200">
                       {s.category}
@@ -282,18 +267,20 @@ export const SystemConfiguration: React.FC = () => {
                     {formatDate(s.updated_at)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenEdit(s)}
-                        className="text-sm font-semibold text-blue-600 hover:text-blue-800 cursor-pointer transition"
+                        title="View / Edit"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
                       >
-                        Edit
+                        <Edit size={14} />
                       </button>
                       <button
                         onClick={() => handleOpenDelete(s)}
-                        className="text-sm font-semibold text-red-600 hover:text-red-800 cursor-pointer transition"
+                        title="Delete"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
                       >
-                        Delete
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>
@@ -393,17 +380,22 @@ export const SystemConfiguration: React.FC = () => {
           size="sm"
         >
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              This action will mark parameter key <strong className="text-slate-900 font-mono">{deletingSetting.key_name}</strong> as <strong className="text-red-600">deleted</strong>.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <Trash2 size={16} className="text-red-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-red-700">This action cannot be undone</p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  Parameter <span className="font-mono font-bold">{deletingSetting.key_name}</span> will be marked as <strong>deleted</strong> and removed from active configuration.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
               <Button variant="outline" onClick={() => setShowDeleteModal(false)} className="text-xs font-semibold">
                 Cancel
               </Button>
               <Button onClick={handleDelete} disabled={isLoading} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4">
                 {isLoading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : null}
-                Soft Delete Parameter
+                Delete Parameter
               </Button>
             </div>
           </div>

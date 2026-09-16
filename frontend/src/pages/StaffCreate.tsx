@@ -603,7 +603,100 @@ export const StaffCreate: React.FC = () => {
         'Computer Science', 'Commerce', 'Economics'
       ];
 
+  const validateStep = (tabId: string): { isValid: boolean; error?: string } => {
+    if (tabId === 'basic') {
+      if (!form.firstName.trim()) {
+        return { isValid: false, error: 'Please enter First Name.' };
+      }
+      if (!form.lastName.trim()) {
+        return { isValid: false, error: 'Please enter Last Name.' };
+      }
+      if (!form.gender) {
+        return { isValid: false, error: 'Please select Gender.' };
+      }
+      if (!form.dob) {
+        return { isValid: false, error: 'Please enter Date of Birth.' };
+      }
+    }
+    if (tabId === 'contact') {
+      const cleanMobile = form.mobile.replace(/[^0-9]/g, '');
+      if (!form.mobile.trim() || cleanMobile.length < 10) {
+        return { isValid: false, error: 'Please enter a valid 10-digit Mobile Number.' };
+      }
+      if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        return { isValid: false, error: 'Please enter a valid Email Address.' };
+      }
+    }
+    if (tabId === 'employment') {
+      if (!form.employeeType) {
+        return { isValid: false, error: 'Please select Employee Type.' };
+      }
+      if (!form.joiningDate) {
+        return { isValid: false, error: 'Please enter Joining Date.' };
+      }
+    }
+    if (tabId === 'branch') {
+      const branches = form.assignedBranchIds.length > 0
+        ? form.assignedBranchIds
+        : (form.primaryBranchId ? [form.primaryBranchId] : (availableBranches[0] ? [availableBranches[0].id] : []));
+      if (branches.length === 0) {
+        return { isValid: false, error: 'Please assign at least one branch.' };
+      }
+      if (form.roles.length === 0) {
+        return { isValid: false, error: 'Please assign at least one System Role.' };
+      }
+    }
+    if (tabId === 'teacher' && isTeacher) {
+      if (form.subjects.length === 0) {
+        return { isValid: false, error: 'Please select at least one Subject for the teacher.' };
+      }
+    }
+    return { isValid: true };
+  };
+
+  const handleTabClick = (targetIdx: number) => {
+    if (isViewOnly) {
+      setActiveTab(targetIdx);
+      return;
+    }
+    if (targetIdx > activeTab) {
+      for (let i = 0; i < targetIdx; i++) {
+        const stepTab = tabList[i]?.id;
+        const res = validateStep(stepTab);
+        if (!res.isValid) {
+          addToast(res.error || 'Please fill required details in previous steps.', 'error');
+          setActiveTab(i);
+          return;
+        }
+      }
+    }
+    setActiveTab(targetIdx);
+  };
+
+  const handleNextStep = () => {
+    if (!isViewOnly) {
+      const currentStepTab = tabList[activeTab]?.id;
+      const res = validateStep(currentStepTab);
+      if (!res.isValid) {
+        addToast(res.error || 'Please complete all required fields before proceeding.', 'error');
+        return;
+      }
+    }
+    setActiveTab(i => Math.min(tabList.length - 1, i + 1));
+  };
+
   const handleSubmit = async () => {
+    if (!isViewOnly) {
+      for (let i = 0; i < tabList.length; i++) {
+        const stepTab = tabList[i]?.id;
+        const res = validateStep(stepTab);
+        if (!res.isValid) {
+          addToast(res.error || 'Please complete all required fields.', 'error');
+          setActiveTab(i);
+          return;
+        }
+      }
+    }
     setLoading(true);
     setErrorMsg('');
     const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ');
@@ -774,8 +867,8 @@ export const StaffCreate: React.FC = () => {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(idx)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all ${isActive
+              onClick={() => handleTabClick(idx)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${isActive
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-t-lg'
                 }`}
@@ -1610,7 +1703,7 @@ export const StaffCreate: React.FC = () => {
           </Button>
           <span className="text-xs text-slate-400 font-medium">Step {activeTab + 1} of {tabList.length}</span>
           {activeTab < tabList.length - 1 ? (
-            <Button type="button" variant="primary" onClick={() => setActiveTab(i => Math.min(tabList.length - 1, i + 1))}>
+            <Button type="button" variant="primary" onClick={handleNextStep}>
               Next <ChevronRight size={16} className="ml-1" />
             </Button>
           ) : isViewOnly ? (

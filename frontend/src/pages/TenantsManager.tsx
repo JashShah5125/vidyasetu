@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { tenantService } from '../services/tenantService';
 import { planService } from '../services/planService';
@@ -8,9 +9,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Upload, Trash, ArrowLeft, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
-import { getTenantStatus } from '../types';
+import { 
+  Plus, Upload, Trash, Trash2, ArrowLeft, X, 
+  Image as ImageIcon, AlertTriangle, Check, Eye, Pencil, ShieldAlert,
+  ChevronLeft, ChevronRight 
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getTenantStatus, getTenantStatusLabel } from '../types';
 
 const formatDate = (dateStr: string | undefined): string => {
   if (!dateStr) return '';
@@ -103,8 +108,11 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     }
   }, [initialOpenCreate]);
 
-  // Edit / Create mode trackers
+  // Edit / Create / View mode trackers
   const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
+  const [isViewOnly, setIsViewOnly] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Forms states
   const [name, setName] = useState('');
@@ -126,6 +134,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [logoUploaded, setLogoUploaded] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
   
@@ -159,12 +168,125 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   // Horizontal tab navigation for the create/edit form
   const [activeTab, setActiveTab] = useState('profile');
   const formTabs = [
-    { id: 'profile', label: 'Institute Profile' },
-    { id: 'admin', label: 'Admin Credentials' },
-    { id: 'plan', label: 'Subscription Plan' },
-    { id: 'commercial', label: 'Commercial' },
-    { id: 'limits', label: 'Override Limits' }
+    { id: 'profile', label: '1. Institute Profile' },
+    { id: 'admin', label: '2. Admin Credentials' },
+    { id: 'plan', label: '3. Subscription Plan' },
+    { id: 'commercial', label: '4. Commercial' },
+    { id: 'limits', label: '5. Override Limits' }
   ];
+
+  // Validation function per tab/step (enforcing compulsory fields)
+  const validateStep = (tabId: string): { isValid: boolean; error?: string } => {
+    if (tabId === 'profile') {
+      if (!name.trim()) {
+        return { isValid: false, error: 'Institute / Coaching Name is compulsory. Please enter a name.' };
+      }
+      if (!address.trim()) {
+        return { isValid: false, error: 'Address Line 1 is compulsory. Please enter the institute address.' };
+      }
+      if (!city.trim()) {
+        return { isValid: false, error: 'City is compulsory. Please enter the city.' };
+      }
+      if (!state.trim()) {
+        return { isValid: false, error: 'State is compulsory. Please enter the state.' };
+      }
+      if (!pincode.trim() || !/^\d{6}$/.test(pincode.trim())) {
+        return { isValid: false, error: 'PIN Code is compulsory and must be exactly 6 digits.' };
+      }
+      if (customSlug.trim() && !/^[a-zA-Z0-9-]+$/.test(customSlug.trim())) {
+        return { isValid: false, error: 'Custom subdomain can only contain letters, numbers, and hyphens.' };
+      }
+      if (panNo.trim() && !/^[A-Za-z0-9]{10}$/.test(panNo.trim())) {
+        return { isValid: false, error: 'PAN number must be a 10-character alphanumeric code (e.g. ABCDE1234F).' };
+      }
+      if (gstNo.trim() && !/^[A-Za-z0-9]{15}$/.test(gstNo.trim())) {
+        return { isValid: false, error: 'GSTIN must be a 15-character alphanumeric code.' };
+      }
+    }
+
+    if (tabId === 'admin') {
+      if (!ownerName.trim()) {
+        return { isValid: false, error: 'Owner / Primary Admin Name is compulsory.' };
+      }
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return { isValid: false, error: 'Admin Email Login is compulsory and must be a valid email address.' };
+      }
+      const cleanMobile = mobile.replace(/[^0-9]/g, '');
+      if (!mobile.trim() || cleanMobile.length < 10) {
+        return { isValid: false, error: 'Primary Mobile Number is compulsory and must be at least 10 digits.' };
+      }
+    }
+
+    if (tabId === 'plan') {
+      if (!plan) {
+        return { isValid: false, error: 'Subscription Plan is compulsory. Please select a tier.' };
+      }
+      if (!billingCycle) {
+        return { isValid: false, error: 'Billing Cycle is compulsory. Please select a billing interval.' };
+      }
+      if (!startDate) {
+        return { isValid: false, error: 'Plan Start Date is compulsory. Please enter a valid start date.' };
+      }
+    }
+
+    return { isValid: true };
+  };
+
+  const canNavigateToTab = (targetTabId: string): { allowed: boolean; error?: string; firstInvalidTab?: string } => {
+    if (isViewOnly) return { allowed: true };
+    const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'limits'];
+    const targetIdx = tabOrder.indexOf(targetTabId);
+    const currentIdx = tabOrder.indexOf(activeTab);
+
+    if (targetIdx <= currentIdx) {
+      return { allowed: true };
+    }
+
+    // Check all previous steps up to target
+    for (let i = 0; i < targetIdx; i++) {
+      const res = validateStep(tabOrder[i]);
+      if (!res.isValid) {
+        return { allowed: false, error: res.error, firstInvalidTab: tabOrder[i] };
+      }
+    }
+    return { allowed: true };
+  };
+
+  const handleTabClick = (targetTabId: string) => {
+    const check = canNavigateToTab(targetTabId);
+    if (!check.allowed) {
+      setErrorMsg(check.error || 'Please complete all required fields in the previous step before proceeding.');
+      if (check.firstInvalidTab && check.firstInvalidTab !== activeTab) {
+        setActiveTab(check.firstInvalidTab);
+      }
+      return;
+    }
+    setErrorMsg('');
+    setActiveTab(targetTabId);
+  };
+
+  const handleNextStep = () => {
+    const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'limits'];
+    const currentIdx = tabOrder.indexOf(activeTab);
+    const currentValidation = validateStep(activeTab);
+    if (!currentValidation.isValid) {
+      setErrorMsg(currentValidation.error || 'Please complete all required fields before proceeding.');
+      return;
+    }
+    setErrorMsg('');
+    if (currentIdx < tabOrder.length - 1) {
+      setActiveTab(tabOrder[currentIdx + 1]);
+    }
+  };
+
+  const handlePrevStep = () => {
+    const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'limits'];
+    const currentIdx = tabOrder.indexOf(activeTab);
+    setErrorMsg('');
+    if (currentIdx > 0) {
+      setActiveTab(tabOrder[currentIdx - 1]);
+    }
+  };
 
   // Calculate Expiry date automatically based on Plan Duration
   const calculateExpiryDate = (startStr: string, selectedPlan: string) => {
@@ -197,6 +319,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   const handleOpenAddModal = () => {
     setEditingTenantId(null);
+    setIsViewOnly(false);
     
     setActiveTab('profile');
     setDefaultPassword('Generated securely after submission');
@@ -219,6 +342,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     setLogoUploaded(false);
     setLogoFile(null);
     setLogoPreview(null);
+    setLogoError(false);
     setUploadProgress(0);
     setIsUploading(false);
     setAltEmails([]);
@@ -247,7 +371,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     }, 50);
   };
 
-  const handleEditTenant = (t: any) => {
+  const handleLoadTenantForm = (t: any) => {
     setEditingTenantId(t.id);
     setActiveTab('profile');
     setName(t.name || '');
@@ -264,11 +388,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     setEmail(t.primary_email || t.contact_email || t.admin_email || '');
     setMobile(t.owner_mobile || t.contact_phone || '');
     setPlan(t.plan_id ? String(t.plan_id) : (t.planId ? String(t.planId) : (availablePlans.length > 0 ? availablePlans[0].id.toString() : '')));
-    setStartDate(t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
+    setStartDate(t.created_at ? t.created_at.split('T')[0] : (t.start_date ? t.start_date.split('T')[0] : new Date().toISOString().split('T')[0]));
     setLogoUploaded(!!t.logo_url);
     setLogoFile(null);
     setLogoPreview(t.logo_url || null);
-    setDefaultPassword('********'); // Placeholder for edit mode
+    setLogoError(false);
+    setDefaultPassword('********'); // Placeholder for edit/view mode
 
     // Parse alternate emails if any
     if (t.alternate_emails) {
@@ -284,24 +409,50 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     
     setDefaultEmailIdx(-1);
     
-    setDiscount(t.subscription_discount !== null ? String(t.subscription_discount) : '');
-    setFinalPrice(t.subscription_final_price !== null ? String(t.subscription_final_price) : '');
-    setTax(t.subscription_tax !== null ? String(t.subscription_tax) : '18');
+    setDiscount(t.subscription_discount !== null && t.subscription_discount !== undefined ? String(t.subscription_discount) : '');
+    setFinalPrice(t.subscription_final_price !== null && t.subscription_final_price !== undefined ? String(t.subscription_final_price) : '');
+    setTax(t.subscription_tax !== null && t.subscription_tax !== undefined ? String(t.subscription_tax) : '18');
     setInvoiceNumber(t.subscription_invoice_number || '');
-    setOvMaxBranches(t.override_max_branches !== null ? String(t.override_max_branches) : '');
-    setOvMaxStaffUsers(t.override_max_staff_users !== null ? String(t.override_max_staff_users) : '');
-    setOvMaxStudents(t.override_max_students !== null ? String(t.override_max_students) : '');
-    setOvMaxParents(t.override_max_parents !== null ? String(t.override_max_parents) : '');
-    setOvMaxTeachers(t.override_max_teachers !== null ? String(t.override_max_teachers) : '');
+    setOvMaxBranches(t.override_max_branches !== null && t.override_max_branches !== undefined ? String(t.override_max_branches) : '');
+    setOvMaxStaffUsers(t.override_max_staff_users !== null && t.override_max_staff_users !== undefined ? String(t.override_max_staff_users) : '');
+    setOvMaxStudents(t.override_max_students !== null && t.override_max_students !== undefined ? String(t.override_max_students) : '');
+    setOvMaxParents(t.override_max_parents !== null && t.override_max_parents !== undefined ? String(t.override_max_parents) : '');
+    setOvMaxTeachers(t.override_max_teachers !== null && t.override_max_teachers !== undefined ? String(t.override_max_teachers) : '');
     setOvMaxStorage(t.override_max_storage || '');
     setOvMaxFileSize(t.override_max_file_size || '');
-    setOvMaxSmsCredits(t.override_max_sms_credits !== null ? String(t.override_max_sms_credits) : '');
-    setOvMaxWhatsappMsgs(t.override_max_whatsapp_msgs !== null ? String(t.override_max_whatsapp_msgs) : '');
+    setOvMaxSmsCredits(t.override_max_sms_credits !== null && t.override_max_sms_credits !== undefined ? String(t.override_max_sms_credits) : '');
+    setOvMaxWhatsappMsgs(t.override_max_whatsapp_msgs !== null && t.override_max_whatsapp_msgs !== undefined ? String(t.override_max_whatsapp_msgs) : '');
     
     setShowAddModal(true);
     setTimeout(() => {
       document.getElementById('tenant-form-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
+  };
+
+  const handleViewTenant = (t: any) => {
+    setIsViewOnly(true);
+    handleLoadTenantForm(t);
+  };
+
+  const handleEditTenant = (t: any) => {
+    setIsViewOnly(false);
+    handleLoadTenantForm(t);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!tenantToDelete) return;
+    try {
+      setIsDeleting(true);
+      await tenantService.updateTenantStatus(tenantToDelete.id, 3);
+      addToast(`Tenant "${tenantToDelete.name}" soft-deleted successfully.`, 'success');
+      setTenantToDelete(null);
+      fetchTenants();
+    } catch (err: any) {
+      console.error('Failed to delete tenant:', err);
+      addToast(err.response?.data?.message || 'Failed to delete tenant.', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
 
@@ -340,13 +491,26 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       setLogoUploaded(true);
       setLogoFile(file);
       setLogoPreview(URL.createObjectURL(file));
+      setLogoError(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !ownerName || !email) return;
+    if (isViewOnly) return;
     
+    // Validate all required steps
+    const requiredSteps = ['profile', 'admin', 'plan'];
+    for (const stepId of requiredSteps) {
+      const res = validateStep(stepId);
+      if (!res.isValid) {
+        setErrorMsg(res.error || 'Please complete all required fields.');
+        setActiveTab(stepId);
+        return;
+      }
+    }
+    setErrorMsg('');
+
     const cleanAlts = altEmails.filter(Boolean);
     
     const currentPrimaryEmail = email.trim();
@@ -360,39 +524,6 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     // Auto-generate slug from name
     const generatedSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     const finalSlug = customSlug.trim() || generatedSlug;
-
-    // Data Validation Regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const mobileRegex = /^[0-9]{10}$/;
-    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    const pincodeRegex = /^[0-9]{6}$/;
-    const slugRegex = /^[a-z0-9-]+$/;
-
-    if (!slugRegex.test(finalSlug)) {
-        alert("Invalid format: Custom URL Subdomain can only contain lowercase letters, numbers, and hyphens.");
-        return;
-    }
-    if (!emailRegex.test(email)) {
-        alert("Invalid format: Admin Email is incorrectly formatted.");
-        return;
-    }
-    if (mobile && !mobileRegex.test(mobile)) {
-        alert("Invalid format: Mobile Number must be exactly 10 digits.");
-        return;
-    }
-    if (panNo && !panRegex.test(panNo.toUpperCase())) {
-        alert("Invalid format: PAN Number must be 10 alphanumeric characters (e.g., ABCDE1234F).");
-        return;
-    }
-    if (gstNo && !gstRegex.test(gstNo.toUpperCase())) {
-        alert("Invalid format: GSTIN is incorrectly formatted.");
-        return;
-    }
-    if (pincode && !pincodeRegex.test(pincode)) {
-        alert("Invalid format: Pincode must be exactly 6 digits.");
-        return;
-    }
 
     // Map plan to planId
     let planId = plan;
@@ -513,7 +644,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       'Owner': t.ownerName,
       'Email': t.email,
       'Mobile': t.mobile,
-      'Status': t.status,
+      'Status': getTenantStatusLabel(t.status),
       'Plan Tier': t.plan,
       'Start Date': t.start_date || '',
       'Renewal Date': t.end_date || t.renewal_date || '',
@@ -563,10 +694,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           </button>
           <div>
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-              {editingTenantId ? `Edit Tenant Settings: ${name}` : "Register Institute Tenant"}
+              {isViewOnly ? `Tenant Information: ${name}` : (editingTenantId ? `Edit Tenant Settings: ${name}` : "Register Institute Tenant")}
             </h2>
             <p className="text-base text-slate-500 mt-1">
-              Configure profile fields, admin account logins, alternative emails, and system limits.
+              {isViewOnly 
+                ? "Read-only overview of workspace configurations, credentials, subscription, and limits." 
+                : "Configure profile fields, admin account logins, alternative emails, and system limits."}
             </p>
           </div>
         </div>
@@ -588,7 +721,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabClick(tab.id)}
                     className={`px-4 py-3 text-sm font-bold whitespace-nowrap border-b-[3px] -mb-px transition-colors cursor-pointer ${
                       isActive
                         ? 'border-blue-600 text-blue-700 bg-blue-50/50'
@@ -603,6 +736,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            <fieldset disabled={isViewOnly} className="space-y-6 group">
             
             {/* === TAB 1: Institute Profile & Branding === */}
             {activeTab === 'profile' && (
@@ -629,78 +763,114 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch mt-6">
                 
-                {/* Left Column: Logo Upload */}
+                {/* Left Column: Logo Upload / Display */}
                 <div className="flex flex-col gap-1.5 w-full md:w-3/4 mx-auto lg:w-full">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Brand Logo File</label>
                   <div className="flex flex-col gap-1.5 w-full bg-white p-6 rounded-2xl border border-slate-100 shadow-sm justify-start items-center">
-                    <div className="text-center mb-4 mt-2 w-full">
-                       <h3 className="text-lg font-bold text-slate-900">{logoPreview ? (isUploading ? 'Uploading...' : 'File Uploaded') : 'File Upload'}</h3>
-                       <p className="text-xs text-slate-500 font-semibold">{logoPreview ? (isUploading ? 'It may take a while. Please wait.' : 'Ready to submit') : 'Select and upload your file.'}</p>
+                    <div className="text-center mb-4 mt-1 w-full">
+                       <h3 className="text-lg font-bold text-slate-900">
+                         {logoPreview && !logoError ? (logoFile ? 'New Logo Selected' : 'Current Brand Logo') : 'Brand Logo'}
+                       </h3>
+                       <p className="text-xs text-slate-500 font-medium">
+                         {logoPreview && !logoError ? (logoFile ? 'Ready to save with institute profile' : 'Active logo for tenant portal branding') : (isViewOnly ? 'No custom brand logo is currently configured' : 'Select a PNG, JPG, or SVG image (Max 500KB)')}
+                       </p>
                     </div>
-                    <input 
-                      type="file" 
-                      id="logo-file-input" 
-                      accept=".jpg,.jpeg,.png,.svg" 
-                      className="hidden" 
-                      onChange={handleLogoChange} 
-                    />
-                    {logoPreview ? (
+                    {!isViewOnly && (
+                      <input 
+                        type="file" 
+                        id="logo-file-input" 
+                        accept=".jpg,.jpeg,.png,.svg" 
+                        className="hidden" 
+                        onChange={handleLogoChange} 
+                      />
+                    )}
+                    {logoPreview && !logoError ? (
                         <div className="flex flex-col items-center w-full mb-2">
-                           <div className="w-full aspect-square max-w-[280px] flex flex-col relative bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                               {!isUploading && (
-                                 <button type="button" onClick={(e) => { e.preventDefault(); setLogoFile(null); setLogoPreview(null); setLogoUploaded(false); }} className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur-sm rounded-full text-slate-500 hover:text-red-500 hover:bg-white shadow-sm transition-colors z-10">
+                           <div className="w-full aspect-square max-w-[280px] flex flex-col relative bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                               {!isViewOnly && (
+                                 <button 
+                                   type="button" 
+                                   onClick={(e) => { 
+                                     e.preventDefault(); 
+                                     setLogoFile(null); 
+                                     setLogoPreview(null); 
+                                     setLogoUploaded(false); 
+                                     setLogoError(false);
+                                   }} 
+                                   title="Remove logo"
+                                   className="absolute top-2.5 right-2.5 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-slate-400 hover:text-red-500 hover:bg-white shadow-sm transition-colors z-10 cursor-pointer"
+                                 >
                                     <X size={14} />
                                  </button>
                                )}
-                               <div className="w-full flex-1 bg-[#F8F9FA] flex flex-col items-center justify-center p-4">
-                                   <img src={logoPreview} alt="preview" className="max-w-full max-h-[160px] object-contain drop-shadow-sm mb-4" />
-                                   
-                                   {/* Progress inside the square boundary */}
-                                   <div className="w-full flex flex-col gap-2 mt-auto">
-                                       <div className="flex justify-between items-center w-full">
-                                          <div className="flex flex-col overflow-hidden pr-2 text-left">
-                                            <span className="text-xs font-bold text-slate-700 truncate">
-                                              {logoFile?.name || (logoPreview ? logoPreview.split('/').pop() : 'logo.png')}
-                                            </span>
-                                            <span className="text-[10px] text-slate-400 font-medium">
-                                              {logoFile ? (logoFile.size / 1024 / 1024).toFixed(2) + ' MB' : 'Uploaded File'}
-                                            </span>
-                                          </div>
-                                       </div>
-                                       <div className="flex flex-col gap-1 w-full">
-                                         <div className="w-full bg-slate-200 rounded-full h-1.5">
-                                           <div className={`h-1.5 rounded-full transition-all duration-300 ${isUploading ? 'bg-blue-600' : 'bg-emerald-500'}`} style={{ width: `${isUploading ? uploadProgress : 100}%` }}></div>
-                                         </div>
-                                         <div className="flex justify-between items-center text-[9px] font-bold">
-                                           <span className={isUploading ? 'text-slate-500' : 'text-emerald-600'}>
-                                             {isUploading ? `${uploadProgress}% done` : '✓ Done'}
-                                           </span>
-                                           {isUploading && (
-                                             <span className="text-slate-400">Uploading...</span>
-                                           )}
-                                         </div>
-                                       </div>
+                               <div className="w-full flex-1 flex flex-col items-center justify-center p-4">
+                                   <img 
+                                     src={logoPreview} 
+                                     alt="Brand Logo" 
+                                     onError={() => setLogoError(true)}
+                                     className="max-w-full max-h-[140px] object-contain drop-shadow-sm mb-3" 
+                                   />
+                                   <div className="text-xs font-semibold text-slate-700 truncate max-w-[220px]">
+                                     {logoFile?.name || (logoPreview ? logoPreview.split('/').pop()?.split('?')[0] : 'logo.png')}
+                                   </div>
+                                   <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                                     <Check size={12} /> {logoFile ? 'Ready to upload' : 'Active on platform'}
                                    </div>
                                </div>
                            </div>
                            
-                           {isUploading && (
-                             <div className="mt-4 flex justify-center w-full max-w-[280px]">
-                               <button type="button" className="px-6 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors w-full">Cancel</button>
+                           {!isViewOnly && (
+                             <div className="flex gap-2 w-full max-w-[280px] mt-3.5">
+                               <label 
+                                 htmlFor="logo-file-input" 
+                                 className="flex-1 py-2 px-3 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors text-center cursor-pointer flex items-center justify-center gap-1.5 border border-blue-100"
+                               >
+                                 <Upload size={13} />
+                                 Change Logo
+                               </label>
+                               <button 
+                                 type="button" 
+                                 onClick={() => {
+                                   setLogoFile(null);
+                                   setLogoPreview(null);
+                                   setLogoUploaded(false);
+                                   setLogoError(false);
+                                 }} 
+                                 className="py-2 px-3.5 bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 text-xs font-semibold rounded-lg transition-colors cursor-pointer border border-slate-200"
+                               >
+                                 Remove
+                               </button>
                              </div>
                            )}
                         </div>
                     ) : (
-                       <label htmlFor="logo-file-input" className="flex flex-col items-center justify-center aspect-square w-full max-w-[280px] p-8 gap-5 bg-[#F8F9FA] border-[2px] border-dashed border-[#D1D5DB] rounded-2xl cursor-pointer hover:border-blue-500 transition-colors mb-2">
-                          <ImageIcon size={32} className="text-slate-400" />
-                          <div className="flex flex-col items-center gap-1">
-                             <span className="text-[14px] font-bold text-slate-600 text-center">Drag files to upload</span>
-                             <span className="text-[11px] font-semibold text-slate-400 text-center">or</span>
-                          </div>
-                          <div className="bg-blue-600 text-white text-[13px] font-bold py-2.5 px-8 rounded-lg shadow-sm hover:bg-blue-700 transition-colors w-full text-center mt-2">
-                            Browse file
-                          </div>
-                       </label>
+                       isViewOnly ? (
+                         <div className="flex flex-col items-center justify-center aspect-square w-full max-w-[280px] p-6 gap-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2 text-center">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                              <ImageIcon size={24} />
+                            </div>
+                            <span className="text-sm font-bold text-slate-600">No Logo Uploaded</span>
+                            <span className="text-xs text-slate-400">Default brand avatar active</span>
+                         </div>
+                       ) : (
+                         <label htmlFor="logo-file-input" className="flex flex-col items-center justify-center aspect-square w-full max-w-[280px] p-6 gap-3.5 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-blue-500 hover:bg-blue-50/20 transition-all mb-2 text-center group">
+                            <div className="w-12 h-12 rounded-full bg-blue-100/70 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <ImageIcon size={24} />
+                            </div>
+                            <div className="flex flex-col items-center gap-1">
+                               <span className="text-sm font-bold text-slate-700">
+                                 {logoError ? 'Logo preview unavailable' : 'No Logo Uploaded'}
+                               </span>
+                               <span className="text-xs text-slate-400 max-w-[190px]">
+                                 {logoError ? 'Upload a fresh file to replace it' : 'Supports PNG, JPG, or SVG up to 500KB'}
+                               </span>
+                            </div>
+                            <div className="bg-blue-600 text-white text-xs font-bold py-2 px-5 rounded-lg shadow-sm group-hover:bg-blue-700 transition-colors mt-1 flex items-center gap-1.5">
+                              <Upload size={13} />
+                              Browse & Upload Logo
+                            </div>
+                         </label>
+                       )
                     )}
                   </div>
                 </div>
@@ -709,7 +879,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 <div className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 gap-4 items-start">
                     <Input 
-                      label="Address Line 1" 
+                      label="Address Line 1 *" 
+                      required
                       placeholder="e.g. 401, Western Express Highway, Mumbai" 
                       value={address} 
                       onChange={(e) => setAddress(e.target.value)} 
@@ -717,49 +888,57 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input 
-                      label="GSTIN Number" 
+                      label="GSTIN Number (Optional)" 
                       placeholder="e.g. 27AAAAA0000A1Z5" 
                       value={gstNo} 
                       onChange={(e) => setGstNo(e.target.value)} 
                     />
                     <Input 
-                      label="PAN Number" 
+                      label="PAN Number (Optional)" 
                       placeholder="e.g. ABCDE1234F" 
                       value={panNo} 
                       onChange={(e) => setPanNo(e.target.value)} 
                     />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Input 
-                      label="City" 
+                      label="City *" 
+                      required
                       placeholder="e.g. Mumbai" 
                       value={city} 
                       onChange={(e) => setCity(e.target.value)} 
                     />
                     <Input 
-                      label="State" 
+                      label="State *" 
+                      required
                       placeholder="e.g. Maharashtra" 
                       value={state} 
                       onChange={(e) => setState(e.target.value)} 
                     />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input 
-                      label="Pincode" 
+                      label="PIN Code *" 
+                      required
                       placeholder="e.g. 400001" 
                       value={pincode} 
                       onChange={(e) => setPincode(e.target.value)} 
                     />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
-                      label="Timezone"
+                      label="Timezone *"
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
                       options={[
-                        { value: 'Asia/Kolkata', label: 'India (IST)' },
-                        { value: 'Asia/Dubai', label: 'Dubai (GST)' },
-                        { value: 'Europe/London', label: 'London (GMT)' },
-                        { value: 'America/New_York', label: 'New York (EST)' }
+                        { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST)' },
+                        { value: 'UTC', label: 'UTC' },
+                        { value: 'America/New_York', label: 'America/New_York (EST)' }
                       ]}
+                    />
+                    <Input 
+                      label="Country" 
+                      value="India" 
+                      disabled
+                      placeholder="India" 
                     />
                   </div>
                 </div>
@@ -770,12 +949,13 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             {/* === TAB 2: Admin Credentials === */}
             {activeTab === 'admin' && (
             <div className="space-y-4 pt-1">
-              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5">
-                <span>02.</span> Institute Admin Credentials
+              <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center justify-between select-none">
+                <span><span>02.</span> Admin User Credentials</span>
+                <span className="text-[11px] font-semibold text-slate-400 normal-case tracking-normal">Primary admin for initial institute access</span>
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input 
-                  label="Owner / Primary Admin Name" 
+                  label="Owner / Primary Admin Name *" 
                   required 
                   placeholder="Dr. Ramesh Kumar (or admin_apex)" 
                   value={ownerName} 
@@ -784,25 +964,28 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 <div className="flex flex-col gap-1.5 w-full">
                   <div className="flex justify-between items-center select-none">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                      Admin Email Login
+                      Admin Email Login *
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setDefaultEmailIdx(-1)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                        defaultEmailIdx === -1 
-                          ? 'bg-blue-600 text-white shadow-sm' 
-                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                      }`}
-                    >
-                      {defaultEmailIdx === -1 ? '★ Default Login' : 'Set as Default'}
-                    </button>
+                    {!isViewOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setDefaultEmailIdx(-1)}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                          defaultEmailIdx === -1 
+                            ? 'bg-blue-600 text-white shadow-sm' 
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {defaultEmailIdx === -1 ? '★ Default Login' : 'Set as Default'}
+                      </button>
+                    )}
                   </div>
                   <input
                     type="email"
                     required
+                    disabled={isViewOnly}
                     placeholder="ramesh@apex.com"
-                    className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-base text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+                    className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-600 border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-base text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -813,20 +996,22 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               <div className="space-y-3">
                 <div className="flex justify-between items-center select-none">
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                    Alternate Email Addresses
+                    Alternate Email Addresses (Optional)
                   </span>
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    size="sm"
-                    style={{ padding: '4px 10px', fontSize: '11px', gap: '4px' }}
-                    onClick={handleAddAltEmail}
-                  >
-                    <Plus size={12} /> Add Alternate
-                  </Button>
+                  {!isViewOnly && (
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      size="sm"
+                      style={{ padding: '4px 10px', fontSize: '11px', gap: '4px' }}
+                      onClick={handleAddAltEmail}
+                    >
+                      <Plus size={12} /> Add Alternate
+                    </Button>
+                  )}
                 </div>
                 
-                {altEmails.length > 0 && (
+                {altEmails.length > 0 ? (
                   <div className="space-y-3 animate-fade-in pt-1">
                     {altEmails.map((emailVal, idx) => (
                       <div key={idx} className="flex gap-2 items-end">
@@ -835,44 +1020,54 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                               Alternate Email #{idx + 1}
                             </label>
-                            <button
-                              type="button"
-                              onClick={() => setDefaultEmailIdx(idx)}
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                                defaultEmailIdx === idx 
-                                  ? 'bg-blue-600 text-white shadow-sm' 
-                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                              }`}
-                            >
-                              {defaultEmailIdx === idx ? '★ Default Login' : 'Set as Default'}
-                            </button>
+                            {!isViewOnly && (
+                              <button
+                                type="button"
+                                onClick={() => setDefaultEmailIdx(idx)}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors ${
+                                  defaultEmailIdx === idx 
+                                    ? 'bg-blue-600 text-white shadow-sm' 
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                              >
+                                {defaultEmailIdx === idx ? '★ Default Login' : 'Set as Default'}
+                              </button>
+                            )}
                           </div>
                           <input
                             type="email"
                             required
+                            disabled={isViewOnly}
                             placeholder={`alternate-${idx + 1}@apex.com`}
-                            className="w-full bg-white border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-base text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
+                            className="w-full bg-white disabled:bg-slate-50 disabled:text-slate-600 border border-slate-200 focus:border-blue-500 focus:ring-blue-100 rounded-lg px-3 py-2 text-base text-slate-800 placeholder-slate-400 outline-none transition duration-150 focus:ring-4"
                             value={emailVal}
                             onChange={(e) => handleUpdateAltEmail(idx, e.target.value)}
                           />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAltEmail(idx)}
-                          className="p-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer transition-colors shadow-sm self-end"
-                          style={{ height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <Trash size={16} />
-                        </button>
+                        {!isViewOnly && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAltEmail(idx)}
+                            className="p-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer transition-colors shadow-sm self-end"
+                            style={{ height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Trash size={16} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
+                ) : (
+                  isViewOnly && (
+                    <p className="text-xs text-slate-400 italic py-1">No alternate emails configured.</p>
+                  )
                 )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                 <Input 
-                  label="Mobile Contact" 
+                  label="Primary Mobile Contact *" 
+                  required
                   placeholder="9876543210" 
                   value={mobile} 
                   onChange={(e) => setMobile(e.target.value)} 
@@ -900,13 +1095,13 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select 
-                  label="Subscription Tier" 
+                  label="Subscription Tier *" 
                   value={plan} 
                   onChange={(e) => setPlan(e.target.value)} 
                   options={availablePlans.map((p) => ({ value: p.id.toString(), label: p.name }))}
                 />
                 <Select
-                  label="Billing Cycle"
+                  label="Billing Cycle *"
                   value={billingCycle}
                   onChange={(e) => setBillingCycle(e.target.value)}
                   options={[
@@ -918,8 +1113,9 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   ]}
                 />
                 <Input 
-                  label="Start Date" 
+                  label="Plan Start Date *" 
                   type="date" 
+                  required
                   value={startDate} 
                   onChange={(e) => setStartDate(e.target.value)} 
                 />
@@ -984,12 +1180,57 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" disabled={isUploading}>
-                {isUploading ? (editingTenantId ? 'Saving Changes...' : 'Creating Institute...') : (editingTenantId ? 'Save Changes' : 'Provision Tenant')}
-              </Button>
-            </div>
+            </fieldset>
+
+            {isViewOnly ? (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-slate-100">
+                <div className="flex gap-2">
+                  {formTabs.findIndex(t => t.id === activeTab) > 0 && (
+                    <Button type="button" variant="secondary" onClick={handlePrevStep} className="flex items-center gap-1">
+                      <ChevronLeft size={16} /> Previous
+                    </Button>
+                  )}
+                  {formTabs.findIndex(t => t.id === activeTab) < formTabs.length - 1 && (
+                    <Button type="button" variant="secondary" onClick={handleNextStep} className="flex items-center gap-1">
+                      Next <ChevronRight size={16} />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Close</Button>
+                  <Button 
+                    type="button" 
+                    variant="primary" 
+                    onClick={() => setIsViewOnly(false)} 
+                    className="flex items-center gap-1.5"
+                  >
+                    <Pencil size={15} /> Switch to Edit
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-slate-100">
+                <div>
+                  {formTabs.findIndex(t => t.id === activeTab) > 0 && (
+                    <Button type="button" variant="secondary" onClick={handlePrevStep} className="flex items-center gap-1">
+                      <ChevronLeft size={16} /> Back
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-3 items-center">
+                  <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+                  {formTabs.findIndex(t => t.id === activeTab) < formTabs.length - 1 ? (
+                    <Button type="button" variant="primary" onClick={handleNextStep} className="flex items-center gap-1.5 shadow-sm">
+                      Next: {formTabs[formTabs.findIndex(t => t.id === activeTab) + 1].label.replace(/^\d+\.\s*/, '')} <ChevronRight size={16} />
+                    </Button>
+                  ) : (
+                    <Button type="submit" variant="primary" disabled={isUploading} className="flex items-center gap-1.5 shadow-sm">
+                      {isUploading ? (editingTenantId ? 'Saving Changes...' : 'Creating Institute...') : (editingTenantId ? 'Save Changes' : 'Provision Tenant')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </form>
         </div>
       </div>
@@ -1033,10 +1274,16 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           <Select 
             label="Status" 
             value={filterStatus} 
-            onChange={(e) => setFilterStatus(e.target.value)} 
+            onChange={(e) => {
+              setFilterStatus(e.target.value);
+              setCurrentPage(1);
+            }} 
             options={[
               { value: 'All', label: 'All Statuses' },
-              ...availableStatuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))
+              { value: '1', label: 'Active' },
+              { value: '0', label: 'Inactive' },
+              { value: '2', label: 'Draft' },
+              { value: '3', label: 'Deleted' }
             ]} 
           />
         </div>
@@ -1050,7 +1297,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         <CardHeader>
           <CardTitle>Platform Tenant Registry</CardTitle>
         </CardHeader>
-        <Table dense headers={['ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status']}>
+        <Table 
+          dense 
+          minWidth="1160px"
+          colWidths={['48px', '180px', '135px', '205px', '120px', '100px', '140px', '95px', '110px']}
+          headers={['ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status', 'Actions']}
+        >
           {(() => {
             const itemsPerPage = 10; // Match backend limit
             const paginatedTenants = filteredAndSortedTenants;
@@ -1059,45 +1311,84 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 {paginatedTenants.map((t, idx) => (
                   <tr 
                     key={idx} 
-                    onClick={() => handleEditTenant(t)}
+                    onClick={() => handleViewTenant(t)}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
                   >
-                    <td className="px-3 py-3 font-bold text-sm whitespace-nowrap">{t.id}</td>
-                    <td className="px-3 py-3 font-semibold text-slate-900 text-base min-w-[200px]">{t.name}</td>
-                    <td className="px-3 py-3 text-sm font-semibold text-slate-800">{t.legal_name || t.admin_name || 'N/A'}</td>
-                    <td className="px-3 py-3 min-w-[200px]">
-                      <div className="text-slate-800 flex items-center gap-1.5 flex-wrap text-sm">
-                        <span className="font-semibold break-all">{t.contact_email || t.admin_email || 'N/A'}</span>
+                    <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{t.id}</td>
+                    <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm">{t.name}</td>
+                    <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">{t.legal_name || t.admin_name || 'N/A'}</td>
+                    <td className="px-3.5 py-3 text-sm">
+                      <div className="text-slate-800 font-medium truncate">
+                        {t.contact_email || t.admin_email || 'N/A'}
                       </div>
-                      <div className="text-xs text-slate-500 mt-0.5">{t.contact_phone || 'N/A'}</div>
+                      {t.contact_phone && (
+                        <div className="text-sm text-slate-500 mt-0.5">{t.contact_phone}</div>
+                      )}
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap"><span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-sm font-medium">{t.plan_name || 'Standard'}</span></td>
-                    <td className="px-3 py-3 text-sm whitespace-nowrap">{t.start_date ? formatDate(t.start_date) : 'N/A'}</td>
-                    <td className="px-3 py-3 text-sm whitespace-nowrap">
+                    <td className="px-3.5 py-3 text-sm whitespace-nowrap">
+                      <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-sm font-medium">
+                        {t.plan_name || 'Standard'}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">{t.start_date ? formatDate(t.start_date) : 'N/A'}</td>
+                    <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">
                       <div className="flex flex-col gap-1 items-start">
                         <span>{t.end_date ? formatDate(t.end_date) : 'N/A'}</span>
                         {t.is_expiring_soon === 1 && (
-                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 font-bold rounded text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-sm border border-amber-200">
-                            <AlertTriangle size={10} /> Expiring Soon
+                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 font-medium rounded text-[11px] flex items-center gap-1 border border-amber-200 w-fit whitespace-nowrap">
+                            <AlertTriangle size={11} className="shrink-0 text-amber-600" /> Expiring Soon
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
+                    <td className="px-3.5 py-3 whitespace-nowrap">
                       {(() => {
-                        const status = t.status || 'Unknown';
-                        let badgeColors = 'bg-red-50 text-red-600';
-                        if (status === 'active') {
-                          badgeColors = 'bg-emerald-50 text-emerald-600';
-                        } else if (status === 'suspended') {
-                          badgeColors = 'bg-amber-50 text-amber-600';
+                        const s = t.status;
+                        const label = getTenantStatusLabel(s);
+                        let badgeColors = 'bg-slate-50 text-slate-700 border-slate-200';
+                        if (s === 1 || s === '1' || label === 'Active') {
+                          badgeColors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        } else if (s === 0 || s === '0' || label === 'Inactive') {
+                          badgeColors = 'bg-red-50 text-red-700 border-red-200';
+                        } else if (s === 2 || s === '2' || label === 'Draft') {
+                          badgeColors = 'bg-amber-50 text-amber-800 border-amber-200';
+                        } else if (s === 3 || s === '3' || label === 'Deleted') {
+                          badgeColors = 'bg-slate-100 text-slate-600 border-slate-300';
                         }
                         return (
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold capitalize ${badgeColors}`}>
-                            {status}
+                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${badgeColors}`}>
+                            {label}
                           </span>
                         );
                       })()}
+                    </td>
+                    <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => handleViewTenant(t)}
+                          title="View Details (Read Only)"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEditTenant(t)}
+                          title="Edit Tenant Settings"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTenantToDelete(t)}
+                          title="Delete Tenant"
+                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1112,6 +1403,57 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           pageSize={10}
           onPageChange={setCurrentPage}
         />
-      </Card>    </div>
+      </Card>
+
+      {/* Soft Delete Confirmation Modal */}
+      {tenantToDelete && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          onClick={() => !isDeleting && setTenantToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={24} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Delete Tenant Institute</h3>
+                <p className="text-xs text-slate-500">Soft-delete confirmation warning</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Are you sure you want to delete <span className="font-bold text-slate-900">"{tenantToDelete.name}"</span>? 
+              This action will soft-delete the institute workspace, revoke portal access for its users, and remove it from active directories.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={() => setTenantToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 size={15} />
+                {isDeleting ? 'Deleting...' : 'Yes, Delete Tenant'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
   );
 };
