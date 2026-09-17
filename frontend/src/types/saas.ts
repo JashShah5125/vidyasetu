@@ -181,3 +181,62 @@ export const formatDate = (dateString?: string | Date | null) => {
     return String(dateString || '');
   }
 };
+
+export interface SaasLeadFollowup {
+  id: number;
+  leadId: number;
+  followupMode: string;
+  outcome: string;
+  notes: string | null;
+  nextFollowupAt: string | null;
+  createdAt: string;
+  createdBy: number | null;
+}
+
+export interface SaasLead {
+  id: number;
+  instituteName: string;
+  contactPerson: string;
+  designation: string | null;
+  email: string | null;
+  mobile: string;
+  altMobile: string | null;
+  addressLine1: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  source: number;
+  assignedTo: number | null;
+  assignedToName: string | null;
+  status: number;
+  lostReason: string | null;
+  planAssignedAt: string | null;
+  nextFollowupAt: string | null;
+  planId: number | null;
+  planName: string | null;
+  preferredSlug: string | null;
+  remarks: string | null;
+  convertedTenantId: number | null;
+  convertedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  followups?: SaasLeadFollowup[];
+}
+
+export const LEAD_STATUS_MAP: Record<number, string> = {
+  1: 'New',
+  2: 'Contacted',
+  3: 'Follow-up',
+  4: 'Plan Assigned',
+  5: 'Interested',
+  6: 'Converted',
+  7: 'Lost'
+};
+
+export const LEAD_SOURCE_MAP: Record<number, string> = {
+  1: 'Manual',
+  2: 'Landing Page'
+};
+
+export const LEAD_STATUS_OPTIONS = Object.entries(LEAD_STATUS_MAP).map(([value, label]) => ({ value, label }));
+export const LEAD_SOURCE_OPTIONS = Object.entries(LEAD_SOURCE_MAP).map(([value, label]) => ({ value, label }));

@@ -157,5 +157,38 @@ export const staffSalaryApi = {
   getStaffSalaryHistory: async (staffId: number | string) => {
     const res = await api.get(`/branch/finance/staff-salaries/${staffId}/history`);
     return res.data;
+  },
+
+  // CRUD: Get single salary payment record by ID
+  getSalaryPayment: async (paymentId: number | string) => {
+    const res = await api.get(`/branch/finance/staff-salaries/payments/${paymentId}`);
+    return res.data;
+  },
+
+  // CRUD: Update an existing salary payment record
+  updateSalaryPayment: async (
+    paymentId: number | string,
+    payload: {
+      amount?: number;
+      paidDate?: string;
+      paymentMode?: string;
+      reference?: string | null;
+      remarks?: string | null;
+    }
+  ) => {
+    const res = await api.put(`/branch/finance/staff-salaries/payments/${paymentId}`, payload);
+    return res.data;
+  },
+
+  // CRUD: Soft-delete a salary payment record (reverts month to PENDING)
+  deleteSalaryPayment: async (paymentId: number | string) => {
+    const res = await api.delete(`/branch/finance/staff-salaries/payments/${paymentId}`);
+    return res.data;
+  },
+
+  // CRUD: Reset/Clear staff basic salary structure
+  resetStaffSalary: async (staffId: number | string) => {
+    const res = await api.delete(`/branch/finance/staff-salaries/${staffId}/salary`);
+    return res.data;
   }
 };

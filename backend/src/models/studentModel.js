@@ -1,20 +1,50 @@
 const pool = require('../config/db');
 const bcrypt = require('bcryptjs');
 
+const STUDENT_STATUS = {
+    INACTIVE: 0,
+    ACTIVE: 1,
+    DELETED: 2,
+    REGISTRATION_PENDING: 3,
+    DOCUMENTS_SUBMITTED: 4,
+    DOCUMENTS_VERIFIED: 5,
+    PENDING_BATCH: 6,
+    BATCH_ALLOCATED: 7,
+    PAYMENT_PENDING: 8,
+    ON_HOLD: 9,
+    PASSED_OUT: 10
+};
+
+const DOCUMENT_STATUS = {
+    PENDING: 0,
+    VERIFIED: 1,
+    REJECTED: 2
+};
+
 /**
  * Normalizes student status to TINYINT:
- * 0 = inactive, 1 = active, 2 = deleted
+ * 0 = inactive, 1 = active, 2 = deleted, 3 = reg_pending, 4 = docs_submitted,
+ * 5 = docs_verified, 6 = pending_batch, 7 = batch_allocated, 8 = payment_pending,
+ * 9 = on_hold, 10 = passed_out
  */
 const normalizeStudentStatus = (status) => {
-    if (status === undefined || status === null) return 1;
+    if (status === undefined || status === null) return 3;
     if (typeof status === 'number') {
-        return [0, 1, 2].includes(status) ? status : 1;
+        return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(status) ? status : 3;
     }
     const s = String(status).trim().toLowerCase();
-    if (s === '1' || s === 'active') return 1;
-    if (s === '0' || s === 'inactive' || s === 'suspended' || s === 'registration_pending') return 0;
+    if (s === '1' || s === 'active' || s === 'active student') return 1;
+    if (s === '0' || s === 'inactive' || s === 'suspended') return 0;
     if (s === '2' || s === 'deleted' || s === 'cancelled') return 2;
-    return 1;
+    if (s === '3' || s === 'registration_pending' || s === 'reg_pending' || s === 'draft' || s === 'pending') return 3;
+    if (s === '4' || s === 'documents_submitted' || s === 'docs_submitted' || s === 'pending review') return 4;
+    if (s === '5' || s === 'documents_verified' || s === 'docs_verified' || s === 'approved') return 5;
+    if (s === '6' || s === 'pending_batch' || s === 'pending batch allocation' || s === 'unassigned') return 6;
+    if (s === '7' || s === 'batch_allocated' || s === 'allocated') return 7;
+    if (s === '8' || s === 'payment_pending' || s === 'awaiting payment') return 8;
+    if (s === '9' || s === 'on_hold' || s === 'rejected') return 9;
+    if (s === '10' || s === 'passed_out' || s === 'alumni' || s === 'graduated') return 10;
+    return 3;
 };
 
 /**
@@ -102,6 +132,7 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         LEFT JOIN batches bat ON se.batch_id = bat.id AND bat.tenant_id = s.tenant_id
         LEFT JOIN levels l ON bat.level_id = l.id AND l.tenant_id = s.tenant_id
         LEFT JOIN programs p ON (l.program_id = p.id OR (l.program_id IS NULL AND l.course_id = p.course_id)) AND p.tenant_id = s.tenant_id
+        LEFT JOIN courses c ON (l.course_id = c.id OR p.course_id = c.id) AND c.tenant_id = s.tenant_id
     `;
 
     if (search && search.trim() !== '') {
@@ -207,6 +238,9 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             s.user_id,
             s.primary_branch_id,
             b.name AS branch_name,
+            c.name AS course_name,
+            p.name AS program_name,
+            l.name AS level_name,
             s.student_code,
             s.full_name,
             s.dob,
@@ -288,6 +322,9 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
 
         return {
             ...row,
+            course_name: row.course_name || row.target_exam || '—',
+            program_name: row.program_name || '—',
+            level_name: row.level_name || '—',
             total_fees: net,
             fees_paid: paid,
             fees_remaining: balance,
@@ -774,6 +811,11 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
                     createdBy
                 ]);
             }
+        }
+
+        // 4. Save uploaded registration documents
+        if (studentData.documents && Array.isArray(studentData.documents) && studentData.documents.length > 0) {
+            await saveStudentDocuments(tenantId, studentId, studentData.documents, createdBy, connection);
         }
 
         await connection.commit();
@@ -1409,11 +1451,141 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
     };
 };
 
+const saveStudentDocuments = async (tenantId, studentId, documents = [], createdBy = 1, connection = null) => {
+    if (!documents || !documents.length) return [];
+    const conn = connection || await pool.getConnection();
+    const shouldRelease = !connection;
+
+    try {
+        const [docTypes] = await conn.query(`SELECT id, name, code FROM document_types WHERE deleted_at IS NULL`);
+        const typeMapByName = {};
+        const typeMapByCode = {};
+        docTypes.forEach(t => {
+            typeMapByName[String(t.name).toLowerCase()] = t.id;
+            typeMapByCode[String(t.code).toLowerCase()] = t.id;
+        });
+
+        const defaultTypeId = docTypes[0]?.id || 1;
+
+        for (const doc of documents) {
+            const rawType = String(doc.type || doc.document_type || doc.name || '').toLowerCase();
+            let matchedTypeId = doc.document_type_id || typeMapByName[rawType] || typeMapByCode[rawType];
+            if (!matchedTypeId) {
+                if (rawType.includes('photo')) matchedTypeId = typeMapByCode['student_photo'] || 1;
+                else if (rawType.includes('aadhar') || rawType.includes('aadhaar') || rawType.includes('id proof')) matchedTypeId = typeMapByCode['aadhaar_card'] || 2;
+                else if (rawType.includes('mark') || rawType.includes('sheet')) matchedTypeId = typeMapByCode['previous_marksheet'] || 3;
+                else if (rawType.includes('transfer') || rawType.includes('tc')) matchedTypeId = typeMapByCode['transfer_certificate'] || 4;
+                else matchedTypeId = typeMapByCode['other'] || defaultTypeId;
+            }
+
+            const fileName = doc.fileName || doc.file_name || doc.name || 'document.pdf';
+            const storageKey = doc.storage_key || doc.path || doc.url || `/uploads/documents/${studentId}-${Date.now()}-${fileName}`;
+            const mimeType = doc.mime_type || (fileName.endsWith('.png') ? 'image/png' : fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? 'image/jpeg' : 'application/pdf');
+            const docStatus = doc.status !== undefined ? Number(doc.status) : DOCUMENT_STATUS.PENDING;
+
+            await conn.query(`
+                INSERT INTO student_documents (
+                    tenant_id, student_id, document_type_id, storage_key, file_name, mime_type, status, created_by, updated_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                tenantId,
+                studentId,
+                matchedTypeId,
+                storageKey,
+                fileName,
+                mimeType,
+                docStatus,
+                createdBy,
+                createdBy
+            ]);
+        }
+    } finally {
+        if (shouldRelease) conn.release();
+    }
+};
+
+const getStudentDocuments = async (tenantId, studentId) => {
+    const [rows] = await pool.query(`
+        SELECT 
+            sd.id,
+            sd.tenant_id,
+            sd.student_id,
+            sd.document_type_id,
+            dt.name AS document_type_name,
+            dt.code AS document_type_code,
+            dt.is_required,
+            sd.storage_key,
+            sd.file_name,
+            sd.mime_type,
+            sd.status,
+            sd.verified_by,
+            u.name AS verified_by_name,
+            sd.verified_at,
+            sd.rejection_reason,
+            sd.created_at,
+            sd.updated_at
+        FROM student_documents sd
+        JOIN document_types dt ON sd.document_type_id = dt.id
+        LEFT JOIN users u ON sd.verified_by = u.id
+        WHERE sd.tenant_id = ? AND sd.student_id = ? AND sd.deleted_at IS NULL
+        ORDER BY dt.is_required DESC, sd.id ASC
+    `, [tenantId, Number(studentId)]);
+
+    return rows.map(r => ({
+        ...r,
+        statusLabel: r.status === 1 ? 'Verified' : r.status === 2 ? 'Rejected' : 'Verification Pending'
+    }));
+};
+
+const updateStudentDocumentStatus = async (tenantId, studentId, documentId, status, rejectionReason = null, verifiedBy = 1) => {
+    const numStatus = Number(status);
+    await pool.query(`
+        UPDATE student_documents
+        SET status = ?, verified_by = ?, verified_at = NOW(), rejection_reason = ?, updated_by = ?
+        WHERE tenant_id = ? AND student_id = ? AND id = ?
+    `, [
+        numStatus,
+        verifiedBy,
+        numStatus === 2 ? rejectionReason : null,
+        verifiedBy,
+        tenantId,
+        Number(studentId),
+        Number(documentId)
+    ]);
+
+    // Check if all required documents for this student are now verified
+    const [counts] = await pool.query(`
+        SELECT 
+            COUNT(DISTINCT dt.id) as total_required,
+            SUM(CASE WHEN sd.status = 1 THEN 1 ELSE 0 END) as verified_count
+        FROM student_documents sd
+        JOIN document_types dt ON sd.document_type_id = dt.id
+        WHERE sd.tenant_id = ? AND sd.student_id = ? AND sd.deleted_at IS NULL AND dt.is_required = 1
+    `, [tenantId, Number(studentId)]);
+
+    if (counts[0] && counts[0].total_required > 0 && Number(counts[0].verified_count) >= Number(counts[0].total_required)) {
+        // Automatically mark student as Documents Verified (status = 5)
+        await pool.query(`
+            UPDATE students
+            SET status = 5, updated_by = ?
+            WHERE tenant_id = ? AND id = ? AND status IN (3, 4)
+        `, [verifiedBy, tenantId, Number(studentId)]);
+    }
+
+    return getStudentDocuments(tenantId, studentId);
+};
+
 module.exports = {
+    STUDENT_STATUS,
+    DOCUMENT_STATUS,
+    normalizeStudentStatus,
     getStudents,
     getStudentById,
     createStudent,
     updateStudent,
     deleteStudent,
-    getAcademicOptions
+    getAcademicOptions,
+    saveStudentDocuments,
+    getStudentDocuments,
+    updateStudentDocumentStatus
 };

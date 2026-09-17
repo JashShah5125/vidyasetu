@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const tenantModel = require('../models/tenantModel');
+const leadModel = require('../models/leadModel');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { sendTenantWelcomeEmail } = require('./mailService');
@@ -11,7 +12,7 @@ const generateTemporaryPassword = () => {
     return `VS-${suffix}`;
 };
 
-const createTenantWithAdmin = async (tenantData) => {
+const createTenantWithAdmin = async (tenantData, leadId = null) => {
     const { 
         name, legal_name, slug, adminEmail, mobile, planId, address, city, state, pincode, panNo, gstNo,
         timezone, billingCycle, logoUrl, alternateEmails,
@@ -32,6 +33,21 @@ const createTenantWithAdmin = async (tenantData) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
+
+        // Lock the source lead (if converting from a lead) to prevent double conversion
+        let lockedLead = null;
+        if (leadId) {
+            lockedLead = await leadModel.lockLeadForConversion(leadId, connection);
+            if (!lockedLead) {
+                throw new Error('Lead not found');
+            }
+            if (lockedLead.deleted_at) {
+                throw new Error('Lead has been deleted');
+            }
+            if (lockedLead.converted_tenant_id) {
+                throw new Error('Lead has already been converted');
+            }
+        }
 
         // 1. Create Tenant (including profile and subscription)
         const [tenantResult] = await connection.query(
@@ -64,6 +80,14 @@ const createTenantWithAdmin = async (tenantData) => {
             ]
         );
         const tenantId = tenantResult.insertId;
+
+        // Link the source lead to the new tenant record
+        if (leadId) {
+            await connection.query(
+                'UPDATE tenants SET source_lead_id = ? WHERE id = ?',
+                [leadId, tenantId]
+            );
+        }
 
         // 3. Resolve / create the global admin role (flat RBAC: one role
         //    definition per code, shared by every tenant).
@@ -102,6 +126,11 @@ const createTenantWithAdmin = async (tenantData) => {
 
         // 7. Subscription handled in Step 1
 
+        // 7b. Mark the source lead as converted
+        if (leadId) {
+            await leadModel.markConverted(leadId, tenantId, connection, planId || null);
+        }
+
         // 8. Audit Log
         await connection.query(
             'INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (UUID(), ?, ?, ?, ?, ?, ?)',
@@ -127,7 +156,7 @@ const createTenantWithAdmin = async (tenantData) => {
             console.error('Tenant created but welcome email failed:', emailError.message);
         }
 
-        return { tenantId, adminUserId, logoUrl, welcomeEmailSent, temporaryPassword };
+        return { tenantId, adminUserId, logoUrl, welcomeEmailSent, temporaryPassword, convertedFromLeadId: leadId || null };
     } catch (error) {
         await connection.rollback();
         throw error;

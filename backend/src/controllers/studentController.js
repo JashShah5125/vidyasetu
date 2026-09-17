@@ -147,11 +147,80 @@ const getAcademicOptions = async (req, res) => {
     }
 };
 
+const uploadDocument = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ status: 'error', message: 'No file uploaded' });
+        }
+        const fileUrl = `/uploads/documents/${req.file.filename}`;
+        res.status(201).json({
+            status: 'success',
+            message: 'File uploaded successfully',
+            data: {
+                fileName: req.file.originalname,
+                storageKey: fileUrl,
+                url: fileUrl,
+                mimeType: req.file.mimetype,
+                fileSize: (req.file.size / 1024 / 1024).toFixed(2) + ' MB'
+            }
+        });
+    } catch (error) {
+        console.error('Error uploading student document:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to upload document' });
+    }
+};
+
+const getStudentDocuments = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tenantId = resolveTenantId(req);
+        const documents = await studentModel.getStudentDocuments(tenantId, id);
+        res.json({ status: 'success', data: documents });
+    } catch (error) {
+        console.error('Error fetching student documents:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to fetch student documents' });
+    }
+};
+
+const updateStudentDocumentStatus = async (req, res) => {
+    try {
+        const { id, docId } = req.params;
+        const { status, rejectionReason } = req.body;
+        const tenantId = resolveTenantId(req);
+        const userId = req.user?.userId || 1;
+
+        if (status === undefined || ![0, 1, 2].includes(Number(status))) {
+            return res.status(400).json({ status: 'error', message: 'Invalid document status. Allowed values: 0 (pending), 1 (verified), 2 (rejected)' });
+        }
+
+        const documents = await studentModel.updateStudentDocumentStatus(
+            tenantId,
+            id,
+            docId,
+            status,
+            rejectionReason || null,
+            userId
+        );
+
+        res.json({
+            status: 'success',
+            message: `Document ${Number(status) === 1 ? 'verified' : Number(status) === 2 ? 'rejected' : 'updated'} successfully`,
+            data: documents
+        });
+    } catch (error) {
+        console.error('Error updating student document status:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to update document status' });
+    }
+};
+
 module.exports = {
     getStudents,
     getStudentById,
     createStudent,
     updateStudent,
     deleteStudent,
-    getAcademicOptions
+    getAcademicOptions,
+    uploadDocument,
+    getStudentDocuments,
+    updateStudentDocumentStatus
 };

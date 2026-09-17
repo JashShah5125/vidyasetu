@@ -42,6 +42,8 @@ import { ExpenseLedger } from './pages/ExpenseLedger';
 import { SubscriptionPlans } from './pages/SubscriptionPlans';
 import { TenantDetails } from './pages/TenantDetails';
 import { BranchFinancePage } from './pages/finance/BranchFinancePage';
+import { OtherExpenseDetailPage } from './pages/finance/OtherExpenseDetailPage';
+import { OtherExpenseFormPage } from './pages/finance/OtherExpenseFormPage';
 import { FinanceDashboard } from './components/finance/FinanceDashboard';
 
 // Teacher components
@@ -60,6 +62,7 @@ import { FeatureFlags } from './pages/saas/FeatureFlags';
 
 
 import { SupportTickets } from './pages/saas/SupportTickets';
+import { Leads } from './pages/saas/Leads';
 import { CommunicationCenter } from './pages/saas/CommunicationCenter';
 import { EmailTemplates } from './pages/saas/EmailTemplates';
 import { SmsTemplates } from './pages/saas/SmsTemplates';
@@ -300,6 +303,8 @@ const ContentRouter = () => {
       <Route path="/feature-flags" element={<FeatureFlags />} />
 
       {/* ── Branch Finance Routes ── */}
+      <Route path="/finance/expenses/other/new" element={<OtherExpenseFormPage />} />
+      <Route path="/finance/expenses/other/:id" element={<OtherExpenseDetailPage />} />
       <Route path="/finance/income/:subSection" element={<BranchFinancePage />} />
       <Route path="/finance/expenses/:subSection" element={<BranchFinancePage />} />
       <Route path="/finance/payroll/:subSection" element={<BranchFinancePage />} />
@@ -311,6 +316,7 @@ const ContentRouter = () => {
 
 
       <Route path="/support" element={<SupportTickets />} />
+      <Route path="/saas/leads" element={<Leads />} />
       <Route path="/communication" element={<CommunicationCenter />} />
       <Route path="/email-templates" element={<EmailTemplates />} />
       <Route path="/sms-templates" element={<SmsTemplates />} />

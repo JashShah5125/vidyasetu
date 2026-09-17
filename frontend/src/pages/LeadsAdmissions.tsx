@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
@@ -11,11 +12,22 @@ import { Modal } from '../components/ui/Modal';
 import { FeeConfigurator } from '../components/FeeConfigurator';
 import courseHierarchy from '../data/courseHierarchy.json';
 import {
+  getEnquiries, getEnquiryById, getEnquiryFollowups,
+  createEnquiry as apiCreateEnquiry,
+  updateEnquiry as apiUpdateEnquiry,
+  addEnquiryFollowup as apiAddFollowup,
+  toLead, toFollowup, leadPatchToEnquiry, buildCreateEnquiryPayload
+} from '../services/enquiryApi';
+import { getAcademicOptions, getStudents, getStudentDocuments, updateStudentDocumentStatus, type StudentDocument, type StudentRosterItem } from '../services/studentApi';
+import {
   Plus, ArrowLeft, Users, PhoneCall, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, ChevronRight,
-  Download, Search, UserCheck, FileText, Zap, X
+  Download, Search, UserCheck, FileText, Zap, X,
+  Filter, ChevronDown, RotateCcw, Eye, Pencil, Trash2, AlertTriangle,
+  BookOpen, MapPin, Building
 } from 'lucide-react';
 import type { Lead, Student } from '../types';
+import { studentStatusBadgeStyle, studentStatusLabelOf } from '../services/studentMaps';
 
 interface LeadsAdmissionsProps {
   initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
@@ -31,33 +43,34 @@ const phases = [
 
 type TabId = typeof phases[number]['id'];
 
-const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  const map: Record<string, string> = {
+const StatusBadge: React.FC<{ status: string | number }> = ({ status }) => {
+  const leadMap: Record<string, string> = {
     'New Enquiry':          'bg-blue-50 text-blue-700 border-blue-200',
+    'Assigned':             'bg-slate-100 text-slate-700 border-slate-200',
     'Contacted':            'bg-indigo-50 text-indigo-700 border-indigo-200',
-    'Follow-up':            'bg-amber-50 text-amber-700 border-amber-200',
+    'Follow-up':            'bg-amber-50 text-amber-800 border-amber-200',
     'Demo Scheduled':       'bg-purple-50 text-purple-700 border-purple-200',
     'Fee Discussion':       'bg-cyan-50 text-cyan-700 border-cyan-200',
     'Interested':           'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'Not Interested':       'bg-red-50 text-red-600 border-red-200',
-    'Converted':            'bg-slate-105 text-slate-600 border-slate-300',
-    'Registration Pending': 'bg-orange-50 text-orange-700 border-orange-200',
-    'Documents Submitted':  'bg-cyan-50 text-cyan-700 border-cyan-200',
-    'Verification Pending': 'bg-violet-50 text-violet-700 border-violet-200',
-    'Active Student':       'bg-emerald-100 text-emerald-800 border-emerald-300'
+    'Not Interested':       'bg-red-50 text-red-700 border-red-200',
+    'Lost':                 'bg-rose-50 text-rose-700 border-rose-200',
+    'Converted':            'bg-slate-100 text-slate-600 border-slate-300',
+    'Cancelled':            'bg-slate-50 text-slate-500 border-slate-200'
   };
-  const classes = map[status] || 'bg-slate-50 text-slate-600 border-slate-200';
+
+  const statusStr = typeof status === 'number' ? studentStatusLabelOf(status) : String(status);
+  const classes = leadMap[statusStr] || studentStatusBadgeStyle(status);
+
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider whitespace-nowrap inline-block ${classes}`}>
-      {status}
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${classes}`}>
+      {statusStr}
     </span>
   );
 };
 
 export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = 'pipeline' }) => {
   const {
-    leads, students, courses, batches, branches,
-    addLead, updateLead, addFollowup,
+    students, courses, batches, branches,
     allocateBatch, recordPayment,
     addToast, currentUser
   } = useApp();
@@ -65,6 +78,116 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+
+  const [academicData, setAcademicData] = useState<{
+    branches: Array<{ id: number | string; name: string }>;
+    courses: Array<{ id: number | string; name: string; code?: string; fees?: number }>;
+    programs: Array<{ id: number | string; course_id: number | string; name: string; code?: string }>;
+    levels: Array<{ id: number | string; course_id: number | string; program_id?: number | string; name: string }>;
+    bundles: Array<{ id: number | string; branch_id?: number | string; level_id: number | string; name: string; description?: string; fee_amount?: number; subject_ids?: any[] }>;
+    subjects: Array<{ id: number | string; name: string; code?: string; type?: string; fee_amount?: number }>;
+    levelSubjects: Array<{ level_id: number | string; course_id?: number | string; program_id?: number | string; id: number | string; name: string; code?: string; fee_amount?: number }>;
+    academicYears: Array<{ id: number | string; name: string; status?: string }>;
+    batches: Array<{ id: number | string; branch_id: number | string; level_id: number | string; name: string; code?: string }>;
+  } | null>(null);
+
+  // Student roster data loaded from live database (students table)
+  const [apiStudents, setApiStudents] = useState<Student[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+
+  const mapRosterToStudent = useCallback((r: StudentRosterItem): Student => {
+    return {
+      id: String(r.id),
+      studentId: r.student_code || `STU-${r.id}`,
+      name: r.full_name,
+      mobile: r.mobile || '',
+      email: r.email || '',
+      parentName: r.guardian_name || '',
+      parentMobile: r.guardian_mobile || '',
+      parentEmail: r.guardian_email || '',
+      course: (r as any).course_name || r.target_exam || '—',
+      program: (r as any).program_name || '',
+      level: (r as any).level_name || 'year1',
+      branch: r.branch_name || '',
+      batch: r.batch_name || '',
+      status: r.status,
+      admissionDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+      dob: r.dob ? new Date(r.dob).toISOString().split('T')[0] : '',
+      gender: r.gender || '',
+      category: r.category || 'General',
+      feePlan: {
+        total: Number(r.total_fees || 0),
+        paid: Number(r.fees_paid || 0),
+        pending: Number(r.fees_remaining ?? r.fees_outstanding ?? 0),
+        installments: Number(r.installment_count || 1),
+        downPayment: Number(r.down_payment || 0)
+      }
+    };
+  }, []);
+
+  const fetchStudents = useCallback(async () => {
+    setStudentsLoading(true);
+    try {
+      const res = await getStudents({ limit: 500 });
+      const rows: StudentRosterItem[] = res?.data || [];
+      const mapped = rows.map(mapRosterToStudent);
+      setApiStudents(mapped);
+    } catch (err) {
+      console.error('Failed to load students in LeadsAdmissions:', err);
+      setApiStudents([]);
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, [mapRosterToStudent]);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
+
+  // Document verification modal state
+  const [docModalStudent, setDocModalStudent] = useState<Student | null>(null);
+  const [studentDocList, setStudentDocList] = useState<StudentDocument[]>([]);
+  const [docLoading, setDocLoading] = useState(false);
+  const [rejectingDocId, setRejectingDocId] = useState<number | null>(null);
+  const [docRejectionReason, setDocRejectionReason] = useState('');
+
+  const handleOpenDocModal = async (student: Student) => {
+    setDocModalStudent(student);
+    setDocLoading(true);
+    setRejectingDocId(null);
+    setDocRejectionReason('');
+    try {
+      const docs = await getStudentDocuments(student.id || student.studentId);
+      setStudentDocList(docs);
+    } catch {
+      setStudentDocList([]);
+    } finally {
+      setDocLoading(false);
+    }
+  };
+
+  const handleUpdateDocStatus = async (docId: number, status: 0 | 1 | 2, reason?: string) => {
+    if (!docModalStudent) return;
+    try {
+      const updated = await updateStudentDocumentStatus(docModalStudent.id || docModalStudent.studentId, docId, status, reason);
+      setStudentDocList(updated);
+      setRejectingDocId(null);
+      setDocRejectionReason('');
+      addToast(status === 1 ? 'Document verified successfully!' : status === 2 ? 'Document marked as rejected.' : 'Document status reset.', status === 1 ? 'success' : 'info');
+      await fetchStudents();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to update document status', 'error');
+    }
+  };
+
+  useEffect(() => {
+    getAcademicOptions()
+      .then(res => {
+        const data = res?.data || res;
+        if (data) setAcademicData(data);
+      })
+      .catch(err => console.error('Failed to load academic options in LeadsAdmissions:', err));
+  }, []);
 
   // Tab routing sync
   const tabRouteMap: Record<TabId, string> = {
@@ -80,16 +203,18 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   }, [initialTab]);
 
   // Filters State
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [search, setSearch]             = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterSource, setFilterSource] = useState('All');
-  const [filterBranch, setFilterBranch] = useState(currentUser?.role === 'branch-admin' ? currentUser.branch || 'All' : 'All');
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const [filterBranch, setFilterBranch] = useState(isBranchAdmin ? currentUser.branch || 'All' : 'All');
   const [filterCourse, setFilterCourse] = useState('All');
   const [filterProgram, setFilterProgram] = useState('All');
 
   // Pagination State
   const [page, setPage] = useState(1);
-  const PER_PAGE = 8;
+  const PER_PAGE = 10;
 
   // Clear filters on tab change
   useEffect(() => {
@@ -97,6 +222,42 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setSearch('');
     setPage(1);
   }, [activeTab]);
+
+  // Active filters list
+  const activeFilters = useMemo(() => {
+    const list: { label: string; value: string; clear: () => void }[] = [];
+    if (search.trim()) {
+      list.push({ label: 'Search', value: search, clear: () => setSearch('') });
+    }
+    if (!isBranchAdmin && filterBranch !== 'All') {
+      list.push({ label: 'Branch', value: filterBranch, clear: () => setFilterBranch('All') });
+    }
+    if (filterCourse !== 'All') {
+      list.push({ label: 'Course', value: filterCourse, clear: () => { setFilterCourse('All'); setFilterProgram('All'); } });
+    }
+    if (filterProgram !== 'All') {
+      list.push({ label: 'Program', value: filterProgram, clear: () => setFilterProgram('All') });
+    }
+    if (filterStatus !== 'All') {
+      list.push({ label: 'Status', value: filterStatus, clear: () => setFilterStatus('All') });
+    }
+    if (activeTab === 'pipeline' && filterSource !== 'All') {
+      list.push({ label: 'Source', value: filterSource, clear: () => setFilterSource('All') });
+    }
+    return list;
+  }, [search, isBranchAdmin, filterBranch, filterCourse, filterProgram, filterStatus, filterSource, activeTab]);
+
+  const handleResetAllFilters = () => {
+    setSearch('');
+    setFilterStatus('All');
+    setFilterSource('All');
+    if (!isBranchAdmin) {
+      setFilterBranch('All');
+    }
+    setFilterCourse('All');
+    setFilterProgram('All');
+    setPage(1);
+  };
 
   // Modals / Details state
   const [showAddLead, setShowAddLead] = useState(false);
@@ -108,11 +269,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // Lead Details Form State
   const [fName, setFName] = useState('');
+  const [fEmail, setFEmail] = useState('');
   const [fMobile, setFMobile] = useState('');
-  const [fParent, setFParent] = useState('');
+  const [fParentName, setFParentName] = useState('');
+  const [fParentMobile, setFParentMobile] = useState('');
+  const [fParentEmail, setFParentEmail] = useState('');
   const [fCourse, setFCourse] = useState('');
   const [fProgram, setFProgram] = useState('');
   const [fLevel, setFLevel] = useState('year1');
+  const [fAcademicYear, setFAcademicYear] = useState('2024-2025');
   const [fBranch, setFBranch] = useState('');
   const [fAssignedBranch, setFAssignedBranch] = useState('');
   const [fSource, setFSource] = useState('Walk-in');
@@ -120,6 +285,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [fCounsellor, setFCounsellor] = useState('');
   const [fRemarks, setFRemarks] = useState('');
   const [fDemoScheduledOn, setFDemoScheduledOn] = useState('');
+  const [fNextFollowUp, setFNextFollowUp] = useState('');
 
   // Interaction Modal State
   const [showAddInteractionModal, setShowAddInteractionModal] = useState(false);
@@ -134,7 +300,20 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // Add Lead Form State
   const [leadForm, setLeadForm] = useState({
-    name: '', mobile: '', parentMobile: '', course: '', program: '', level: 'year1', source: 'Walk-in', remarks: '', branch: '', counsellor: ''
+    name: '',
+    email: '',
+    mobile: '',
+    parentName: '',
+    parentMobile: '',
+    parentEmail: '',
+    course: '',
+    program: '',
+    level: 'year1',
+    academicYear: '2024-2025',
+    source: 'Walk-in',
+    remarks: '',
+    branch: '',
+    counsellor: ''
   });
 
   // Follow-up Form State
@@ -179,6 +358,109 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     return combined;
   }, [selectedStudent, batchForm.course, batchForm.program, batchForm.level, batches]);
 
+  // ── Lead data loaded from the backend (page-local fetch) ───────────────────
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+
+  const fetchLeads = useCallback(async () => {
+    setLeadsLoading(true);
+    try {
+      const res = await getEnquiries({ page: 1, limit: 500 });
+      const rows = res?.data || [];
+      setLeads(rows.map((row: any) => toLead(row)));
+    } catch {
+      setLeads([]);
+      addToast('Failed to load leads from server.', 'error');
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
+  const refreshLeadById = useCallback(async (id: string) => {
+    try {
+      const res = await getEnquiryById(id);
+      if (res?.data) {
+        setLeads(prev => prev.map(l => l.id === id ? toLead(res.data) : l));
+      } else {
+        await fetchLeads();
+      }
+    } catch {
+      await fetchLeads();
+    }
+  }, [fetchLeads]);
+
+  const updateLead = async (id: string, updates: Partial<Lead>) => {
+    try {
+      const patch = await leadPatchToEnquiry(updates);
+      if (Object.keys(patch).length > 0) {
+        await apiUpdateEnquiry(Number(id), patch);
+      }
+      await refreshLeadById(id);
+    } catch {
+      addToast('Failed to update lead.', 'error');
+    }
+  };
+
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [lostReason, setLostReason] = useState('');
+  const [isDeletingLead, setIsDeletingLead] = useState(false);
+
+  const handleConfirmDeleteLead = async () => {
+    if (!leadToDelete) return;
+    const finalReason = lostReason.trim() || 'Dropped / Not Interested';
+
+    try {
+      setIsDeletingLead(true);
+      await updateLead(leadToDelete.id, {
+        status: 'Lost' as Lead['status'],
+        lostReason: finalReason
+      });
+      addToast(`Lead "${leadToDelete.name}" marked as Lost.`, 'success');
+      setLeadToDelete(null);
+      setLostReason('');
+      await fetchLeads();
+    } catch (err: any) {
+      console.error('Failed to mark lead as lost:', err);
+      addToast('Failed to update lead.', 'error');
+    } finally {
+      setIsDeletingLead(false);
+    }
+  };
+
+  const addFollowup = async (leadId: string, type: string, outcome: string, nextDate: string) => {
+    try {
+      await apiAddFollowup(Number(leadId), {
+        notes: outcome,
+        next_followup_date: nextDate || undefined
+      });
+      await refreshLeadById(leadId);
+    } catch {
+      addToast('Failed to log follow-up.', 'error');
+    }
+  };
+
+  const addLead = async (
+    name: string, mobile: string, parentMobile: string, course: string, program: string,
+    level: string, source: string, remarks: string, assignedBranch?: string,
+    preferredBranch?: string, status?: string, followups?: any[], demoScheduledOn?: string, counsellor?: string
+  ) => {
+    try {
+      const payload = await buildCreateEnquiryPayload({
+        name, mobile, parentMobile, course, program, level, source, remarks,
+        branch: assignedBranch || preferredBranch || '',
+        counsellor: counsellor || ''
+      });
+      await apiCreateEnquiry(payload);
+      await fetchLeads();
+    } catch {
+      addToast('Failed to create lead.', 'error');
+    }
+  };
+
   const handleOpenBatchModal = (s: Student) => {
     setSelectedStudent(s);
     setBatchForm({
@@ -198,14 +480,25 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     }
   }, [showBatchModal, showLeadDetail]);
 
-  const handleOpenLeadDetail = (l: Lead, defaultTab: 'profile' | 'course' | 'history' | 'fee' = 'profile') => {
+  const [isViewOnly, setIsViewOnly] = useState(true);
+
+  const handleOpenLeadDetail = async (
+    l: Lead, 
+    defaultTab: 'profile' | 'course' | 'history' | 'fee' = 'profile',
+    viewOnly: boolean = true
+  ) => {
+    setIsViewOnly(viewOnly);
     setSelectedLead(l);
     setFName(l.name);
+    setFEmail(l.email || '');
     setFMobile(l.mobile);
-    setFParent(l.parentMobile || '');
+    setFParentName(l.parentName || '');
+    setFParentMobile(l.parentMobile || '');
+    setFParentEmail(l.parentEmail || '');
     setFCourse(l.feeConfig?.course || l.course);
     setFProgram(l.feeConfig?.program || l.program || '');
     setFLevel(l.feeConfig?.level || l.level || 'year1');
+    setFAcademicYear(l.academicYear || '2024-2025');
     setFBranch(l.preferredBranch || l.branch || '');
     setFAssignedBranch(l.branch || '');
     setFSource(l.source);
@@ -213,10 +506,18 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setFCounsellor(l.counsellor || '');
     setFRemarks(l.remarks || '');
     setFDemoScheduledOn(l.demoScheduledOn || '');
+    setFNextFollowUp(l.nextFollowUp || '');
     setLeadFeeData(l.feeConfig || null);
     setModalTab(defaultTab);
     setShowLeadDetail(true);
     window.scrollTo({ top: 0, behavior: 'instant' });
+    try {
+      const res = await getEnquiryFollowups(l.id);
+      const followups = (res?.data || []).map((row: any) => toFollowup(row));
+      setSelectedLead(prev => (prev && prev.id === l.id ? { ...prev, followups } : prev));
+    } catch {
+      // follow-up history is non-critical
+    }
   };
 
   const handleSaveInteraction = (e: React.FormEvent) => {
@@ -236,6 +537,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
     const updatedFollowups = [...(selectedLead.followups || []), newFollowup];
     const finalNextFollowUp = interactionForm.nextDate || selectedLead.nextFollowUp;
+
+    addFollowup(selectedLead.id, interactionForm.type, interactionForm.remarks, interactionForm.nextDate);
 
     updateLead(selectedLead.id, {
       status: interactionForm.status as Lead['status'],
@@ -274,67 +577,161 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     }
   }, [location.state?.activeLeadId, leads]);
 
-  // Computed filter options
+  // Computed filter options from live database
   const branchFilterOptions = useMemo(() => [
     { value: 'All', label: 'All Branches' },
-    ...branches.map(b => ({ value: b.name, label: b.name }))
-  ], [branches]);
+    ...(academicData?.branches?.map(b => ({ value: b.name, label: b.name })) || branches.map(b => ({ value: b.name, label: b.name })))
+  ], [academicData, branches]);
 
   const courseFilterOptions = useMemo(() => [
     { value: 'All', label: 'All Courses' },
-    ...courses.map(c => ({ value: c.name, label: c.name }))
-  ], [courses]);
+    ...(academicData?.courses?.map(c => ({ value: c.name, label: c.name })) || courses.map(c => ({ value: c.name, label: c.name })))
+  ], [academicData, courses]);
 
   const programFilterOptions = useMemo(() => {
     const defaultOpts = [{ value: 'All', label: 'All Programs' }];
     if (filterCourse === 'All') return defaultOpts;
+    if (academicData?.courses && academicData?.programs) {
+      const courseObj = academicData.courses.find(c => c.name === filterCourse);
+      if (courseObj) {
+        const matched = academicData.programs.filter(p => Number(p.course_id) === Number(courseObj.id));
+        if (matched.length > 0) {
+          return [...defaultOpts, ...matched.map(p => ({ value: p.name, label: p.name }))];
+        }
+      }
+    }
     const courseObj = courses.find(c => c.name === filterCourse);
     return [
       ...defaultOpts,
       ...(courseObj?.programs?.map(p => ({ value: p, label: p })) || [])
     ];
-  }, [courses, filterCourse]);
+  }, [academicData, courses, filterCourse]);
+
+  const academicYearOptions = useMemo(() => {
+    if (academicData?.academicYears && academicData.academicYears.length > 0) {
+      return academicData.academicYears.map(ay => ({ value: ay.name, label: ay.name }));
+    }
+    return [
+      { value: '2024-2025', label: '2024-2025' },
+      { value: '2025-2026', label: '2025-2026' }
+    ];
+  }, [academicData]);
+
+  const getProgramsForCourse = useCallback((courseName: string) => {
+    if (!courseName) return [];
+    if (academicData?.courses && academicData?.programs) {
+      const courseObj = academicData.courses.find(c => c.name === courseName);
+      if (courseObj) {
+        const matched = academicData.programs.filter(p => Number(p.course_id) === Number(courseObj.id));
+        if (matched.length > 0) {
+          return matched.map(p => ({ value: p.name, label: p.name }));
+        }
+      }
+    }
+    const cObj = courses.find(c => c.name === courseName);
+    return (cObj?.programs || []).map(p => ({ value: p, label: p }));
+  }, [academicData, courses]);
+
+  const getLevelsForProgram = useCallback((courseName: string, programName: string) => {
+    if (academicData?.levels) {
+      const courseObj = academicData.courses?.find(c => c.name === courseName);
+      const progObj = academicData.programs?.find(p => p.name === programName && (!courseObj || Number(p.course_id) === Number(courseObj.id)));
+      
+      if (progObj) {
+        const matchedByProg = academicData.levels.filter(l => Number(l.program_id) === Number(progObj.id));
+        if (matchedByProg.length > 0) {
+          return matchedByProg.map(l => ({ value: l.name, label: l.name }));
+        }
+      }
+      if (courseObj) {
+        const matchedByCourse = academicData.levels.filter(l => Number(l.course_id) === Number(courseObj.id));
+        if (matchedByCourse.length > 0) {
+          return matchedByCourse.map(l => ({ value: l.name, label: l.name }));
+        }
+      }
+      if (academicData.levels.length > 0) {
+        return academicData.levels.map(l => ({ value: l.name, label: l.name }));
+      }
+    }
+    return [
+      { value: 'Year 1 / Class 11', label: 'Year 1 / Class 11' },
+      { value: 'Year 2 / Class 12', label: 'Year 2 / Class 12' },
+      { value: 'Class 8', label: 'Class 8' },
+      { value: 'Class 9', label: 'Class 9' },
+      { value: 'Class 10', label: 'Class 10' }
+    ];
+  }, [academicData]);
 
   // Filtered lists
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
-      if (l.status === 'Converted') return false;
+      if (filterStatus === 'All') {
+        if (l.status === 'Converted' || l.status === 'Cancelled' || l.status === 'Lost' || l.status === 'Not Interested') return false;
+      } else {
+        if (l.status !== filterStatus) return false;
+      }
       if (activeTab === 'fee' && l.status !== 'Fee Discussion') return false;
       const q = search.toLowerCase();
       const matchQ = l.name.toLowerCase().includes(q) || l.course.toLowerCase().includes(q) || l.mobile.includes(q);
-      const matchSt = filterStatus === 'All' || l.status === filterStatus;
       const matchSrc = filterSource === 'All' || l.source === filterSource;
       const matchBranch = currentUser?.role === 'branch-admin'
         ? l.branch === currentUser.branch
         : (filterBranch === 'All' || l.branch === filterBranch);
       const matchCourse = filterCourse === 'All' || l.course === filterCourse;
-      const courseObj = courses.find(c => c.name === l.course);
-      const matchProgram = filterProgram === 'All' || (courseObj?.programs?.includes(filterProgram) ?? false);
-      return matchQ && matchSt && matchSrc && matchBranch && matchCourse && matchProgram;
+      let matchProgram = filterProgram === 'All';
+      if (filterProgram !== 'All') {
+        if (l.program === filterProgram) matchProgram = true;
+        const courseObj = (academicData?.courses || courses).find(c => c.name === l.course);
+        if (courseObj) {
+          const progs = getProgramsForCourse(courseObj.name);
+          if (progs.some(p => p.value === filterProgram)) matchProgram = true;
+        }
+      }
+      return matchQ && matchSrc && matchBranch && matchCourse && matchProgram;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, courses, currentUser, activeTab]);
+  }, [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, academicData, courses, getProgramsForCourse, currentUser, activeTab]);
 
   const filteredStudents = useMemo(() => {
-    return students.filter(s => {
-      const q = search.toLowerCase();
-      const matchQ = s.name.toLowerCase().includes(q) || s.studentId.toLowerCase().includes(q) || s.mobile.includes(q);
-      const matchSt = filterStatus === 'All' || s.status === filterStatus;
+    const sourceList = apiStudents.length > 0 ? apiStudents : students;
+    return sourceList.filter(s => {
+      const q = search.toLowerCase().trim();
+      const matchQ = !q || (
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.studentId && s.studentId.toLowerCase().includes(q)) ||
+        (s.mobile && s.mobile.includes(q)) ||
+        (s.course && s.course.toLowerCase().includes(q)) ||
+        (s.branch && s.branch.toLowerCase().includes(q))
+      );
+      
+      let matchSt = true;
+      if (filterStatus !== 'All') {
+        const sStatusStr = String(s.status);
+        const fStatusStr = String(filterStatus);
+        matchSt = sStatusStr === fStatusStr || 
+                  studentStatusLabelOf(s.status).toLowerCase() === fStatusStr.toLowerCase() ||
+                  (s.status === 'Active Student' && filterStatus === 'Active') ||
+                  (s.status === 1 && filterStatus === 'Active');
+      }
+
       const matchBranch = currentUser?.role === 'branch-admin'
         ? s.branch === currentUser.branch
         : (filterBranch === 'All' || s.branch === filterBranch);
+
       const matchCourse = filterCourse === 'All' || s.course === filterCourse;
+
       let matchProgram = filterProgram === 'All';
       if (filterProgram !== 'All') {
+        if (s.program === filterProgram) matchProgram = true;
         if (s.batch) {
           const b = batches.find(x => x.name === s.batch);
           if (b && b.program === filterProgram) matchProgram = true;
         }
-        const courseObj = courses.find(c => c.name === s.course);
+        const courseObj = (academicData?.courses || courses).find(c => c.name === s.course);
         if (courseObj?.programs?.includes(filterProgram)) matchProgram = true;
       }
       return matchQ && matchSt && matchBranch && matchCourse && matchProgram;
     });
-  }, [students, search, filterStatus, filterBranch, filterCourse, filterProgram, batches, courses, currentUser]);
+  }, [apiStudents, students, search, filterStatus, filterBranch, filterCourse, filterProgram, batches, courses, academicData, currentUser]);
 
   // Paginated Slices
   const paginatedLeads = useMemo(() => {
@@ -352,45 +749,102 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // Summary statistics
   const stats = useMemo(() => {
-    const activeLeads = leads.filter(l => l.status !== 'Converted');
+    const activeLeads = leads.filter(l => l.status !== 'Converted' && l.status !== 'Cancelled' && l.status !== 'Lost' && l.status !== 'Not Interested');
+    const sourceStudents = apiStudents.length > 0 ? apiStudents : students;
     return {
       totalLeads: activeLeads.length,
       newEnquiries: activeLeads.filter(l => l.status === 'New Enquiry').length,
       followUp: activeLeads.filter(l => l.status === 'Follow-up').length,
       interested: activeLeads.filter(l => l.status === 'Interested').length,
-      totalStudents: students.length,
-      verificationPending: students.filter(s => s.status === 'Verification Pending').length,
-      activeStudents: students.filter(s => s.status === 'Active Student').length,
-      feeCollected: students.reduce((sum, s) => sum + (s.feePlan?.paid || 0), 0),
-      feeOutstanding: students.reduce((sum, s) => sum + (s.feePlan?.pending || 0), 0)
+      totalStudents: sourceStudents.length,
+      pendingDocs: sourceStudents.filter(s => s.status === 0 || s.status === '0' || s.status === 'Verification Pending' || s.status === 'Draft' || s.status === 'Document Pending').length,
+      pendingReview: sourceStudents.filter(s => s.status === 0 || s.status === '0' || s.status === 'Verification Pending' || s.status === 'Document Uploaded').length,
+      verificationPending: sourceStudents.filter(s => s.status === 0 || s.status === '0' || s.status === 'Verification Pending').length,
+      activeStudents: sourceStudents.filter(s => s.status === 1 || s.status === '1' || s.status === 'Active Student' || s.status === 'Active' || s.status === 5).length,
+      feeCollected: sourceStudents.reduce((sum, s) => sum + (s.feePlan?.paid || 0), 0),
+      feeOutstanding: sourceStudents.reduce((sum, s) => sum + (s.feePlan?.pending || 0), 0)
     };
-  }, [leads, students]);
+  }, [leads, apiStudents, students]);
 
   // Save Handlers
-  const handleAddLeadSubmit = (e: React.FormEvent) => {
+  const handleAddLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!leadForm.name || !leadForm.mobile || !leadForm.course) {
-      addToast('Please fill Name, Mobile and Course', 'error');
+    if (!leadForm.name?.trim()) {
+      addToast('Student Full Name is required.', 'error');
       return;
     }
-    addLead(
-      leadForm.name,
-      leadForm.mobile,
-      leadForm.parentMobile,
-      leadForm.course,
-      leadForm.program,
-      leadForm.level,
-      leadForm.source,
-      leadForm.remarks,
-      leadForm.branch,
-      leadForm.branch, // preferred
-      leadForm.counsellor || 'System Admin'
-    );
-    addToast('New lead registered successfully!', 'success');
-    setShowAddLead(false);
-    setLeadForm({
-      name: '', mobile: '', parentMobile: '', course: '', program: '', level: 'year1', source: 'Walk-in', remarks: '', branch: '', counsellor: ''
-    });
+    const cleanMobile = leadForm.mobile?.trim().replace(/\D/g, '') || '';
+    if (cleanMobile.length < 10) {
+      addToast('Please enter a valid 10-digit Student Mobile number.', 'error');
+      return;
+    }
+    if (!leadForm.email?.trim() || !leadForm.email.includes('@')) {
+      addToast('Please enter a valid Student Email address.', 'error');
+      return;
+    }
+    if (!leadForm.parentName?.trim()) {
+      addToast('Parent / Guardian Name is required.', 'error');
+      return;
+    }
+    const cleanParentMobile = leadForm.parentMobile?.trim().replace(/\D/g, '') || '';
+    if (cleanParentMobile.length < 10) {
+      addToast('Please enter a valid 10-digit Parent Mobile number.', 'error');
+      return;
+    }
+    if (!leadForm.parentEmail?.trim() || !leadForm.parentEmail.includes('@')) {
+      addToast('Please enter a valid Parent Email address.', 'error');
+      return;
+    }
+    if (!leadForm.branch) {
+      addToast('Branch / Center is required.', 'error');
+      return;
+    }
+    if (!leadForm.course) {
+      addToast('Interested Course is required.', 'error');
+      return;
+    }
+
+    try {
+      const payload = await buildCreateEnquiryPayload({
+        name: leadForm.name.trim(),
+        email: leadForm.email.trim(),
+        mobile: leadForm.mobile.trim(),
+        parentName: leadForm.parentName.trim(),
+        parentMobile: leadForm.parentMobile.trim(),
+        parentEmail: leadForm.parentEmail.trim(),
+        course: leadForm.course,
+        program: leadForm.program,
+        level: leadForm.level,
+        academicYear: leadForm.academicYear,
+        source: leadForm.source,
+        remarks: leadForm.remarks,
+        branch: leadForm.branch,
+        counsellor: leadForm.counsellor
+      });
+      await apiCreateEnquiry(payload);
+      addToast('New enquiry logged successfully!', 'success');
+      setShowAddLead(false);
+      setLeadForm({
+        name: '',
+        email: '',
+        mobile: '',
+        parentName: '',
+        parentMobile: '',
+        parentEmail: '',
+        course: courses[0]?.name || '',
+        program: courses[0]?.programs?.[0] || '',
+        level: 'year1',
+        academicYear: '2024-2025',
+        source: 'Walk-in',
+        remarks: '',
+        branch: (currentUser?.role === 'branch-admin' ? currentUser.branch : branches[0]?.name) || '',
+        counsellor: currentUser?.name || 'Admin'
+      });
+      await fetchLeads();
+    } catch (err: any) {
+      console.error('Failed to log enquiry:', err);
+      addToast('Failed to log enquiry.', 'error');
+    }
   };
 
   const handleFollowupSubmit = (e: React.FormEvent) => {
@@ -437,139 +891,278 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   // ─────────────────────────────────────────────────────────────────────────
   //  VIEW: Lead Details Panel (Matching Screenshot)
   // ─────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  //  VIEW / EDIT: Lead Details Panel
+  // ─────────────────────────────────────────────────────────────────────────
   if (showLeadDetail && selectedLead) {
+    const detailTabs = [
+      { id: 'profile', label: '1. Profile Details' },
+      { id: 'course', label: '2. Course & Status' },
+      { id: 'history', label: '3. Follow-up History' },
+      { id: 'fee', label: '4. Fee & Admission' }
+    ] as const;
+
     return (
       <div className="space-y-6 w-full animate-fade-in">
-        <div className="flex items-center gap-3">
-          <button onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer">
-            <ArrowLeft size={24} />
-          </button>
-          <div>
-            <h2 className="text-2xl font-display font-bold text-slate-900">Lead Details: {selectedLead.name}</h2>
-            <p className="text-sm text-slate-500">Edit enquiry details below.</p>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} 
+              className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+              title="Return to list"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-display font-bold text-slate-900">
+                  {isViewOnly ? `Lead Details: ${selectedLead.name}` : `Edit Lead: ${selectedLead.name}`}
+                </h2>
+                <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                  #{selectedLead.id}
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {isViewOnly 
+                  ? 'Read-only overview of enquiry information, academic interests, timeline, and fee structure.'
+                  : 'Modify student contact information, course interest, counselor assignment, or fee configuration.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {isViewOnly ? (
+              <>
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  onClick={() => setIsViewOnly(false)} 
+                  className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200"
+                >
+                  <Pencil size={14} className="text-amber-600" /> Edit Lead
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="primary" 
+                  onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: selectedLead.feeConfig } })}
+                  className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs" 
+                  style={{ backgroundColor: '#2563eb', color: 'white' }}
+                >
+                  Convert to Student <ChevronRight size={14} />
+                </Button>
+              </>
+            ) : (
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={() => setIsViewOnly(true)} 
+                className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200"
+              >
+                <Eye size={14} className="text-blue-600" /> Switch to View
+              </Button>
+            )}
           </div>
         </div>
 
+        {/* Tabs Navigation */}
         <div className="w-full">
-          <form onSubmit={e => {
-            e.preventDefault();
-            updateLead(selectedLead.id, {
-              name: fName, mobile: fMobile, course: fCourse, program: fProgram, level: fLevel, preferredBranch: fBranch, branch: fAssignedBranch, source: fSource, counsellor: fCounsellor, status: fStatus, demoScheduledOn: fDemoScheduledOn, remarks: fRemarks
-            });
-            setShowLeadDetail(false);
-            setSelectedLead(null);
-            addToast('Lead updated successfully.', 'success');
-          }} className="space-y-4">
-            
-            {/* Tabs Header */}
-            <div className="flex gap-4 border-b border-slate-200 mb-6">
-              {[
-                { id: 'profile', label: 'Profile Details' },
-                { id: 'course', label: 'Course & Status' },
-                { id: 'history', label: 'Follow-up History' },
-                { id: 'fee', label: 'Fee & Admission' }
-              ].map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setModalTab(t.id as any)}
-                  className={`pb-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer ${
-                    modalTab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+          <div className="flex gap-2 border-b border-slate-200 mb-6 overflow-x-auto">
+            {detailTabs.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setModalTab(t.id as any)}
+                className={`pb-3 px-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                  modalTab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-            {/* TAB 1: Profile Details */}
-            {modalTab === 'profile' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Student & Contact Details</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input label="Student Name *" required value={fName} onChange={e => setFName(e.target.value)} />
-                    <Input label="Mobile Contact *" required value={fMobile} onChange={e => setFMobile(e.target.value)} />
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Branch Details</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
-                      { value: '', label: 'No Preference' },
-                      ...branchFilterOptions.filter(o => o.value !== 'All')
-                    ]} disabled={currentUser?.role === 'branch-admin'} />
-                    <Select label="Assigned Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
-                      { value: '', label: 'Assign Later' },
-                      ...branchFilterOptions.filter(o => o.value !== 'All')
-                    ]} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: Course & Status */}
-            {modalTab === 'course' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Course Interest & Discovery</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Select label="Interested Course" value={fCourse} onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel('year1'); }} options={courseFilterOptions.filter(o => o.value !== 'All')} />
-                    <Select label="Program" value={fProgram} onChange={e => { setFProgram(e.target.value); }} options={[{ value: '', label: 'Select Program' }, ...(courses.find(c => c.name === fCourse)?.programs?.map(p => ({ value: p, label: p })) || [])]} />
-                    <Select label="Level" value={fLevel} onChange={e => setFLevel(e.target.value)} options={[
-                      { value: '', label: 'Select Level' },
-                      { value: 'year1', label: 'Year 1 / Class 11' },
-                      { value: 'year2', label: 'Year 2 / Class 12' },
-                      { value: 'class8', label: 'Class 8' },
-                      { value: 'class9', label: 'Class 9' },
-                      { value: 'class10', label: 'Class 10' }
-                    ]} />
-                    <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
-                      { value: 'Walk-in', label: 'Walk-in at Branch' },
-                      { value: 'Phone Call', label: 'Phone Call' },
-                      { value: 'Website', label: 'Website / Landing Page' },
-                      { value: 'Social Media', label: 'Social Media' },
-                      { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
-                      { value: 'Referral', label: 'Student Referral' },
-                      { value: 'Flyer Campaign', label: 'Offline Campaign / Event' },
-                      { value: 'Google Ads', label: 'Google Ads' }
-                    ]} />
-                    <Select label="Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value as any)} options={[
-                      { value: 'New Enquiry', label: 'New Enquiry' },
-                      { value: 'Contacted', label: 'Contacted' },
-                      { value: 'Follow-up', label: 'Follow-up' },
-                      { value: 'Demo Scheduled', label: 'Demo Scheduled' },
-                      { value: 'Fee Discussion', label: 'Fee Discussion' },
-                      { value: 'Interested', label: 'Interested' },
-                      { value: 'Not Interested', label: 'Not Interested' }
-                    ]} />
-                    <Select label="Assigned Counsellor" value={fCounsellor} onChange={e => setFCounsellor(e.target.value)} options={[
-                      { value: '', label: 'Select Counsellor' },
-                      { value: 'Priya Sen', label: 'Priya Sen' },
-                      { value: 'Amit Verma', label: 'Amit Verma' }
-                    ]} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Remarks</label>
-                    <textarea className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[60px]" value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
-                  </div>
-                </div>
-
-                {fStatus === 'Demo Scheduled' && (
-                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-4">
-                    <h4 className="text-xs font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
-                    <div className="grid grid-cols-1 gap-4">
-                      <Input label="Demo Scheduled On" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+          {/* ─────────────── VIEW ONLY MODE (READ-ONLY) ─────────────── */}
+          {isViewOnly ? (
+            <div className="space-y-6 animate-fade-in">
+              {/* TAB 1: Profile Details (View) */}
+              {modalTab === 'profile' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
+                        <Users size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Student Details</h4>
+                        <p className="text-xs text-slate-500">Student direct contact information</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Student Name</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Mobile Contact</span>
+                        <span className="text-sm font-mono font-semibold text-slate-900 block">{selectedLead.mobile || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Student Email</span>
+                        <span className="text-sm font-medium text-slate-800 block">{selectedLead.email || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Lead ID</span>
+                        <span className="text-sm font-mono font-semibold text-slate-600 block">#{selectedLead.id}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* TAB 3: Follow-up History */}
-            {modalTab === 'history' && (
-              <div className="space-y-4 animate-fade-in">
-                <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+                        <Users size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Parent / Guardian</h4>
+                        <p className="text-xs text-slate-500">Parent & communication contacts</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Parent Name</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.parentName || 'Not provided'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Parent Mobile</span>
+                        <span className="text-sm font-mono font-semibold text-slate-900 block">{selectedLead.parentMobile || 'Not provided'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Parent Email</span>
+                        <span className="text-sm font-medium text-slate-800 block">{selectedLead.parentEmail || 'Not provided'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                        <MapPin size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Branch & Location</h4>
+                        <p className="text-xs text-slate-500">Center facility allocation</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Branch</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.preferredBranch || selectedLead.branch || 'No preference'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Assigned Managing Branch</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.branch || 'Unassigned'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Course & Status (View) */}
+              {modalTab === 'course' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                        <BookOpen size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Academic Course Interest</h4>
+                        <p className="text-xs text-slate-500">Selected stream, program tier, and source</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Interested Course</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.course || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Program</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.program || 'Standard Program'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Level / Class</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.level || 'Year 1 / Class 11'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Academic Year</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.academicYear || '2024-2025'}</span>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Discovery Source</span>
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">{selectedLead.source}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                      <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold shrink-0">
+                        <CheckCircle size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Pipeline Stage & Assignment</h4>
+                        <p className="text-xs text-slate-500">Current progress, demo schedule, and counselor</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Stage Status</span>
+                        <StatusBadge status={selectedLead.status} />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Assigned Counsellor</span>
+                        <span className="text-sm font-semibold text-slate-900 block">{selectedLead.counsellor || 'Unassigned'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Demo Scheduled On</span>
+                        <span className="text-sm font-mono text-slate-700 block">{selectedLead.demoScheduledOn || 'No demo scheduled'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Next Follow-up</span>
+                        <span className="text-sm font-mono text-amber-700 block">{selectedLead.nextFollowUp || 'None scheduled'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedLead.lostReason && (
+                    <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-5 shadow-sm space-y-2 md:col-span-2">
+                      <div className="flex items-center justify-between border-b border-rose-200/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={16} className="text-rose-600" />
+                          <h4 className="text-sm font-bold text-rose-900">Reason for Lost / Dropped Lead</h4>
+                        </div>
+                        {selectedLead.lostAt && (
+                          <span className="text-xs font-mono text-rose-700 font-medium">Dropped on: {selectedLead.lostAt.slice(0, 10)}</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-rose-800 leading-relaxed font-medium">{selectedLead.lostReason}</p>
+                    </div>
+                  )}
+
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3 md:col-span-2">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                      <FileText size={16} className="text-slate-500" />
+                      <h4 className="text-sm font-bold text-slate-900">Counselling Remarks & Notes</h4>
+                    </div>
+                    <p className="text-sm text-slate-700 leading-relaxed">{selectedLead.remarks || 'No remarks recorded for this lead.'}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Follow-up History (View) */}
+              {modalTab === 'history' && (
+                <div className="p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-sm">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                     <div>
                       <h4 className="text-sm font-bold text-slate-800">Follow-up & Interaction History</h4>
@@ -599,12 +1192,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   {selectedLead.followups && selectedLead.followups.length > 0 ? (
                     <div className="space-y-3 pt-2">
                       {selectedLead.followups.map((fu, idx) => (
-                        <div key={idx} className="flex flex-col sm:flex-row gap-3 text-sm bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
+                        <div key={idx} className="flex flex-col sm:flex-row gap-3 text-sm bg-slate-50/50 p-4 border border-slate-200 rounded-xl shadow-xs">
                           <div className="w-24 shrink-0 font-mono text-xs font-semibold text-slate-500 pt-0.5">{fu.date}</div>
                           <div className="flex-1 space-y-1.5">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-800">{fu.type}</span>
-                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{(fu as any).counsellor || selectedLead.counsellor}</span>
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-slate-200/70 text-slate-700 rounded">{(fu as any).counsellor || selectedLead.counsellor}</span>
                               {fu.nextDate && (
                                 <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 ml-auto">
                                   Next Action: {fu.nextDate}
@@ -617,72 +1210,358 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       ))}
                     </div>
                   ) : (
-                    <div className="text-sm text-slate-400 italic py-8 text-center bg-white border border-slate-200 rounded-xl">
+                    <div className="text-sm text-slate-400 italic py-8 text-center bg-slate-50 border border-slate-200 rounded-xl">
                       No follow-ups recorded yet. Click &quot;Add Interaction&quot; above to log a call or meeting.
                     </div>
                   )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* TAB 4: Fee & Admission */}
-            {modalTab === 'fee' && (
-              <div className="space-y-6 animate-fade-in pb-8">
-                <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm mb-6">
-                  <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                    <UserCheck className="w-5 h-5 text-blue-600" /> Pre-Registration Fee Discussion
-                  </h4>
-                  <p className="text-xs text-slate-500">Configure the fee structure with the parent. When finalized, convert this lead to a registered student. The configuration will carry over.</p>
+              {/* TAB 4: Fee & Admission (View) */}
+              {modalTab === 'fee' && (
+                <div className="space-y-6 animate-fade-in pb-8">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                          <DollarSign size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-slate-900">Pre-Registration Fee Structure</h4>
+                          <p className="text-xs text-slate-500">Agreed commercial terms, concession, downpayment, and payment installments</p>
+                        </div>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="secondary" 
+                        onClick={() => setIsViewOnly(false)}
+                        className="cursor-pointer text-xs font-semibold flex items-center gap-1.5"
+                      >
+                        <Pencil size={14} className="text-amber-600" /> Modify Fee Structure
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 text-center">
+                        <span className="text-xs text-slate-500 font-semibold block mb-1">Standard Gross Fee</span>
+                        <span className="text-xl font-bold text-slate-900">₹{(selectedLead.feeConfig?.totalFee || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 text-center">
+                        <span className="text-xs text-amber-700 font-semibold block mb-1">Concession / Discount</span>
+                        <span className="text-xl font-bold text-amber-800">₹{(selectedLead.feeConfig?.discount || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 text-center">
+                        <span className="text-xs text-emerald-700 font-semibold block mb-1">Net Agreed Fee</span>
+                        <span className="text-xl font-bold text-emerald-700">₹{(selectedLead.feeConfig?.netFee || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 text-center">
+                        <span className="text-xs text-blue-700 font-semibold block mb-1">Downpayment</span>
+                        <span className="text-xl font-bold text-blue-700">₹{(selectedLead.feeConfig?.downpayment || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Academic Package</span>
+                        <div className="text-sm font-semibold text-slate-800">{selectedLead.feeConfig?.course || selectedLead.course || '—'}</div>
+                        <div className="text-xs text-slate-500">{selectedLead.feeConfig?.program || selectedLead.program || 'Standard Program'} • {selectedLead.feeConfig?.level || selectedLead.level || 'Year 1 / Class 11'}</div>
+                      </div>
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Installment Terms</span>
+                        <div className="text-sm font-semibold text-slate-800">{selectedLead.feeConfig?.installments || 1} Monthly Installment(s)</div>
+                        <div className="text-xs text-slate-500">₹{(selectedLead.feeConfig?.installmentAmount || 0).toLocaleString()} / month after downpayment</div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                      <Button 
+                        type="button" 
+                        variant="primary" 
+                        onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: selectedLead.feeConfig } })}
+                        style={{ backgroundColor: '#10b981', color: 'white', padding: '0.65rem 1.5rem', fontSize: '0.9rem' }}
+                        className="cursor-pointer"
+                      >
+                        Convert to Registered Student <ChevronRight size={18} className="ml-1.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                
-                <FeeConfigurator 
-                  initialCourse={selectedLead.feeConfig?.course || selectedLead.course}
-                  initialProgram={selectedLead.feeConfig?.program || selectedLead.program}
-                  initialLevel={selectedLead.feeConfig?.level || selectedLead.level}
-                  initialState={selectedLead.feeConfig}
-                  onChange={(data) => setLeadFeeData(data)}
-                />
+              )}
+            </div>
+          ) : (
+            /* ─────────────── EDIT MODE (FORM CONTROLS) ─────────────── */
+            <form onSubmit={e => {
+              e.preventDefault();
+              updateLead(selectedLead.id, {
+                name: fName,
+                email: fEmail,
+                mobile: fMobile,
+                parentName: fParentName,
+                parentMobile: fParentMobile,
+                parentEmail: fParentEmail,
+                course: fCourse,
+                program: fProgram,
+                level: fLevel,
+                academicYear: fAcademicYear,
+                preferredBranch: fBranch,
+                branch: fAssignedBranch,
+                source: fSource,
+                counsellor: fCounsellor,
+                status: fStatus,
+                demoScheduledOn: fDemoScheduledOn,
+                nextFollowUp: fNextFollowUp,
+                remarks: fRemarks
+              });
+              setShowLeadDetail(false);
+              setSelectedLead(null);
+              addToast('Lead updated successfully.', 'success');
+            }} className="space-y-4">
+              {/* TAB 1: Profile Details (Edit) */}
+              {modalTab === 'profile' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Student Contact Details</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <Input label="Student Name *" required value={fName} onChange={e => setFName(e.target.value)} />
+                      <Input label="Mobile Contact *" required value={fMobile} onChange={e => setFMobile(e.target.value)} />
+                      <Input label="Student Email" type="email" placeholder="student@example.com" value={fEmail} onChange={e => setFEmail(e.target.value)} />
+                    </div>
+                  </div>
 
-                <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 mt-6">
-                  <Button type="button" variant="secondary" onClick={() => {
-                    if (selectedLead && leadFeeData) {
-                      updateLead(selectedLead.id, {
-                        feeConfig: leadFeeData,
-                        status: 'Fee Discussion',
-                        course: leadFeeData.course || selectedLead.course,
-                        program: leadFeeData.program || selectedLead.program,
-                        level: leadFeeData.level || selectedLead.level
-                      });
-                      setSelectedLead({
-                        ...selectedLead,
-                        feeConfig: leadFeeData,
-                        status: 'Fee Discussion',
-                        course: leadFeeData.course || selectedLead.course,
-                        program: leadFeeData.program || selectedLead.program,
-                        level: leadFeeData.level || selectedLead.level
-                      });
-                      setFStatus('Fee Discussion');
-                    }
-                    addToast('Fee configuration saved & lead moved to Fee Discussion.', 'success');
-                    setShowLeadDetail(false);
-                    setSelectedLead(null);
-                  }} style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }} className="cursor-pointer">
-                    Save Configuration
-                  </Button>
-                  <Button type="button" variant="primary" onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: leadFeeData } })} style={{ backgroundColor: '#10b981', color: 'white', padding: '0.75rem 1.5rem', fontSize: '1rem' }} className="cursor-pointer">
-                    Convert to Student <ChevronRight size={20} className="ml-2" />
-                  </Button>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Parent / Guardian Details</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <Input label="Parent / Guardian Name" placeholder="e.g. Rajesh Sharma" value={fParentName} onChange={e => setFParentName(e.target.value)} />
+                      <Input label="Parent Mobile Number" placeholder="Guardian contact mobile" value={fParentMobile} onChange={e => setFParentMobile(e.target.value)} />
+                      <Input label="Parent Email Address" type="email" placeholder="parent@example.com" value={fParentEmail} onChange={e => setFParentEmail(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Branch Details</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Select label="Preferred Branch" value={fBranch} onChange={e => setFBranch(e.target.value)} options={[
+                        { value: '', label: 'No Preference' },
+                        ...branchFilterOptions.filter(o => o.value !== 'All')
+                      ]} disabled={currentUser?.role === 'branch-admin'} />
+                      <Select label="Assigned Managing Branch" value={fAssignedBranch} onChange={e => setFAssignedBranch(e.target.value)} options={[
+                        { value: '', label: 'Assign Later' },
+                        ...branchFilterOptions.filter(o => o.value !== 'All')
+                      ]} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {modalTab !== 'fee' && (
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
-                <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button" className="cursor-pointer">Cancel</Button>
-                <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit" className="cursor-pointer">Save Changes</Button>
-              </div>
-            )}
-          </form>
+              {/* TAB 2: Course & Status (Edit) */}
+              {modalTab === 'course' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Course Interest & Academic Year</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <Select 
+                        label="Interested Course *" 
+                        value={fCourse} 
+                        onChange={e => { 
+                          const newC = e.target.value;
+                          setFCourse(newC); 
+                          const progs = getProgramsForCourse(newC);
+                          const firstProg = progs[0]?.value || '';
+                          setFProgram(firstProg); 
+                          const lvls = getLevelsForProgram(newC, firstProg);
+                          setFLevel(lvls[0]?.value || ''); 
+                        }} 
+                        options={courseFilterOptions.filter(o => o.value !== 'All')} 
+                      />
+                      <Select 
+                        label="Program" 
+                        value={fProgram} 
+                        onChange={e => { 
+                          const newP = e.target.value;
+                          setFProgram(newP); 
+                          const lvls = getLevelsForProgram(fCourse, newP);
+                          setFLevel(lvls[0]?.value || '');
+                        }} 
+                        options={[{ value: '', label: 'Select Program' }, ...getProgramsForCourse(fCourse)]} 
+                      />
+                      <Select 
+                        label="Level / Class" 
+                        value={fLevel} 
+                        onChange={e => setFLevel(e.target.value)} 
+                        options={[{ value: '', label: 'Select Level' }, ...getLevelsForProgram(fCourse, fProgram)]} 
+                      />
+                      <Select 
+                        label="Academic Year" 
+                        value={fAcademicYear} 
+                        onChange={e => setFAcademicYear(e.target.value)} 
+                        options={academicYearOptions} 
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+                      <Select label="Discovery Source" value={fSource} onChange={e => setFSource(e.target.value)} options={[
+                        { value: 'Walk-in', label: 'Walk-in at Branch' },
+                        { value: 'Phone Call', label: 'Phone Call' },
+                        { value: 'Website', label: 'Website / Landing Page' },
+                        { value: 'Social Media', label: 'Social Media' },
+                        { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
+                        { value: 'Referral', label: 'Student Referral' },
+                        { value: 'Flyer Campaign', label: 'Offline Campaign / Event' },
+                        { value: 'Google Ads', label: 'Google Ads' }
+                      ]} />
+                      <Select label="Stage Status" value={fStatus} onChange={e => setFStatus(e.target.value as any)} options={[
+                        { value: 'New Enquiry', label: 'New Enquiry' },
+                        { value: 'Contacted', label: 'Contacted' },
+                        { value: 'Follow-up', label: 'Follow-up' },
+                        { value: 'Demo Scheduled', label: 'Demo Scheduled' },
+                        { value: 'Fee Discussion', label: 'Fee Discussion' },
+                        { value: 'Interested', label: 'Interested' },
+                        { value: 'Not Interested', label: 'Not Interested' }
+                      ]} />
+                      <Select label="Assigned Counsellor" value={fCounsellor} onChange={e => setFCounsellor(e.target.value)} options={[
+                        { value: '', label: 'Select Counsellor' },
+                        { value: 'Priya Sen', label: 'Priya Sen' },
+                        { value: 'Amit Verma', label: 'Amit Verma' }
+                      ]} />
+                      <Input label="Next Follow-up Date" type="date" value={fNextFollowUp} onChange={e => setFNextFollowUp(e.target.value)} />
+                    </div>
+
+                    {fStatus === 'Demo Scheduled' && (
+                      <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-2 mt-3">
+                        <h4 className="text-xs font-bold text-purple-700 uppercase tracking-wide">Demo Scheduling Details</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <Input label="Demo Scheduled On" type="date" value={fDemoScheduledOn} onChange={e => setFDemoScheduledOn(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-1.5 pt-2">
+                      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Discussion Remarks / Notes</label>
+                      <textarea className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[60px]" value={fRemarks} onChange={e => setFRemarks(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Follow-up History (Edit) */}
+              {modalTab === 'history' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800">Follow-up & Interaction History</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">Timeline of past communications, calls, and meetings.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={() => {
+                          setInteractionForm({
+                            date: new Date().toISOString().split('T')[0],
+                            type: 'Call',
+                            status: selectedLead.status || 'Follow-up',
+                            nextDate: '',
+                            remarks: '',
+                            demoScheduledOn: ''
+                          });
+                          setShowAddInteractionModal(true);
+                        }}
+                        className="cursor-pointer font-semibold text-xs flex items-center gap-1.5"
+                        style={{ backgroundColor: '#2563eb', color: 'white' }}
+                      >
+                        <Plus size={14} /> Add Interaction
+                      </Button>
+                    </div>
+
+                    {selectedLead.followups && selectedLead.followups.length > 0 ? (
+                      <div className="space-y-3 pt-2">
+                        {selectedLead.followups.map((fu, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row gap-3 text-sm bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
+                            <div className="w-24 shrink-0 font-mono text-xs font-semibold text-slate-500 pt-0.5">{fu.date}</div>
+                            <div className="flex-1 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-800">{fu.type}</span>
+                                <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{(fu as any).counsellor || selectedLead.counsellor}</span>
+                                {fu.nextDate && (
+                                  <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 ml-auto">
+                                    Next Action: {fu.nextDate}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-slate-600 text-xs leading-relaxed">{fu.outcome}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-400 italic py-8 text-center bg-white border border-slate-200 rounded-xl">
+                        No follow-ups recorded yet. Click &quot;Add Interaction&quot; above to log a call or meeting.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: Fee & Admission (Edit) */}
+              {modalTab === 'fee' && (
+                <div className="space-y-6 animate-fade-in pb-8">
+                  <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm mb-6">
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
+                      <UserCheck className="w-5 h-5 text-blue-600" /> Pre-Registration Fee Discussion
+                    </h4>
+                    <p className="text-xs text-slate-500">Configure the fee structure with the parent. When finalized, convert this lead to a registered student. The configuration will carry over.</p>
+                  </div>
+                  
+                  <FeeConfigurator 
+                    academicData={academicData}
+                    initialCourse={selectedLead.feeConfig?.course || selectedLead.course}
+                    initialProgram={selectedLead.feeConfig?.program || selectedLead.program}
+                    initialLevel={selectedLead.feeConfig?.level || selectedLead.level}
+                    initialState={selectedLead.feeConfig}
+                    onChange={(data) => setLeadFeeData(data)}
+                  />
+
+                  <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 mt-6">
+                    <Button type="button" variant="secondary" onClick={() => {
+                      if (selectedLead && leadFeeData) {
+                        updateLead(selectedLead.id, {
+                          feeConfig: leadFeeData,
+                          status: 'Fee Discussion',
+                          course: leadFeeData.course || selectedLead.course,
+                          program: leadFeeData.program || selectedLead.program,
+                          level: leadFeeData.level || selectedLead.level
+                        });
+                        setSelectedLead({
+                          ...selectedLead,
+                          feeConfig: leadFeeData,
+                          status: 'Fee Discussion',
+                          course: leadFeeData.course || selectedLead.course,
+                          program: leadFeeData.program || selectedLead.program,
+                          level: leadFeeData.level || selectedLead.level
+                        });
+                        setFStatus('Fee Discussion');
+                      }
+                      addToast('Fee configuration saved & lead moved to Fee Discussion.', 'success');
+                      setShowLeadDetail(false);
+                      setSelectedLead(null);
+                    }} style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }} className="cursor-pointer">
+                      Save Configuration
+                    </Button>
+                    <Button type="button" variant="primary" onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: leadFeeData } })} style={{ backgroundColor: '#10b981', color: 'white', padding: '0.75rem 1.5rem', fontSize: '1rem' }} className="cursor-pointer">
+                      Convert to Student <ChevronRight size={20} className="ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {modalTab !== 'fee' && (
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-6">
+                  <Button variant="secondary" onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} type="button" className="cursor-pointer">Cancel</Button>
+                  <Button variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} type="submit" className="cursor-pointer">Save Changes</Button>
+                </div>
+              )}
+            </form>
+          )}
         </div>
 
         {/* LOG INTERACTION MODAL POPUP */}
@@ -1004,7 +1883,30 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <p className="text-sm text-slate-500 mt-1">Full pipeline lifecycle from initial enquiry to fee activation.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer">
+          {/* Filter Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+            className={`group flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border shadow-2xs active:scale-95 ${
+              isFilterExpanded || activeFilters.length > 0
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs hover:bg-slate-800'
+                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <Filter size={13} className={`transition-transform duration-200 group-hover:scale-110 ${isFilterExpanded || activeFilters.length > 0 ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`} />
+            <span>Filters</span>
+            {activeFilters.length > 0 && (
+              <span className="w-4 h-4 rounded-full bg-white text-slate-900 text-[10px] font-extrabold flex items-center justify-center ml-0.5 shadow-2xs">
+                {activeFilters.length}
+              </span>
+            )}
+            <ChevronDown
+              size={12}
+              className={`transition-transform duration-200 ${isFilterExpanded ? 'rotate-180 text-white' : 'text-slate-400 group-hover:text-slate-600'}`}
+            />
+          </button>
+
+          <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer h-9 px-3.5 text-xs font-bold">
             <Download size={14} /> Export CSV
           </Button>
           <Button variant="primary" onClick={() => {
@@ -1017,7 +1919,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               counsellor: currentUser?.name || 'Admin'
             });
             setShowAddLead(true);
-          }} className="flex items-center gap-1.5 cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+          }} className="flex items-center gap-1.5 cursor-pointer h-9 px-3.5 text-xs font-bold" style={{ backgroundColor: '#2563eb', color: 'white' }}>
             <Plus size={14} /> Log Enquiry
           </Button>
         </div>
@@ -1053,79 +1955,231 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       </div>
 
-      {/* Shared Filters Panel */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-          <div className="md:col-span-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={activeTab === 'pipeline' ? 'Search leads by name or course...' : 'Search students by ID, name or mobile...'}
-              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 bg-white"
-            />
-          </div>
+      {/* ── Active Filters Tag Strip (when collapsed) ──────────────────────────── */}
+      {!isFilterExpanded && activeFilters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5 animate-fade-in">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Active Filters:</span>
+          {activeFilters.map(af => (
+            <span
+              key={af.label}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-slate-200/70 text-slate-800 border border-slate-200 transition-colors"
+            >
+              <span className="text-slate-400 font-normal">{af.label}:</span> {af.value}
+              <button
+                type="button"
+                onClick={af.clear}
+                className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md p-0.5 transition-colors cursor-pointer ml-0.5"
+                title={`Remove ${af.label} filter`}
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={handleResetAllFilters}
+            className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer ml-1 transition-all"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
-          <div className="md:col-span-3">
-            <Select
-              label="Stage Status"
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}
-              options={
-                activeTab === 'pipeline' ? [
-                  { value: 'All', label: 'All Stages' },
-                  { value: 'New Enquiry', label: 'New Enquiry' },
-                  { value: 'Contacted', label: 'Contacted' },
-                  { value: 'Follow-up', label: 'Follow-up' },
-                  { value: 'Demo Scheduled', label: 'Demo Scheduled' },
-                  { value: 'Fee Discussion', label: 'Fee Discussion' },
-                  { value: 'Interested', label: 'Interested' },
-                  { value: 'Not Interested', label: 'Not Interested' }
-                ] : activeTab === 'fee' ? [
-                  { value: 'All', label: 'All Stages' },
-                  { value: 'Fee Discussion', label: 'Fee Discussion' }
-                ] : activeTab === 'admission' ? [
-                  { value: 'All', label: 'All Statuses' },
-                  { value: 'Registration Pending', label: 'Registration Pending' },
-                  { value: 'Documents Submitted', label: 'Documents Submitted' },
-                  { value: 'Verification Pending', label: 'Verification Pending' }
-                ] : [
-                  { value: 'All', label: 'All Statuses' },
-                  { value: 'Verification Pending', label: 'Verification Pending' },
-                  { value: 'Active Student', label: 'Active Student' }
-                ]
-              }
-            />
-          </div>
-
-          {activeTab === 'pipeline' && (
-            <div className="md:col-span-3">
-              <Select
-                label="Discovery Source"
-                value={filterSource}
-                onChange={e => setFilterSource(e.target.value)}
-                options={[
-                  { value: 'All', label: 'All Sources' },
-                  { value: 'Walk-in', label: 'Walk-in' },
-                  { value: 'Phone Call', label: 'Phone Call' },
-                  { value: 'Website', label: 'Website' },
-                  { value: 'Social Media', label: 'Social Media' },
-                  { value: 'WhatsApp', label: 'WhatsApp' },
-                  { value: 'Referral', label: 'Referral' },
-                  { value: 'Google Ads', label: 'Google Ads' }
-                ]}
-              />
+      {/* ── Expandable Filter Panel (opens directly in a clean single-line layout) ── */}
+      {isFilterExpanded && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center">
+                <Filter size={12} />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Filter Leads & Pipeline Records</span>
+                <span className="text-[10px] text-slate-400 block">Filter by student name/contact, branch, course, program, status and source</span>
+              </div>
             </div>
-          )}
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-100 pt-3">
-          <Select label="Branch" value={filterBranch} onChange={e => setFilterBranch(e.target.value)} options={branchFilterOptions} disabled={currentUser?.role === 'branch-admin'} />
-          <Select label="Course" value={filterCourse} onChange={e => { setFilterCourse(e.target.value); setFilterProgram('All'); }} options={courseFilterOptions} />
-          <Select label="Program" value={filterProgram} onChange={e => setFilterProgram(e.target.value)} options={programFilterOptions} />
+            <div className="flex items-center gap-3">
+              {activeFilters.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleResetAllFilters}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 transition-colors cursor-pointer"
+                >
+                  <RotateCcw size={11} />
+                  Reset all
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsFilterExpanded(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Close filter panel"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Form Controls Single-Line Grid */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${activeTab === 'pipeline' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-2.5 items-end`}>
+            {/* Search */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Search
+              </label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => {
+                    const sanitized = e.target.value.replace(/[^a-zA-Z0-9\s]/g, '');
+                    setSearch(sanitized);
+                    setPage(1);
+                  }}
+                  placeholder={activeTab === 'pipeline' ? 'Search leads...' : 'Search students...'}
+                  className="w-full h-8 pl-8 pr-2.5 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Branch */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Branch
+              </label>
+              <div className="relative">
+                <select
+                  value={filterBranch}
+                  onChange={e => setFilterBranch(e.target.value)}
+                  disabled={isBranchAdmin}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-7 appearance-none cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs disabled:opacity-60"
+                >
+                  {branchFilterOptions.map(b => (
+                    <option key={b.value} value={b.value}>{b.label}</option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">▼</span>
+              </div>
+            </div>
+
+            {/* Course */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Course
+              </label>
+              <div className="relative">
+                <select
+                  value={filterCourse}
+                  onChange={e => { setFilterCourse(e.target.value); setFilterProgram('All'); }}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-7 appearance-none cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs"
+                >
+                  {courseFilterOptions.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">▼</span>
+              </div>
+            </div>
+
+            {/* Program */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Program
+              </label>
+              <div className="relative">
+                <select
+                  value={filterProgram}
+                  onChange={e => setFilterProgram(e.target.value)}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-7 appearance-none cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs"
+                >
+                  {programFilterOptions.map(p => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">▼</span>
+              </div>
+            </div>
+
+            {/* Stage Status */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Stage Status
+              </label>
+              <div className="relative">
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-7 appearance-none cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs"
+                >
+                  {activeTab === 'pipeline' ? (
+                    <>
+                      <option value="All">All Stages</option>
+                      <option value="New Enquiry">New Enquiry</option>
+                      <option value="Contacted">Contacted</option>
+                      <option value="Follow-up">Follow-up</option>
+                      <option value="Demo Scheduled">Demo Scheduled</option>
+                      <option value="Fee Discussion">Fee Discussion</option>
+                      <option value="Interested">Interested</option>
+                      <option value="Not Interested">Not Interested</option>
+                      <option value="Lost">Lost / Dropped</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </>
+                  ) : activeTab === 'fee' ? (
+                    <>
+                      <option value="All">All Stages</option>
+                      <option value="Fee Discussion">Fee Discussion</option>
+                    </>
+                  ) : activeTab === 'admission' ? (
+                    <>
+                      <option value="All">All Statuses</option>
+                      <option value="Registration Pending">Registration Pending</option>
+                      <option value="Documents Submitted">Documents Submitted</option>
+                      <option value="Verification Pending">Verification Pending</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="All">All Statuses</option>
+                      <option value="Verification Pending">Verification Pending</option>
+                      <option value="Active Student">Active Student</option>
+                    </>
+                  )}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">▼</span>
+              </div>
+            </div>
+
+            {/* Discovery Source (shown on pipeline tab) */}
+            {activeTab === 'pipeline' && (
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Discovery Source
+                </label>
+                <div className="relative">
+                  <select
+                    value={filterSource}
+                    onChange={e => setFilterSource(e.target.value)}
+                    className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-7 appearance-none cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs"
+                  >
+                    <option value="All">All Sources</option>
+                    <option value="Walk-in">Walk-in</option>
+                    <option value="Phone Call">Phone Call</option>
+                    <option value="Website">Website</option>
+                    <option value="Social Media">Social Media</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Flyer Campaign">Offline Campaign</option>
+                    <option value="Google Ads">Google Ads</option>
+                  </select>
+                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">▼</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* TAB CONTENT 1: LEAD PIPELINE */}
       {activeTab === 'pipeline' && (
@@ -1148,30 +2202,74 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Active Lead Registrations</CardTitle>
             </CardHeader>
-            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Branch', 'Stage', 'Counsellor', 'Actions']}>
+            <Table 
+              dense 
+              minWidth="1100px"
+              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
+            >
               {paginatedLeads.map(l => (
-                <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{l.id}</td>
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l)}>{l.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
-                  <td className="px-6 py-4 text-xs text-slate-700 font-medium">{l.course}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{l.branch}</td>
-                  <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => handleOpenLeadDetail(l, 'history')} className="cursor-pointer">
-                        <PhoneCall size={12} className="mr-1" /> Call Log
-                      </Button>
-                      <Button variant="primary" size="sm" onClick={() => navigate(`/leads/${l.id}/convert`)} className="cursor-pointer" style={{ backgroundColor: '#2563eb', color: 'white' }}>
-                        Convert <ChevronRight size={12} className="ml-1" />
-                      </Button>
+                <tr 
+                  key={l.id} 
+                  onClick={() => handleOpenLeadDetail(l, 'profile', true)}
+                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.name}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <div className="text-slate-800 font-medium">{l.mobile || '—'}</div>
+                    {l.parentMobile && (
+                      <div className="text-xs text-slate-500 mt-0.5">Parent: {l.parentMobile}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-xs font-semibold">
+                      {l.course || '—'}
+                    </span>
+                    {l.program && (
+                      <div className="text-xs text-slate-500 mt-0.5">{l.program}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.branch || 'N/A'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <StatusBadge status={l.status} />
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.counsellor || 'Unassigned'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLeadDetail(l, 'profile', false)}
+                        title="Edit Lead"
+                        className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-amber-300"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLeadDetail(l, 'history', true)}
+                        title="Call Log / Follow-ups"
+                        className="p-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-indigo-300"
+                      >
+                        <PhoneCall size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeadToDelete(l)}
+                        title="Delete Lead"
+                        className="p-1.5 text-red-700 bg-red-100 hover:bg-red-600 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0 border border-red-300 font-bold"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
               {filteredLeads.length === 0 && (
-                <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">No active leads matching current filters.</td></tr>
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
+                    {leadsLoading ? 'Loading leads...' : 'No active leads matching current filters.'}
+                  </td>
+                </tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredLeads.length} pageSize={PER_PAGE} onPageChange={setPage} />
@@ -1191,22 +2289,79 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Fee Discussion Queue</CardTitle>
             </CardHeader>
-            <Table headers={['Lead ID', 'Student Name', 'Mobile', 'Course Interest', 'Assigned Branch', 'Stage', 'Counsellor', 'Next Follow-up', 'Remarks']}>
+            <Table 
+              dense 
+              minWidth="1200px"
+              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', 'Next Follow-up', { label: 'Actions', align: 'center' }]}
+            >
               {paginatedLeads.map(l => (
-                <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{l.id}</td>
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenLeadDetail(l, 'fee')}>{l.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{l.mobile}</td>
-                  <td className="px-6 py-4 text-xs text-slate-700 font-medium">{l.course}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{l.branch}</td>
-                  <td className="px-6 py-4"><StatusBadge status={l.status} /></td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{l.counsellor}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-amber-700">{l.nextFollowUp || '—'}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500 max-w-[200px] truncate">{l.remarks}</td>
+                <tr 
+                  key={l.id} 
+                  onClick={() => handleOpenLeadDetail(l, 'fee', true)}
+                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.name}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <div className="text-slate-800 font-medium">{l.mobile || '—'}</div>
+                    {l.parentMobile && (
+                      <div className="text-xs text-slate-500 mt-0.5">Parent: {l.parentMobile}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-xs font-semibold">
+                      {l.course || '—'}
+                    </span>
+                    {l.program && (
+                      <div className="text-xs text-slate-500 mt-0.5">{l.program}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 text-sm whitespace-nowrap">{l.branch || 'N/A'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <StatusBadge status={l.status} />
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.counsellor || 'Unassigned'}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <span className="font-mono text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                      {l.nextFollowUp || '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLeadDetail(l, 'fee', false)}
+                        title="Configure Fee Plan"
+                        className="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-emerald-300"
+                      >
+                        <DollarSign size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLeadDetail(l, 'history', true)}
+                        title="Call Log / Follow-ups"
+                        className="p-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-indigo-300"
+                      >
+                        <PhoneCall size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeadToDelete(l)}
+                        title="Delete Lead"
+                        className="p-1.5 text-red-700 bg-red-100 hover:bg-red-600 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0 border border-red-300 font-bold"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {filteredLeads.length === 0 && (
-                <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">No leads currently in the Fee Discussion queue.</td></tr>
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">
+                    {leadsLoading ? 'Loading leads...' : 'No leads currently in fee discussion phase.'}
+                  </td>
+                </tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredLeads.length} pageSize={PER_PAGE} onPageChange={setPage} />
@@ -1214,13 +2369,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 3: ADMISSION & DOCS */}
+      {/* TAB CONTENT 3: ADMISSION CONFIRMATION */}
       {activeTab === 'admission' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Registered',     value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
-              { label: 'Verification Queue', value: stats.verificationPending, color: 'bg-violet-50 border-violet-200', text: 'text-violet-700' },
+              { label: 'Total Enquiries',    value: stats.totalLeads,      color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
+              { label: 'Pending Docs',       value: stats.pendingDocs,     color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Pending Verification', value: stats.pendingReview, color: 'bg-blue-50 border-blue-200',  text: 'text-blue-700' },
               { label: 'Active Students',    value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
@@ -1234,34 +2390,35 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Admission & Verification Queue</CardTitle>
             </CardHeader>
-            <Table headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', 'Actions']}>
+            <Table 
+              dense
+              minWidth="950px"
+              colWidths={['90px', '140px', '130px', '150px', '140px', '130px', '140px']}
+              headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', 'Actions']}
+            >
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{s.studentId}</td>
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/leads/${s.id || s.studentId}/convert`)}>{s.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.mobile || '—'}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600 font-medium">{s.course}</td>
-                  <td className="px-6 py-4">
-                    {s.status === 'Active Student' ? (
+                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-400 whitespace-nowrap">{s.studentId}</td>
+                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenDocModal(s)}>{s.name}</td>
+                  <td className="px-3.5 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{s.mobile || '—'}</td>
+                  <td className="px-3.5 py-3 text-xs text-slate-600 font-medium whitespace-nowrap">{s.course}</td>
+                  <td className="px-3.5 py-3 whitespace-nowrap">
+                    {s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 ? (
                       <span className="text-emerald-600 text-xs font-semibold flex items-center gap-1"><CheckCircle size={12} /> Verified</span>
                     ) : (
-                      <span className="text-amber-600 text-xs font-semibold flex items-center gap-1"><Clock size={12} /> Pending Review</span>
+                      <span className="text-amber-600 text-xs font-semibold flex items-center gap-1"><Clock size={12} /> Verification Pending</span>
                     )}
                   </td>
-                  <td className="px-6 py-4"><StatusBadge status={s.status} /></td>
-                  <td className="px-6 py-4">
-                    {s.status !== 'Active Student' ? (
-                      <Button variant="primary" size="sm" onClick={() => navigate(`/admission/${s.id || s.studentId}`)} className="cursor-pointer text-xs" style={{ backgroundColor: '#2563eb', color: 'white' }}>
-                        Review Docs <ChevronRight size={12} className="ml-1" />
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-slate-400 font-semibold flex items-center gap-1"><CheckCircle size={12} className="text-emerald-500" /> Approved</span>
-                    )}
+                  <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
+                  <td className="px-3.5 py-3 whitespace-nowrap">
+                    <Button variant="primary" size="sm" onClick={() => handleOpenDocModal(s)} className="cursor-pointer text-xs" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+                      Review Docs <ChevronRight size={12} className="ml-1" />
+                    </Button>
                   </td>
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">No student records matching current filters.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredStudents.length} pageSize={PER_PAGE} onPageChange={setPage} />
@@ -1302,7 +2459,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
-                <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">No student records found matching current filters.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredStudents.length} pageSize={PER_PAGE} onPageChange={setPage} />
@@ -1371,7 +2528,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
-                <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">No student records found matching current filters.</td></tr>
+                <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredStudents.length} pageSize={PER_PAGE} onPageChange={setPage} />
@@ -1379,6 +2536,381 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
+      {/* Delete / Mark Lead as Lost Confirmation Modal */}
+      {leadToDelete && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          onClick={() => !isDeletingLead && setLeadToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={22} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Mark Lead as Lost / Drop Lead</h3>
+                <p className="text-xs text-slate-500">Record reason and move lead to Lost status with timestamp</p>
+              </div>
+            </div>
+
+            {/* Lead Summary Info */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Student Name:</span>
+                <span className="font-bold text-slate-900">{leadToDelete.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Contact:</span>
+                <span className="font-mono text-slate-800">{leadToDelete.mobile || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Course Interest:</span>
+                <span className="font-semibold text-slate-800">{leadToDelete.course || '—'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Reason for Dropping / Marking Lost *
+                </label>
+                <textarea
+                  rows={3}
+                  value={lostReason}
+                  onChange={e => setLostReason(e.target.value)}
+                  placeholder="Enter reason for dropping this lead (e.g. Joined competitor, fee constraint, relocated, unreachable)..."
+                  className="w-full bg-white border border-slate-300 rounded-xl p-3 text-sm text-slate-800 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all placeholder:text-slate-400"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={() => {
+                  setLeadToDelete(null);
+                  setLostReason('');
+                }}
+                disabled={isDeletingLead}
+                className="cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteLead}
+                disabled={isDeletingLead}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 size={15} />
+                {isDeletingLead ? 'Updating...' : 'Confirm & Mark as Lost'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Log New Enquiry Modal */}
+      <Modal
+        isOpen={showAddLead}
+        onClose={() => setShowAddLead(false)}
+        title="Log New Enquiry"
+        size="2xl"
+      >
+        <form onSubmit={handleAddLeadSubmit} className="space-y-4">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Student Contact Details</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="Student Full Name *"
+                required
+                placeholder="e.g. Rohan Sharma"
+                value={leadForm.name}
+                onChange={e => setLeadForm(prev => ({ ...prev, name: e.target.value }))}
+              />
+              <Input
+                label="Mobile Contact Number *"
+                required
+                placeholder="10-digit primary mobile"
+                value={leadForm.mobile}
+                onChange={e => setLeadForm(prev => ({ ...prev, mobile: e.target.value }))}
+              />
+              <Input
+                label="Student Email Address *"
+                required
+                type="email"
+                placeholder="student@example.com"
+                value={leadForm.email}
+                onChange={e => setLeadForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Parent / Guardian Details</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="Parent / Guardian Name *"
+                required
+                placeholder="e.g. Rajesh Sharma"
+                value={leadForm.parentName}
+                onChange={e => setLeadForm(prev => ({ ...prev, parentName: e.target.value }))}
+              />
+              <Input
+                label="Parent Mobile Number *"
+                required
+                placeholder="Guardian 10-digit mobile"
+                value={leadForm.parentMobile}
+                onChange={e => setLeadForm(prev => ({ ...prev, parentMobile: e.target.value }))}
+              />
+              <Input
+                label="Parent Email Address *"
+                required
+                type="email"
+                placeholder="parent@example.com"
+                value={leadForm.parentEmail}
+                onChange={e => setLeadForm(prev => ({ ...prev, parentEmail: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Course & Academic Interest</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <Select
+                label="Branch / Center *"
+                value={leadForm.branch}
+                onChange={e => setLeadForm(prev => ({ ...prev, branch: e.target.value }))}
+                options={[
+                  { value: '', label: 'Select Center...' },
+                  ...branchFilterOptions.filter(o => o.value !== 'All')
+                ]}
+                disabled={currentUser?.role === 'branch-admin'}
+              />
+              <Select
+                label="Interested Course *"
+                value={leadForm.course}
+                onChange={e => {
+                  const newCourse = e.target.value;
+                  const progs = getProgramsForCourse(newCourse);
+                  const firstProg = progs[0]?.value || '';
+                  const lvls = getLevelsForProgram(newCourse, firstProg);
+                  const firstLvl = lvls[0]?.value || '';
+                  setLeadForm(prev => ({
+                    ...prev,
+                    course: newCourse,
+                    program: firstProg,
+                    level: firstLvl
+                  }));
+                }}
+                options={[
+                  { value: '', label: 'Select Course...' },
+                  ...courseFilterOptions.filter(o => o.value !== 'All')
+                ]}
+              />
+              <Select
+                label="Program"
+                value={leadForm.program}
+                onChange={e => {
+                  const newProg = e.target.value;
+                  const lvls = getLevelsForProgram(leadForm.course, newProg);
+                  setLeadForm(prev => ({
+                    ...prev,
+                    program: newProg,
+                    level: lvls[0]?.value || ''
+                  }));
+                }}
+                options={[
+                  { value: '', label: 'Select Program' },
+                  ...getProgramsForCourse(leadForm.course)
+                ]}
+              />
+              <Select
+                label="Level / Class"
+                value={leadForm.level}
+                onChange={e => setLeadForm(prev => ({ ...prev, level: e.target.value }))}
+                options={[
+                  { value: '', label: 'Select Level' },
+                  ...getLevelsForProgram(leadForm.course, leadForm.program)
+                ]}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Select
+                label="Academic Year"
+                value={leadForm.academicYear}
+                onChange={e => setLeadForm(prev => ({ ...prev, academicYear: e.target.value }))}
+                options={academicYearOptions}
+              />
+              <Select
+                label="Discovery Source"
+                value={leadForm.source}
+                onChange={e => setLeadForm(prev => ({ ...prev, source: e.target.value }))}
+                options={[
+                  { value: 'Walk-in', label: 'Walk-in at Branch' },
+                  { value: 'Phone Call', label: 'Phone Call' },
+                  { value: 'Website', label: 'Website / Landing Page' },
+                  { value: 'Social Media', label: 'Social Media' },
+                  { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
+                  { value: 'Referral', label: 'Student Referral' },
+                  { value: 'Campaign/Event', label: 'Offline Campaign / Event' },
+                  { value: 'Google Ads', label: 'Google Ads' }
+                ]}
+              />
+              <Select
+                label="Assigned Counsellor"
+                value={leadForm.counsellor}
+                onChange={e => setLeadForm(prev => ({ ...prev, counsellor: e.target.value }))}
+                options={[
+                  { value: currentUser?.name || 'Admin', label: currentUser?.name || 'Current User (Admin)' },
+                  { value: 'Priya Sen', label: 'Priya Sen' },
+                  { value: 'Amit Verma', label: 'Amit Verma' }
+                ]}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Discussion Remarks / Notes</label>
+              <textarea
+                rows={3}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+                placeholder="Enter initial discussion notes, requirements, or follow-up preferences..."
+                value={leadForm.remarks}
+                onChange={e => setLeadForm(prev => ({ ...prev, remarks: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+            <Button type="button" variant="secondary" onClick={() => setShowAddLead(false)} className="cursor-pointer">
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} className="cursor-pointer font-semibold flex items-center gap-1.5">
+              <Plus size={16} /> Save & Log Enquiry
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Document Review & Verification Modal */}
+      {docModalStudent && (
+        <Modal
+          isOpen={!!docModalStudent}
+          onClose={() => setDocModalStudent(null)}
+          title={`Review & Verify Documents — ${docModalStudent.name}`}
+          size="lg"
+        >
+          <div className="space-y-6">
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600">
+              <div><strong>Student:</strong> {docModalStudent.name} ({docModalStudent.studentId})</div>
+              <div><strong>Course:</strong> {docModalStudent.course || '—'}</div>
+              <div><strong>Status:</strong> <StatusBadge status={docModalStudent.status} /></div>
+            </div>
+
+            {docLoading ? (
+              <div className="py-8 text-center text-slate-400 text-sm">Loading student documents...</div>
+            ) : studentDocList.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-sm border border-dashed rounded-xl p-6">
+                <FileText className="mx-auto text-slate-300 mb-2" size={32} />
+                <p>No documents uploaded yet for this student.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {studentDocList.map(doc => (
+                  <div key={doc.id} className="p-4 border border-slate-200 rounded-xl bg-white hover:border-slate-300 transition-all space-y-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2.5 rounded-xl shrink-0 ${doc.status === 1 ? 'bg-emerald-50 text-emerald-600' : doc.status === 2 ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'}`}>
+                          <FileText size={20} />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                            {doc.document_type_name}
+                            {doc.is_required ? (
+                              <span className="text-[10px] uppercase font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded">Required</span>
+                            ) : null}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">{doc.file_name}</div>
+                          {doc.verified_at && (
+                            <div className="text-[11px] text-slate-400 mt-1">
+                              Verified {new Date(doc.verified_at).toLocaleDateString()} {doc.verified_by_name ? `by ${doc.verified_by_name}` : ''}
+                            </div>
+                          )}
+                          {doc.rejection_reason && (
+                            <div className="text-xs text-rose-600 mt-1 font-medium bg-rose-50 p-1.5 rounded border border-rose-200">
+                              Reason: {doc.rejection_reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                          doc.status === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                          doc.status === 2 ? 'bg-rose-50 text-rose-700 border-rose-300' :
+                          'bg-amber-50 text-amber-700 border-amber-300'
+                        }`}>
+                          {doc.status === 1 ? 'Verified' : doc.status === 2 ? 'Rejected' : 'Pending Verification'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {rejectingDocId === doc.id ? (
+                      <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter rejection reason (e.g. illegible photocopy)..."
+                          value={docRejectionReason}
+                          onChange={e => setDocRejectionReason(e.target.value)}
+                          className="flex-1 text-xs border border-slate-200 rounded px-2.5 py-1.5 outline-none focus:border-rose-500"
+                        />
+                        <Button size="sm" variant="danger" onClick={() => handleUpdateDocStatus(doc.id, 2, docRejectionReason)} className="text-xs">
+                          Confirm Reject
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setRejectingDocId(null)} className="text-xs">
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                        {doc.status !== 1 && (
+                          <Button size="sm" variant="primary" style={{ backgroundColor: '#10b981', color: 'white' }} onClick={() => handleUpdateDocStatus(doc.id, 1)} className="text-xs flex items-center gap-1">
+                            <CheckCircle size={14} /> Approve & Verify
+                          </Button>
+                        )}
+                        {doc.status !== 2 && (
+                          <Button size="sm" variant="secondary" onClick={() => { setRejectingDocId(doc.id); setDocRejectionReason(''); }} className="text-xs text-rose-600 hover:bg-rose-50">
+                            Reject
+                          </Button>
+                        )}
+                        {doc.status !== 0 && (
+                          <Button size="sm" variant="secondary" onClick={() => handleUpdateDocStatus(doc.id, 0)} className="text-xs text-slate-500">
+                            Reset to Pending
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-200">
+              <Button variant="secondary" onClick={() => setDocModalStudent(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

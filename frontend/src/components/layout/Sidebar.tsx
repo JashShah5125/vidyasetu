@@ -104,6 +104,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [{ name: 'Tenants Manager', label: 'Tenants', path: '/tenants', icon: Building2 }]
           },
           {
+            title: 'Sales & Acquisition',
+            links: [{ name: 'Leads Pipeline', label: 'Leads', path: '/saas/leads', icon: Users }]
+          },
+          {
             title: 'Subscription Management',
             links: [
               { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard }
@@ -191,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
               { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/payroll/monthly', icon: Users }
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users }
             ]
           },
           {
@@ -245,7 +249,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
               { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/payroll/monthly', icon: Users }
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users }
             ]
           },
           {
@@ -338,31 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 groupIcon: TrendingDown,
                 links: [
                   { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users },
-                  { name: 'Rent', label: 'Rent', path: '/finance/expenses/rent', icon: Building2 },
-                  { name: 'Electricity / Utilities', label: 'Electricity / Utilities', path: '/finance/expenses/utilities', icon: Zap },
-                  { name: 'Stationery', label: 'Stationery', path: '/finance/expenses/stationery', icon: BookOpen },
-                  { name: 'Maintenance', label: 'Maintenance', path: '/finance/expenses/maintenance', icon: Wrench },
-                  { name: 'Marketing', label: 'Marketing', path: '/finance/expenses/marketing', icon: Megaphone },
-                  { name: 'Transport', label: 'Transport', path: '/finance/expenses/transport', icon: Truck },
-                  { name: 'Internet / Phone', label: 'Internet / Phone', path: '/finance/expenses/internet-phone', icon: Phone },
                   { name: 'Other Expenses', label: 'Other Expenses', path: '/finance/expenses/other', icon: FileText }
-                ]
-              },
-              {
-                groupLabel: 'Staff Payroll',
-                groupIcon: Briefcase,
-                links: [
-                  { name: 'Salary Structure', label: 'Salary Structure', path: '/finance/payroll/structure', icon: Layers },
-                  { name: 'Monthly Payroll', label: 'Monthly Payroll', path: '/finance/payroll/monthly', icon: Calendar }
-                ]
-              },
-              {
-                groupLabel: 'Payables',
-                groupIcon: AlertTriangle,
-                links: [
-                  { name: 'Pending Salaries', label: 'Pending Salaries', path: '/finance/payables/salaries', icon: Users },
-                  { name: 'Vendor Bills', label: 'Vendor Bills', path: '/finance/payables/vendors', icon: FileText },
-                  { name: 'Other Outstanding', label: 'Other Outstanding', path: '/finance/payables/other', icon: AlertCircle }
                 ]
               },
               {

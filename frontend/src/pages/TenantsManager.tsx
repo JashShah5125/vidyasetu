@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { tenantService } from '../services/tenantService';
+import { leadService } from '../services/leadService';
 import { planService } from '../services/planService';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
@@ -14,7 +15,7 @@ import {
   Image as ImageIcon, AlertTriangle, Check, Eye, Pencil, ShieldAlert,
   ChevronLeft, ChevronRight 
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getTenantStatus, getTenantStatusLabel } from '../types';
 
 const formatDate = (dateStr: string | undefined): string => {
@@ -107,6 +108,49 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       setShowAddModal(false);
     }
   }, [initialOpenCreate]);
+
+  // ── Lead-based conversion prefill ──
+  const [searchParams] = useSearchParams();
+  const [sourceLead, setSourceLead] = useState<any | null>(null);
+  const [leadPrefillApplied, setLeadPrefillApplied] = useState(false);
+
+  React.useEffect(() => {
+    const leadId = searchParams.get('leadId');
+    if (!leadId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await leadService.getLead(leadId);
+        if (!cancelled && res?.data) setSourceLead(res.data);
+        else if (!cancelled) addToast('Could not load the linked lead', 'error');
+      } catch (e) {
+        console.error('Failed to load lead for conversion:', e);
+        if (!cancelled) addToast('Could not load the linked lead for conversion', 'error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams, addToast]);
+
+  // Apply lead data to the create form once plans are available
+  React.useEffect(() => {
+    if (!sourceLead || leadPrefillApplied || availablePlans.length === 0) return;
+    const lead = sourceLead;
+    setName(lead.instituteName || '');
+    setOwnerName(lead.contactPerson || '');
+    setEmail(lead.email || '');
+    setMobile(lead.mobile || '');
+    setAddress(lead.addressLine1 || '');
+    setCity(lead.city || '');
+    setState(lead.state || '');
+    setPincode(lead.pincode || '');
+    setCustomSlug(lead.preferredSlug || '');
+    if (lead.planId) setPlan(String(lead.planId));
+    setShowSaved(false);
+    setErrorMsg('');
+    setShowAddModal(true);
+    setActiveTab('profile');
+    setLeadPrefillApplied(true);
+  }, [sourceLead, leadPrefillApplied, availablePlans]);
 
   // Edit / Create / View mode trackers
   const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
@@ -535,6 +579,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         formData.append('slug', finalSlug);
         formData.append('adminEmail', finalDefaultEmail);
         if (planId) formData.append('planId', String(planId));
+        if (sourceLead && !editingTenantId) formData.append('leadId', String(sourceLead.id));
         if (address) formData.append('address', address);
         if (city) formData.append('city', city);
         if (state) formData.append('state', state);
@@ -685,6 +730,15 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   if (showAddModal) {
     return (
       <div id="tenant-form-top" className="space-y-6 w-full animate-fade-in">
+        {sourceLead && !editingTenantId && (
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm font-semibold text-blue-800 shadow-sm animate-fade-in flex items-start gap-2">
+            <ShieldAlert size={18} className="text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              Converting lead <strong>#{sourceLead.id} — {sourceLead.instituteName}</strong> into a tenant.
+              On submission the lead will be marked as converted. Fields below are pre-filled from the lead record.
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowAddModal(false)}
@@ -1259,7 +1313,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
           <Input label="Search" placeholder="Search by ID, name, owner..." 
             value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
+            onChange={(e) => {
+              setSearchTerm(e.target.value.replace(/[^a-zA-Z0-9\s]/g, ''));
+              setCurrentPage(1);
+            }} 
             wrapperClassName="sm:col-span-2"
           />
           <Select 
@@ -1299,8 +1356,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </CardHeader>
         <Table 
           dense 
-          minWidth="1160px"
-          colWidths={['48px', '180px', '135px', '205px', '120px', '100px', '140px', '95px', '110px']}
+          minWidth="1200px"
+          colWidths={['55px', '190px', '140px', '210px', '120px', '110px', '140px', '100px', '135px']}
           headers={['ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status', 'Actions']}
         >
           {(() => {

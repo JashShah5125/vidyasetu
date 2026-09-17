@@ -46,7 +46,7 @@ const createTenant = async (req, res) => {
         // Validate request body
         const { 
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, 
-            panNo, gstNo, mobile, timezone, billingCycle, alternate_emails,
+            panNo, gstNo, mobile, timezone, billingCycle, alternate_emails, leadId,
             discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
             maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
         } = req.body;
@@ -130,7 +130,7 @@ const createTenant = async (req, res) => {
             maxFileSize,
             maxSmsCredits: parseNum(maxSmsCredits),
             maxWhatsappMsgs: parseNum(maxWhatsappMsgs)
-        });
+        }, leadId ? Number(leadId) : null);
 
         const responseData = { ...result };
         if (process.env.NODE_ENV === 'production') {
@@ -141,7 +141,7 @@ const createTenant = async (req, res) => {
         res.status(201).json({ status: 'success', message: 'Tenant created successfully', data: responseData });
     } catch (error) {
         console.error('Error creating tenant:', error);
-        if (error.message === 'Tenant slug already exists') {
+        if (error.message === 'Tenant slug already exists' || error.message === 'Lead has already been converted') {
             return res.status(409).json({ status: 'error', message: error.message });
         }
         res.status(500).json({ status: 'error', message: 'Internal server error' });

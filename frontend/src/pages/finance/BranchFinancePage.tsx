@@ -50,6 +50,13 @@ import {
   type OtherIncomeRecord,
   type OtherIncomeSummary
 } from '../../services/otherIncomeApi';
+import {
+  otherExpenseApi,
+  type OtherExpenseRecord,
+  type OtherExpenseSummary,
+  STATUS_MAP,
+  EXPENSE_CATEGORIES
+} from '../../services/otherExpenseApi';
 import { getAcademicOptions } from '../../services/studentApi';
 import { StaffSalaryMasterView } from '../../components/finance/StaffSalaryMasterView';
 import { StaffSalaryStatusView } from '../../components/finance/StaffSalaryStatusView';
@@ -81,6 +88,7 @@ export const BranchFinancePage: React.FC = () => {
 
   const currentPath = location.pathname;
   const isOtherIncome = currentPath.includes('/income/other');
+  const isOtherExpense = currentPath.includes('/expenses/other');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -101,6 +109,26 @@ export const BranchFinancePage: React.FC = () => {
   const [otherIncomeTotal, setOtherIncomeTotal] = useState(0);
   const otherIncomeLimit = 10;
 
+  // Other Expense specific state
+  const [otherExpenses, setOtherExpenses] = useState<OtherExpenseRecord[]>([]);
+  const [otherExpenseLoading, setOtherExpenseLoading] = useState(false);
+  const [otherExpenseSummary, setOtherExpenseSummary] = useState<OtherExpenseSummary>({
+    totalCount: 0,
+    totalAmount: 0,
+    todayAmount: 0,
+    thisMonthAmount: 0,
+    pendingAmount: 0,
+    paidAmount: 0
+  });
+  const [otherExpensePage, setOtherExpensePage] = useState(1);
+  const [otherExpenseTotal, setOtherExpenseTotal] = useState(0);
+  const otherExpenseLimit = 10;
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [expenseStatusFilter, setExpenseStatusFilter] = useState('All');
+
+  // Delete Modal for Other Expense
+  const [deletingExpenseRecord, setDeletingExpenseRecord] = useState<OtherExpenseRecord | null>(null);
+
   // Modals for Other Income View/Edit/Delete
   const [viewingRecord, setViewingRecord] = useState<OtherIncomeRecord | null>(null);
   const [editingRecord, setEditingRecord] = useState<OtherIncomeRecord | null>(null);
@@ -116,6 +144,9 @@ export const BranchFinancePage: React.FC = () => {
   const [formPaymentMode, setFormPaymentMode] = useState('bank_transfer');
   const [formReference, setFormReference] = useState('');
   const [formNotes, setFormNotes] = useState('');
+  const [formCategory, setFormCategory] = useState('Other Expenses');
+  const [formPayee, setFormPayee] = useState('');
+  const [formStatus, setFormStatus] = useState<number>(0);
 
   // Load Branch dropdown options
   useEffect(() => {
@@ -177,6 +208,40 @@ export const BranchFinancePage: React.FC = () => {
       setOtherIncomePage(1);
     }
   }, [isOtherIncome, searchTerm, branchFilter, statusFilter]);
+
+  // Fetch other expense records from backend
+  const fetchOtherExpenses = useCallback(async (pg = otherExpensePage) => {
+    if (!isOtherExpense) return;
+    try {
+      setOtherExpenseLoading(true);
+      const res = await otherExpenseApi.getOtherExpenses({
+        search: searchTerm,
+        branchId: branchFilter !== 'All' ? branchFilter : undefined,
+        paymentMode: statusFilter !== 'All' ? statusFilter : undefined,
+        category: categoryFilter !== 'All' ? categoryFilter : undefined,
+        status: expenseStatusFilter !== 'All' ? expenseStatusFilter : undefined,
+        page: pg,
+        limit: otherExpenseLimit
+      });
+      setOtherExpenses(res.records || []);
+      setOtherExpenseTotal(res.total || 0);
+      if (res.summary) {
+        setOtherExpenseSummary(res.summary);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch other expenses:', err);
+      addToast(err?.response?.data?.message || 'Failed to load other expense records', 'error');
+    } finally {
+      setOtherExpenseLoading(false);
+    }
+  }, [isOtherExpense, otherExpensePage, searchTerm, branchFilter, statusFilter, categoryFilter, expenseStatusFilter, addToast]);
+
+  useEffect(() => {
+    if (isOtherExpense) {
+      fetchOtherExpenses(1);
+      setOtherExpensePage(1);
+    }
+  }, [isOtherExpense, searchTerm, branchFilter, statusFilter, categoryFilter, expenseStatusFilter]);
 
   // Determine active view from URL
   const viewInfo = useMemo(() => {
@@ -495,6 +560,9 @@ export const BranchFinancePage: React.FC = () => {
     setFormPaymentMode('bank_transfer');
     setFormReference('');
     setFormNotes('');
+    setFormCategory('Other Expenses');
+    setFormPayee('');
+    setFormStatus(0);
     setIsAddModalOpen(true);
   };
 
@@ -515,7 +583,7 @@ export const BranchFinancePage: React.FC = () => {
     e.preventDefault();
     const amt = Number(formAmount);
     if (!formTitle.trim()) {
-      addToast('Please enter an income title', 'error');
+      addToast(isOtherExpense ? 'Please enter an expense title' : 'Please enter an income title', 'error');
       return;
     }
     if (!amt || amt <= 0) {
@@ -527,7 +595,6 @@ export const BranchFinancePage: React.FC = () => {
       setSubmittingForm(true);
       if (isOtherIncome) {
         if (editingRecord) {
-          // Update
           const updated = await otherIncomeApi.updateOtherIncome(editingRecord.id, {
             branchId: formBranchId ? Number(formBranchId) : undefined,
             title: formTitle.trim(),
@@ -540,7 +607,6 @@ export const BranchFinancePage: React.FC = () => {
           addToast(`Income record ${updated.income_record_number} updated successfully`, 'success');
           setEditingRecord(null);
         } else {
-          // Create
           const chosenBranch = formBranchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
           const created = await otherIncomeApi.createOtherIncome({
             branchId: Number(chosenBranch),
@@ -555,6 +621,23 @@ export const BranchFinancePage: React.FC = () => {
           setIsAddModalOpen(false);
         }
         await fetchOtherIncomes(otherIncomePage);
+      } else if (isOtherExpense) {
+        const chosenBranch = formBranchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
+        const created = await otherExpenseApi.createOtherExpense({
+          branchId: Number(chosenBranch),
+          title: formTitle.trim(),
+          amount: amt,
+          expenseDate: formDate,
+          category: formCategory,
+          status: formStatus,
+          paymentMode: formPaymentMode,
+          referenceNumber: formReference.trim() || undefined,
+          description: formNotes.trim() || undefined,
+          payee: formPayee.trim() || undefined
+        });
+        addToast(`Expense record ${created.expense_record_number} recorded for ${fmt(amt)}`, 'success');
+        setIsAddModalOpen(false);
+        await fetchOtherExpenses(otherExpensePage);
       } else {
         // Mock expense/section handler
         const newRecord: FinanceRecord = {
@@ -600,6 +683,23 @@ export const BranchFinancePage: React.FC = () => {
     }
   };
 
+  // Handle Expense Delete Confirmation
+  const confirmDeleteExpenseRecord = async () => {
+    if (!deletingExpenseRecord) return;
+    try {
+      setSubmittingForm(true);
+      await otherExpenseApi.deleteOtherExpense(deletingExpenseRecord.id);
+      addToast(`Expense record ${deletingExpenseRecord.expense_record_number} deleted successfully`, 'success');
+      setDeletingExpenseRecord(null);
+      await fetchOtherExpenses(otherExpensePage);
+    } catch (err: any) {
+      console.error('Delete failed:', err);
+      addToast(err?.response?.data?.message || 'Failed to delete expense record', 'error');
+    } finally {
+      setSubmittingForm(false);
+    }
+  };
+
   const handleExportCSV = () => {
     if (isOtherIncome) {
       if (otherIncomes.length === 0) {
@@ -630,6 +730,38 @@ export const BranchFinancePage: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       addToast('Other income statement exported to CSV', 'success');
+    } else if (isOtherExpense) {
+      if (otherExpenses.length === 0) {
+        addToast('No other expense records to export', 'error');
+        return;
+      }
+      const dataToExport = otherExpenses.map(r => ({
+        'Record Number': r.expense_record_number,
+        'Title': r.title,
+        'Category': r.category,
+        'Amount (INR)': r.amount,
+        'Date': fmtDate(r.expense_date),
+        'Status': STATUS_MAP[r.status]?.label || 'Pending',
+        'Payment Mode': (r.payment_mode || '').replace(/_/g, ' ').toUpperCase(),
+        'Payee': r.payee || '—',
+        'Reference #': r.reference_number || '—',
+        'Description': r.description || '',
+        'Branch': r.branch_name || ''
+      }));
+      const headers = Object.keys(dataToExport[0]);
+      const csvRows = [headers.join(',')];
+      for (const row of dataToExport) {
+        const vals = headers.map(h => `"${('' + (row as any)[h]).replace(/"/g, '\\"')}"`);
+        csvRows.push(vals.join(','));
+      }
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', `other_expenses_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      addToast('Other expense statement exported to CSV', 'success');
     } else {
       addToast('Exporting finance statement to CSV...', 'info');
     }
@@ -637,87 +769,101 @@ export const BranchFinancePage: React.FC = () => {
 
   const IconComponent = viewInfo.icon;
   const totalOtherPages = Math.ceil(otherIncomeTotal / otherIncomeLimit) || 1;
+  const totalOtherExpensePages = Math.ceil(otherExpenseTotal / otherExpenseLimit) || 1;
+
+  const [isSalaryDetailActive, setIsSalaryDetailActive] = useState<boolean>(false);
 
   const isSalaryStructure = currentPath.includes('/payroll/structure') || currentPath.includes('/salary-structure');
-  const isSalaryStatus = currentPath.includes('/payroll/monthly') || currentPath.includes('/expenses/salaries') || currentPath.includes('/payables/salaries') || currentPath.includes('/salary-status');
+  const isSalaryStatus = currentPath.includes('/payroll/monthly') || currentPath.includes('/expenses/salaries') || currentPath.includes('/salary-status');
+  const handleSalaryDetailViewChange = useCallback((isActive: boolean) => {
+    setIsSalaryDetailActive(isActive);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const mainContainer = document.getElementById('main-scroll-container');
+    if (mainContainer) {
+      mainContainer.scrollTop = 0;
+    }
+  }, []);
 
-  if (isSalaryStructure) {
+  if (isSalaryStructure || isSalaryStatus) {
     return (
       <div className="space-y-6">
-        {/* Sub-navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200">
-          <button
-            onClick={() => navigate('/finance/payroll/structure')}
-            className="px-4 py-2.5 text-sm font-bold text-blue-700 border-b-2 border-blue-600 bg-blue-50/50 rounded-t-lg transition-all"
-          >
-            1. Salary Structure (Master)
-          </button>
-          <button
-            onClick={() => navigate('/finance/payroll/monthly')}
-            className="px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 rounded-t-lg transition-colors"
-          >
-            2. Monthly Salary Status (Operations)
-          </button>
-        </div>
+        {/* ── Page Title Header & Tabs (Hidden when viewing history or editing salary) ── */}
+        {!isSalaryDetailActive && (
+          <>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Staff Salaries & Payroll</h2>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Master compensation structure, monthly disbursement logs, and branch payroll operations
+                </p>
+              </div>
 
-        <StaffSalaryMasterView
-          branchFilter={branchFilter}
-          branchOptions={branchOptions}
-          onBranchChange={setBranchFilter}
-          onNavigateToStatus={() => navigate('/finance/payroll/monthly')}
-        />
-      </div>
-    );
-  }
+              {branchOptions.length > 2 && (
+                <div className="w-full sm:w-64">
+                  <Select
+                    label=""
+                    value={branchFilter}
+                    onChange={(e) => setBranchFilter(e.target.value)}
+                    options={branchOptions}
+                  />
+                </div>
+              )}
+            </div>
 
-  if (isSalaryStatus) {
-    return (
-      <div className="space-y-6">
-        {/* Sub-navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200">
-          <button
-            onClick={() => navigate('/finance/payroll/structure')}
-            className="px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-900 rounded-t-lg transition-colors"
-          >
-            1. Salary Structure (Master)
-          </button>
-          <button
-            onClick={() => navigate('/finance/payroll/monthly')}
-            className="px-4 py-2.5 text-sm font-bold text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50/50 rounded-t-lg transition-all"
-          >
-            2. Monthly Salary Status (Operations)
-          </button>
-        </div>
+            {/* Sub-Navigation Tabs */}
+            <div className="flex border-b border-slate-200 gap-8">
+              <button
+                onClick={() => navigate('/finance/payroll/structure')}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+                  isSalaryStructure
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                Salary Structure (Master)
+              </button>
+              <button
+                onClick={() => navigate('/finance/expenses/salaries')}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+                  isSalaryStatus
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                Monthly Salary Operations
+              </button>
+            </div>
+          </>
+        )}
 
-        <StaffSalaryStatusView
-          branchFilter={branchFilter}
-          branchOptions={branchOptions}
-          onBranchChange={setBranchFilter}
-          onNavigateToMaster={() => navigate('/finance/payroll/structure')}
-        />
+        {isSalaryStructure ? (
+          <StaffSalaryMasterView
+            branchFilter={branchFilter}
+            branchOptions={branchOptions}
+            onBranchChange={setBranchFilter}
+            onNavigateToStatus={() => navigate('/finance/expenses/salaries')}
+            onDetailViewChange={handleSalaryDetailViewChange}
+          />
+        ) : (
+          <StaffSalaryStatusView
+            branchFilter={branchFilter}
+            branchOptions={branchOptions}
+            onBranchChange={setBranchFilter}
+            onNavigateToMaster={() => navigate('/finance/payroll/structure')}
+            onDetailViewChange={handleSalaryDetailViewChange}
+          />
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* ── Breadcrumb & Navigation Bar ── */}
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-            <span>Branch Finance</span>
-            <span>·</span>
-            <span className="text-blue-600">{viewInfo.module}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center font-bold">
-              <IconComponent size={20} />
-            </div>
-            <div>
-              <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">{viewInfo.title}</h2>
-              <p className="text-sm text-slate-500 mt-0.5">{viewInfo.subtitle}</p>
-            </div>
-          </div>
+          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">{viewInfo.title}</h2>
+          <p className="text-sm text-slate-500 mt-0.5">{viewInfo.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -730,10 +876,10 @@ export const BranchFinancePage: React.FC = () => {
           </Button>
           <Button
             variant="primary"
-            onClick={openAddModal}
+            onClick={isOtherExpense ? () => navigate('/finance/expenses/other/new') : openAddModal}
             className="flex items-center gap-1.5 font-bold"
           >
-            <Plus size={14} /> Record Income
+            <Plus size={14} /> {isOtherExpense ? 'Record Expense' : 'Record Income'}
           </Button>
         </div>
       </div>
@@ -767,6 +913,37 @@ export const BranchFinancePage: React.FC = () => {
               <div className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Records</div>
               <div className="text-2xl font-bold text-indigo-900 mt-1 tabular-nums">{otherIncomeSummary.totalCount}</div>
               <div className="text-[11px] text-slate-400 mt-0.5">Recorded non-fee transactions</div>
+            </div>
+          </Card>
+        </div>
+      ) : isOtherExpense ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-l-4 border-l-rose-600 shadow-sm">
+            <div className="p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-rose-600">Total Expenses</div>
+              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmt(otherExpenseSummary.totalAmount)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">{otherExpenseSummary.totalCount} total records</div>
+            </div>
+          </Card>
+          <Card className="border-l-4 border-l-amber-500 shadow-sm">
+            <div className="p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Approval</div>
+              <div className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">{fmt(otherExpenseSummary.pendingAmount)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Awaiting approval / payment</div>
+            </div>
+          </Card>
+          <Card className="border-l-4 border-l-emerald-500 shadow-sm">
+            <div className="p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">Paid Expenses</div>
+              <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{fmt(otherExpenseSummary.paidAmount)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Settled this period</div>
+            </div>
+          </Card>
+          <Card className="border-l-4 border-l-blue-500 shadow-sm">
+            <div className="p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-blue-700">This Month</div>
+              <div className="text-2xl font-bold text-blue-700 mt-1 tabular-nums">{fmt(otherExpenseSummary.thisMonthAmount)}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Current billing cycle</div>
             </div>
           </Card>
         </div>
@@ -805,21 +982,46 @@ export const BranchFinancePage: React.FC = () => {
 
       {/* ── Filters Bar ── */}
       <div className="flex flex-col sm:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full items-end">
+        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full items-end ${isOtherExpense ? 'sm:grid-cols-5' : ''}`}>
           <Input
             label="Search Records"
-            placeholder={isOtherIncome ? "Search by Record #, Title, Reference, Description..." : "Search by title, payee, UTR..."}
+            placeholder={isOtherIncome ? "Search by Record #, Title, Reference, Description..." : isOtherExpense ? "Search by Record #, Title, Payee, Reference..." : "Search by title, payee, UTR..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            wrapperClassName={isOtherIncome && branchOptions.length > 1 ? "" : "sm:col-span-2"}
+            wrapperClassName={(isOtherIncome || isOtherExpense) && branchOptions.length > 1 ? "" : "sm:col-span-2"}
           />
-          {isOtherIncome && branchOptions.length > 1 && (
+          {(isOtherIncome || isOtherExpense) && branchOptions.length > 1 && (
             <Select
               label="Branch"
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
               options={branchOptions}
             />
+          )}
+          {isOtherExpense && (
+            <>
+              <Select
+                label="Category"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                options={[
+                  { value: 'All', label: 'All Categories' },
+                  ...EXPENSE_CATEGORIES.map(c => ({ value: c, label: c }))
+                ]}
+              />
+              <Select
+                label="Status"
+                value={expenseStatusFilter}
+                onChange={(e) => setExpenseStatusFilter(e.target.value)}
+                options={[
+                  { value: 'All', label: 'All Statuses' },
+                  { value: '0', label: 'Pending' },
+                  { value: '1', label: 'Approved' },
+                  { value: '2', label: 'Paid' },
+                  { value: '3', label: 'Rejected' }
+                ]}
+              />
+            </>
           )}
           <Select
             label="Payment Mode"
@@ -843,7 +1045,7 @@ export const BranchFinancePage: React.FC = () => {
           <div>
             <CardTitle>{viewInfo.title} Registry</CardTitle>
             <p className="text-xs text-slate-500 mt-0.5">
-              Showing {isOtherIncome ? otherIncomes.length : filteredRecords.length} recorded items
+              Showing {isOtherIncome ? otherIncomes.length : isOtherExpense ? otherExpenses.length : filteredRecords.length} recorded items
             </p>
           </div>
         </CardHeader>
@@ -950,6 +1152,129 @@ export const BranchFinancePage: React.FC = () => {
               onPageChange={(p) => {
                 setOtherIncomePage(p);
                 fetchOtherIncomes(p);
+              }}
+            />
+          </>
+        ) : isOtherExpense ? (
+          <>
+            <Table
+              dense
+              borderless
+              headers={[
+                { label: 'Record #', align: 'left' },
+                { label: 'Title & Description', align: 'left' },
+                { label: 'Category', align: 'left' },
+                { label: 'Payee', align: 'left' },
+                { label: 'Amount', align: 'right' },
+                { label: 'Date', align: 'center' },
+                { label: 'Status', align: 'center' },
+                { label: 'Payment Mode', align: 'center' },
+                { label: 'Actions', align: 'right' }
+              ]}
+            >
+              {otherExpenseLoading ? (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="flex items-center justify-center py-12 text-slate-400 text-sm font-medium">
+                      <Loader2 size={20} className="animate-spin mr-2.5 text-blue-600" /> Loading other expense records...
+                    </div>
+                  </td>
+                </tr>
+              ) : otherExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="py-14 text-center text-slate-400 text-sm">
+                      <Wallet size={28} className="mx-auto mb-2 text-slate-300" />
+                      No other expense records found matching the current search.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                otherExpenses.map((rec) => {
+                  const statusInfo = STATUS_MAP[rec.status] || STATUS_MAP[0];
+                  return (
+                    <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-2.5 py-2 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">
+                        {rec.expense_record_number}
+                      </td>
+                      <td className="px-2.5 py-2 text-left">
+                        <div className="text-xs sm:text-sm font-bold text-slate-900">{rec.title}</div>
+                        {rec.description && (
+                          <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[260px]">
+                            {rec.description}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2.5 py-2 text-left whitespace-nowrap">
+                        <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
+                          {rec.category}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 text-left text-xs text-slate-700 whitespace-nowrap">
+                        {rec.payee || '—'}
+                      </td>
+                      <td className="px-2.5 py-2 text-right font-bold text-rose-700 tabular-nums whitespace-nowrap text-xs sm:text-sm">
+                        {fmt(rec.amount)}
+                      </td>
+                      <td className="px-2.5 py-2 text-center text-xs text-slate-600 whitespace-nowrap">
+                        {fmtDate(rec.expense_date)}
+                      </td>
+                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          statusInfo.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          statusInfo.color === 'blue' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                          statusInfo.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 text-center text-xs text-slate-700 capitalize whitespace-nowrap">
+                        <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
+                          {(rec.payment_mode || 'bank_transfer').replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            title="View Details"
+                            className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                            onClick={() => navigate(`/finance/expenses/other/${rec.id}`)}
+                          >
+                            <Eye size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Edit Entry"
+                            className="p-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            onClick={() => navigate(`/finance/expenses/other/${rec.id}?edit=true`)}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete Entry"
+                            className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            onClick={() => setDeletingExpenseRecord(rec)}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </Table>
+            <Pagination
+              currentPage={otherExpensePage}
+              totalPages={totalOtherExpensePages}
+              totalItems={otherExpenseTotal}
+              pageSize={otherExpenseLimit}
+              onPageChange={(p) => {
+                setOtherExpensePage(p);
+                fetchOtherExpenses(p);
               }}
             />
           </>
@@ -1064,7 +1389,7 @@ export const BranchFinancePage: React.FC = () => {
         size="md"
       >
         <form onSubmit={handleSaveRecord} className="space-y-4 text-sm text-slate-600">
-          {isOtherIncome && branchOptions.filter(b => b.value !== 'All').length > 1 && (
+          {(isOtherIncome || isOtherExpense) && branchOptions.filter(b => b.value !== 'All').length > 1 && (
             <Select
               label="Branch *"
               value={formBranchId}
@@ -1075,12 +1400,34 @@ export const BranchFinancePage: React.FC = () => {
           )}
 
           <Input
-            label="Income Title / Purpose *"
-            placeholder="e.g. Classroom Rental, Study Material Sale, Workshop Fee"
+            label={isOtherExpense ? "Expense Title / Purpose *" : "Income Title / Purpose *"}
+            placeholder={isOtherExpense ? "e.g. Office Supplies, Petty Cash, Maintenance" : "e.g. Classroom Rental, Study Material Sale, Workshop Fee"}
             value={formTitle}
             onChange={(e) => setFormTitle(e.target.value)}
             required
           />
+
+          {isOtherExpense && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Category *"
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+                options={EXPENSE_CATEGORIES.map(c => ({ value: c, label: c }))}
+              />
+              <Select
+                label="Status *"
+                value={String(formStatus)}
+                onChange={(e) => setFormStatus(Number(e.target.value))}
+                options={[
+                  { value: '0', label: 'Pending' },
+                  { value: '1', label: 'Approved' },
+                  { value: '2', label: 'Paid' },
+                  { value: '3', label: 'Rejected' }
+                ]}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
@@ -1093,7 +1440,7 @@ export const BranchFinancePage: React.FC = () => {
               required
             />
             <Input
-              label="Income Date *"
+              label={isOtherExpense ? "Expense Date *" : "Income Date *"}
               type="date"
               value={formDate}
               onChange={(e) => setFormDate(e.target.value)}
@@ -1122,9 +1469,18 @@ export const BranchFinancePage: React.FC = () => {
             />
           </div>
 
+          {isOtherExpense && (
+            <Input
+              label="Payee / Vendor"
+              placeholder="e.g. ABC Traders, Stationery World"
+              value={formPayee}
+              onChange={(e) => setFormPayee(e.target.value)}
+            />
+          )}
+
           <Input
             label="Description / Purpose Notes"
-            placeholder="e.g. Rental of classroom 302 for external weekend workshop"
+            placeholder={isOtherExpense ? "e.g. Purchase of printer cartridges for main office" : "e.g. Rental of classroom 302 for external weekend workshop"}
             value={formNotes}
             onChange={(e) => setFormNotes(e.target.value)}
           />
@@ -1143,7 +1499,7 @@ export const BranchFinancePage: React.FC = () => {
             </Button>
             <Button type="submit" variant="primary" className="font-bold" disabled={submittingForm}>
               {submittingForm ? <Loader2 size={15} className="animate-spin mr-1.5" /> : null}
-              {editingRecord ? 'Update Record' : 'Save Income Record'}
+              {editingRecord ? 'Update Record' : isOtherExpense ? 'Save Expense Record' : 'Save Income Record'}
             </Button>
           </div>
         </form>
@@ -1233,6 +1589,37 @@ export const BranchFinancePage: React.FC = () => {
                 Cancel
               </Button>
               <Button variant="primary" className="bg-rose-600 hover:bg-rose-700 font-bold" onClick={confirmDeleteRecord} disabled={submittingForm}>
+                {submittingForm ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Other Expense Delete Confirmation Modal ── */}
+      {deletingExpenseRecord && (
+        <Modal
+          isOpen={true}
+          onClose={() => setDeletingExpenseRecord(null)}
+          title="Confirm Expense Deletion"
+          size="sm"
+        >
+          <div className="space-y-4 text-sm text-slate-600">
+            <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+              <AlertTriangle size={24} className="shrink-0 text-rose-600" />
+              <p className="text-xs font-medium">
+                Are you sure you want to delete expense record <strong className="font-bold">{deletingExpenseRecord.expense_record_number}</strong> ({fmt(deletingExpenseRecord.amount)})?
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              This action will remove the entry from your active expense totals.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setDeletingExpenseRecord(null)} disabled={submittingForm}>
+                Cancel
+              </Button>
+              <Button variant="primary" className="bg-rose-600 hover:bg-rose-700 font-bold" onClick={confirmDeleteExpenseRecord} disabled={submittingForm}>
                 {submittingForm ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
                 Confirm Delete
               </Button>

@@ -188,6 +188,126 @@ class StaffSalaryController {
             });
         }
     }
+
+    /**
+     * GET /api/branch/finance/staff-salaries/payments/:paymentId
+     * Returns a single salary payment record by ID
+     */
+    async getSalaryPaymentById(req, res) {
+        try {
+            const { tenantId, accessContext } = await this._getAccessContext(req);
+            const paymentId = req.params.paymentId;
+
+            const result = await staffSalaryModel.getSalaryPaymentById(tenantId, paymentId, accessContext);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Salary payment record retrieved successfully.',
+                data: result
+            });
+        } catch (error) {
+            console.error('Error in getSalaryPaymentById:', error);
+            return res.status(error.statusCode || 500).json({
+                success: false,
+                message: error.message || 'Failed to retrieve salary payment record.'
+            });
+        }
+    }
+
+    /**
+     * PUT /api/branch/finance/staff-salaries/payments/:paymentId
+     * Updates an existing salary payment record (amount, paidDate, paymentMode, reference, remarks)
+     */
+    async updateSalaryPayment(req, res) {
+        try {
+            const { tenantId, accessContext } = await this._getAccessContext(req);
+            const paymentId = req.params.paymentId;
+            const { amount, paidDate, paymentMode, reference, remarks } = req.body;
+            const updaterUserId = req.user?.userId || req.user?.id;
+
+            const result = await staffSalaryModel.updateStaffSalaryPayment(
+                tenantId,
+                paymentId,
+                { amount, paidDate, paymentMode, reference, remarks },
+                updaterUserId,
+                accessContext
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: `Salary payment record updated successfully.`,
+                data: result
+            });
+        } catch (error) {
+            console.error('Error in updateSalaryPayment:', error);
+            return res.status(error.statusCode || 500).json({
+                success: false,
+                message: error.message || 'Failed to update salary payment record.'
+            });
+        }
+    }
+
+    /**
+     * DELETE /api/branch/finance/staff-salaries/payments/:paymentId
+     * Soft-deletes a salary payment record, reverting monthly status back to PENDING
+     */
+    async deleteSalaryPayment(req, res) {
+        try {
+            const { tenantId, accessContext } = await this._getAccessContext(req);
+            const paymentId = req.params.paymentId;
+            const deleterUserId = req.user?.userId || req.user?.id;
+
+            const result = await staffSalaryModel.deleteStaffSalaryPayment(
+                tenantId,
+                paymentId,
+                deleterUserId,
+                accessContext
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                data: result
+            });
+        } catch (error) {
+            console.error('Error in deleteSalaryPayment:', error);
+            return res.status(error.statusCode || 500).json({
+                success: false,
+                message: error.message || 'Failed to delete salary payment record.'
+            });
+        }
+    }
+
+    /**
+     * DELETE /api/branch/finance/staff-salaries/:staffId/salary
+     * Resets / Clears the master base salary and effective date for a staff member
+     */
+    async resetStaffSalary(req, res) {
+        try {
+            const { tenantId, accessContext } = await this._getAccessContext(req);
+            const staffId = req.params.staffId;
+            const updaterUserId = req.user?.userId || req.user?.id;
+
+            const result = await staffSalaryModel.resetStaffSalaryMaster(
+                tenantId,
+                staffId,
+                updaterUserId,
+                accessContext
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Staff salary structure has been cleared.',
+                data: result
+            });
+        } catch (error) {
+            console.error('Error in resetStaffSalary:', error);
+            return res.status(error.statusCode || 500).json({
+                success: false,
+                message: error.message || 'Failed to clear staff salary structure.'
+            });
+        }
+    }
 }
 
 module.exports = new StaffSalaryController();

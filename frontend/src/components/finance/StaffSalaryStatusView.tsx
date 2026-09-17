@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardHeader, CardTitle } from '../ui/Card';
+import { Card } from '../ui/Card';
+import { Table } from '../ui/Table';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import { Modal } from '../ui/Modal';
 import { Pagination } from '../ui/Pagination';
 import { useApp } from '../../context/AppContext';
 import {
   staffSalaryApi,
   type StaffSalaryStatusItem,
-  type SalaryStatusSummary
+  type SalaryStatusSummary,
+  type SalaryPaymentRecord
 } from '../../services/staffSalaryApi';
 import { PaySalaryModal } from './PaySalaryModal';
-import { StaffSalaryHistoryModal } from './StaffSalaryHistoryModal';
+import { EditSalaryPaymentModal } from './EditSalaryPaymentModal';
+import { StaffSalaryHistoryView } from './StaffSalaryHistoryView';
 import {
   Calendar,
   DollarSign,
@@ -18,6 +21,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Search,
   Filter,
   Users,
@@ -26,10 +30,12 @@ import {
   Loader2,
   Building2,
   Briefcase,
-  Layers,
   ChevronLeft,
   ChevronRight,
-  ArrowRight
+  Wallet,
+  RotateCcw,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { formatDate } from '../../utils/dateFormatter';
 
@@ -45,13 +51,15 @@ interface StaffSalaryStatusViewProps {
   branchOptions?: { value: string; label: string }[];
   onBranchChange?: (branchId: string) => void;
   onNavigateToMaster?: () => void;
+  onDetailViewChange?: (isActive: boolean) => void;
 }
 
 export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
   branchFilter = 'All',
   branchOptions = [],
   onBranchChange,
-  onNavigateToMaster
+  onNavigateToMaster,
+  onDetailViewChange
 }) => {
   const { addToast } = useApp();
 
@@ -79,6 +87,45 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
   // Action Modals
   const [payingStaff, setPayingStaff] = useState<StaffSalaryStatusItem | null>(null);
   const [historyStaffId, setHistoryStaffId] = useState<number | null>(null);
+  const [editingPayment, setEditingPayment] = useState<{ record: SalaryPaymentRecord; staffName: string } | null>(null);
+  const [deletingItem, setDeletingItem] = useState<StaffSalaryStatusItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  useEffect(() => {
+    const isDetail = Boolean(historyStaffId);
+    onDetailViewChange?.(isDetail);
+    if (isDetail) {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      const mainContainer = document.getElementById('main-scroll-container');
+      if (mainContainer) {
+        mainContainer.scrollTop = 0;
+      }
+    }
+  }, [historyStaffId, onDetailViewChange]);
+
+  const handleDeletePayment = async () => {
+    if (!deletingItem || !deletingItem.payment_id) return;
+    try {
+      setIsDeleting(true);
+      await staffSalaryApi.deleteSalaryPayment(deletingItem.payment_id);
+      addToast({
+        title: 'Payment Voided',
+        message: `Salary disbursement for ${deletingItem.full_name} (${monthName} ${selectedYear}) has been removed. Status reverted to PENDING.`,
+        type: 'success'
+      });
+      setDeletingItem(null);
+      fetchStatus();
+    } catch (err: any) {
+      console.error('Error deleting salary payment:', err);
+      addToast({
+        title: 'Error',
+        message: err?.response?.data?.message || err.message || 'Failed to delete payment record.',
+        type: 'error'
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -142,132 +189,120 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
     setPage(1);
   };
 
+  const settlementPercent = summary.totalSalary > 0 
+    ? Math.round((summary.paidAmount / summary.totalSalary) * 100) 
+    : 0;
+
+  if (historyStaffId) {
+    return (
+      <StaffSalaryHistoryView
+        key={historyStaffId}
+        staffId={historyStaffId}
+        onBack={() => setHistoryStaffId(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-              <Calendar size={22} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Salary Status Operations</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Monthly branch salary tracking, payment processing, and real-time paid vs. pending status
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 self-end md:self-auto">
-          {/* Month Stepper Buttons */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-            <button
-              onClick={handlePrevMonth}
-              className="p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition-colors"
-              title="Previous Month"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="px-3 text-xs font-bold text-slate-800">
-              {monthName} {selectedYear}
-            </span>
-            <button
-              onClick={handleNextMonth}
-              className="p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition-colors"
-              title="Next Month"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          {onNavigateToMaster && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onNavigateToMaster}
-              className="text-slate-700 hover:text-slate-900 font-semibold"
-            >
-              <Users size={14} className="mr-1.5" />
-              Salary Master
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* ── Standard 4-Column Compact KPI Financial Metric Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Total Salary */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4.5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-              Total Salary ({monthName})
-            </span>
-            <span className="text-2xl font-black text-slate-900 tracking-tight mt-0.5 block">
+        <Card className="border-l-4 border-l-slate-700 shadow-xs hover:shadow-sm transition-shadow">
+          <div className="p-3 sm:p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate mr-1">
+                Total Salary ({monthName})
+              </span>
+              <div className="w-6.5 h-6.5 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                <DollarSign size={14} />
+              </div>
+            </div>
+            <div className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums tracking-tight">
               {fmt(summary.totalSalary)}
-            </span>
-            <span className="text-[11px] text-slate-400 font-medium mt-1 block">
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5 font-medium truncate">
               {summary.totalStaff} Total Staff Members
-            </span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <DollarSign size={24} />
-          </div>
-        </div>
-
-        {/* Total Paid */}
-        <div className="bg-white border border-emerald-200/80 rounded-2xl p-4.5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider block">
-              Paid Amount
-            </span>
-            <span className="text-2xl font-black text-emerald-700 tracking-tight mt-0.5 block">
-              {fmt(summary.paidAmount)}
-            </span>
-            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-800 font-semibold">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>{summary.paidCount} Staff Paid</span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={24} />
-          </div>
-        </div>
+        </Card>
 
-        {/* Total Pending */}
-        <div className="bg-white border border-amber-200/80 rounded-2xl p-4.5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider block">
-              Pending Amount
-            </span>
-            <span className="text-2xl font-black text-amber-700 tracking-tight mt-0.5 block">
+        {/* Paid Amount */}
+        <Card className="border-l-4 border-l-emerald-500 shadow-xs hover:shadow-sm transition-shadow">
+          <div className="p-3 sm:p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Paid Amount
+              </span>
+              <div className="w-6.5 h-6.5 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={14} />
+              </div>
+            </div>
+            <div className="text-xl font-bold text-emerald-700 mt-0.5 tabular-nums tracking-tight">
+              {fmt(summary.paidAmount)}
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-semibold mt-0.5 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0"></span>
+              <span>{summary.paidCount} Staff Disbursed</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Pending Amount */}
+        <Card className="border-l-4 border-l-amber-500 shadow-xs hover:shadow-sm transition-shadow">
+          <div className="p-3 sm:p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                Pending Amount
+              </span>
+              <div className="w-6.5 h-6.5 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Clock size={14} />
+              </div>
+            </div>
+            <div className="text-xl font-bold text-amber-700 mt-0.5 tabular-nums tracking-tight">
               {fmt(summary.pendingAmount)}
-            </span>
-            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-amber-800 font-semibold">
-              <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-amber-700 font-semibold mt-0.5 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block shrink-0"></span>
               <span>{summary.pendingCount} Staff Pending</span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <Clock size={24} />
+        </Card>
+
+        {/* Disbursement Rate */}
+        <Card className="border-l-4 border-l-indigo-500 shadow-xs hover:shadow-sm transition-shadow">
+          <div className="p-3 sm:p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+                Disbursement Rate
+              </span>
+              <div className="w-6.5 h-6.5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <TrendingUp size={14} />
+              </div>
+            </div>
+            <div className="text-xl font-bold text-indigo-900 mt-0.5 tabular-nums tracking-tight">
+              {settlementPercent}%
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5 font-medium truncate">
+              {summary.paidCount} of {summary.totalStaff} completed
+            </div>
           </div>
-        </div>
+        </Card>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+      {/* ── Filters Toolbar Bar ── */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {/* Month Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">Month:</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Month:</span>
             <select
               value={selectedMonth}
               onChange={(e) => {
                 setSelectedMonth(Number(e.target.value));
                 setPage(1);
               }}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               {MONTH_NAMES.map((name, idx) => (
                 <option key={idx + 1} value={idx + 1}>
@@ -279,14 +314,14 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
 
           {/* Year Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">Year:</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Year:</span>
             <select
               value={selectedYear}
               onChange={(e) => {
                 setSelectedYear(Number(e.target.value));
                 setPage(1);
               }}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               {[2024, 2025, 2026, 2027, 2028].map((y) => (
                 <option key={y} value={y}>
@@ -298,14 +333,14 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
 
           {/* Status Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">Status:</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status:</span>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="All">All Statuses</option>
               <option value="PAID">PAID Only</option>
@@ -315,17 +350,17 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
 
           {/* Employee Type */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">Type:</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type:</span>
             <select
               value={employeeTypeFilter}
               onChange={(e) => {
                 setEmployeeTypeFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             >
               <option value="All">All Types</option>
-              <option value="Teaching">Teaching / Teacher</option>
+              <option value="Teaching">Teaching / Faculty</option>
               <option value="Non-Teaching">Non-Teaching</option>
               <option value="Administration">Administration</option>
               <option value="Counsellor">Counsellor</option>
@@ -343,7 +378,7 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
                 setPage(1);
               }}
               placeholder="Search staff name or ID..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             />
           </div>
         </div>
@@ -357,14 +392,16 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
             setSearchTerm('');
             setPage(1);
           }}
-          className="text-slate-600 hover:text-slate-900 self-end md:self-auto"
+          className="text-slate-600 hover:text-slate-900 font-semibold flex items-center gap-1.5 self-end md:self-auto"
         >
+          <RotateCcw size={13} />
           Reset
         </Button>
       </div>
 
-      {/* Salary Status Table */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+      {/* ── Standard Table Template Card Container ── */}
+      <Card className="p-0 overflow-hidden border border-slate-200 shadow-sm">
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 space-y-3">
             <Loader2 size={32} className="animate-spin text-blue-600" />
@@ -379,129 +416,145 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="py-3 px-4">Staff Member</th>
-                  <th className="py-3 px-4">Employee Type</th>
-                  <th className="py-3 px-4">Monthly Salary</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Payment Details</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+          <Table
+            dense
+            borderless
+            headers={[
+              { label: 'Staff Member', align: 'left' },
+              { label: 'Employee ID', align: 'left' },
+              { label: 'Employee Type', align: 'left' },
+              { label: 'Monthly Salary', align: 'left' },
+              { label: 'Status', align: 'center' },
+              { label: 'Payment Details', align: 'left' },
+              { label: 'Actions', align: 'right' }
+            ]}
+          >
+            {records.map((item) => {
+              const isPaid = item.payment_status === 'PAID';
+
+              return (
+                <tr key={item.staff_id} className="hover:bg-slate-50/80 transition-colors">
+                  {/* Staff Name */}
+                  <td className="px-3.5 py-3 text-left whitespace-nowrap">
+                    <span className="font-semibold text-slate-900 text-sm">
+                      {item.full_name}
+                    </span>
+                  </td>
+
+                  {/* Employee ID */}
+                  <td className="px-3.5 py-3 text-left whitespace-nowrap font-mono text-xs text-slate-600 font-medium">
+                    {item.employee_id || `ID: ${item.staff_id}`}
+                  </td>
+
+                  {/* Type */}
+                  <td className="px-3.5 py-3 text-left whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      {item.employee_type || 'Staff'}
+                    </span>
+                  </td>
+
+                  {/* Monthly Salary */}
+                  <td className="px-3.5 py-3 text-left font-bold text-slate-900 text-sm whitespace-nowrap">
+                    {fmt(item.salary_amount)}
+                  </td>
+
+                  {/* Status Badge */}
+                  <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                    {isPaid ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 size={13} className="text-emerald-600" />
+                        PAID
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <Clock size={13} className="text-amber-600" />
+                        PENDING
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Payment Details */}
+                  <td className="px-3.5 py-3 text-left text-xs whitespace-nowrap">
+                    {isPaid ? (
+                      <span className="text-slate-800 font-medium">
+                        Paid on {formatDate(item.paid_date!)} • <span className="capitalize text-slate-600">{item.payment_mode?.replace(/_/g, ' ') || 'Bank Transfer'}</span>
+                        {item.reference && <span className="font-mono text-slate-500 ml-1">({item.reference})</span>}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic">Awaiting payment record</span>
+                    )}
+                  </td>
+
+                  {/* Action Column */}
+                  <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setHistoryStaffId(item.staff_id)}
+                        className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
+                        title="View Historical Salary Payment Records"
+                      >
+                        <Eye size={15} />
+                      </button>
+
+                      {isPaid ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.payment_id) {
+                                setEditingPayment({
+                                  record: {
+                                    id: item.payment_id,
+                                    salary_month: selectedMonth,
+                                    salary_year: selectedYear,
+                                    amount: Number(item.paid_amount || item.salary_amount || 0),
+                                    paid_date: item.paid_date || new Date().toISOString().split('T')[0],
+                                    payment_mode: item.payment_mode || 'bank_transfer',
+                                    reference: item.reference || null,
+                                    remarks: item.remarks || null,
+                                    created_at: item.payment_recorded_at || '',
+                                    status: 'PAID'
+                                  },
+                                  staffName: item.full_name
+                                });
+                              }
+                            }}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-200 transition-colors"
+                            title="Edit Payment Record"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingItem(item)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors"
+                            title="Void / Delete Payment (Revert to PENDING)"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setPayingStaff(item)}
+                          className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                          title="Disburse / Record Salary Payment"
+                        >
+                          <DollarSign size={13} />
+                          <span>Pay Salary</span>
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {records.map((item) => {
-                  const isPaid = item.payment_status === 'PAID';
-
-                  return (
-                    <tr key={item.staff_id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* Staff Info */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-9 h-9 rounded-full font-bold flex items-center justify-center text-xs shrink-0 ${
-                              isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            {item.first_name?.[0] || ''}
-                            {item.last_name?.[0] || ''}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 leading-tight">{item.full_name}</div>
-                            <div className="text-xs text-slate-500 font-mono mt-0.5">
-                              {item.employee_id || `ID: ${item.staff_id}`}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Type */}
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          {item.employee_type || 'Staff'}
-                        </span>
-                        {item.designation && (
-                          <div className="text-[11px] text-slate-400 mt-0.5">{item.designation}</div>
-                        )}
-                      </td>
-
-                      {/* Salary */}
-                      <td className="py-3.5 px-4 font-bold text-slate-900 text-sm">
-                        {fmt(item.salary_amount)}
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="py-3.5 px-4">
-                        {isPaid ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            <CheckCircle2 size={13} />
-                            PAID
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                            <Clock size={13} />
-                            PENDING
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Payment Details */}
-                      <td className="py-3.5 px-4 text-xs">
-                        {isPaid ? (
-                          <div>
-                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                              <span>Paid on: {formatDate(item.paid_date!)}</span>
-                            </div>
-                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                              <span className="capitalize">{item.payment_mode?.replace(/_/g, ' ') || 'Bank Transfer'}</span>
-                              {item.reference && (
-                                <>
-                                  <span>•</span>
-                                  <span className="font-mono text-slate-600">{item.reference}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic text-xs">Awaiting payment record</span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
-                        {isPaid ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setHistoryStaffId(item.staff_id)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1 text-xs font-semibold flex items-center gap-1.5 border border-transparent hover:border-blue-200 ml-auto"
-                          >
-                            <Eye size={13} />
-                            View History
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setPayingStaff(item)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1 text-xs font-bold shadow-xs flex items-center gap-1.5 ml-auto"
-                          >
-                            <DollarSign size={13} />
-                            Pay Salary
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+              );
+            })}
+          </Table>
         )}
 
-        {/* Pagination */}
+        {/* Pagination Footer */}
         {total > limit && (
           <div className="p-4 border-t border-slate-200 bg-slate-50/50">
             <Pagination
@@ -511,7 +564,7 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
             />
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Pay Salary Modal */}
       {payingStaff && (
@@ -527,13 +580,66 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
         />
       )}
 
-      {/* Staff Salary History Modal */}
-      {historyStaffId && (
-        <StaffSalaryHistoryModal
-          isOpen={Boolean(historyStaffId)}
-          onClose={() => setHistoryStaffId(null)}
-          staffId={historyStaffId}
+      {/* Edit Salary Payment Modal */}
+      {editingPayment && (
+        <EditSalaryPaymentModal
+          isOpen={Boolean(editingPayment)}
+          onClose={() => setEditingPayment(null)}
+          payment={editingPayment.record}
+          staffName={editingPayment.staffName}
+          onSuccess={fetchStatus}
+          addToast={addToast}
         />
+      )}
+
+      {/* Void / Delete Payment Confirmation Modal */}
+      {deletingItem && (
+        <Modal
+          isOpen={Boolean(deletingItem)}
+          onClose={() => setDeletingItem(null)}
+          title="Void / Delete Salary Payment"
+          size="md"
+          footer={
+            <div className="flex items-center justify-end gap-3 w-full">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingItem(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleDeletePayment}
+                disabled={isDeleting}
+                className="bg-rose-600 hover:bg-rose-700 font-bold"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin mr-2" />
+                    Voiding...
+                  </>
+                ) : (
+                  'Yes, Void Payment'
+                )}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs">
+              <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-sm">Void payment for {deletingItem.full_name}?</span>
+                <p className="mt-1">
+                  This will remove the payment record of <strong>{fmt(Number(deletingItem.paid_amount || deletingItem.salary_amount || 0))}</strong> for{' '}
+                  <strong>{monthName} {selectedYear}</strong>.
+                  The monthly status for {deletingItem.full_name} will automatically revert back to <strong>PENDING</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

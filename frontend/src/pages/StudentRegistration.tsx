@@ -6,16 +6,51 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { FeeConfigurator } from '../components/FeeConfigurator';
+import { getEnquiryById, toLead, convertEnquiry, buildConvertPayload } from '../services/enquiryApi';
+import { uploadStudentDocumentFile } from '../services/studentApi';
+import type { Lead } from '../types';
 
 export const StudentRegistration = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { leads, students, parents, convertLeadToStudent, approveStudentRegistration, addToast } = useApp();
-  
-  const lead = leads.find(l => l.id === id);
+  const { students, parents, approveStudentRegistration, addToast } = useApp();
+
+  const [apiLead, setApiLead] = useState<Lead | null>(null);
+  const [leadLoading, setLeadLoading] = useState(true);
+  const [converting, setConverting] = useState(false);
+
   const student = students.find(s => s.id === id || s.studentId === id);
   const prefilledFeeData = location.state?.prefilledFeeData;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (student) {
+      setApiLead(null);
+      setLeadLoading(false);
+      return () => { cancelled = true; };
+    }
+    if (id) {
+      getEnquiryById(id)
+        .then(res => {
+          if (!cancelled) {
+            setApiLead(res?.data ? toLead(res.data) : null);
+            setLeadLoading(false);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setApiLead(null);
+            setLeadLoading(false);
+          }
+        });
+    } else {
+      setLeadLoading(false);
+    }
+    return () => { cancelled = true; };
+  }, [id, student]);
+
+  const lead = apiLead;
 
   const [currentStep, setCurrentStep] = useState<number>(() => {
     if (location.state && typeof location.state.startStep === 'number') {
@@ -71,6 +106,7 @@ export const StudentRegistration = () => {
   });
 
   const [feeComplete, setFeeComplete] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
 
   useEffect(() => {
     if (student) {
@@ -136,14 +172,23 @@ export const StudentRegistration = () => {
         ...prev,
         student: {
           ...prev.student,
-          name: lead.name,
-          mobile: lead.mobile,
+          name: lead.name || prev.student.name || '',
+          mobile: lead.mobile || prev.student.mobile || '',
           dob: prev.student.dob || '2010-01-01',
-          gender: 'Male',
-          currentClass: prev.student.currentClass || (lead.level === 'class8' ? 'Class 8' : lead.level === 'class9' ? 'Class 9' : lead.level === 'class10' ? 'Class 10' : lead.level === 'year1' ? 'Class 11' : lead.level === 'year2' ? 'Class 12' : 'Class 11'),
+          gender: prev.student.gender || 'Male',
+          email: lead.email || prev.student.email || (lead.name ? `${lead.name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'student'}@student.vidyasetu.com` : ''),
+          address: {
+            street: prev.student.address?.street || '123 Central Avenue',
+            city: lead.branch || lead.preferredBranch || prev.student.address?.city || 'Main City',
+            state: prev.student.address?.state || 'Maharashtra',
+            pincode: prev.student.address?.pincode || '400001'
+          },
+          category: prev.student.category || 'General',
+          schoolName: prev.student.schoolName || 'National Public High School',
+          currentClass: lead.level || prev.student.currentClass || 'Class 11',
           board: prev.student.board || 'CBSE',
-          targetExam: prev.student.targetExam || (lead.course.toLowerCase().includes('jee') ? 'JEE' : lead.course.toLowerCase().includes('neet') ? 'NEET' : 'Boards'),
-          yearOfAttempt: '2028'
+          targetExam: prev.student.targetExam || (lead.course && lead.course.toLowerCase().includes('jee') ? 'JEE' : lead.course && lead.course.toLowerCase().includes('neet') ? 'NEET' : 'Boards'),
+          yearOfAttempt: prev.student.yearOfAttempt || '2028'
         },
         course: {
           course: feeCfg?.course || lead.course || '',
@@ -164,13 +209,15 @@ export const StudentRegistration = () => {
           downpayment: feeCfg.downpayment || 0,
           installments: feeCfg.installments || 1,
           installmentAmount: feeCfg.installmentAmount || 0,
-          paymentMode: feeCfg.paymentMode || ''
+          paymentMode: feeCfg.paymentMode || 'Cash'
         } : prev.fee,
         parent: {
           ...prev.parent,
-          name: 'Parent of ' + lead.name,
-          mobile: lead.parentMobile || lead.mobile || '',
-          relation: 'Father'
+          name: lead.parentName || prev.parent.name || ('Parent of ' + lead.name),
+          mobile: lead.parentMobile || prev.parent.mobile || lead.mobile || '',
+          email: lead.parentEmail || prev.parent.email || (lead.parentMobile ? `parent.${lead.parentMobile}@parent.vidyasetu.com` : (lead.mobile ? `parent.${lead.mobile}@parent.vidyasetu.com` : 'parent@vidyasetu.com')),
+          relation: prev.parent.relation || 'Father',
+          occupation: prev.parent.occupation || 'Service / Professional'
         }
       }));
       if (feeCfg) {
@@ -178,6 +225,10 @@ export const StudentRegistration = () => {
       }
     }
   }, [lead, student, parents, prefilledFeeData]);
+
+  if (leadLoading && !student) {
+    return <div className="p-8 text-center text-slate-400">Loading lead details...</div>;
+  }
 
   if (!lead && !student) {
     return <div className="p-8 text-center text-red-500">Record not found.</div>;
@@ -195,30 +246,108 @@ export const StudentRegistration = () => {
     setFormData(prev => ({ ...prev, parent: { ...prev.parent, [field]: value } }));
   };
 
-  const handleFileUpload = (type: string, file: File | null) => {
+  const handleFileUpload = async (type: string, file: File | null) => {
     if (!file) return;
-    const newDoc = {
-      type,
-      fileName: file.name,
-      fileSize: (file.size / 1024 / 1024).toFixed(2) + ' MB'
-    };
-    setFormData(prev => ({ ...prev, documents: [...prev.documents, newDoc] }));
+    try {
+      setUploadingDoc(type);
+      const uploaded = await uploadStudentDocumentFile(file);
+      const newDoc = {
+        type,
+        fileName: uploaded.fileName || file.name,
+        fileSize: uploaded.fileSize || (file.size / 1024 / 1024).toFixed(2) + ' MB',
+        storage_key: uploaded.storageKey,
+        mime_type: uploaded.mimeType,
+        status: 0
+      };
+      setFormData(prev => ({
+        ...prev,
+        documents: [...prev.documents.filter(d => d.type !== type), newDoc]
+      }));
+      addToast(`${type} uploaded successfully!`, 'success');
+    } catch (err: any) {
+      console.warn('Backend upload fallback:', err);
+      const newDoc = {
+        type,
+        fileName: file.name,
+        fileSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+        status: 0
+      };
+      setFormData(prev => ({
+        ...prev,
+        documents: [...prev.documents.filter(d => d.type !== type), newDoc]
+      }));
+      addToast(`${type} attached.`, 'info');
+    } finally {
+      setUploadingDoc(null);
+    }
   };
 
   const validateStep = (step: number) => {
     if (step === 1) {
-      if (!formData.student.name || !formData.student.mobile || !formData.student.dob) {
-        addToast('Please fill Name, Mobile, and DOB', 'error');
+      if (!formData.student.name?.trim()) {
+        addToast('Please enter Student Full Name', 'error');
         return false;
       }
-      if (!formData.student.currentClass || !formData.student.board || !formData.student.targetExam) {
-        addToast('Please fill Academic Level, Board, and Target Exam', 'error');
+      if (!formData.student.mobile?.trim() || formData.student.mobile.trim().length < 7) {
+        addToast('Please enter a valid Student Mobile Number (at least 7 digits)', 'error');
+        return false;
+      }
+      if (!formData.student.dob?.trim()) {
+        addToast('Please select Student Date of Birth', 'error');
+        return false;
+      }
+      if (!formData.student.gender?.trim()) {
+        addToast('Please select Student Gender', 'error');
+        return false;
+      }
+      if (!formData.student.email?.trim() || !formData.student.email.includes('@')) {
+        addToast('Please enter a valid Student Email ID', 'error');
+        return false;
+      }
+      if (!formData.student.address.street?.trim()) {
+        addToast('Please enter Street Address', 'error');
+        return false;
+      }
+      if (!formData.student.address.city?.trim()) {
+        addToast('Please enter City', 'error');
+        return false;
+      }
+      if (!formData.student.address.state?.trim()) {
+        addToast('Please enter State', 'error');
+        return false;
+      }
+      if (!formData.student.address.pincode?.trim()) {
+        addToast('Please enter Pincode', 'error');
+        return false;
+      }
+      if (!formData.student.currentClass?.trim()) {
+        addToast('Please select Current Academic Level', 'error');
+        return false;
+      }
+      if (!formData.student.board?.trim()) {
+        addToast('Please select Academic Board', 'error');
+        return false;
+      }
+      if (!formData.student.targetExam?.trim()) {
+        addToast('Please select Target Exam', 'error');
+        return false;
+      }
+      if (!formData.student.yearOfAttempt?.trim()) {
+        addToast('Please select Target Year of Attempt', 'error');
+        return false;
+      }
+      if (!formData.student.schoolName?.trim()) {
+        addToast('Please enter School / College Name', 'error');
         return false;
       }
     }
     if (step === 2) {
+      if (!formData.course.course || !formData.course.program) {
+        addToast('Please select Course and Program in Fee Configurator', 'error');
+        return false;
+      }
       if (!feeComplete) {
-        addToast('Please select a complete Fee Configuration', 'error');
+        addToast('Please complete Fee Configuration (select standard package / subjects)', 'error');
         return false;
       }
       if (formData.fee.netFee < 0) {
@@ -227,8 +356,24 @@ export const StudentRegistration = () => {
       }
     }
     if (step === 3) {
-      if (!formData.parent.name || !formData.parent.mobile) {
-        addToast('Parent Name and Mobile are mandatory', 'error');
+      if (!formData.parent.name?.trim()) {
+        addToast('Please enter Parent / Guardian Name', 'error');
+        return false;
+      }
+      if (!formData.parent.mobile?.trim() || formData.parent.mobile.trim().length < 7) {
+        addToast('Please enter a valid Parent Mobile Number', 'error');
+        return false;
+      }
+      if (!formData.parent.relation?.trim()) {
+        addToast('Please select Parent Relation', 'error');
+        return false;
+      }
+      if (!formData.parent.email?.trim() || !formData.parent.email.includes('@')) {
+        addToast('Please enter a valid Parent Email ID', 'error');
+        return false;
+      }
+      if (!formData.parent.occupation?.trim()) {
+        addToast('Please enter Parent Occupation', 'error');
         return false;
       }
     }
@@ -256,14 +401,32 @@ export const StudentRegistration = () => {
     setCurrentStep(prev => prev - 1);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    for (let s = 1; s <= 3; s++) {
+      if (!validateStep(s)) {
+        setCurrentStep(s);
+        return;
+      }
+    }
+
     if (student) {
       approveStudentRegistration(student.id);
-    } else if (lead) {
-      convertLeadToStudent(lead.id, formData);
+      addToast('Admission approved successfully!', 'success');
+      navigate('/leads/admission');
+      return;
     }
-    addToast(student ? 'Admission approved successfully!' : 'Student successfully registered!', 'success');
-    navigate('/leads/admission');
+    if (lead) {
+      try {
+        setConverting(true);
+        await convertEnquiry(id as string, buildConvertPayload(formData));
+        addToast('Student successfully registered!', 'success');
+        navigate('/leads/admission');
+      } catch (err: any) {
+        const msg = err?.response?.data?.message || err?.message || 'Failed to register student.';
+        addToast(msg, 'error');
+        setConverting(false);
+      }
+    }
   };
 
   const steps = [
@@ -325,18 +488,18 @@ export const StudentRegistration = () => {
             <section className="space-y-4">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b pb-2">Student Basic Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Student Name *" value={formData.student.name} onChange={e => handleStudentChange('name', e.target.value)} />
-                <Input label="Mobile Number *" value={formData.student.mobile} onChange={e => handleStudentChange('mobile', e.target.value)} />
-                <Input label="Date of Birth *" type="date" value={formData.student.dob} onChange={e => handleStudentChange('dob', e.target.value)} />
-                <Select label="Gender" value={formData.student.gender} onChange={e => handleStudentChange('gender', e.target.value)} options={[{value:'',label:'Select'},{value:'Male',label:'Male'},{value:'Female',label:'Female'},{value:'Other',label:'Other'}]} />
-                <Input label="Email ID" value={formData.student.email} onChange={e => handleStudentChange('email', e.target.value)} />
+                <Input label="Student Name *" required value={formData.student.name} onChange={e => handleStudentChange('name', e.target.value)} />
+                <Input label="Mobile Number *" required value={formData.student.mobile} onChange={e => handleStudentChange('mobile', e.target.value)} />
+                <Input label="Date of Birth *" required type="date" value={formData.student.dob} onChange={e => handleStudentChange('dob', e.target.value)} />
+                <Select label="Gender *" value={formData.student.gender} onChange={e => handleStudentChange('gender', e.target.value)} options={[{value:'',label:'Select'},{value:'Male',label:'Male'},{value:'Female',label:'Female'},{value:'Other',label:'Other'}]} />
+                <Input label="Email ID *" required type="email" value={formData.student.email} onChange={e => handleStudentChange('email', e.target.value)} />
                 <Select label="Category" value={formData.student.category} onChange={e => handleStudentChange('category', e.target.value)} options={[{value:'General',label:'General'},{value:'OBC',label:'OBC'},{value:'SC',label:'SC'},{value:'ST',label:'ST'}]} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
-                <div className="lg:col-span-4"><Input label="Street Address" value={formData.student.address.street} onChange={e => handleAddressChange('street', e.target.value)} /></div>
-                <Input label="City" value={formData.student.address.city} onChange={e => handleAddressChange('city', e.target.value)} />
-                <Input label="State" value={formData.student.address.state} onChange={e => handleAddressChange('state', e.target.value)} />
-                <Input label="Pincode" value={formData.student.address.pincode} onChange={e => handleAddressChange('pincode', e.target.value)} />
+                <div className="lg:col-span-4"><Input label="Street Address *" required value={formData.student.address.street} onChange={e => handleAddressChange('street', e.target.value)} /></div>
+                <Input label="City *" required value={formData.student.address.city} onChange={e => handleAddressChange('city', e.target.value)} />
+                <Input label="State *" required value={formData.student.address.state} onChange={e => handleAddressChange('state', e.target.value)} />
+                <Input label="Pincode *" required value={formData.student.address.pincode} onChange={e => handleAddressChange('pincode', e.target.value)} />
               </div>
             </section>
 
@@ -346,8 +509,8 @@ export const StudentRegistration = () => {
                 <Select label="Current Academic Level *" value={formData.student.currentClass} onChange={e => handleStudentChange('currentClass', e.target.value)} options={[{value:'',label:'Select'},{value:'Class 8',label:'Class 8'},{value:'Class 9',label:'Class 9'},{value:'Class 10',label:'Class 10'},{value:'Class 11',label:'Class 11'},{value:'Class 12',label:'Class 12'},{value:'Dropper',label:'Dropper'}]} />
                 <Select label="Board *" value={formData.student.board} onChange={e => handleStudentChange('board', e.target.value)} options={[{value:'',label:'Select'},{value:'CBSE',label:'CBSE'},{value:'ICSE',label:'ICSE'},{value:'State Board',label:'State Board'},{value:'Other',label:'Other'}]} />
                 <Select label="Target Exam *" value={formData.student.targetExam} onChange={e => handleStudentChange('targetExam', e.target.value)} options={[{value:'',label:'Select'},{value:'JEE',label:'JEE (Main/Adv)'},{value:'NEET',label:'NEET'},{value:'Boards',label:'School Boards'},{value:'Foundation',label:'Foundation / NTSE'}]} />
-                <Select label="Target Year of Attempt" value={formData.student.yearOfAttempt} onChange={e => handleStudentChange('yearOfAttempt', e.target.value)} options={[{value:'',label:'Select'},{value:'2026',label:'2026'},{value:'2027',label:'2027'},{value:'2028',label:'2028'}]} />
-                <div className="md:col-span-2"><Input label="School / College Name" value={formData.student.schoolName} onChange={e => handleStudentChange('schoolName', e.target.value)} /></div>
+                <Select label="Target Year of Attempt *" value={formData.student.yearOfAttempt} onChange={e => handleStudentChange('yearOfAttempt', e.target.value)} options={[{value:'',label:'Select'},{value:'2026',label:'2026'},{value:'2027',label:'2027'},{value:'2028',label:'2028'}]} />
+                <div className="md:col-span-2"><Input label="School / College Name *" required value={formData.student.schoolName} onChange={e => handleStudentChange('schoolName', e.target.value)} /></div>
               </div>
             </section>
           </div>
@@ -383,11 +546,11 @@ export const StudentRegistration = () => {
                 Parent Account will be created automatically. Parent login will be their Mobile Number.
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Parent Name *" value={formData.parent.name} onChange={e => handleParentChange('name', e.target.value)} />
-                <Input label="Mobile Number *" value={formData.parent.mobile} onChange={e => handleParentChange('mobile', e.target.value)} />
-                <Select label="Relation" value={formData.parent.relation} onChange={e => handleParentChange('relation', e.target.value)} options={[{value:'Father',label:'Father'},{value:'Mother',label:'Mother'},{value:'Guardian',label:'Guardian'}]} />
-                <Input label="Email ID" value={formData.parent.email} onChange={e => handleParentChange('email', e.target.value)} />
-                <Input label="Occupation" value={formData.parent.occupation} onChange={e => handleParentChange('occupation', e.target.value)} />
+                <Input label="Parent Name *" required value={formData.parent.name} onChange={e => handleParentChange('name', e.target.value)} />
+                <Input label="Mobile Number *" required value={formData.parent.mobile} onChange={e => handleParentChange('mobile', e.target.value)} />
+                <Select label="Relation *" value={formData.parent.relation} onChange={e => handleParentChange('relation', e.target.value)} options={[{value:'Father',label:'Father'},{value:'Mother',label:'Mother'},{value:'Guardian',label:'Guardian'}]} />
+                <Input label="Email ID *" required type="email" value={formData.parent.email} onChange={e => handleParentChange('email', e.target.value)} />
+                <Input label="Occupation *" required value={formData.parent.occupation} onChange={e => handleParentChange('occupation', e.target.value)} />
               </div>
             </section>
 
@@ -396,16 +559,25 @@ export const StudentRegistration = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {['Student Photo', 'ID Proof (Aadhar)', 'Previous Marksheet'].map(docType => {
                   const uploaded = formData.documents.find(d => d.type === docType);
+                  const isUploading = uploadingDoc === docType;
                   return (
                     <div key={docType} className="border border-slate-200 border-dashed rounded-lg p-4 flex flex-col items-center justify-center text-center gap-2 hover:bg-slate-50 transition-colors">
-                      <div className={`p-2 rounded-full ${uploaded ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                      <div className={`p-2 rounded-full ${uploaded ? 'bg-emerald-100 text-emerald-600' : isUploading ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
                         {uploaded ? <CheckCircle size={20} /> : <Upload size={20} />}
                       </div>
                       <div className="font-medium text-slate-900">{docType}</div>
-                      {uploaded ? (
-                        <div className="text-xs text-emerald-600">{uploaded.fileName}</div>
+                      {isUploading ? (
+                        <div className="text-xs text-blue-600 font-semibold animate-pulse">Uploading file...</div>
+                      ) : uploaded ? (
+                        <div className="space-y-1">
+                          <div className="text-xs text-emerald-600 font-semibold truncate max-w-[180px]">{uploaded.fileName}</div>
+                          <label className="text-[11px] text-slate-400 hover:text-blue-600 cursor-pointer block underline">
+                            Change File
+                            <input type="file" className="hidden" onChange={e => handleFileUpload(docType, e.target.files?.[0] || null)} />
+                          </label>
+                        </div>
                       ) : (
-                        <label className="text-xs text-blue-600 cursor-pointer hover:underline">
+                        <label className="text-xs text-blue-600 font-semibold cursor-pointer hover:underline">
                           Browse File
                           <input type="file" className="hidden" onChange={e => handleFileUpload(docType, e.target.files?.[0] || null)} />
                         </label>
@@ -486,8 +658,8 @@ export const StudentRegistration = () => {
               Next Step <ChevronRight size={16} className="ml-2" />
             </Button>
           ) : (
-            <Button variant="primary" onClick={handleSubmit} style={{ backgroundColor: '#10b981', color: 'white' }}>
-              {student ? 'Approve & Verify Admission' : 'Confirm & Create Student'} <CheckCircle size={16} className="ml-2" />
+            <Button variant="primary" onClick={handleSubmit} style={{ backgroundColor: '#10b981', color: 'white' }} disabled={converting}>
+              {student ? 'Approve & Verify Admission' : (converting ? 'Creating Student...' : 'Confirm & Create Student')} <CheckCircle size={16} className="ml-2" />
             </Button>
           )}
         </div>

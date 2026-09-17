@@ -489,10 +489,174 @@ const getStaffSalaryHistory = async (tenantId, staffId, accessContext = {}) => {
     };
 };
 
+/**
+ * 6. Get Single Salary Payment Record by Payment ID
+ */
+const getSalaryPaymentById = async (tenantId, paymentId, accessContext = {}) => {
+    const pId = Number(paymentId);
+    const effectiveBranchId = accessContext.scope === 'BRANCH' ? accessContext.authorizedBranchId : null;
+
+    let query = `
+        SELECT 
+            p.id,
+            p.tenant_id,
+            p.branch_id,
+            p.staff_id,
+            p.salary_month,
+            p.salary_year,
+            p.amount,
+            p.paid_date,
+            p.payment_mode,
+            p.reference,
+            p.remarks,
+            p.created_at,
+            p.updated_at,
+            sp.first_name,
+            sp.last_name,
+            CONCAT(sp.first_name, ' ', sp.last_name) as staff_name,
+            sp.employee_id,
+            sp.employee_type,
+            sp.designation,
+            b.name as branch_name
+        FROM staff_salary_payments p
+        JOIN staff_profiles sp ON p.staff_id = sp.id
+        LEFT JOIN branches b ON p.branch_id = b.id
+        WHERE p.tenant_id = ? AND p.id = ? AND p.deleted_at IS NULL
+    `;
+
+    const params = [tenantId, pId];
+    if (effectiveBranchId) {
+        query += ` AND p.branch_id = ?`;
+        params.push(Number(effectiveBranchId));
+    }
+
+    const [rows] = await pool.query(query, params);
+    if (!rows || rows.length === 0) {
+        const err = new Error('Salary payment record not found or unauthorized.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    return rows[0];
+};
+
+/**
+ * 7. Update Staff Salary Payment Record (amount, paid_date, payment_mode, reference, remarks)
+ */
+const updateStaffSalaryPayment = async (tenantId, paymentId, { amount, paidDate, paymentMode, reference, remarks }, updaterUserId, accessContext = {}) => {
+    const pId = Number(paymentId);
+    const effectiveBranchId = accessContext.scope === 'BRANCH' ? accessContext.authorizedBranchId : null;
+
+    const existing = await getSalaryPaymentById(tenantId, pId, accessContext);
+
+    const updateFields = [];
+    const updateParams = [];
+
+    if (amount !== undefined && amount !== null) {
+        const numAmt = Number(amount);
+        if (isNaN(numAmt) || numAmt <= 0) {
+            const err = new Error('Payment amount must be greater than zero.');
+            err.statusCode = 400;
+            throw err;
+        }
+        updateFields.push('amount = ?');
+        updateParams.push(numAmt);
+    }
+
+    if (paidDate !== undefined && paidDate !== null) {
+        updateFields.push('paid_date = ?');
+        updateParams.push(paidDate);
+    }
+
+    if (paymentMode !== undefined && paymentMode !== null) {
+        updateFields.push('payment_mode = ?');
+        updateParams.push(paymentMode);
+    }
+
+    if (reference !== undefined) {
+        updateFields.push('reference = ?');
+        updateParams.push(reference || null);
+    }
+
+    if (remarks !== undefined) {
+        updateFields.push('remarks = ?');
+        updateParams.push(remarks || null);
+    }
+
+    if (updateFields.length === 0) {
+        return existing;
+    }
+
+    updateFields.push('updated_at = NOW()');
+
+    let updateSql = `UPDATE staff_salary_payments SET ${updateFields.join(', ')} WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL`;
+    updateParams.push(tenantId, pId);
+
+    if (effectiveBranchId) {
+        updateSql += ` AND branch_id = ?`;
+        updateParams.push(Number(effectiveBranchId));
+    }
+
+    await pool.query(updateSql, updateParams);
+
+    return await getSalaryPaymentById(tenantId, pId, accessContext);
+};
+
+/**
+ * 8. Soft Delete Staff Salary Payment Record (Reverts month back to PENDING)
+ */
+const deleteStaffSalaryPayment = async (tenantId, paymentId, deleterUserId, accessContext = {}) => {
+    const pId = Number(paymentId);
+    const effectiveBranchId = accessContext.scope === 'BRANCH' ? accessContext.authorizedBranchId : null;
+
+    const existing = await getSalaryPaymentById(tenantId, pId, accessContext);
+
+    let deleteSql = `UPDATE staff_salary_payments SET deleted_at = NOW() WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL`;
+    const deleteParams = [tenantId, pId];
+
+    if (effectiveBranchId) {
+        deleteSql += ` AND branch_id = ?`;
+        deleteParams.push(Number(effectiveBranchId));
+    }
+
+    const [res] = await pool.query(deleteSql, deleteParams);
+    if (res.affectedRows === 0) {
+        const err = new Error('Failed to delete salary payment record.');
+        err.statusCode = 500;
+        throw err;
+    }
+
+    return {
+        success: true,
+        message: `Salary payment for ${existing.salary_month}/${existing.salary_year} has been deleted. Month is now PENDING.`,
+        deletedPaymentId: pId,
+        staffId: existing.staff_id,
+        salaryMonth: existing.salary_month,
+        salaryYear: existing.salary_year
+    };
+};
+
+/**
+ * 9. Reset / Clear Staff Salary Structure (Base Salary -> 0, Effective Date -> NULL)
+ */
+const resetStaffSalaryMaster = async (tenantId, staffId, updaterUserId, accessContext = {}) => {
+    return await updateStaffSalaryMaster(
+        tenantId,
+        staffId,
+        { salaryAmount: 0, salaryType: 'Monthly', salaryEffectiveFrom: null },
+        updaterUserId,
+        accessContext
+    );
+};
+
 module.exports = {
     getStaffSalariesMaster,
     updateStaffSalaryMaster,
+    resetStaffSalaryMaster,
     getStaffSalaryStatus,
     payStaffSalary,
-    getStaffSalaryHistory
+    getStaffSalaryHistory,
+    getSalaryPaymentById,
+    updateStaffSalaryPayment,
+    deleteStaffSalaryPayment
 };

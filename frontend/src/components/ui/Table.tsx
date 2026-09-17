@@ -70,7 +70,7 @@ export const Table: React.FC<TableProps> = ({
               {headers.map((h, i) => renderHeaderCell(h, i))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-sm font-normal text-slate-700 break-words [&_td]:break-words [&_td]:overflow-hidden">
+          <tbody className="divide-y divide-slate-100 text-sm font-normal text-slate-700 break-words [&_td]:break-words">
             {children}
           </tbody>
         </table>

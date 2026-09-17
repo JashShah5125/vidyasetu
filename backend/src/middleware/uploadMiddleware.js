@@ -195,9 +195,59 @@ const doubtStorage = multer.diskStorage({
 
 const uploadDoubtAttachments = multer({
     storage: doubtStorage,
-    limits: { fileSize: 10 * 1024 * 1024, files: 5 }, // 10MB each, up to 5 files
+    limits: { fileSize: 10 * 1024 * 1024, files: 5 },
     fileFilter: homeworkFileFilter
 }).array('attachments', 5);
+
+// Student Registration & KYC Documents (up to 10MB per file: PDF, JPG, PNG, DOCX)
+const studentDocStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, '../../uploads/documents');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const baseName = (file.originalname || 'document').replace(/[^\w.\- ]/g, '').replace(/\s+/g, '-').slice(0, 100);
+        cb(null, baseName + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const uploadStudentDocument = multer({
+    storage: studentDocStorage,
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => {
+        const allowedMimeTypes = [
+            'image/jpeg', 'image/png', 'image/webp',
+            'application/pdf',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, JPG, PNG, and DOC files are allowed.'));
+        }
+    }
+}).single('file');
+
+const uploadStudentDocuments = multer({
+    storage: studentDocStorage,
+    limits: { fileSize: 10 * 1024 * 1024, files: 10 },
+    fileFilter: (req, file, cb) => {
+        const allowedMimeTypes = [
+            'image/jpeg', 'image/png', 'image/webp',
+            'application/pdf',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, JPG, PNG, and DOC files are allowed.'));
+        }
+    }
+}).array('files', 10);
 
 module.exports = {
     uploadLogo,
@@ -206,5 +256,7 @@ module.exports = {
     uploadHomeworkFiles,
     uploadSubmissionFiles,
     uploadAttendanceCsv,
-    uploadDoubtAttachments
+    uploadDoubtAttachments,
+    uploadStudentDocument,
+    uploadStudentDocuments
 };

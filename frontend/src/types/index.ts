@@ -40,16 +40,28 @@ export interface Tenant {
 export interface Lead {
   id: string;
   name: string;
+  email?: string;
   mobile: string;
+  parentName?: string;
   parentMobile?: string;
+  parentEmail?: string;
   course: string;
   program?: string;
   level?: string;
+  interestedLevelId?: number | null;
+  packageType?: number | null; // 1: Program Wise, 2: Bundle Wise, 3: Subject Wise
+  packageDetails?: any;
+  academicYear?: string;
+  academicYearId?: number | null;
   branch: string;
   preferredBranch?: string;
   source: string;
   counsellor: string;
-  status: 'New Enquiry' | 'Contacted' | 'Follow-up' | 'Demo Scheduled' | 'Fee Discussion' | 'Interested' | 'Not Interested' | 'Converted';
+  counsellorId?: number | null;
+  status: 'New Enquiry' | 'Assigned' | 'Contacted' | 'Follow-up' | 'Demo Scheduled' | 'Fee Discussion' | 'Interested' | 'Not Interested' | 'Lost' | 'Converted' | 'Cancelled';
+  lostReason?: string;
+  lostAt?: string;
+  deletedAt?: string;
   demoScheduledOn?: string;
   nextFollowUp: string;
   remarks: string;
@@ -66,6 +78,23 @@ export interface Parent {
   occupation?: string;
   childrenIds: string[];
 }
+
+export type StudentStatusCode = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+export type StudentStatusLabel = 
+  | 'Inactive'
+  | 'Active Student'
+  | 'Deleted'
+  | 'Registration Pending'
+  | 'Documents Submitted'
+  | 'Documents Verified'
+  | 'Pending Batch Allocation'
+  | 'Batch Allocated'
+  | 'Payment Pending'
+  | 'On Hold'
+  | 'Passed Out'
+  | 'Draft'
+  | 'Verification Pending';
 
 export interface Student {
   id: string;
@@ -84,7 +113,8 @@ export interface Student {
   board: string;
   targetExam: string;
   yearOfAttempt: string;
-  status: 'Draft' | 'Registration Pending' | 'Documents Submitted' | 'Verification Pending' | 'Active Student';
+  status: StudentStatusLabel | string | number;
+  statusCode?: StudentStatusCode;
   
   // Legacy fields (for backward compatibility)
   course?: string;

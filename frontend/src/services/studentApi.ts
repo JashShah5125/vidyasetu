@@ -241,8 +241,67 @@ export const deleteStudent = async (id: number) => {
   return response.data;
 };
 
+export interface StudentDocument {
+  id: number;
+  tenant_id: number;
+  student_id: number;
+  document_type_id: number;
+  document_type_name: string;
+  document_type_code: string;
+  is_required: number | boolean;
+  storage_key: string;
+  file_name: string;
+  mime_type?: string;
+  status: 0 | 1 | 2; // 0=Pending, 1=Verified, 2=Rejected
+  statusLabel: 'Verification Pending' | 'Verified' | 'Rejected';
+  verified_by?: number;
+  verified_by_name?: string;
+  verified_at?: string;
+  rejection_reason?: string;
+  created_at: string;
+}
+
 export const getAcademicOptions = async () => {
   const basePath = getStudentBasePath();
   const response = await api.get(`${basePath}/options/academic`);
   return response.data;
 };
+
+export const uploadStudentDocumentFile = async (file: File): Promise<{
+  fileName: string;
+  storageKey: string;
+  url: string;
+  mimeType: string;
+  fileSize: string;
+}> => {
+  const basePath = getStudentBasePath();
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(`${basePath}/upload-document`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data.data;
+};
+
+export const getStudentDocuments = async (studentId: number | string): Promise<StudentDocument[]> => {
+  const basePath = getStudentBasePath();
+  const response = await api.get(`${basePath}/${studentId}/documents`);
+  return response.data.data || [];
+};
+
+export const updateStudentDocumentStatus = async (
+  studentId: number | string,
+  docId: number | string,
+  status: 0 | 1 | 2,
+  rejectionReason?: string
+): Promise<StudentDocument[]> => {
+  const basePath = getStudentBasePath();
+  const response = await api.patch(`${basePath}/${studentId}/documents/${docId}/status`, {
+    status,
+    rejectionReason
+  });
+  return response.data.data || [];
+};
+

@@ -27,6 +27,7 @@ app.use((req, res, next) => {
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
+const leadRoutes = require('./routes/leadRoutes');
 const planRoutes = require('./routes/planRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const billingRoutes = require('./routes/billingRoutes');
@@ -67,6 +68,7 @@ const teacherHomeworkRoutes = require('./routes/teacherHomeworkRoutes');
 const lectureRequestRoutes = require('./routes/lectureRequestRoutes');
 const studentDoubtRoutes = require('./routes/studentDoubtRoutes');
 const teacherDoubtRoutes = require('./routes/teacherDoubtRoutes');
+const enquiryRoutes = require('./routes/enquiryRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -76,6 +78,7 @@ app.get('/health', (req, res) => {
 // Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/tenants', tenantRoutes);
+app.use('/api/admin/leads', leadRoutes);
 app.use('/api/admin/plans', planRoutes);
 app.use('/api/admin/subscriptions', subscriptionRoutes);
 app.use('/api/admin/billing', billingRoutes);
@@ -100,6 +103,8 @@ app.use('/api/branch/homeworks', branchHomeworkRoutes);
 app.use('/api/student/homework', homeworkRoutes.studentRouter);
 app.use('/api/admin/students', studentRoutes);
 app.use('/api/branch/students', branchStudentRoutes);
+app.use('/api/admin/enquiries', enquiryRoutes);
+app.use('/api/branch/enquiries', enquiryRoutes);
 app.use('/api/admin/payments', paymentRoutes);
 app.use('/api/admin/timetable', timetableRoutes);
 app.use('/api/branch/timetable', branchTimetableRoutes);
