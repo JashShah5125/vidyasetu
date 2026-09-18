@@ -185,6 +185,19 @@ export const SubjectSetup: React.FC = () => {
     return [...list].sort((a, b) => a.name.localeCompare(b.name));
   }, [subjects, search]);
 
+  const filteredBundles = useMemo(() => {
+    return bundles.filter(b => {
+      const matchSearch =
+        !search ||
+        b.name.toLowerCase().includes(search.toLowerCase()) ||
+        (b.description || '').toLowerCase().includes(search.toLowerCase());
+      const matchStatus =
+        filterStatus === 'all' ||
+        (filterStatus === 'active' ? b.is_active !== false : b.is_active === false);
+      return matchSearch && matchStatus;
+    });
+  }, [bundles, search, filterStatus]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 

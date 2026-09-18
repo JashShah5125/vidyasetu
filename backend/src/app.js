@@ -117,6 +117,7 @@ app.use('/api/admin/lecture-requests', lectureRequestRoutes);
 app.use('/api/admin/attendance', attendanceRoutes);
 app.use('/api/branch/attendance', branchAttendanceRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
+app.use('/api/branch/dashboard', dashboardRoutes);
 app.use('/api/admin/settings', settingRoutes);
 app.use('/api/admin/system-configurations', systemConfigurationRoutes);
 app.use('/api/admin/support', supportRoutes);

@@ -120,10 +120,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pt-1">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Institute Operations & Analytics
+            {isBranchAdmin ? 'Branch Dashboard' : 'Institute Analytics'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Real-time academic performance, attendance, collections, and financial overview.
+            {isBranchAdmin
+              ? 'Real-time academic performance, attendance, collections, and branch overview.'
+              : 'Real-time academic performance, attendance, collections, and multi-branch overview.'}
           </p>
         </div>
 

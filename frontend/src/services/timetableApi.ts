@@ -1,5 +1,6 @@
 import api from './api';
 import type { Lecture, DefaultTimetableSlot, Room } from '../features/scheduler/types/scheduler';
+export type { Lecture, DefaultTimetableSlot, Room };
 
 export interface TimetableOptions {
   branch?: { id: number; name: string; code?: string };

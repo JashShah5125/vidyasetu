@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useCall
 import type { Lecture, Room, PublishStatus, LectureStatus } from '../types/scheduler';
 import { timetableApi, type TimetableOptions } from '../../../services/timetableApi';
 import { getAcademicOptions } from '../../../services/studentApi';
+import { useAuth } from '../../../context/AuthContext';
 
 const parseLocalDate = (dateStr: string): Date => {
   if (dateStr.includes('T')) {
@@ -51,12 +52,14 @@ interface SchedulerContextType {
 const SchedulerContext = createContext<SchedulerContextType | undefined>(undefined);
 
 export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [options, setOptions] = useState<TimetableOptions | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Load scheduler metadata & options on mount
   const refreshOptions = useCallback(async () => {
+    if (!currentUser) return;
     try {
       const [opts, academicRes] = await Promise.all([
         timetableApi.getOptions(),
@@ -76,11 +79,16 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (err) {
       console.warn('Could not load live timetable options from API:', err);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
-    refreshOptions();
-  }, [refreshOptions]);
+    if (currentUser) {
+      refreshOptions();
+    } else {
+      setOptions(null);
+      setLectures([]);
+    }
+  }, [currentUser, refreshOptions]);
 
   // Derived rooms from live backend options
   const rooms: Room[] = useMemo(() => {
@@ -136,7 +144,7 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const resolvedTeacher = options?.teachers?.find(t => String(t.id) === String(item.teacherId) || t.name === item.teacherId || t.full_name === item.teacherId);
         const teacherId = resolvedTeacher?.id || (item.teacherId && !isNaN(Number(item.teacherId)) ? Number(item.teacherId) : item.teacherId);
 
-        const resolvedRoom = (rooms || options?.classrooms)?.find(c => String(c.id) === String(item.roomId) || c.name === item.roomId || c.room_number === item.roomId);
+        const resolvedRoom = (rooms || options?.classrooms)?.find((c: any) => String(c.id) === String(item.roomId) || c.name === item.roomId || c.room_number === item.roomId || c.roomNumber === item.roomId);
         const roomId = resolvedRoom?.id || (item.roomId && !isNaN(Number(item.roomId)) ? Number(item.roomId) : null);
 
         const created = await timetableApi.createLecture({
@@ -158,16 +166,18 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         createdList.push({
           ...item,
-          id: String(created.id),
+          id: String(created?.id || Date.now()),
           batchId: String(batchId),
           branchId: String(branchId),
-          academicYearId: Number(academicYearId),
-          subjectId: String(subjectId),
-          teacherId: String(teacherId),
+          academicYearId: academicYearId,
+          subjectId: subjectId ? String(subjectId) : undefined,
+          teacherId: teacherId ? String(teacherId) : undefined,
           roomId: roomId ? String(roomId) : undefined,
           publishStatus: item.publishStatus || 'PUBLISHED',
-          status: 'SCHEDULED'
-        } as Lecture);
+          status: 'SCHEDULED',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
       } catch (err) {
         console.error('Failed to create single lecture on API:', err);
         throw err;
@@ -192,7 +202,7 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const resolvedTeacher = options?.teachers?.find(t => String(t.id) === String(updates.teacherId) || t.name === updates.teacherId || t.full_name === updates.teacherId);
       const teacherId = resolvedTeacher ? resolvedTeacher.id : (updates.teacherId && !isNaN(Number(updates.teacherId)) ? Number(updates.teacherId) : updates.teacherId);
 
-      const resolvedRoom = (rooms || options?.classrooms)?.find(c => String(c.id) === String(updates.roomId) || c.name === updates.roomId || c.room_number === updates.roomId);
+      const resolvedRoom = (rooms || options?.classrooms)?.find((c: any) => String(c.id) === String(updates.roomId) || c.name === updates.roomId || c.room_number === updates.roomId || c.roomNumber === updates.roomId);
       const roomId = resolvedRoom ? resolvedRoom.id : (updates.roomId !== undefined ? (isNaN(Number(updates.roomId)) ? null : Number(updates.roomId)) : undefined);
 
       await timetableApi.updateLecture(id, {
@@ -254,7 +264,7 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const resolvedTeacher = options?.teachers?.find(t => String(t.id) === String(lec.teacherId) || t.name === lec.teacherId || t.full_name === lec.teacherId);
         const teacherId = resolvedTeacher?.id || lec.teacherId;
 
-        const resolvedRoom = options?.classrooms?.find(c => String(c.id) === String(lec.roomId) || c.name === lec.roomId || c.room_number === lec.roomId);
+        const resolvedRoom = (rooms || options?.classrooms)?.find((c: any) => String(c.id) === String(lec.roomId) || c.name === lec.roomId || c.room_number === lec.roomId || c.roomNumber === lec.roomId);
         const roomId = resolvedRoom?.id || lec.roomId || null;
 
         if (lec.id && !String(lec.id).startsWith('TEMP-') && !String(lec.id).startsWith('LEC-')) {

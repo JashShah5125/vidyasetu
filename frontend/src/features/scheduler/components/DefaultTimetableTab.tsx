@@ -53,11 +53,11 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
     if (!currentBatch) return null;
     const fromOptions = options?.batches?.find(b => String(b.id) === String(currentBatch) || b.name === currentBatch || b.code === currentBatch);
     if (fromOptions) return fromOptions;
-    const fromContext = batches.find(b => String(b.id) === String(currentBatch) || b.name === currentBatch);
+    const fromContext = batches.find((b: any) => String(b.id || b.batchId) === String(currentBatch) || b.name === currentBatch || b.batchName === currentBatch);
     return fromContext || null;
   }, [currentBatch, options, batches]);
 
-  const resolvedBatchId = resolvedBatch?.id || currentBatch;
+  const resolvedBatchId = (resolvedBatch as any)?.id || (resolvedBatch as any)?.batchId || currentBatch;
 
   // Saved default lectures from backend
   const [savedLectures, setSavedLectures] = useState<Lecture[]>([]);
@@ -75,7 +75,7 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
       const mappedLectures: Lecture[] = slots.map(slot => ({
         id: String(slot.id),
         batchId: String(resolvedBatchId),
-        branchId: currentBranch || String(resolvedBatch?.branch_id || '1'),
+        branchId: currentBranch || String((resolvedBatch as any)?.branch_id || '1'),
         subjectId: String(slot.subjectId),
         subjectName: slot.subjectName,
         teacherId: String(slot.teacherId),
@@ -136,8 +136,8 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
     }));
 
     try {
-      const branchIdNum = resolvedBatch?.branch_id || (branches.find(b => b.code === currentBranch || b.name === currentBranch)?.id) || 1;
-      await timetableApi.saveDefaultTimetable(resolvedBatchId, slots, branchIdNum, resolvedBatch?.academic_year_id || 1);
+      const branchIdNum = (resolvedBatch as any)?.branch_id || (branches.find(b => b.code === currentBranch || b.name === currentBranch)?.id) || 1;
+      await timetableApi.saveDefaultTimetable(resolvedBatchId, slots, branchIdNum, (resolvedBatch as any)?.academic_year_id || 1);
       
       setIsEditing(false);
       await loadDefaultTimetable();
@@ -281,7 +281,7 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
         <LectureFormModal
           isOpen={isFormOpen}
           onClose={() => setIsFormOpen(false)}
-          branchId={currentBranch || String(resolvedBatch?.branch_id || '1')}
+          branchId={currentBranch || String((resolvedBatch as any)?.branch_id || '1')}
           batchId={String(resolvedBatchId)}
           existingLecture={editingLecture}
           initialDate={initialDate}

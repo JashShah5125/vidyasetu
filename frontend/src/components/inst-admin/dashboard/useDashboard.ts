@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchInstituteDashboard } from './dashboardApi';
+import { fetchDashboardData } from './dashboardApi';
 import type { DashboardData, DashboardQueryParams } from './types';
 
 interface UseDashboardResult {
@@ -9,7 +9,10 @@ interface UseDashboardResult {
   refetch: () => void;
 }
 
-export const useDashboard = (params: DashboardQueryParams): UseDashboardResult => {
+export const useDashboard = (
+  params: DashboardQueryParams,
+  isBranchAdmin: boolean = false
+): UseDashboardResult => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +29,7 @@ export const useDashboard = (params: DashboardQueryParams): UseDashboardResult =
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchInstituteDashboard(params);
+      const result = await fetchDashboardData(params, isBranchAdmin);
       setData(result);
       setError(null);
     } catch (err: any) {
@@ -38,7 +41,7 @@ export const useDashboard = (params: DashboardQueryParams): UseDashboardResult =
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramsStr, fetchKey]);
+  }, [paramsStr, isBranchAdmin, fetchKey]);
 
   useEffect(() => {
     // Debounce filter changes by 300ms

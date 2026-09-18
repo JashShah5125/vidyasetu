@@ -1,5 +1,6 @@
 import api from './api';
 import type { SubscriptionPlan, TenantSubscription } from '../types/saas';
+import { getTenantStatusLabel } from '../types';
 import { mapPlanToFrontend } from './planService';
 
 export interface InstituteTenant {
@@ -20,8 +21,11 @@ export interface InstituteProfile {
   plan: SubscriptionPlan | null;
 }
 
-const titleCase = (value?: string | null) =>
-  value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
+const titleCase = (value?: string | number | null) => {
+  if (value === null || value === undefined) return '';
+  const s = String(value);
+  return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
+};
 
 const safeJsonArray = (value: any): string[] => {
   if (Array.isArray(value)) return value.map(String);
@@ -36,17 +40,29 @@ const safeJsonArray = (value: any): string[] => {
   return [];
 };
 
-const mapTenant = (row: any): InstituteTenant => ({
-  id: String(row.id),
-  name: row.name || '',
-  status: titleCase(row.status) || 'Active',
-  gstNo: row.gst_number || undefined,
-  ownerName: row.owner_name || row.ownerName || '—',
-  email: row.primary_email || row.contact_email || '',
-  mobile: row.owner_mobile || row.contact_phone || '',
-  address: row.address_line1 || undefined,
-  altEmails: safeJsonArray(row.alternate_emails)
-});
+const mapTenant = (row: any): InstituteTenant => {
+  if (!row) {
+    return {
+      id: '',
+      name: '',
+      status: 'Active',
+      ownerName: '—',
+      email: '',
+      mobile: ''
+    };
+  }
+  return {
+    id: String(row.id || ''),
+    name: row.name || '',
+    status: getTenantStatusLabel(row.status),
+    gstNo: row.gst_number || undefined,
+    ownerName: row.owner_name || row.ownerName || '—',
+    email: row.primary_email || row.contact_email || '',
+    mobile: row.owner_mobile || row.contact_phone || '',
+    address: row.address_line1 || undefined,
+    altEmails: safeJsonArray(row.alternate_emails)
+  };
+};
 
 const CYCLE_MAP: Record<string, any> = {
   annual: 'Yearly',
@@ -59,9 +75,11 @@ const CYCLE_MAP: Record<string, any> = {
 const mapSubscription = (row: any, plan?: any): TenantSubscription | null => {
   if (!row) return null;
 
-  const cycle = row.billing_cycle || 'annual';
+  const cycle = (row.billing_cycle || 'annual').toLowerCase();
+  const yearlyPrice = plan?.yearlyPrice ?? plan?.yearly_price;
+  const monthlyPrice = plan?.monthlyPrice ?? plan?.monthly_price;
   const basePrice =
-    cycle === 'annual' ? parseFloat(plan?.yearlyPrice) : parseFloat(plan?.monthlyPrice);
+    cycle === 'annual' ? parseFloat(yearlyPrice) : parseFloat(monthlyPrice);
 
   return {
     id: String(row.id),
@@ -105,7 +123,7 @@ export const getInstituteProfile = async (): Promise<InstituteProfile> => {
 
   return {
     tenant: mapTenant(payload?.tenant),
-    subscription: mapSubscription(payload?.tenant, payload?.plan),
+    subscription: mapSubscription(payload?.tenant, plan || payload?.plan),
     plan
   };
 };

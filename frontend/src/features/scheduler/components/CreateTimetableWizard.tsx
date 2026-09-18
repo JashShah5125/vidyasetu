@@ -135,11 +135,12 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const availableProgramList = useMemo(() => {
     if (!selectedCourseObj) return [];
-    if (selectedCourseObj.assigned_programs && selectedCourseObj.assigned_programs.length > 0) {
-      return selectedCourseObj.assigned_programs;
+    const courseObj = selectedCourseObj as any;
+    if (courseObj.assigned_programs && courseObj.assigned_programs.length > 0) {
+      return courseObj.assigned_programs;
     }
-    if (selectedCourseObj.programs && selectedCourseObj.programs.length > 0) {
-      return selectedCourseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
+    if (courseObj.programs && courseObj.programs.length > 0) {
+      return courseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
     }
     if (options?.programs) {
       return options.programs.filter(p => Number(p.course_id) === Number(selectedCourseObj.id));
@@ -162,7 +163,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const availableLevelList = useMemo(() => {
     if (!options?.levels || !selectedProgramObj) return [];
-    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number(l.course_id) === Number(selectedCourseObj.id)));
+    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number((l as any).course_id) === Number(selectedCourseObj.id)));
   }, [options, selectedProgramObj, selectedCourseObj]);
 
   const availableLevels = useMemo(() => {
@@ -195,7 +196,7 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
     const course = courseHierarchy.find(c => c.courseName === courseId);
     const program = course?.programs.find(p => p.programName === programId);
     const level = program?.levels.find(l => l.levelId === levelId);
-    return level ? level.batches.map(b => b.name) : [];
+    return level ? (level.batches || []).map((b: any) => typeof b === 'string' ? b : b.name) : [];
   }, [availableBatchList, courseId, programId, levelId]);
 
   // Resolve numerical batchId

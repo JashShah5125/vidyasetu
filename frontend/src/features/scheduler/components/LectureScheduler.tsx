@@ -48,7 +48,7 @@ export const LectureScheduler = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filters State (derived from URL Search Params)
-  const isBranchAdmin = currentUser?.role === 'branch-admin' || currentUser?.role === 'branch_admin';
+  const isBranchAdmin = (currentUser?.role as string) === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
   const assignedBranch = options?.branch || (currentUser?.branch ? branches.find(b => b.name === currentUser.branch || b.code === currentUser.branch) : null);
   const initialBranch = assignedBranch ? (assignedBranch.code || assignedBranch.name) : '';
   const branch = isBranchAdmin ? (assignedBranch?.code || assignedBranch?.name || searchParams.get('branch') || '') : (searchParams.get('branch') || initialBranch || '');
@@ -126,18 +126,26 @@ export const LectureScheduler = () => {
     }
   }, [editorContext, lectures]);
 
-  // Load branch-assigned courses directly from branchApi
-  const [branchAssignedCourses, setBranchAssignedCourses] = useState<any[]>([]);
+  // Branch Options
+  const availableBranches = useMemo(() => {
+    if (options?.branches && options.branches.length > 0) {
+      return options.branches.map(b => b.code || b.name);
+    }
+    return branches.map(b => b.code || b.name);
+  }, [options, branches]);
 
   // Resolve selected Branch Object
   const selectedBranchObj = useMemo(() => {
-    if (!options) return null;
-    const branchList = options.branches || branches;
+    if (!branch) return null;
+    const branchList = options?.branches || branches;
     return branchList.find(b => b.code === branch || b.name === branch || String(b.id) === branch) || null;
   }, [options, branches, branch]);
 
+  // Load branch-assigned courses directly from branchApi to respect branch isolation
+  const [branchAssignedCourses, setBranchAssignedCourses] = useState<any[]>([]);
+
   useEffect(() => {
-    const branchIdToFetch = selectedBranchObj?.id || assignedBranch?.id;
+    const branchIdToFetch = selectedBranchObj?.id || (currentUser?.branch ? branches.find(b => b.name === currentUser.branch || b.code === currentUser.branch)?.id : null);
     if (!branchIdToFetch) {
       setBranchAssignedCourses([]);
       return;
@@ -151,9 +159,9 @@ export const LectureScheduler = () => {
         console.error('Failed to fetch assigned courses for branch in LectureScheduler:', err);
         setBranchAssignedCourses([]);
       });
-  }, [selectedBranchObj?.id, assignedBranch?.id]);
+  }, [selectedBranchObj?.id, currentUser?.branch, branches]);
 
-  // Derived available courses (strictly assigned to branch when branch is selected)
+  // Derived available courses
   const availableCourseList = useMemo(() => {
     if (branchAssignedCourses && branchAssignedCourses.length > 0) {
       return branchAssignedCourses.map((c: any) => ({
@@ -165,14 +173,13 @@ export const LectureScheduler = () => {
       }));
     }
     if (!options?.courses || options.courses.length === 0) return [];
-    if (!selectedBranchObj) return options.courses;
-
     return options.courses;
-  }, [branchAssignedCourses, options, selectedBranchObj]);
+  }, [branchAssignedCourses, options]);
 
-  const uniqueCourses = useMemo(() => {
+  const availableCourses = useMemo(() => {
     return availableCourseList.map(c => c.name);
   }, [availableCourseList]);
+  const uniqueCourses = availableCourses;
 
   // Resolve selected Course Object
   const selectedCourseObj = useMemo(() => {
@@ -183,11 +190,12 @@ export const LectureScheduler = () => {
   // Derived available programs strictly under selected Course
   const availableProgramList = useMemo(() => {
     if (!selectedCourseObj) return [];
-    if (selectedCourseObj.assigned_programs && selectedCourseObj.assigned_programs.length > 0) {
-      return selectedCourseObj.assigned_programs;
+    const courseObj = selectedCourseObj as any;
+    if (courseObj.assigned_programs && courseObj.assigned_programs.length > 0) {
+      return courseObj.assigned_programs;
     }
-    if (selectedCourseObj.programs && selectedCourseObj.programs.length > 0) {
-      return selectedCourseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
+    if (courseObj.programs && courseObj.programs.length > 0) {
+      return courseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
     }
     if (options?.programs) {
       return options.programs.filter(p => Number(p.course_id) === Number(selectedCourseObj.id));
@@ -208,7 +216,7 @@ export const LectureScheduler = () => {
   // Derived available levels strictly under selected Program
   const availableLevelList = useMemo(() => {
     if (!options?.levels || !selectedProgramObj) return [];
-    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number(l.course_id) === Number(selectedCourseObj.id)));
+    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number((l as any).course_id) === Number(selectedCourseObj.id)));
   }, [options, selectedProgramObj, selectedCourseObj]);
 
   const availableLevels = useMemo(() => {

@@ -115,7 +115,7 @@ const InstituteDashboard: React.FC = () => {
   const queryParams: DashboardQueryParams = {
     from: filters.from,
     to: filters.to,
-    branchId: filters.branchId !== 'all' ? filters.branchId : null,
+    branchId: !isBranchAdmin && filters.branchId !== 'all' ? filters.branchId : null,
     academicYearId: filters.academicYearId !== 'all' ? filters.academicYearId : null,
     courseId: filters.courseId !== 'all' ? filters.courseId : null,
     programId: filters.programId !== 'all' ? filters.programId : null,
@@ -123,7 +123,7 @@ const InstituteDashboard: React.FC = () => {
     batchId: filters.batchId !== 'all' ? filters.batchId : null,
   };
 
-  const { data, loading, error, refetch } = useDashboard(queryParams);
+  const { data, loading, error, refetch } = useDashboard(queryParams, isBranchAdmin);
 
   const filterOptions = {
     branches: data?.filters?.branches ?? [],

@@ -6,6 +6,8 @@ export interface Room {
   id: string;
   branchId: string;
   name: string;
+  room_number?: string;
+  roomNumber?: string;
   capacity?: number;
   type?: 'CLASSROOM' | 'LAB' | 'OTHER';
   isActive: boolean;
@@ -15,7 +17,7 @@ export interface Lecture {
   id: string;
 
   branchId: string;
-  academicYearId: string;
+  academicYearId?: string | number;
 
   courseId?: string;
   programId?: string;
@@ -50,8 +52,8 @@ export interface Lecture {
   cancellationReason?: string;
   isOverride?: boolean; // True if this lecture has special substitution/override notes
 
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface DefaultTimetableSlot {
