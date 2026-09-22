@@ -602,11 +602,6 @@ export const LectureScheduler = () => {
               <button onClick={() => setActiveTab('requests')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'requests' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}>
                 <MessageSquare className="w-4 h-4" />
                 <span>Teacher Requests</span>
-                {pendingRequestsCount > 0 && (
-                  <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5">
-                    {pendingRequestsCount}
-                  </span>
-                )}
               </button>
               <button onClick={() => setActiveTab('default')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'default' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}>
                 <BookmarkCheck className="w-4 h-4" />

@@ -12,7 +12,7 @@ import { Select } from '../../components/ui/Select';
 import { Pagination } from '../../components/ui/Pagination';
 import { Modal } from '../../components/ui/Modal';
 import {
-  Plus, Download, Eye, Pencil, Trash2, RefreshCw, PhoneCall, X, ArrowLeft,
+  Plus, Download, Eye, Pencil, Edit3, Trash2, RefreshCw, PhoneCall, X, ArrowLeft,
   Loader2, UserRound, Gauge, MapPin, FileText, Send
 } from 'lucide-react';
 import type { SaasLead, SaasLeadFollowup } from '../../types/saas';
@@ -358,15 +358,13 @@ export const Leads: React.FC = () => {
           await leadService.updateLeadStatus(leadId, Number(ffStatus));
         } catch { /* status auto-advance already handled server-side */ }
       }
-      if (currentLead) {
-        const res = await leadService.getLead(leadId);
-        if (res?.data) {
-          setCurrentLead(res.data);
-          if (pageMode === 'view') resetForm(res.data);
-        }
+      const res = await leadService.getLead(leadId);
+      if (res?.data) {
+        setCurrentLead(res.data);
+        resetForm(res.data);
       }
       setFfMode(''); setFfOutcome(''); setFfNotes(''); setFfNextAt(''); setFfStatus('');
-      fetchLeads();
+      await fetchLeads();
     } catch (error: any) {
       console.error('Failed to add follow-up:', error);
       addToast(error?.response?.data?.message || 'Failed to add follow-up', 'error');
@@ -798,23 +796,23 @@ export const Leads: React.FC = () => {
                   <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">{formatDate(l.nextFollowupAt)}</td>
                   <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">{formatDate(l.createdAt)}</td>
                   <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <button type="button" onClick={() => handleViewLead(l)} title="View Details"
-                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer">
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer">
                         <Eye size={16} />
                       </button>
                       <button type="button" onClick={() => handleEditLead(l)} title="Edit Lead"
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer">
-                        <Pencil size={16} />
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer">
+                        <Edit3 size={16} />
                       </button>
                       {l.status !== 6 && (
                         <button type="button" onClick={() => handleConvert(l)} title="Convert to Tenant"
-                          className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer">
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer">
                           <RefreshCw size={16} />
                         </button>
                       )}
                       <button type="button" onClick={() => { setDeleteTarget(l); setDeleteLostReason(''); }} title="Delete Lead"
-                        className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer">
                         <Trash2 size={16} />
                       </button>
                     </div>

@@ -113,12 +113,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard }
             ]
           },
-          {
-            title: 'Platform',
-            links: [
-              { name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare }
-            ]
-          },
+          //{
+          //  title: 'Platform',
+          //links: [
+          //{ name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare }
+          // ]
+          //},
           {
             title: 'Operations',
             links: [
@@ -289,7 +289,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Admission & Docs', label: 'Admission & Docs', path: '/leads/admission', icon: ClipboardList },
               { name: 'Batch Allocation', label: 'Batch Allocation', path: '/leads/batch', icon: Layers },
               { name: 'Payment & Activation', label: 'Payment & Activation', path: '/leads/payment', icon: Zap },
-              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
+              { name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }
             ]
           }
         ];
@@ -316,7 +316,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Settings',
             links: [
-              { name: 'Settings', label:  'Settings', path: '/settings', icon: Settings }
+              { name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }
             ]
           }
         ];
@@ -407,14 +407,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     badge?: number;
   }) => {
     const isCounsellor = currentUser?.role === 'counsellor';
+    const isSalariesPath = path === '/finance/expenses/salaries';
     const isActive = path === '/leads'
       ? (isCounsellor
-          ? (location.pathname === '/leads' || location.pathname === '/leads/pipeline')
-          : location.pathname.startsWith('/leads')
-        )
+        ? (location.pathname === '/leads' || location.pathname === '/leads/pipeline')
+        : location.pathname.startsWith('/leads')
+      )
       : path === '/fees'
         ? location.pathname === '/fees' || location.pathname.startsWith('/fees/')
-        : location.pathname.startsWith(path);
+        : isSalariesPath
+          ? location.pathname.startsWith('/finance/expenses/salaries') || location.pathname.startsWith('/finance/payroll') || location.pathname.startsWith('/finance/payables/salaries')
+          : location.pathname.startsWith(path);
     return (
       <div
         onClick={() => { navigate(path); onClose(); }}

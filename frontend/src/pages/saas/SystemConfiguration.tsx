@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2, RotateCcw, Sliders, Eye, EyeOff, Edit, Trash2, Key } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -19,13 +20,13 @@ const STATUS_OPTIONS = [
 const ITEMS_PER_PAGE = 10;
 
 export const SystemConfiguration: React.FC = () => {
+  const { addToast } = useApp();
   const [settings, setSettings] = useState<PlatformSetting[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   // Mask toggle for secrets
   const [showSecretsMap, setShowSecretsMap] = useState<Record<number, boolean>>({});
@@ -57,7 +58,7 @@ export const SystemConfiguration: React.FC = () => {
         setTotalItems(res.pagination?.total || 0);
       }
     } catch (err: any) {
-      showToast(err.message || 'Failed to load platform settings');
+      addToast(err.message || 'Failed to load platform settings', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -74,11 +75,6 @@ export const SystemConfiguration: React.FC = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
-  };
 
   const handleClearFilters = () => {
     setSearchQuery('');
@@ -132,15 +128,16 @@ export const SystemConfiguration: React.FC = () => {
 
       if (editingSetting) {
         await platformSettingsService.updateSetting(editingSetting.id, payload);
-        showToast('Platform setting parameter updated successfully');
+        addToast(`Platform setting "${formKeyName}" updated successfully.`, 'success');
       } else {
         await platformSettingsService.createSetting(payload);
-        showToast('Platform setting parameter created successfully');
+        addToast(`Platform setting "${formKeyName}" created successfully.`, 'success');
       }
       setShowAddEditModal(false);
       fetchSettings();
     } catch (err: any) {
       setFormError(err.message || 'Failed to save platform setting');
+      addToast(err.message || 'Failed to save platform setting', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -151,11 +148,11 @@ export const SystemConfiguration: React.FC = () => {
     try {
       setIsLoading(true);
       await platformSettingsService.deleteSetting(deletingSetting.id);
-      showToast('Platform setting soft-deleted successfully');
+      addToast(`Platform setting "${deletingSetting.key_name}" deleted successfully.`, 'success');
       setShowDeleteModal(false);
       fetchSettings();
     } catch (err: any) {
-      showToast(err.message || 'Failed to delete setting parameter');
+      addToast(err.message || 'Failed to delete setting parameter', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -165,12 +162,6 @@ export const SystemConfiguration: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Toast Notification */}
-      {toast && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-800 animate-fade-in shadow-sm">
-          ✓ {toast}
-        </div>
-      )}
 
       {/* Header Section Matching Tenants */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

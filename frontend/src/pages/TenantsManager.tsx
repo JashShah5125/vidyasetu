@@ -12,7 +12,7 @@ import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { 
   Plus, Upload, Trash, Trash2, ArrowLeft, X, 
-  Image as ImageIcon, AlertTriangle, Check, Eye, Pencil, ShieldAlert,
+  Image as ImageIcon, AlertTriangle, Check, Eye, Edit3, ShieldAlert,
   ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -1420,12 +1420,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                       })()}
                     </td>
                     <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => handleViewTenant(t)}
                           title="View Details (Read Only)"
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                         >
                           <Eye size={16} />
                         </button>
@@ -1433,15 +1433,15 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                           type="button"
                           onClick={() => handleEditTenant(t)}
                           title="Edit Tenant Settings"
-                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
-                          <Pencil size={16} />
+                          <Edit3 size={16} />
                         </button>
                         <button
                           type="button"
                           onClick={() => setTenantToDelete(t)}
                           title="Delete Tenant"
-                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
                           <Trash2 size={16} />
                         </button>

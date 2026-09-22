@@ -555,11 +555,13 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
         )}
 
         {/* Pagination Footer */}
-        {total > limit && (
-          <div className="p-4 border-t border-slate-200 bg-slate-50/50">
+        {records.length > 0 && (
+          <div className="border-t border-slate-200">
             <Pagination
               currentPage={page}
-              totalPages={Math.ceil(total / limit)}
+              totalPages={Math.max(1, Math.ceil(total / limit))}
+              totalItems={total}
+              pageSize={limit}
               onPageChange={setPage}
             />
           </div>

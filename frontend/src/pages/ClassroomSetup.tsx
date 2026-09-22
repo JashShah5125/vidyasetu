@@ -15,7 +15,7 @@ import {
   Plus,
   Search,
   Download,
-  Edit2,
+  Edit3,
   Trash2,
   Upload,
   Loader2,
@@ -562,18 +562,20 @@ export const ClassroomSetup: React.FC = () => {
                 <td className="px-5 py-3.5 whitespace-nowrap text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
+                      type="button"
                       onClick={() => handleOpenEdit(c)}
                       title="Edit Classroom"
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 border border-slate-200 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                     >
-                      <Edit2 size={12} /> Edit
+                      <Edit3 size={16} />
                     </button>
                     <button
+                      type="button"
                       onClick={() => setDeleteTarget(c)}
                       title="Delete Classroom"
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 border border-red-100 text-red-600 bg-red-50/50 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                     >
-                      <Trash2 size={12} /> Delete
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </td>

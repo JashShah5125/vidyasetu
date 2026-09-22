@@ -24,8 +24,32 @@ const getInvoices = async (req, res) => {
 
 const getBillingSummary = async (req, res) => {
     try {
-        const { year, month, startDate, endDate } = req.query;
-        const summary = await billingService.getBillingSummary(year, month, startDate, endDate);
+        const { year, month, startDate, endDate, preset, time_range } = req.query;
+        let sDate = startDate;
+        let eDate = endDate;
+
+        const effectivePreset = preset || time_range;
+        if (effectivePreset && (!sDate && !eDate)) {
+            const today = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+            if (effectivePreset === 'daily' || effectivePreset === 'day') {
+                sDate = fmt(today);
+                eDate = fmt(today);
+            } else if (effectivePreset === 'weekly' || effectivePreset === 'week') {
+                const past7 = new Date(today);
+                past7.setDate(today.getDate() - 6);
+                sDate = fmt(past7);
+                eDate = fmt(today);
+            } else if (effectivePreset === 'monthly' || effectivePreset === 'month') {
+                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                sDate = fmt(startOfMonth);
+                eDate = fmt(today);
+            }
+        }
+
+        const summary = await billingService.getBillingSummary(year, month, sDate, eDate);
         res.status(200).json({ status: 'success', data: summary });
     } catch (error) {
         console.error('Error fetching billing summary:', error);

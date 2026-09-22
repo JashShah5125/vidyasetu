@@ -9,7 +9,7 @@ import { Input } from '../components/ui/Input';
 import { Toggle } from '../components/ui/Toggle';
 import {
   BookOpen, Package, Plus, Loader2, Layers, Trash2, Pencil,
-  RotateCcw, Download, ArrowRight
+  RotateCcw, Download, ArrowRight, Edit3, Eye
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
@@ -513,12 +513,14 @@ export const SubjectSetup: React.FC = () => {
                       )}
                     </td>
                     <td className="px-3 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
                         <button
+                          type="button"
                           onClick={() => navigate(`/subjects/${subject.code}`)}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title={isBranchAdmin ? 'View Details' : 'Manage Subject'}
                         >
-                          {isBranchAdmin ? 'View Details' : 'Manage'} <ArrowRight size={14} />
+                          <Eye size={16} />
                         </button>
                       </div>
                     </td>
@@ -614,18 +616,22 @@ export const SubjectSetup: React.FC = () => {
                       {isBranchAdmin ? (
                         <span className="text-xs text-slate-400 italic">View Only</span>
                       ) : (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
                           <button
+                            type="button"
                             onClick={() => openEditBundle(bundle)}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                            title="Edit Bundle"
                           >
-                            <Pencil size={13} /> Edit
+                            <Edit3 size={16} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setDeleteBundleTarget(bundle)}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-800 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Delete Bundle"
                           >
-                            <Trash2 size={13} /> Delete
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       )}

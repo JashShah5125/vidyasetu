@@ -198,15 +198,23 @@ export interface Course {
 }
 
 export interface Batch {
+  id?: string;
   name: string;
-  course: string;
+  course?: string;
   program?: string;
   level?: string;
   academicYear?: string;
-  timing: string;
-  room: string;
+  timing?: string;
+  room?: string;
   branch?: string;
   teacher?: string;
+  branchId?: string;
+  courseId?: string;
+  programId?: string;
+  levelId?: string;
+  academicYearId?: string;
+  code?: string;
+  status?: string;
 }
 
 export interface Branch {

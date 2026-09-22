@@ -7,7 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar, Pencil, Trash2, Loader2, Eye, Edit3 } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { AddStudentForm } from '../components/students/AddStudentForm';
 import { 
@@ -319,21 +319,21 @@ export const Students: React.FC = () => {
         </div>
 
         <div className="space-y-6 flex flex-col bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
-          <div className="flex border-b border-slate-200 bg-slate-50 p-2 rounded-xl">
+          <div className="flex gap-2 border-b border-slate-200 overflow-x-auto">
             {[
-              { id: 'overview', label: 'Personal Details' },
-              { id: 'academic', label: 'Batch & Subject Bundle' },
-              { id: 'parents', label: 'Parent / Guardian' },
-              { id: 'fees', label: 'Fee Plan & Invoices' },
-              { id: 'documents', label: 'Documents' }
+              { id: 'overview', label: '1. Personal Details' },
+              { id: 'academic', label: '2. Batch & Subject Bundle' },
+              { id: 'parents', label: '3. Parent / Guardian' },
+              { id: 'fees', label: '4. Fee Plan & Invoices' },
+              { id: 'documents', label: '5. Documents' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setProfileTab(tab.id as any)}
-                className={`flex-1 text-center py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer rounded-lg ${
+                className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                   profileTab === tab.id
-                    ? 'bg-white text-blue-600 shadow-sm border-blue-600 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
                 {tab.label}
@@ -853,7 +853,19 @@ export const Students: React.FC = () => {
           <CardTitle>Active Enrolled Students ({totalItems})</CardTitle>
         </CardHeader>
 
-        <Table headers={['Student Code', 'Full Name', 'Branch', 'Enrolled Batch', 'Mobile Contact', 'Status', 'Actions']}>
+        <Table
+          minWidth="100%"
+          colWidths={['14%', '20%', '15%', '18%', '13%', '10%', '10%']}
+          headers={[
+            { label: 'Student Code', minWidth: '110px' },
+            { label: 'Full Name', minWidth: '150px' },
+            { label: 'Branch', minWidth: '110px' },
+            { label: 'Enrolled Batch', minWidth: '130px' },
+            { label: 'Mobile Contact', minWidth: '110px' },
+            { label: 'Status', minWidth: '85px', align: 'center' },
+            { label: 'Actions', minWidth: '95px', align: 'center' }
+          ]}
+        >
           {loading ? (
             <tr>
               <td colSpan={7} className="px-6 py-8 text-center text-slate-400">Loading student roster...</td>
@@ -864,50 +876,58 @@ export const Students: React.FC = () => {
             </tr>
           ) : (
             students.map((s) => (
-              <tr key={s.id} className="hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                <td className="px-6 py-4 font-mono font-bold text-xs text-blue-600">{s.student_code}</td>
-                <td className="px-6 py-4 font-semibold text-slate-800">{s.full_name}</td>
-                <td className="px-6 py-4 text-xs text-slate-600">{s.branch_name || 'Main Branch'}</td>
-                <td className="px-6 py-4 font-mono text-xs text-emerald-700 font-bold">{s.batch_name || 'Unassigned'}</td>
-                <td className="px-6 py-4 font-mono text-xs text-slate-600">{s.mobile || 'N/A'}</td>
-                <td className="px-6 py-4 text-xs">
+              <tr key={s.id} className="hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors">
+                <td className="px-3.5 py-3 font-mono font-bold text-xs text-blue-600 whitespace-nowrap">{s.student_code}</td>
+                <td className="px-3.5 py-3 font-semibold text-sm text-slate-800">
+                  <span className="line-clamp-1" title={s.full_name}>{s.full_name}</span>
+                </td>
+                <td className="px-3.5 py-3 text-xs text-slate-600 font-medium">
+                  <span className="line-clamp-1" title={s.branch_name || 'Main Branch'}>{s.branch_name || 'Main Branch'}</span>
+                </td>
+                <td className="px-3.5 py-3 font-mono text-xs text-emerald-700 font-bold">
+                  <span className="line-clamp-1" title={s.batch_name || 'Unassigned'}>{s.batch_name || 'Unassigned'}</span>
+                </td>
+                <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.mobile || 'N/A'}</td>
+                <td className="px-3.5 py-3 text-center whitespace-nowrap">
                   {Number(s.status) === 1 || s.status === 'active' ? (
-                    <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex whitespace-nowrap px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Active
                     </span>
                   ) : Number(s.status) === 2 || s.status === 'deleted' ? (
-                    <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-rose-50 text-rose-700 border border-rose-200">
+                    <span className="inline-flex whitespace-nowrap px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-rose-50 text-rose-700 border border-rose-200">
                       Deleted
                     </span>
                   ) : (
-                    <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-slate-100 text-slate-600 border border-slate-200">
+                    <span className="inline-flex whitespace-nowrap px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] bg-slate-100 text-slate-600 border border-slate-200">
                       Inactive
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setSelectedStudentId(s.id)}
-                      className="font-bold text-xs"
-                    >
-                      View Profile
-                    </Button>
+                <td className="px-3.5 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => handleEditStudent(s.id)}
-                      className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all cursor-pointer"
-                      title="Edit Student"
+                      type="button"
+                      onClick={() => setSelectedStudentId(s.id)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                      title="View Profile"
                     >
-                      <Pencil size={14} />
+                      <Eye size={16} />
                     </button>
                     <button
+                      type="button"
+                      onClick={() => handleEditStudent(s.id)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                      title="Edit Student"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setDeletingStudent(s)}
-                      className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       title="Delete Student"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </td>

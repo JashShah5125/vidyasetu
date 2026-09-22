@@ -15,9 +15,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import {
-  Download, TrendingUp, Banknote, CheckCircle, AlertOctagon,
+  Download, TrendingUp, Banknote, CheckCircle, AlertOctagon, AlertTriangle,
   Layers, Loader2, Wallet, FileText, Calendar, RotateCcw, Search, Filter,
-  Plus, Eye, Edit2, Trash2, Upload, X
+  Plus, Eye, Edit3, Trash2, Upload, X
 } from 'lucide-react';
 
 interface Invoice {
@@ -227,6 +227,9 @@ export const BillingRevenue: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
   const openCreateInvoice = () => {
     navigate('/billing/invoices/new');
   };
@@ -235,14 +238,22 @@ export const BillingRevenue: React.FC = () => {
     navigate(`/billing/invoices/${inv.dbId}/edit`);
   };
 
-  const handleDeleteInvoice = async (inv: Invoice) => {
-    if (!window.confirm(`Delete invoice ${inv.id}? It will be removed from all billing views but retained in the database for audit.`)) return;
+  const handleOpenDeleteInvoice = (inv: Invoice) => {
+    setDeletingInvoice(inv);
+  };
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!deletingInvoice) return;
+    setDeleteSubmitting(true);
     try {
-      await billingService.deleteInvoice(inv.dbId);
-      addToast(`Invoice ${inv.id} deleted`, 'success');
+      await billingService.deleteInvoice(deletingInvoice.dbId);
+      addToast(`Invoice #${deletingInvoice.id} deleted successfully.`, 'success');
+      setDeletingInvoice(null);
       loadData();
     } catch (err: any) {
       addToast(err?.response?.data?.message || 'Failed to delete invoice', 'error');
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -971,28 +982,31 @@ export const BillingRevenue: React.FC = () => {
                     {inv.status}
                   </span>
                 </td>
-                <td className="px-3 py-3 whitespace-nowrap text-center min-w-[120px]" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-center gap-1.5 min-w-[100px]">
+                <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                  <div className="flex items-center justify-end gap-1.5">
                     <button
-                      onClick={() => navigate(`/billing/invoices/${inv.dbId}`)}
+                      type="button"
+                      onClick={() => openViewInvoice(inv)}
                       title="View invoice"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                     >
-                      <Eye size={14} />
+                      <Eye size={16} />
                     </button>
                     <button
+                      type="button"
                       onClick={() => openEditInvoice(inv)}
                       title="Edit invoice"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                     >
-                      <Edit2 size={14} />
+                      <Edit3 size={16} />
                     </button>
                     <button
-                      onClick={() => handleDeleteInvoice(inv)}
+                      type="button"
+                      onClick={() => handleOpenDeleteInvoice(inv)}
                       title="Delete invoice"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </td>
@@ -1040,6 +1054,39 @@ export const BillingRevenue: React.FC = () => {
           ['Aakash Institute', 'PRO', 'quarterly', '2026-07-01', '2026-09-30', '45000', '0', '0', '18', 'INR', 'paid', '2026-07-01', 'Razorpay', 'pay_123456', 'Imported invoice']
         ]}
       />
+
+      {/* DELETE INVOICE CONFIRMATION MODAL */}
+      {deletingInvoice && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => !deleteSubmitting && setDeletingInvoice(null)} />
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 text-center animate-fade-in relative z-10 my-auto">
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto border border-red-100">
+              <AlertTriangle size={28} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Invoice?</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Are you sure you want to delete invoice <span className="font-bold text-slate-800">#{deletingInvoice.id}</span> for <span className="font-bold text-slate-800">{deletingInvoice.tenantName}</span>?
+              </p>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
+              <p className="text-xs text-amber-800 font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={14} className="shrink-0 text-amber-600" />
+                This will remove the invoice from billing views. A record is retained in the database for audit integrity.
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setDeletingInvoice(null)} disabled={deleteSubmitting}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={handleConfirmDeleteInvoice} disabled={deleteSubmitting}>
+                {deleteSubmitting ? 'Deleting...' : 'Confirm Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

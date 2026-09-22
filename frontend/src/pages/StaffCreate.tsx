@@ -859,25 +859,21 @@ export const StaffCreate: React.FC = () => {
         </p>
       </div>
 
-      <div className="flex border-b border-slate-200 gap-2 flex-wrap bg-white rounded-xl shadow-sm px-2 pt-2">
+      <div className="flex gap-2 border-b border-slate-200 overflow-x-auto bg-white px-2 rounded-t-xl">
         {tabList.map((tab, idx) => {
           const isActive = idx === activeTab;
-          const isDone = idx < activeTab;
           return (
             <button
               key={tab.id}
               type="button"
               onClick={() => handleTabClick(idx)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all cursor-pointer ${isActive
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-t-lg'
-                }`}
+              className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                isActive
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
             >
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-blue-600 text-white' : isDone ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'
-                } text-[10px] font-bold`}>
-              {isDone ? <Check size={10} strokeWidth={3} /> : idx + 1}
-              </div>
-              <span className={`text-xs font-semibold ${isActive ? 'text-blue-700' : isDone ? 'text-slate-600' : 'text-slate-500'}`}>{tab.label}</span>
+              {idx + 1}. {tab.label}
             </button>
           );
         })}

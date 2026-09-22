@@ -7,7 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
-import { Save, Calculator, Plus, ArrowLeft, Edit2, ShieldAlert, Download, Upload, Trash2 } from 'lucide-react';
+import { Save, Calculator, Plus, ArrowLeft, Edit3, ShieldAlert, Download, Upload, Trash2, Eye, Search, Filter, BookOpen, Layers, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useFeeConfig, type ProgramFeePlan } from '../context/FeeConfigContext';
 import { courseApi } from '../services/courseApi';
@@ -89,6 +89,17 @@ export const FeesMaster: React.FC = () => {
   }, [isBranchAdmin, branches, currentUser]);
 
   const [successMsg, setSuccessMsg] = useState('');
+  const [isFormViewOnly, setIsFormViewOnly] = useState(false);
+  const [isBundleViewOnly, setIsBundleViewOnly] = useState(false);
+  const [isSubjectViewOnly, setIsSubjectViewOnly] = useState(false);
+
+  // Filters for Full Course Plans
+  const [planSearch, setPlanSearch] = useState('');
+  const [planCourseFilter, setPlanCourseFilter] = useState('All');
+
+  // Filters for Bundles
+  const [bundleSearch, setBundleSearch] = useState('');
+  const [bundleCourseFilter, setBundleCourseFilter] = useState('All');
 
   // ─── Full Course (Program-wise) Fees State ────────────────────────────────
   const [selectedCourseCode, setSelectedCourseCode] = useState('');
@@ -116,6 +127,17 @@ export const FeesMaster: React.FC = () => {
   const balance = (Number(totalFees) || 0) - (Number(downPayment) || 0);
   const monthlyInstallment = (Number(months) || 0) > 0 ? balance / (Number(months) as number) : 0;
 
+  const handleViewPlan = (plan: ProgramFeePlan) => {
+    setEditingPlan(plan);
+    setSelectedCourseCode(plan.course_code);
+    setSelectedProgramId(plan.id);
+    setTotalFees(plan.totalFees || 0);
+    setDownPayment(plan.downPayment || 0);
+    setMonths(plan.months || 0);
+    setIsFormViewOnly(true);
+    setView('form');
+  };
+
   const handleEditPlan = (plan: ProgramFeePlan) => {
     setEditingPlan(plan);
     setSelectedCourseCode(plan.course_code);
@@ -123,6 +145,7 @@ export const FeesMaster: React.FC = () => {
     setTotalFees(plan.totalFees || 0);
     setDownPayment(plan.downPayment || 0);
     setMonths(plan.months || 0);
+    setIsFormViewOnly(false);
     setView('form');
   };
 
@@ -133,6 +156,7 @@ export const FeesMaster: React.FC = () => {
     setTotalFees('');
     setDownPayment('');
     setMonths('');
+    setIsFormViewOnly(false);
   };
 
   const handleSave = async () => {
@@ -174,6 +198,13 @@ export const FeesMaster: React.FC = () => {
   const [editingBundle, setEditingBundle] = useState<any>(null);
   const [bundleForm, setBundleForm] = useState({ fee: '' });
 
+  const handleViewBundle = (bundle: any) => {
+    setEditingBundle(bundle);
+    setBundleForm({ fee: bundle.fee?.toString() || '0' });
+    setIsBundleViewOnly(true);
+    setIsBundleModalOpen(true);
+  };
+
   const handleOpenBundleModal = (bundle?: any) => {
     if (bundle) {
       setEditingBundle(bundle);
@@ -182,6 +213,7 @@ export const FeesMaster: React.FC = () => {
       setEditingBundle(null);
       setBundleForm({ fee: '' });
     }
+    setIsBundleViewOnly(false);
     setIsBundleModalOpen(true);
   };
 
@@ -267,9 +299,17 @@ export const FeesMaster: React.FC = () => {
   const [editingSubject, setEditingSubject] = useState<LevelSubjectFee | null>(null);
   const [subjectForm, setSubjectForm] = useState({ fee: '' });
 
+  const handleViewSubject = (subject: LevelSubjectFee) => {
+    setEditingSubject(subject);
+    setSubjectForm({ fee: subject.fee?.toString() || '0' });
+    setIsSubjectViewOnly(true);
+    setIsSubjectModalOpen(true);
+  };
+
   const handleOpenSubjectModal = (subject: LevelSubjectFee) => {
     setEditingSubject(subject);
     setSubjectForm({ fee: subject.fee?.toString() || '0' });
+    setIsSubjectViewOnly(false);
     setIsSubjectModalOpen(true);
   };
 
@@ -304,15 +344,25 @@ export const FeesMaster: React.FC = () => {
   }, [subjectFilterCourse, subjectFilterProgram, subjectFilterLevel]);
 
   const displayedPlans = useMemo(() => {
-    if (!isBranchAdmin) return plans;
-    const assignedProgramIds = new Set<string>();
-    courses.forEach(c => {
-      (c.programs || []).forEach((p: any) => {
-        assignedProgramIds.add(String(p.id));
+    let list = plans;
+    if (isBranchAdmin) {
+      const assignedProgramIds = new Set<string>();
+      courses.forEach(c => {
+        (c.programs || []).forEach((p: any) => {
+          assignedProgramIds.add(String(p.id));
+        });
       });
-    });
-    return plans.filter(p => assignedProgramIds.has(String(p.id)));
-  }, [plans, isBranchAdmin, courses]);
+      list = list.filter(p => assignedProgramIds.has(String(p.id)));
+    }
+    if (planCourseFilter !== 'All') {
+      list = list.filter(p => p.course_name === planCourseFilter || p.course_code === planCourseFilter);
+    }
+    if (planSearch.trim()) {
+      const q = planSearch.toLowerCase();
+      list = list.filter(p => (p.name || '').toLowerCase().includes(q) || (p.course_name || '').toLowerCase().includes(q));
+    }
+    return list;
+  }, [plans, isBranchAdmin, courses, planCourseFilter, planSearch]);
 
   const paginatedPlans = useMemo(() => {
     const startIndex = (fullCoursePage - 1) * ITEMS_PER_PAGE;
@@ -320,20 +370,30 @@ export const FeesMaster: React.FC = () => {
   }, [displayedPlans, fullCoursePage]);
 
   const displayedBundles = useMemo(() => {
-    if (!isBranchAdmin) return customBundles;
-    const assignedCourseNames = new Set(courses.map(c => c.name));
-    const assignedProgramNames = new Set<string>();
-    courses.forEach(c => {
-      (c.programs || []).forEach((p: any) => {
-        assignedProgramNames.add(p.name);
+    let list = customBundles;
+    if (isBranchAdmin) {
+      const assignedCourseNames = new Set(courses.map(c => c.name));
+      const assignedProgramNames = new Set<string>();
+      courses.forEach(c => {
+        (c.programs || []).forEach((p: any) => {
+          assignedProgramNames.add(p.name);
+        });
       });
-    });
-    return customBundles.filter(b => {
-      if (b.courseName && !assignedCourseNames.has(b.courseName)) return false;
-      if (b.programDetails && !assignedProgramNames.has(b.programDetails)) return false;
-      return true;
-    });
-  }, [customBundles, isBranchAdmin, courses]);
+      list = list.filter(b => {
+        if (b.courseName && !assignedCourseNames.has(b.courseName)) return false;
+        if (b.programDetails && !assignedProgramNames.has(b.programDetails)) return false;
+        return true;
+      });
+    }
+    if (bundleCourseFilter !== 'All') {
+      list = list.filter(b => b.courseName === bundleCourseFilter);
+    }
+    if (bundleSearch.trim()) {
+      const q = bundleSearch.toLowerCase();
+      list = list.filter(b => (b.name || '').toLowerCase().includes(q) || (b.courseName || '').toLowerCase().includes(q));
+    }
+    return list;
+  }, [customBundles, isBranchAdmin, courses, bundleCourseFilter, bundleSearch]);
 
   const paginatedBundles = useMemo(() => {
     const startIndex = (bundlesPage - 1) * ITEMS_PER_PAGE;
@@ -431,7 +491,7 @@ export const FeesMaster: React.FC = () => {
                 </Button>
               )}
               {activeMainTab === 'full-course' && view === 'form' && (
-                <Button variant="secondary" onClick={() => setView('list')} className="flex items-center gap-2 cursor-pointer">
+                <Button variant="secondary" onClick={() => { resetPlanForm(); setView('list'); }} className="flex items-center gap-2 cursor-pointer">
                   <ArrowLeft size={16} /> Back to List
                 </Button>
               )}
@@ -471,67 +531,108 @@ export const FeesMaster: React.FC = () => {
           {activeMainTab === 'full-course' && (
             <>
               {view === 'list' && (
-                <Card>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Course</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Program</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Total Fees</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Down Payment</th>
-                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Installments</th>
-                          {!isReadOnly && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-sm">
-                        {isLoadingFees || isLoadingCourses ? (
-                          <tr>
-                            <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">Loading fee structures...</td>
+                <div className="space-y-4">
+                  {/* Filters Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+                    <div className="sm:col-span-2 relative">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search by program name, course..."
+                        value={planSearch}
+                        onChange={(e) => { setPlanSearch(e.target.value); setFullCoursePage(1); }}
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-500 bg-white"
+                      />
+                    </div>
+                    <Select
+                      options={[{ value: 'All', label: 'All Courses' }, ...courses.map(c => ({ value: c.name, label: c.name }))]}
+                      value={planCourseFilter}
+                      onChange={(e) => { setPlanCourseFilter(e.target.value); setFullCoursePage(1); }}
+                    />
+                  </div>
+
+                  <Card>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Course</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Program</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Total Fees</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Down Payment</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Installments</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>
                           </tr>
-                        ) : paginatedPlans.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">No programs configured yet.</td>
-                          </tr>
-                        ) : (
-                          paginatedPlans.map((plan) => (
-                            <tr key={plan.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4 font-semibold text-slate-800">{plan.course_name || '-'}</td>
-                              <td className="px-6 py-4 text-slate-600">{plan.name}</td>
-                              <td className="px-6 py-4 text-right font-semibold text-slate-800">₹{plan.totalFees.toLocaleString()}</td>
-                              <td className="px-6 py-4 text-right text-emerald-600 font-medium">₹{plan.downPayment.toLocaleString()}</td>
-                              <td className="px-6 py-4 text-right">
-                                <div className="font-semibold text-blue-600">{plan.months} months</div>
-                                <div className="text-xs text-slate-500">@ ₹{plan.installment.toLocaleString(undefined, { maximumFractionDigits: 2 })}/mo</div>
-                              </td>
-                              {!isReadOnly && (
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-sm">
+                          {isLoadingFees || isLoadingCourses ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">Loading fee structures...</td>
+                            </tr>
+                          ) : paginatedPlans.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">No programs configured yet.</td>
+                            </tr>
+                          ) : (
+                            paginatedPlans.map((plan) => (
+                              <tr key={plan.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-6 py-4 font-semibold text-slate-800">{plan.course_name || '-'}</td>
+                                <td className="px-6 py-4 text-slate-600">{plan.name}</td>
+                                <td className="px-6 py-4 text-right font-semibold text-slate-800">₹{plan.totalFees.toLocaleString()}</td>
+                                <td className="px-6 py-4 text-right text-emerald-600 font-medium">₹{plan.downPayment.toLocaleString()}</td>
                                 <td className="px-6 py-4 text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => handleEditPlan(plan)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
-                                      <Edit2 size={14} />
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={() => setDeletePlanTarget(plan)} className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
-                                      <Trash2 size={14} />
-                                    </Button>
+                                  <div className="font-semibold text-blue-600">{plan.months} months</div>
+                                  <div className="text-xs text-slate-500">@ ₹{plan.installment.toLocaleString(undefined, { maximumFractionDigits: 2 })}/mo</div>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      title="View Details"
+                                      onClick={() => handleViewPlan(plan)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                    >
+                                      <Eye size={16} />
+                                    </button>
+                                    {!isReadOnly && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Edit Fee Plan"
+                                          onClick={() => handleEditPlan(plan)}
+                                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                                        >
+                                          <Edit3 size={16} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Delete Fee Plan"
+                                          onClick={() => setDeletePlanTarget(plan)}
+                                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </td>
-                              )}
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  {displayedPlans.length > ITEMS_PER_PAGE && (
-                    <Pagination
-                      currentPage={fullCoursePage}
-                      totalPages={Math.ceil(displayedPlans.length / ITEMS_PER_PAGE)}
-                      totalItems={displayedPlans.length}
-                      pageSize={ITEMS_PER_PAGE}
-                      onPageChange={setFullCoursePage}
-                    />
-                  )}
-                </Card>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    {displayedPlans.length > ITEMS_PER_PAGE && (
+                      <Pagination
+                        currentPage={fullCoursePage}
+                        totalPages={Math.ceil(displayedPlans.length / ITEMS_PER_PAGE)}
+                        totalItems={displayedPlans.length}
+                        pageSize={ITEMS_PER_PAGE}
+                        onPageChange={setFullCoursePage}
+                      />
+                    )}
+                  </Card>
+                </div>
               )}
 
               {view === 'form' && (
@@ -550,14 +651,14 @@ export const FeesMaster: React.FC = () => {
                             { value: '', label: 'Choose a course...' },
                             ...courses.map(c => ({ value: c.code, label: `${c.name} (${c.code})` }))
                           ]}
-                          disabled={isLoadingCourses}
+                          disabled={isLoadingCourses || isFormViewOnly}
                         />
 
                         <Select
                           label="Select Program"
                           value={selectedProgramId}
                           onChange={(e) => setSelectedProgramId(e.target.value)}
-                          disabled={!selectedCourseCode}
+                          disabled={!selectedCourseCode || isFormViewOnly}
                           options={[
                             { value: '', label: 'Choose a program...' },
                             ...availablePrograms.map(p => ({ value: p.id, label: p.name }))
@@ -577,6 +678,7 @@ export const FeesMaster: React.FC = () => {
                           placeholder="e.g. 150000"
                           value={totalFees}
                           onChange={(e) => setTotalFees(e.target.value ? Number(e.target.value) : '')}
+                          disabled={isFormViewOnly}
                         />
                         <Input
                           label="Down Payment / Initial Deposit (₹)"
@@ -584,6 +686,7 @@ export const FeesMaster: React.FC = () => {
                           placeholder="e.g. 30000"
                           value={downPayment}
                           onChange={(e) => setDownPayment(e.target.value ? Number(e.target.value) : '')}
+                          disabled={isFormViewOnly}
                         />
                         <Input
                           label="Installment Duration (Months)"
@@ -591,6 +694,7 @@ export const FeesMaster: React.FC = () => {
                           placeholder="e.g. 10"
                           value={months}
                           onChange={(e) => setMonths(e.target.value ? Number(e.target.value) : '')}
+                          disabled={isFormViewOnly}
                         />
                       </div>
                     </Card>
@@ -629,9 +733,15 @@ export const FeesMaster: React.FC = () => {
                         </div>
 
                         <div className="pt-4 border-t border-slate-200 flex justify-end">
-                          <Button variant="primary" onClick={handleSave} className="flex items-center gap-2 w-full justify-center">
-                            <Save size={16} /> Save Configuration
-                          </Button>
+                          {isFormViewOnly ? (
+                            <Button variant="secondary" onClick={() => { resetPlanForm(); setView('list'); }} className="flex items-center gap-2 w-full justify-center">
+                              <ArrowLeft size={16} /> Back to List
+                            </Button>
+                          ) : (
+                            <Button variant="primary" onClick={handleSave} className="flex items-center gap-2 w-full justify-center">
+                              <Save size={16} /> Save Configuration
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -642,66 +752,102 @@ export const FeesMaster: React.FC = () => {
           )}
 
           {activeMainTab === 'custom-bundles' && (
-            <Card>
-              <div className="p-4 border-b border-slate-100 text-sm text-slate-500 flex items-center gap-2">
-                {isBranchAdmin
-                  ? 'Viewing custom subject bundles assigned to your branch.'
-                  : 'Bundles are created and managed in Subject Setup. Use this tab to set the fee for each bundle.'}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Bundle Name</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Course</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Program</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Level</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Fee Amount (₹)</th>
-                      {!isReadOnly && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {isLoadingFees ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">Loading bundles...</td>
-                      </tr>
-                    ) : paginatedBundles.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">No bundles found for this branch.</td>
-                      </tr>
-                    ) : (
-                      paginatedBundles.map((bundle, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-6 py-4 font-semibold text-slate-800">{bundle.name}</td>
-                          <td className="px-6 py-4 text-slate-600">{bundle.courseName || '-'}</td>
-                          <td className="px-6 py-4 text-slate-500">{bundle.programDetails || '-'}</td>
-                          <td className="px-6 py-4 text-slate-500">{bundle.levelDetails || '-'}</td>
-                          <td className="px-6 py-4 text-right font-semibold text-emerald-600">
-                            ₹{bundle.fee?.toLocaleString() || 0}
-                          </td>
-                          {!isReadOnly && (
-                            <td className="px-6 py-4 text-right">
-                              <Button variant="outline" size="sm" onClick={() => handleOpenBundleModal(bundle)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
-                                <Edit2 size={14} />
-                              </Button>
-                            </td>
-                          )}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {displayedBundles.length > ITEMS_PER_PAGE && (
-                <Pagination
-                  currentPage={bundlesPage}
-                  totalPages={Math.ceil(displayedBundles.length / ITEMS_PER_PAGE)}
-                  totalItems={displayedBundles.length}
-                  pageSize={ITEMS_PER_PAGE}
-                  onPageChange={setBundlesPage}
+            <div className="space-y-4">
+              {/* Filters Bar for Bundles */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+                <div className="sm:col-span-2 relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search by bundle name, course..."
+                    value={bundleSearch}
+                    onChange={(e) => { setBundleSearch(e.target.value); setBundlesPage(1); }}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 outline-none focus:border-blue-500 bg-white"
+                  />
+                </div>
+                <Select
+                  options={[{ value: 'All', label: 'All Courses' }, ...courses.map(c => ({ value: c.name, label: c.name }))]}
+                  value={bundleCourseFilter}
+                  onChange={(e) => { setBundleCourseFilter(e.target.value); setBundlesPage(1); }}
                 />
-              )}
-            </Card>
+              </div>
+
+              <Card>
+                <div className="p-4 border-b border-slate-100 text-sm text-slate-500 flex items-center gap-2">
+                  {isBranchAdmin
+                    ? 'Viewing custom subject bundles assigned to your branch.'
+                    : 'Bundles are created and managed in Subject Setup. Use this tab to set the fee for each bundle.'}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Bundle Name</th>
+                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Course</th>
+                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Program</th>
+                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Level</th>
+                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Fee Amount (₹)</th>
+                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {isLoadingFees ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">Loading bundles...</td>
+                        </tr>
+                      ) : paginatedBundles.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-slate-500 italic">No bundles found for this branch.</td>
+                        </tr>
+                      ) : (
+                        paginatedBundles.map((bundle, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-4 font-semibold text-slate-800">{bundle.name}</td>
+                            <td className="px-6 py-4 text-slate-600">{bundle.courseName || '-'}</td>
+                            <td className="px-6 py-4 text-slate-500">{bundle.programDetails || '-'}</td>
+                            <td className="px-6 py-4 text-slate-500">{bundle.levelDetails || '-'}</td>
+                            <td className="px-6 py-4 text-right font-semibold text-emerald-600">
+                              ₹{bundle.fee?.toLocaleString() || 0}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  title="View Bundle Details"
+                                  onClick={() => handleViewBundle(bundle)}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                >
+                                  <Eye size={16} />
+                                </button>
+                                {!isReadOnly && (
+                                  <button
+                                    type="button"
+                                    title="Edit Bundle Fee"
+                                    onClick={() => handleOpenBundleModal(bundle)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                                  >
+                                    <Edit3 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {displayedBundles.length > ITEMS_PER_PAGE && (
+                  <Pagination
+                    currentPage={bundlesPage}
+                    totalPages={Math.ceil(displayedBundles.length / ITEMS_PER_PAGE)}
+                    totalItems={displayedBundles.length}
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageChange={setBundlesPage}
+                  />
+                )}
+              </Card>
+            </div>
           )}
 
           {activeMainTab === 'subject-wise' && (
@@ -756,7 +902,7 @@ export const FeesMaster: React.FC = () => {
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Subject Code</th>
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Type</th>
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Fee Amount (₹)</th>
-                          {!isReadOnly && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>}
+                          <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-sm">
@@ -781,13 +927,28 @@ export const FeesMaster: React.FC = () => {
                               <td className="px-6 py-4 text-right font-semibold text-emerald-600">
                                 ₹{subject.fee?.toLocaleString() || 0}
                               </td>
-                              {!isReadOnly && (
-                                <td className="px-6 py-4 text-right">
-                                  <Button variant="outline" size="sm" onClick={() => handleOpenSubjectModal(subject)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
-                                    <Edit2 size={14} />
-                                  </Button>
-                                </td>
-                              )}
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    title="View Subject Details"
+                                    onClick={() => handleViewSubject(subject)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  >
+                                    <Eye size={16} />
+                                  </button>
+                                  {!isReadOnly && (
+                                    <button
+                                      type="button"
+                                      title="Edit Subject Fee"
+                                      onClick={() => handleOpenSubjectModal(subject)}
+                                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                                    >
+                                      <Edit3 size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -818,8 +979,12 @@ export const FeesMaster: React.FC = () => {
             </div>
           )}
 
-          {/* Edit Bundle Fee Modal */}
-          <Modal isOpen={isBundleModalOpen} title="Edit Bundle Fee" onClose={() => setIsBundleModalOpen(false)}>
+          {/* Edit / View Bundle Fee Modal */}
+          <Modal
+            isOpen={isBundleModalOpen}
+            title={isBundleViewOnly ? "View Bundle Fee" : "Edit Bundle Fee"}
+            onClose={() => setIsBundleModalOpen(false)}
+          >
             <div className="space-y-4 pt-2">
               {editingBundle && (
                 <>
@@ -837,19 +1002,30 @@ export const FeesMaster: React.FC = () => {
                     placeholder="e.g. 110000"
                     value={bundleForm.fee}
                     onChange={(e) => setBundleForm({ ...bundleForm, fee: e.target.value })}
+                    disabled={isBundleViewOnly}
                   />
 
                   <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                    <Button variant="secondary" onClick={() => setIsBundleModalOpen(false)}>Cancel</Button>
-                    <Button variant="primary" onClick={handleSaveBundle}>Save Bundle Fee</Button>
+                    {isBundleViewOnly ? (
+                      <Button variant="secondary" onClick={() => setIsBundleModalOpen(false)}>Close</Button>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => setIsBundleModalOpen(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleSaveBundle}>Save Bundle Fee</Button>
+                      </>
+                    )}
                   </div>
                 </>
               )}
             </div>
           </Modal>
 
-          {/* Edit Subject Fee Modal */}
-          <Modal isOpen={isSubjectModalOpen} title="Edit Subject Fee" onClose={() => setIsSubjectModalOpen(false)}>
+          {/* Edit / View Subject Fee Modal */}
+          <Modal
+            isOpen={isSubjectModalOpen}
+            title={isSubjectViewOnly ? "View Subject Fee" : "Edit Subject Fee"}
+            onClose={() => setIsSubjectModalOpen(false)}
+          >
             <div className="space-y-4 pt-2">
               {editingSubject && (
                 <>
@@ -864,11 +1040,18 @@ export const FeesMaster: React.FC = () => {
                     placeholder="e.g. 25000"
                     value={subjectForm.fee}
                     onChange={(e) => setSubjectForm({ ...subjectForm, fee: e.target.value })}
+                    disabled={isSubjectViewOnly}
                   />
 
                   <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                    <Button variant="secondary" onClick={() => setIsSubjectModalOpen(false)}>Cancel</Button>
-                    <Button variant="primary" onClick={handleSaveSubject}>Save Subject Fee</Button>
+                    {isSubjectViewOnly ? (
+                      <Button variant="secondary" onClick={() => setIsSubjectModalOpen(false)}>Close</Button>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => setIsSubjectModalOpen(false)}>Cancel</Button>
+                        <Button variant="primary" onClick={handleSaveSubject}>Save Subject Fee</Button>
+                      </>
+                    )}
                   </div>
                 </>
               )}

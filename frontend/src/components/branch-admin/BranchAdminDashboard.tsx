@@ -94,9 +94,8 @@ export const BranchAdminDashboard: React.FC = () => {
                   <td className="px-6 py-4 font-mono text-xs">{s.email}</td>
                   <td className="px-6 py-4 text-xs font-semibold text-blue-600 uppercase">{s.role}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
-                      s.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-                    }`}>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${s.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                      }`}>
                       {s.status}
                     </span>
                   </td>
@@ -122,11 +121,10 @@ export const BranchAdminDashboard: React.FC = () => {
                       key={i}
                       type="button"
                       onClick={() => setCurrentPage(i + 1)}
-                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                        currentPage === i + 1
+                      className={`px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${currentPage === i + 1
                           ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
                           : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       {i + 1}
                     </button>

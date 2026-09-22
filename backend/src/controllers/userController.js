@@ -101,13 +101,22 @@ const updateUser = async (req, res) => {
 
         const updated_by = req.user ? req.user.userId : null;
 
+        let newStatus = status || user.status;
+        if (app_access_suspended !== undefined) {
+            if (parseInt(app_access_suspended, 10) === 1) {
+                newStatus = 'suspended';
+            } else if (parseInt(app_access_suspended, 10) === 0 && user.status === 'suspended') {
+                newStatus = 'active';
+            }
+        }
+
         await userModel.updateUser(id, {
             name: name || user.name,
             email: email || user.email,
             mobile: mobile !== undefined ? mobile : user.mobile,
             user_type: user_type || user.user_type,
-            status: status || user.status,
-            app_access_suspended: app_access_suspended !== undefined ? app_access_suspended : user.app_access_suspended,
+            status: newStatus,
+            app_access_suspended: app_access_suspended !== undefined ? parseInt(app_access_suspended, 10) : user.app_access_suspended,
             role_id: role_id || null,
             updated_by
         });

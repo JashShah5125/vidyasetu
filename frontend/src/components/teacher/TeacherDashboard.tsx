@@ -59,7 +59,7 @@ export const TeacherDashboard: React.FC = () => {
   const [weekLectures, setWeekLectures] = useState<TeacherScheduleLecture[]>([]);
   const [doubts, setDoubts] = useState<DoubtItem[]>([]);
   const [selectedDoubtDetail, setSelectedDoubtDetail] = useState<DoubtItem | null>(null);
-  const [classAverageScore, setClassAverageScore] = useState<string>('83.8%');
+  const [classAverageScore, setClassAverageScore] = useState<string>('—');
 
   // UI / Tab & Modal States
   const [scheduleTab, setScheduleTab] = useState<'today' | 'weekly'>('today');
@@ -153,7 +153,11 @@ export const TeacherDashboard: React.FC = () => {
         teacherScheduleApi.getToday(undefined, { batchId: batchFilterParam, branchId: branchFilterParam }),
         teacherScheduleApi.getWeek(undefined, undefined, { batchId: batchFilterParam, branchId: branchFilterParam }),
         doubtApi.getTeacherDoubts({ batchId: batchFilterParam }),
-        teacherHomeworkApi.getHomeworks({ limit: 10 })
+        teacherHomeworkApi.getHomeworks({ 
+          limit: 20,
+          batchId: batchFilterParam, 
+          branchId: branchFilterParam 
+        })
       ]);
 
       if (todayRes.status === 'fulfilled' && todayRes.value) {
@@ -170,13 +174,19 @@ export const TeacherDashboard: React.FC = () => {
 
       if (homeworksRes.status === 'fulfilled' && homeworksRes.value?.data) {
         const hws = homeworksRes.value.data;
-        const withGraded = hws.filter((h: any) => h.gradedSubmissionsCount && h.gradedSubmissionsCount > 0);
+        const withGraded = hws.filter((h: any) => 
+          Number(h.gradedSubmissionsCount) > 0 && 
+          h.classAveragePercentage !== null && 
+          h.classAveragePercentage !== undefined
+        );
         if (withGraded.length > 0) {
-          const avg = withGraded.reduce((acc: number, cur: any) => acc + (cur.classAveragePercentage || 80), 0) / withGraded.length;
+          const avg = withGraded.reduce((acc: number, cur: any) => acc + Number(cur.classAveragePercentage), 0) / withGraded.length;
           setClassAverageScore(`${avg.toFixed(1)}%`);
         } else {
-          setClassAverageScore('83.8%');
+          setClassAverageScore('—');
         }
+      } else {
+        setClassAverageScore('—');
       }
     } catch (err: any) {
       console.error('[TeacherDashboard] Error fetching dashboard data:', err);

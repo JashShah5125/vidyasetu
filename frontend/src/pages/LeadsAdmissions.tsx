@@ -23,8 +23,8 @@ import {
   Plus, ArrowLeft, Users, PhoneCall, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, ChevronRight,
   Download, Search, UserCheck, FileText, Zap, X,
-  Filter, ChevronDown, RotateCcw, Eye, Pencil, Trash2, AlertTriangle,
-  BookOpen, MapPin, Building
+  Filter, ChevronDown, RotateCcw, Eye, Pencil, Edit3, Trash2, AlertTriangle,
+  BookOpen, MapPin, Building, User
 } from 'lucide-react';
 import type { Lead, Student } from '../types';
 import { studentStatusBadgeStyle, studentStatusLabelOf } from '../services/studentMaps';
@@ -889,8 +889,308 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  //  VIEW: Lead Details Panel (Matching Screenshot)
+  //  VIEW / CREATE: Log New Enquiry Page (In-page view matching screenshot)
   // ─────────────────────────────────────────────────────────────────────────
+  if (showAddLead) {
+    return (
+      <div className="space-y-6 w-full animate-fade-in">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button 
+              type="button"
+              onClick={() => setShowAddLead(false)} 
+              className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+              title="Return to list"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-display font-bold text-slate-900">
+                  Log New Enquiry
+                </h2>
+                <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                  New Lead Entry
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Record student enquiry information, parent details, academic preferences, and initial notes.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={() => setShowAddLead(false)} 
+              className="cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-4"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button"
+              variant="primary" 
+              onClick={(e) => handleAddLeadSubmit(e as any)}
+              className="flex items-center gap-1.5 cursor-pointer font-bold text-xs px-5 shadow-sm" 
+              style={{ backgroundColor: '#2563eb', color: 'white' }}
+            >
+              <Plus size={15} /> Save & Log Enquiry
+            </Button>
+          </div>
+        </div>
+
+        {/* In-page Form Cards */}
+        <form onSubmit={handleAddLeadSubmit} className="space-y-6">
+          {/* Top Row: 3 Core Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Card 1: Student Details */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <User size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Student Details</h3>
+                  <p className="text-xs text-slate-400">Student direct contact information</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <Input
+                  label="Student Full Name *"
+                  required
+                  placeholder="e.g. Aarav Sharma"
+                  value={leadForm.name}
+                  onChange={e => setLeadForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+                <Input
+                  label="Mobile Contact Number *"
+                  required
+                  placeholder="10-digit primary mobile"
+                  value={leadForm.mobile}
+                  onChange={e => setLeadForm(prev => ({ ...prev, mobile: e.target.value }))}
+                />
+                <Input
+                  label="Student Email Address *"
+                  required
+                  type="email"
+                  placeholder="aarav.sharma@example.com"
+                  value={leadForm.email}
+                  onChange={e => setLeadForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Card 2: Parent / Guardian */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Parent / Guardian</h3>
+                  <p className="text-xs text-slate-400">Parent & communication contacts</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <Input
+                  label="Parent / Guardian Name *"
+                  required
+                  placeholder="e.g. Rajesh Sharma"
+                  value={leadForm.parentName}
+                  onChange={e => setLeadForm(prev => ({ ...prev, parentName: e.target.value }))}
+                />
+                <Input
+                  label="Parent Mobile Number *"
+                  required
+                  placeholder="Guardian 10-digit mobile"
+                  value={leadForm.parentMobile}
+                  onChange={e => setLeadForm(prev => ({ ...prev, parentMobile: e.target.value }))}
+                />
+                <Input
+                  label="Parent Email Address *"
+                  required
+                  type="email"
+                  placeholder="rajesh.sharma@example.com"
+                  value={leadForm.parentEmail}
+                  onChange={e => setLeadForm(prev => ({ ...prev, parentEmail: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Card 3: Branch & Assignment */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <MapPin size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Branch & Allocation</h3>
+                  <p className="text-xs text-slate-400">Center facility & counsellor</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <Select
+                  label="Preferred Branch / Center *"
+                  value={leadForm.branch}
+                  onChange={e => setLeadForm(prev => ({ ...prev, branch: e.target.value }))}
+                  options={[
+                    { value: '', label: 'Select Center...' },
+                    ...branchFilterOptions.filter(o => o.value !== 'All')
+                  ]}
+                  disabled={currentUser?.role === 'branch-admin'}
+                />
+                <Select
+                  label="Assigned Counsellor"
+                  value={leadForm.counsellor}
+                  onChange={e => setLeadForm(prev => ({ ...prev, counsellor: e.target.value }))}
+                  options={[
+                    { value: currentUser?.name || 'Admin', label: currentUser?.name || 'Current User (Admin)' },
+                    { value: 'Priya Sen', label: 'Priya Sen' },
+                    { value: 'Amit Verma', label: 'Amit Verma' }
+                  ]}
+                />
+                <Select
+                  label="Discovery Source"
+                  value={leadForm.source}
+                  onChange={e => setLeadForm(prev => ({ ...prev, source: e.target.value }))}
+                  options={[
+                    { value: 'Walk-in', label: 'Walk-in at Branch' },
+                    { value: 'Phone Call', label: 'Phone Call' },
+                    { value: 'Website', label: 'Website / Landing Page' },
+                    { value: 'Social Media', label: 'Social Media' },
+                    { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
+                    { value: 'Referral', label: 'Student Referral' },
+                    { value: 'Campaign/Event', label: 'Offline Campaign / Event' },
+                    { value: 'Google Ads', label: 'Google Ads' }
+                  ]}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Row: Academic Interest & Notes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Card 4: Academic Program & Level */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Course & Academic Interest</h3>
+                  <p className="text-xs text-slate-400">Target curriculum and admission year</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <Select
+                    label="Interested Course *"
+                    value={leadForm.course}
+                    onChange={e => {
+                      const newCourse = e.target.value;
+                      const progs = getProgramsForCourse(newCourse);
+                      const firstProg = progs[0]?.value || '';
+                      const lvls = getLevelsForProgram(newCourse, firstProg);
+                      const firstLvl = lvls[0]?.value || '';
+                      setLeadForm(prev => ({
+                        ...prev,
+                        course: newCourse,
+                        program: firstProg,
+                        level: firstLvl
+                      }));
+                    }}
+                    options={[
+                      { value: '', label: 'Select Course...' },
+                      ...courseFilterOptions.filter(o => o.value !== 'All')
+                    ]}
+                  />
+                </div>
+                <Select
+                  label="Program"
+                  value={leadForm.program}
+                  onChange={e => {
+                    const newProg = e.target.value;
+                    const lvls = getLevelsForProgram(leadForm.course, newProg);
+                    setLeadForm(prev => ({
+                      ...prev,
+                      program: newProg,
+                      level: lvls[0]?.value || ''
+                    }));
+                  }}
+                  options={[
+                    { value: '', label: 'Select Program' },
+                    ...getProgramsForCourse(leadForm.course)
+                  ]}
+                />
+                <Select
+                  label="Level / Class"
+                  value={leadForm.level}
+                  onChange={e => setLeadForm(prev => ({ ...prev, level: e.target.value }))}
+                  options={[
+                    { value: '', label: 'Select Level' },
+                    ...getLevelsForProgram(leadForm.course, leadForm.program)
+                  ]}
+                />
+                <div className="sm:col-span-2">
+                  <Select
+                    label="Academic Year"
+                    value={leadForm.academicYear}
+                    onChange={e => setLeadForm(prev => ({ ...prev, academicYear: e.target.value }))}
+                    options={academicYearOptions}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5: Discussion & Notes */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4 flex flex-col">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Discussion Remarks & Notes</h3>
+                  <p className="text-xs text-slate-400">Initial requirements or counsellor notes</p>
+                </div>
+              </div>
+              <div className="flex-1 flex flex-col">
+                <textarea
+                  rows={6}
+                  className="w-full flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
+                  placeholder="Enter initial discussion notes, student requirements, follow-up preferences, or specific background details..."
+                  value={leadForm.remarks}
+                  onChange={e => setLeadForm(prev => ({ ...prev, remarks: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Action Footer */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={() => setShowAddLead(false)} 
+              className="cursor-pointer px-6"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary" 
+              style={{ backgroundColor: '#2563eb', color: 'white' }} 
+              className="cursor-pointer font-bold flex items-center gap-1.5 px-7 shadow-sm"
+            >
+              <Plus size={16} /> Save & Log Enquiry
+            </Button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   //  VIEW / EDIT: Lead Details Panel
   // ─────────────────────────────────────────────────────────────────────────
@@ -2235,20 +2535,20 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.counsellor || 'Unassigned'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => handleOpenLeadDetail(l, 'profile', false)}
                         title="Edit Lead"
-                        className="p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-amber-300"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer shrink-0"
                       >
-                        <Pencil size={16} />
+                        <Edit3 size={16} />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleOpenLeadDetail(l, 'history', true)}
                         title="Call Log / Follow-ups"
-                        className="p-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-indigo-300"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
                       >
                         <PhoneCall size={16} />
                       </button>
@@ -2256,7 +2556,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                         type="button"
                         onClick={() => setLeadToDelete(l)}
                         title="Delete Lead"
-                        className="p-1.5 text-red-700 bg-red-100 hover:bg-red-600 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0 border border-red-300 font-bold"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -2327,12 +2627,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => handleOpenLeadDetail(l, 'fee', false)}
                         title="Configure Fee Plan"
-                        className="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-emerald-300"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer shrink-0"
                       >
                         <DollarSign size={16} />
                       </button>
@@ -2340,7 +2640,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                         type="button"
                         onClick={() => handleOpenLeadDetail(l, 'history', true)}
                         title="Call Log / Follow-ups"
-                        className="p-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer shrink-0 border border-indigo-300"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
                       >
                         <PhoneCall size={16} />
                       </button>
@@ -2348,7 +2648,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                         type="button"
                         onClick={() => setLeadToDelete(l)}
                         title="Delete Lead"
-                        className="p-1.5 text-red-700 bg-red-100 hover:bg-red-600 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0 border border-red-300 font-bold"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -2617,188 +2917,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         document.body
       )}
 
-      {/* Log New Enquiry Modal */}
-      <Modal
-        isOpen={showAddLead}
-        onClose={() => setShowAddLead(false)}
-        title="Log New Enquiry"
-        size="2xl"
-      >
-        <form onSubmit={handleAddLeadSubmit} className="space-y-4">
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Student Contact Details</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input
-                label="Student Full Name *"
-                required
-                placeholder="e.g. Rohan Sharma"
-                value={leadForm.name}
-                onChange={e => setLeadForm(prev => ({ ...prev, name: e.target.value }))}
-              />
-              <Input
-                label="Mobile Contact Number *"
-                required
-                placeholder="10-digit primary mobile"
-                value={leadForm.mobile}
-                onChange={e => setLeadForm(prev => ({ ...prev, mobile: e.target.value }))}
-              />
-              <Input
-                label="Student Email Address *"
-                required
-                type="email"
-                placeholder="student@example.com"
-                value={leadForm.email}
-                onChange={e => setLeadForm(prev => ({ ...prev, email: e.target.value }))}
-              />
-            </div>
-          </div>
 
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Parent / Guardian Details</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input
-                label="Parent / Guardian Name *"
-                required
-                placeholder="e.g. Rajesh Sharma"
-                value={leadForm.parentName}
-                onChange={e => setLeadForm(prev => ({ ...prev, parentName: e.target.value }))}
-              />
-              <Input
-                label="Parent Mobile Number *"
-                required
-                placeholder="Guardian 10-digit mobile"
-                value={leadForm.parentMobile}
-                onChange={e => setLeadForm(prev => ({ ...prev, parentMobile: e.target.value }))}
-              />
-              <Input
-                label="Parent Email Address *"
-                required
-                type="email"
-                placeholder="parent@example.com"
-                value={leadForm.parentEmail}
-                onChange={e => setLeadForm(prev => ({ ...prev, parentEmail: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Course & Academic Interest</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <Select
-                label="Branch / Center *"
-                value={leadForm.branch}
-                onChange={e => setLeadForm(prev => ({ ...prev, branch: e.target.value }))}
-                options={[
-                  { value: '', label: 'Select Center...' },
-                  ...branchFilterOptions.filter(o => o.value !== 'All')
-                ]}
-                disabled={currentUser?.role === 'branch-admin'}
-              />
-              <Select
-                label="Interested Course *"
-                value={leadForm.course}
-                onChange={e => {
-                  const newCourse = e.target.value;
-                  const progs = getProgramsForCourse(newCourse);
-                  const firstProg = progs[0]?.value || '';
-                  const lvls = getLevelsForProgram(newCourse, firstProg);
-                  const firstLvl = lvls[0]?.value || '';
-                  setLeadForm(prev => ({
-                    ...prev,
-                    course: newCourse,
-                    program: firstProg,
-                    level: firstLvl
-                  }));
-                }}
-                options={[
-                  { value: '', label: 'Select Course...' },
-                  ...courseFilterOptions.filter(o => o.value !== 'All')
-                ]}
-              />
-              <Select
-                label="Program"
-                value={leadForm.program}
-                onChange={e => {
-                  const newProg = e.target.value;
-                  const lvls = getLevelsForProgram(leadForm.course, newProg);
-                  setLeadForm(prev => ({
-                    ...prev,
-                    program: newProg,
-                    level: lvls[0]?.value || ''
-                  }));
-                }}
-                options={[
-                  { value: '', label: 'Select Program' },
-                  ...getProgramsForCourse(leadForm.course)
-                ]}
-              />
-              <Select
-                label="Level / Class"
-                value={leadForm.level}
-                onChange={e => setLeadForm(prev => ({ ...prev, level: e.target.value }))}
-                options={[
-                  { value: '', label: 'Select Level' },
-                  ...getLevelsForProgram(leadForm.course, leadForm.program)
-                ]}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Select
-                label="Academic Year"
-                value={leadForm.academicYear}
-                onChange={e => setLeadForm(prev => ({ ...prev, academicYear: e.target.value }))}
-                options={academicYearOptions}
-              />
-              <Select
-                label="Discovery Source"
-                value={leadForm.source}
-                onChange={e => setLeadForm(prev => ({ ...prev, source: e.target.value }))}
-                options={[
-                  { value: 'Walk-in', label: 'Walk-in at Branch' },
-                  { value: 'Phone Call', label: 'Phone Call' },
-                  { value: 'Website', label: 'Website / Landing Page' },
-                  { value: 'Social Media', label: 'Social Media' },
-                  { value: 'WhatsApp', label: 'WhatsApp Enquiry' },
-                  { value: 'Referral', label: 'Student Referral' },
-                  { value: 'Campaign/Event', label: 'Offline Campaign / Event' },
-                  { value: 'Google Ads', label: 'Google Ads' }
-                ]}
-              />
-              <Select
-                label="Assigned Counsellor"
-                value={leadForm.counsellor}
-                onChange={e => setLeadForm(prev => ({ ...prev, counsellor: e.target.value }))}
-                options={[
-                  { value: currentUser?.name || 'Admin', label: currentUser?.name || 'Current User (Admin)' },
-                  { value: 'Priya Sen', label: 'Priya Sen' },
-                  { value: 'Amit Verma', label: 'Amit Verma' }
-                ]}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Discussion Remarks / Notes</label>
-              <textarea
-                rows={3}
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400"
-                placeholder="Enter initial discussion notes, requirements, or follow-up preferences..."
-                value={leadForm.remarks}
-                onChange={e => setLeadForm(prev => ({ ...prev, remarks: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
-            <Button type="button" variant="secondary" onClick={() => setShowAddLead(false)} className="cursor-pointer">
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" style={{ backgroundColor: '#2563eb', color: 'white' }} className="cursor-pointer font-semibold flex items-center gap-1.5">
-              <Plus size={16} /> Save & Log Enquiry
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Document Review & Verification Modal */}
       {docModalStudent && (

@@ -274,6 +274,17 @@ const getRevenueTrend = async (year = null, startDate = null, endDate = null) =>
     const currentMo = today.getMonth() + 1;
 
     const trend = monthSlots.map(slot => {
+        const isFuture = slot.yr > currentYr || (slot.yr === currentYr && slot.mo > currentMo);
+        if (isFuture) {
+            return {
+                month: slot.label,
+                raw: 0,
+                added: 0,
+                year: slot.yr,
+                isCurrent: false,
+                isFuture: true
+            };
+        }
         const added = rowMap.get(`${slot.yr}-${slot.mo}`) || 0;
         runningTotal += added;
         return {
@@ -281,7 +292,8 @@ const getRevenueTrend = async (year = null, startDate = null, endDate = null) =>
             raw: Math.round(runningTotal),
             added: Math.round(added),
             year: slot.yr,
-            isCurrent: slot.yr === currentYr && slot.mo === currentMo
+            isCurrent: slot.yr === currentYr && slot.mo === currentMo,
+            isFuture: false
         };
     });
 

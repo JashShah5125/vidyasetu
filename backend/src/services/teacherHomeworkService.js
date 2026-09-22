@@ -259,6 +259,16 @@ class TeacherHomeworkService {
                     (SELECT COUNT(*) 
                      FROM homework_submissions hs 
                      WHERE hs.homework_id = h.id AND hs.deleted_at IS NULL) AS submitted_count,
+                    (SELECT COUNT(*) 
+                     FROM homework_submissions hs 
+                     WHERE hs.homework_id = h.id 
+                       AND (hs.status = 'graded' OR hs.status = 'Graded' OR hs.marks_obtained IS NOT NULL) 
+                       AND hs.deleted_at IS NULL) AS graded_submissions_count,
+                    (SELECT AVG((hs.marks_obtained / NULLIF(h.max_marks, 0)) * 100) 
+                     FROM homework_submissions hs 
+                     WHERE hs.homework_id = h.id 
+                       AND hs.marks_obtained IS NOT NULL 
+                       AND hs.deleted_at IS NULL) AS class_average_percentage,
                     (SELECT COUNT(DISTINCT se.student_id) 
                      FROM student_enrollments se 
                      WHERE se.tenant_id = h.tenant_id 
@@ -317,6 +327,10 @@ class TeacherHomeworkService {
                 publishedAt: r.published_at || null,
                 closedAt: r.closed_at || null,
                 submittedCount: Number(r.submitted_count || 0),
+                gradedSubmissionsCount: Number(r.graded_submissions_count || 0),
+                classAveragePercentage: r.class_average_percentage !== null && r.class_average_percentage !== undefined 
+                    ? Number(Number(r.class_average_percentage).toFixed(1)) 
+                    : null,
                 totalCount: Number(r.total_students || 0),
                 createdAt: r.created_at,
                 updatedAt: r.updated_at

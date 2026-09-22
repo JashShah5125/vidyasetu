@@ -120,7 +120,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pt-1">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            {isBranchAdmin ? 'Branch Dashboard' : 'Institute Analytics'}
+            {isBranchAdmin ? 'Branch Analytics' : 'Institute Analytics'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             {isBranchAdmin
@@ -135,11 +135,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <button
             type="button"
             onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-            className={`group flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border shadow-2xs active:scale-95 ${
-              isFilterExpanded || activeFilters.length > 0
+            className={`group flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border shadow-2xs active:scale-95 ${isFilterExpanded || activeFilters.length > 0
                 ? 'bg-slate-900 text-white border-slate-900 shadow-xs hover:bg-slate-800'
                 : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Filter size={13} className={`transition-transform duration-200 group-hover:scale-110 ${isFilterExpanded || activeFilters.length > 0 ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`} />
             <span>Filter</span>
@@ -159,33 +158,30 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             <button
               type="button"
               onClick={() => onChange({ preset: 'daily' })}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${
-                filters.preset === 'daily'
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${filters.preset === 'daily'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+                }`}
             >
               Daily
             </button>
             <button
               type="button"
               onClick={() => onChange({ preset: 'weekly' })}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${
-                filters.preset === 'weekly'
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${filters.preset === 'weekly'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+                }`}
             >
               Weekly
             </button>
             <button
               type="button"
               onClick={() => onChange({ preset: 'monthly' })}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${
-                filters.preset === 'monthly'
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${filters.preset === 'monthly'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+                }`}
             >
               Monthly
             </button>

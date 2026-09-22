@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { ResponsiveContainer } from 'recharts';
-import type { TooltipProps } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 
 export type ChartConfig = Record<
   string,
@@ -38,10 +38,10 @@ export const ChartContainer = React.forwardRef<HTMLDivElement, ChartContainerPro
         ref={ref}
         id={containerId}
         style={style}
-        className={`w-full h-full text-xs ${className}`}
+        className={`w-full h-full text-xs outline-none focus:outline-none select-none [&_*]:outline-none [&_*]:focus:outline-none ${className}`}
         {...props}
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" style={{ outline: 'none' }}>
           {children}
         </ResponsiveContainer>
       </div>
@@ -61,7 +61,8 @@ export const ChartTooltip = React.forwardRef<HTMLDivElement, React.HTMLAttribute
 );
 ChartTooltip.displayName = 'ChartTooltip';
 
-export interface ChartTooltipContentProps extends Partial<TooltipProps<any, any>> {
+export interface ChartTooltipContentProps extends Partial<TooltipContentProps<any, any>> {
+  className?: string;
   hideLabel?: boolean;
   nameKey?: string;
   labelKey?: string;
@@ -87,15 +88,15 @@ export const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltip
 
     return (
       <ChartTooltip ref={ref}>
-        {!hideLabel && label && (
+        {!hideLabel && label != null && (
           <div className="font-semibold text-slate-900 border-b border-slate-100 pb-1.5 mb-2">
             {label}
           </div>
         )}
         <div className="space-y-1.5">
-          {payload.map((item, index) => {
-            const dataKey = item.dataKey || item.name || 'value';
-            const itemConfig = config[dataKey] || config[item.name] || {};
+          {payload.map((item: any, index: number) => {
+            const dataKey = typeof item.dataKey === 'string' ? item.dataKey : (typeof item.name === 'string' ? item.name : 'value');
+            const itemConfig = (dataKey && config[dataKey]) || (typeof item.name === 'string' && config[item.name]) || {};
             const color = item.fill || item.color || itemConfig.color || '#3b82f6';
             const labelText = itemConfig.label || item.name || dataKey;
 

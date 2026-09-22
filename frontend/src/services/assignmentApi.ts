@@ -22,6 +22,8 @@ export interface HomeworkItem {
   publishedAt: string | null;
   closedAt: string | null;
   submittedCount: number;
+  gradedSubmissionsCount?: number;
+  classAveragePercentage?: number | null;
   totalCount: number;
   createdBy: string;
   updatedAt: string | null;
@@ -45,6 +47,10 @@ export interface ScopingOption {
   name: string;
   code?: string;
   academicYearId?: string | null;
+  academicYearName?: string;
+  branchId?: string | number;
+  branchName?: string;
+  levelName?: string;
 }
 
 export interface HomeworkScoping {

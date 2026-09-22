@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Table } from '../components/ui/Table';
-import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown, Upload, Trash2 } from 'lucide-react';
+import { Building2, Plus, Search, ArrowRight, Download, ChevronsUpDown, Upload, Trash2, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
@@ -193,42 +193,70 @@ export const BranchSetup: React.FC = () => {
           </div>
         ) : (
           <>
-            <Table headers={['Branch', 'Code', 'Admin', 'Contact', 'Courses', 'Status', 'Actions']}>
+            <Table
+              dense
+              borderless
+              minWidth="1020px"
+              colWidths={['25%', '11%', '15%', '17%', '16%', '8%', '8%']}
+              headers={[
+                { label: 'Branch', align: 'left' },
+                { label: 'Code', align: 'left' },
+                { label: 'Admin', align: 'left' },
+                { label: 'Contact', align: 'left' },
+                { label: 'Courses', align: 'left' },
+                { label: 'Status', align: 'center' },
+                { label: 'Actions', align: 'right' }
+              ]}
+            >
               {paginated.map(branch => (
-                <tr key={branch.id || branch.code} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-slate-800">{branch.name}</div>
-                    <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">{branch.address || '—'}</div>
+                <tr key={branch.id || branch.code} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="px-4 py-3 text-left">
+                    <div className="font-semibold text-slate-900 text-sm truncate max-w-[220px]" title={branch.name}>{branch.name}</div>
+                    <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[220px]" title={branch.address || '—'}>{branch.address || '—'}</div>
                   </td>
-                  <td className="px-6 py-4 font-mono text-xs font-bold text-slate-500 uppercase">{branch.code}</td>
-                  <td className="px-6 py-4 text-sm text-slate-700">{branch.admin || 'Unassigned'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{branch.phone || branch.email || '—'}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {(branch.courses || []).map((c, i) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold">{c}</span>
-                      ))}
+                  <td className="px-4 py-3 text-left font-mono text-xs font-bold text-slate-600 uppercase whitespace-nowrap">{branch.code}</td>
+                  <td className="px-4 py-3 text-left text-xs text-slate-700 font-medium truncate max-w-[140px]" title={branch.admin || 'Unassigned'}>
+                    {branch.admin || 'Unassigned'}
+                  </td>
+                  <td className="px-4 py-3 text-left text-xs text-slate-600 truncate max-w-[160px]" title={branch.phone || branch.email || '—'}>
+                    {branch.phone || branch.email || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-left">
+                    <div className="flex flex-wrap gap-1 max-w-[150px]">
+                      {(branch.courses || []).length > 0 ? (
+                        (branch.courses || []).map((c, i) => (
+                          <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-semibold truncate max-w-[140px]">
+                            {c}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase border ${statusBadge(branch.status)}`}>
+                  <td className="px-4 py-3 text-center whitespace-nowrap">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusBadge(branch.status)}`}>
                       {branch.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
+                        type="button"
                         onClick={() => navigate(`/branches/${branch.id || branch.code}`)}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
+                        title="View Branch"
                       >
-                        Manage <ArrowRight size={14} />
+                        <Eye size={15} />
                       </button>
                       {currentUser?.role !== 'branch-admin' && (
                         <button
+                          type="button"
                           onClick={() => setDeleteTarget({ id: branch.id || '', code: branch.code, name: branch.name })}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
+                          title="Delete Branch"
                         >
-                          <Trash2 size={13} /> Delete
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>

@@ -248,6 +248,12 @@ const addFollowup = async (leadId, data, createdBy = null) => {
          VALUES (?, ?, ?, ?, ?, ?)`,
         [leadId, followupMode, outcome, notes, nextFollowupAt, createdBy]
     );
+    if (nextFollowupAt !== undefined && nextFollowupAt !== null && nextFollowupAt !== '') {
+        await pool.query(
+            `UPDATE saas_leads SET next_followup_at = ?, updated_by = COALESCE(?, updated_by) WHERE id = ?`,
+            [nextFollowupAt, createdBy, leadId]
+        );
+    }
     return result.insertId;
 };
 

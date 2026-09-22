@@ -11,7 +11,7 @@ import { Select } from '../components/ui/Select';
 import { Toggle } from '../components/ui/Toggle';
 import { Modal } from '../components/ui/Modal';
 import {
-  BookOpen, GraduationCap, Layers, Plus, Trash2, ShieldAlert, Loader2, ArrowRight, ArrowLeft, BookOpenCheck, Search
+  BookOpen, GraduationCap, Layers, Plus, Trash2, ShieldAlert, Loader2, ArrowRight, ArrowLeft, BookOpenCheck, Search, AlertTriangle
 } from 'lucide-react';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 
@@ -118,6 +118,7 @@ export const CourseDetail: React.FC = () => {
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
   const [showMapSubjectModal, setShowMapSubjectModal] = useState(false);
   const [subjectSearch, setSubjectSearch] = useState('');
+  const [unmappingSubject, setUnmappingSubject] = useState<{ id: string; name: string; levelName: string; pi: number; li: number } | null>(null);
 
   const [formData, setFormData] = useState<CourseCreatePayload>({
     name: '',
@@ -231,7 +232,7 @@ export const CourseDetail: React.FC = () => {
       }
       navigate('/courses');
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Failed to save course', 'error');
+      addToast(err.response?.data?.message || 'Failed to save course changes', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -265,7 +266,7 @@ export const CourseDetail: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Top Header & Actions */}
-      <div className="bg-white border-b border-slate-200 px-6 py-5 sticky top-0 z-20 shadow-xs">
+      <div className="bg-white border border-slate-200/80 rounded-2xl px-6 py-5 shadow-sm">
         <Breadcrumbs items={[
           { label: 'Courses Directory', href: '/courses' },
           { label: isNew ? 'Create New Course' : (formData.name || 'Course Details') }
@@ -626,13 +627,14 @@ export const CourseDetail: React.FC = () => {
 
             const mappedSubjects = level.subjects || [];
 
-            const handleUnmapSubject = (subId: string) => {
-              const programs = [...(formData.programs || [])];
-              const levels = [...(program.levels || [])];
-              const updatedSubjects = (level.subjects || []).filter(s => String(s.id) !== String(subId));
-              levels[li] = { ...level, subjects: updatedSubjects };
-              programs[pi] = { ...program, levels };
-              setFormData({ ...formData, programs });
+            const handleUnmapSubject = (sub: { id: string; name: string }) => {
+              setUnmappingSubject({
+                id: sub.id,
+                name: sub.name,
+                levelName: level.name || `Level #${li + 1}`,
+                pi,
+                li
+              });
             };
 
             const handleMapSubject = (sub: Subject) => {
@@ -650,7 +652,7 @@ export const CourseDetail: React.FC = () => {
               programs[pi] = { ...program, levels };
               setFormData({ ...formData, programs });
               setShowMapSubjectModal(false);
-              addToast(`Subject "${sub.name}" mapped to ${level.name || 'level'}.`, 'info');
+              addToast(`Subject "${sub.name}" mapped to ${level.name || 'level'} successfully.`, 'success');
             };
 
             return (
@@ -710,7 +712,7 @@ export const CourseDetail: React.FC = () => {
                           {!disableInputs && (
                             <button
                               type="button"
-                              onClick={() => handleUnmapSubject(sub.id)}
+                              onClick={() => handleUnmapSubject(sub)}
                               className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition cursor-pointer flex items-center gap-1"
                               title="Unmap Subject from Level"
                             >
@@ -722,6 +724,63 @@ export const CourseDetail: React.FC = () => {
                     </div>
                   )}
                 </Card>
+
+                {/* MODAL FOR CONFIRMING UNMAP SUBJECT */}
+                {unmappingSubject && (
+                  <Modal
+                    isOpen={!!unmappingSubject}
+                    onClose={() => setUnmappingSubject(null)}
+                    title="Confirm Unmap Subject"
+                    size="sm"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-3 bg-red-50 text-red-700 rounded-xl border border-red-200 text-sm">
+                        <AlertTriangle size={24} className="shrink-0 text-red-600" />
+                        <div>
+                          Are you sure you want to unmap <strong className="font-bold">{unmappingSubject.name}</strong> from <strong className="font-bold">{unmappingSubject.levelName}</strong>?
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        This will remove the subject from this academic level's syllabus. You can map it again anytime from the subject catalog.
+                      </p>
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setUnmappingSubject(null)}
+                          className="cursor-pointer"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          onClick={() => {
+                            const programs = [...(formData.programs || [])];
+                            const prog = programs[unmappingSubject.pi];
+                            if (prog) {
+                              const levels = [...(prog.levels || [])];
+                              const lvl = levels[unmappingSubject.li];
+                              if (lvl) {
+                                const updatedSubjects = (lvl.subjects || []).filter(s => String(s.id) !== String(unmappingSubject.id));
+                                levels[unmappingSubject.li] = { ...lvl, subjects: updatedSubjects };
+                                programs[unmappingSubject.pi] = { ...prog, levels };
+                                setFormData({ ...formData, programs });
+                              }
+                            }
+                            addToast(`Subject "${unmappingSubject.name}" unmapped successfully.`, 'success');
+                            setUnmappingSubject(null);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          Yes, Unmap Subject
+                        </Button>
+                      </div>
+                    </div>
+                  </Modal>
+                )}
 
                 {/* MODAL FOR MAPPING SUBJECTS */}
                 {showMapSubjectModal && (

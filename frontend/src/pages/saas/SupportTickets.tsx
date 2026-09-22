@@ -20,7 +20,8 @@ import {
   HelpCircle,
   CheckCircle2,
   Clock,
-  Layers
+  Layers,
+  Ticket
 } from 'lucide-react';
 import api from '../../services/api';
 

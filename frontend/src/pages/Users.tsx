@@ -8,7 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Modal } from '../components/ui/Modal';
-import { Plus, ArrowLeft, Upload, Loader2, Eye, Edit3, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowLeft, Upload, Loader2, Eye, Edit3, Trash2, AlertTriangle, User, Briefcase, DollarSign, Shield } from 'lucide-react';
 import type { Staff } from '../types';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { staffApi } from '../services/staffApi';
@@ -61,51 +61,57 @@ const STAFF_COLUMN_OPTIONS: Array<{ value: StaffColumnKey; label: string; header
 const renderCustomColumnCell = (s: any, colKey: StaffColumnKey) => {
   switch (colKey) {
     case 'contact_number':
-      return <span className="font-mono text-xs text-slate-700">{s.contact_number || s.mobile || '—'}</span>;
+      return <span className="font-mono text-xs text-slate-700 whitespace-nowrap truncate block" title={s.contact_number || s.mobile || '—'}>{s.contact_number || s.mobile || '—'}</span>;
     case 'email':
     case 'official_email':
-      return <span className="font-mono text-xs text-slate-700">{s.email || '—'}</span>;
+      return <span className="font-mono text-xs text-slate-700 whitespace-nowrap truncate block" title={s.email || '—'}>{s.email || '—'}</span>;
     case 'subjects_taught':
-      return <span className="text-xs font-medium text-blue-700">{s.subjects_taught || (Array.isArray(s.subjects) ? s.subjects.join(', ') : '') || '—'}</span>;
+      const subs = s.subjects_taught || (Array.isArray(s.subjects) ? s.subjects.join(', ') : '') || '—';
+      return <span className="text-xs font-medium text-blue-700 whitespace-nowrap truncate block" title={subs}>{subs}</span>;
     case 'department':
-      return <span className="text-xs font-semibold text-slate-800">{s.department || '—'}</span>;
+      return <span className="text-xs font-semibold text-slate-800 whitespace-nowrap truncate block" title={s.department || '—'}>{s.department || '—'}</span>;
     case 'designation':
-      return <span className="text-xs font-medium text-slate-700">{s.designation || '—'}</span>;
+      return <span className="text-xs font-medium text-slate-700 whitespace-nowrap truncate block" title={s.designation || '—'}>{s.designation || '—'}</span>;
     case 'joining_date':
-      return <span className="text-xs text-slate-600">{s.joining_date ? formatDate(s.joining_date) : (s.joiningDate ? formatDate(s.joiningDate) : '—')}</span>;
+      const jDate = s.joining_date ? formatDate(s.joining_date) : (s.joiningDate ? formatDate(s.joiningDate) : '—');
+      return <span className="text-xs text-slate-600 whitespace-nowrap truncate block" title={jDate}>{jDate}</span>;
     case 'employment_type':
-      return <span className="capitalize text-xs font-medium text-slate-700">{(s.employment_type || '').replace(/_/g, ' ') || 'Full Time'}</span>;
+      const empType = (s.employment_type || '').replace(/_/g, ' ') || 'Full Time';
+      return <span className="capitalize text-xs font-medium text-slate-700 whitespace-nowrap truncate block" title={empType}>{empType}</span>;
     case 'employment_status':
-      return <span className="capitalize text-xs font-medium text-slate-700">{s.employment_status || 'Confirmed'}</span>;
+      const empStatus = s.employment_status || 'Confirmed';
+      return <span className="capitalize text-xs font-medium text-slate-700 whitespace-nowrap truncate block" title={empStatus}>{empStatus}</span>;
     case 'qualification':
-      return <span className="text-xs text-slate-700">{s.qualification || '—'}</span>;
+      return <span className="text-xs text-slate-700 whitespace-nowrap truncate block" title={s.qualification || '—'}>{s.qualification || '—'}</span>;
     case 'experience':
-      return <span className="text-xs text-slate-700">{s.experience ? `${s.experience} Years` : '—'}</span>;
+      const exp = s.experience ? `${s.experience} Years` : '—';
+      return <span className="text-xs text-slate-700 whitespace-nowrap truncate block" title={exp}>{exp}</span>;
     case 'salary_amount':
-      return <span className="font-mono font-semibold text-xs text-emerald-700">{s.salary_amount ? `₹${Number(s.salary_amount).toLocaleString('en-IN')}` : (s.monthlySalary ? `₹${Number(s.monthlySalary).toLocaleString('en-IN')}` : '—')}</span>;
+      const sal = s.salary_amount ? `₹${Number(s.salary_amount).toLocaleString('en-IN')}` : (s.monthlySalary ? `₹${Number(s.monthlySalary).toLocaleString('en-IN')}` : '—');
+      return <span className="font-mono font-semibold text-xs text-emerald-700 whitespace-nowrap truncate block" title={sal}>{sal}</span>;
     case 'salary_type':
-      return <span className="capitalize text-xs text-slate-700">{s.salary_type || s.salaryType || 'Monthly'}</span>;
+      const salType = s.salary_type || s.salaryType || 'Monthly';
+      return <span className="capitalize text-xs text-slate-700 whitespace-nowrap truncate block" title={salType}>{salType}</span>;
     case 'location':
-      return <span className="text-xs text-slate-700">{s.address || [s.city, s.state].filter(Boolean).join(', ') || '—'}</span>;
+      const loc = s.address || [s.city, s.state].filter(Boolean).join(', ') || '—';
+      return <span className="text-xs text-slate-700 whitespace-nowrap truncate block" title={loc}>{loc}</span>;
     case 'gender':
-      return <span className="text-xs text-slate-700">{s.gender || '—'}</span>;
+      return <span className="text-xs text-slate-700 whitespace-nowrap truncate block" title={s.gender || '—'}>{s.gender || '—'}</span>;
     case 'dob':
-      return <span className="text-xs text-slate-600">{s.dob ? formatDate(s.dob) : '—'}</span>;
+      const dobStr = s.dob ? formatDate(s.dob) : '—';
+      return <span className="text-xs text-slate-600 whitespace-nowrap truncate block" title={dobStr}>{dobStr}</span>;
     case 'aadhaar_number':
-      return <span className="font-mono text-xs text-slate-700">{s.aadhaar_number || '—'}</span>;
+      return <span className="font-mono text-xs text-slate-700 whitespace-nowrap truncate block" title={s.aadhaar_number || '—'}>{s.aadhaar_number || '—'}</span>;
     case 'pan_number':
-      return <span className="font-mono uppercase text-xs text-slate-700">{s.pan_number || '—'}</span>;
+      return <span className="font-mono uppercase text-xs text-slate-700 whitespace-nowrap truncate block" title={s.pan_number || '—'}>{s.pan_number || '—'}</span>;
     case 'bank_details':
-      return (
-        <div className="text-xs">
-          <span className="font-semibold text-slate-800 block">{s.bank_name || s.bankName || 'Bank'}</span>
-          <span className="font-mono text-[11px] text-slate-500">{s.bank_account_number || s.accountNumber || '—'}</span>
-        </div>
-      );
+      const bankInfo = `${s.bank_name || s.bankName || 'Bank'} • ${s.bank_account_number || s.accountNumber || '—'}`;
+      return <span className="text-xs font-semibold text-slate-800 whitespace-nowrap truncate block" title={bankInfo}>{bankInfo}</span>;
     case 'max_lectures':
-      return <span className="text-xs text-slate-700">{s.max_lectures_per_day ? `${s.max_lectures_per_day}/day • ${s.max_lectures_per_week || '—'}/wk` : '—'}</span>;
+      const lecStr = s.max_lectures_per_day ? `${s.max_lectures_per_day}/day • ${s.max_lectures_per_week || '—'}/wk` : '—';
+      return <span className="text-xs text-slate-700 whitespace-nowrap truncate block" title={lecStr}>{lecStr}</span>;
     default:
-      return <span className="text-xs text-slate-400">—</span>;
+      return <span className="text-xs text-slate-400 whitespace-nowrap truncate block">—</span>;
   }
 };
 
@@ -501,21 +507,23 @@ export const Users: React.FC = () => {
 
         <div className="space-y-6 flex flex-col h-full bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
           {/* Tabs selectors inside profile */}
-          <div className="flex border-b border-slate-200 bg-slate-50 p-2 rounded-xl">
-            {['overview', 'employment', 'salary', 'access'].map((tab) => (
+          <div className="flex gap-2 border-b border-slate-200 overflow-x-auto">
+            {[
+              { id: 'overview', label: '1. Personal & Contact' },
+              { id: 'employment', label: '2. Employment & Assignment' },
+              { id: 'salary', label: '3. Salary & Banking' },
+              { id: 'access', label: '4. System & Access' },
+            ].map((tab) => (
               <button
-                key={tab}
-                onClick={() => setStaffProfileTab(tab as any)}
-                className={`flex-1 text-center py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all cursor-pointer rounded-lg ${
-                  staffProfileTab === tab 
-                    ? 'bg-white text-blue-600 shadow-sm border-blue-600 font-extrabold' 
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                key={tab.id}
+                onClick={() => setStaffProfileTab(tab.id as any)}
+                className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  staffProfileTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {tab === 'overview' ? 'Personal & Contact' : 
-                 tab === 'employment' ? 'Employment & Assignment' : 
-                 tab === 'salary' ? 'Salary & Banking' : 
-                 'System & Access'}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -924,15 +932,19 @@ export const Users: React.FC = () => {
             Staff Directory Registry {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}
           </CardTitle>
         </CardHeader>
-        <Table headers={[
-          'ID',
-          'Staff Name',
-          'Branch / Hubs',
-          (STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0]).header,
-          'Assigned Role',
-          'Status',
-          'Actions'
-        ]}>
+        <Table 
+          minWidth="100%"
+          colWidths={['15%', '19%', '15%', '15%', '13%', '10%', '13%']}
+          headers={[
+            { label: 'ID', minWidth: '120px' },
+            { label: 'Staff Name', minWidth: '140px' },
+            { label: 'Branch / Hubs', minWidth: '120px' },
+            { label: (STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0]).header, minWidth: '120px' },
+            { label: 'Assigned Role', minWidth: '100px' },
+            { label: 'Status', minWidth: '80px', align: 'center' },
+            { label: 'Actions', minWidth: '95px', align: 'center' }
+          ]}
+        >
           {paginatedStaff.map((s, idx) => {
             const nameStr = ((s.first_name || '') + ' ' + (s.last_name || '')).trim();
             const empId = (s as any).employee_id || s.id || `EMP-${idx + 1}`;
@@ -967,34 +979,34 @@ export const Users: React.FC = () => {
                 className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                 onClick={() => handleViewStaff(s)}
               >
-                <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600 whitespace-nowrap">
+                <td className="px-3.5 py-2.5 font-mono text-xs font-semibold text-slate-600 whitespace-nowrap truncate max-w-[140px]" title={empId}>
                   {empId}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="font-bold text-sm text-slate-900 line-clamp-1 max-w-[220px]" title={nameStr || 'Personnel Member'}>
+                <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[180px]">
+                  <div className="font-bold text-sm text-slate-900 whitespace-nowrap truncate" title={nameStr || 'Personnel Member'}>
                     {nameStr || 'Personnel Member'}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-xs font-medium text-slate-700">
-                  <span className="line-clamp-1 max-w-[200px]" title={branchStr}>
+                <td className="px-3.5 py-2.5 text-xs font-medium text-slate-700 whitespace-nowrap truncate max-w-[150px]">
+                  <span className="whitespace-nowrap truncate block" title={branchStr}>
                     {branchStr}
                   </span>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
+                <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[150px]">
                   {renderCustomColumnCell(s, selectedCustomColumn)}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-semibold border ${roleBadgeColors(roleStr)}`}>
+                <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[130px]">
+                  <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-semibold border whitespace-nowrap truncate ${roleBadgeColors(roleStr)}`}>
                     {roleStr}
                   </span>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold capitalize border ${statusBadgeClass}`}>
+                <td className="px-3.5 py-2.5 whitespace-nowrap text-center">
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold capitalize border whitespace-nowrap ${statusBadgeClass}`}>
                     {s.status || 'Active'}
                   </span>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-center gap-1.5">
+                <td className="px-3.5 py-2.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       title="View Profile Details"

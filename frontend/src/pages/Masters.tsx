@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Edit2, Trash2, ArrowLeft, Upload } from 'lucide-react';
+import { Plus, Edit3, Trash2, ArrowLeft, Upload } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 interface MastersProps {
@@ -353,18 +353,22 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                     <td className="px-6 py-4 font-semibold text-slate-700">Rs. {c.fees}</td>
                     <td className="px-6 py-4">{c.duration}</td>
                     <td className="px-6 py-4">
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button 
+                          type="button"
                           onClick={() => handleEdit(c)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                          title="Edit Course"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
-                          <Edit2 size={14} />
+                          <Edit3 size={16} />
                         </button>
                         <button 
+                          type="button"
                           onClick={() => setDeleteTarget({ name: c.name, type: 'course' })}
-                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                          title="Delete Course"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -401,18 +405,22 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                     <td className="px-6 py-4">{b.room}</td>
                     <td className="px-6 py-4">{b.teacher}</td>
                     <td className="px-6 py-4">
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button 
+                          type="button"
                           onClick={() => handleEdit(b)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                          title="Edit Batch"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
-                          <Edit2 size={14} />
+                          <Edit3 size={16} />
                         </button>
                         <button 
+                          type="button"
                           onClick={() => setDeleteTarget({ name: b.name, type: 'batch' })}
-                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                          title="Delete Batch"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -447,18 +455,22 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
                     <td className="px-6 py-4">{s.department}</td>
                     <td className="px-6 py-4 text-xs">{s.batches}</td>
                     <td className="px-6 py-4">
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button 
+                          type="button"
                           onClick={() => handleEdit(s)}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                          title="Edit Subject"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
-                          <Edit2 size={14} />
+                          <Edit3 size={16} />
                         </button>
                         <button 
+                          type="button"
                           onClick={() => setDeleteTarget({ name: s.name, type: 'subject' })}
-                          className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 cursor-pointer"
+                          title="Delete Subject"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>

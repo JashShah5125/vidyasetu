@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Eye, Edit, Search, Loader2, RotateCcw, Copy, Code, FileText, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Eye, Edit3, Search, Loader2, RotateCcw, Copy, Code, FileText, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -393,28 +393,31 @@ export const EmailTemplates: React.FC = () => {
                     <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={() => {
                             setSelectedTemplate(template);
                             setShowPreview(true);
                           }}
                           title="Preview template"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                         >
-                          <Eye size={15} />
+                          <Eye size={16} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => openEditor(template)}
                           title="Edit template"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
-                          <Edit size={15} />
+                          <Edit3 size={16} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleOpenDelete(template)}
                           title="Delete template"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>

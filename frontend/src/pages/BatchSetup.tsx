@@ -15,9 +15,10 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import {
-  Layers, Plus, Search, Download, ArrowLeft, Edit2, Trash2,
+  Layers, Plus, Search, Download, ArrowLeft, Edit3, Trash2,
   Upload, Loader2, AlertTriangle, ShieldAlert, CheckCircle2,
-  Power, Users, MapPin, ChevronRight, BookOpen, Clock, Building
+  Power, Users, MapPin, ChevronRight, BookOpen, Clock, Building,
+  Filter, X, ChevronDown, RotateCcw
 } from 'lucide-react';
 
 const statusColors: Record<BatchStatus, string> = {
@@ -94,6 +95,7 @@ export const BatchSetup: React.FC = () => {
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterYear, setFilterYear] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -291,6 +293,46 @@ export const BatchSetup: React.FC = () => {
       ...filteredYears.map(y => ({ value: y.id, label: y.name })),
     ];
   }, [academicYears, activeBranchId]);
+
+  const activeFilters = useMemo(() => {
+    const list: { label: string; value: string; clear: () => void }[] = [];
+    if (!isBranchAdmin && filterBranch !== 'All') {
+      const br = branchFilterOptions.find(b => b.value === filterBranch);
+      list.push({ label: 'Branch', value: br?.label || filterBranch, clear: () => { setFilterBranch('All'); setCurrentPage(1); } });
+    }
+    if (filterCourse !== 'All') {
+      const c = courseFilterOptions.find(item => item.value === filterCourse);
+      list.push({ label: 'Course', value: c?.label || filterCourse, clear: () => { handleFilterCourseChange('All'); setCurrentPage(1); } });
+    }
+    if (filterProgram !== 'All') {
+      const p = programFilterOptions.find(item => item.value === filterProgram);
+      list.push({ label: 'Program', value: p?.label || filterProgram, clear: () => { setFilterProgram('All'); setFilterLevel('All'); setCurrentPage(1); } });
+    }
+    if (filterLevel !== 'All') {
+      const l = levelFilterOptions.find(item => item.value === filterLevel);
+      list.push({ label: 'Level', value: l?.label || filterLevel, clear: () => { setFilterLevel('All'); setCurrentPage(1); } });
+    }
+    if (filterYear !== 'All') {
+      const y = yearFilterOptions.find(item => item.value === filterYear);
+      list.push({ label: 'Year', value: y?.label || filterYear, clear: () => { setFilterYear('All'); setCurrentPage(1); } });
+    }
+    if (filterStatus !== 'All') {
+      list.push({ label: 'Status', value: filterStatus, clear: () => { setFilterStatus('All'); setCurrentPage(1); } });
+    }
+    if (search.trim()) {
+      list.push({ label: 'Search', value: search, clear: () => { setSearch(''); setCurrentPage(1); } });
+    }
+    return list;
+  }, [filterBranch, filterCourse, filterProgram, filterLevel, filterYear, filterStatus, search, branchFilterOptions, courseFilterOptions, programFilterOptions, levelFilterOptions, yearFilterOptions, isBranchAdmin]);
+
+  const clearAllFilters = () => {
+    setSearch('');
+    if (!isBranchAdmin) setFilterBranch('All');
+    handleFilterCourseChange('All');
+    setFilterYear('All');
+    setFilterStatus('All');
+    setCurrentPage(1);
+  };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -763,69 +805,182 @@ export const BatchSetup: React.FC = () => {
       </div>
 
       {/* Directory Filter Bar */}
-      <div className="flex flex-col xl:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end">
-        <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 items-end">
-          <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">Search</label>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition duration-150"
-                placeholder="Search by name, code, course, or level..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
-              />
-            </div>
+      <div className="space-y-3">
+        {/* Main Concise Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              className="w-full bg-slate-50 hover:bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition duration-150"
+              placeholder="Search by batch name, code, course, or level..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setCurrentPage(1); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
 
-          <Select
-            label="Branch"
-            value={filterBranch}
-            onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
-            options={branchFilterOptions}
-            disabled={isBranchAdmin}
-          />
+          {/* Quick Selects */}
+          <div className="flex flex-wrap items-center gap-2">
+            {!isBranchAdmin && (
+              <div className="w-36">
+                <select
+                  value={filterBranch}
+                  onChange={e => { setFilterBranch(e.target.value); setCurrentPage(1); }}
+                  className="w-full h-9 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all truncate"
+                >
+                  {branchFilterOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-          <Select
-            label="Course"
-            value={filterCourse}
-            onChange={e => { handleFilterCourseChange(e.target.value); setCurrentPage(1); }}
-            options={courseFilterOptions}
-          />
+            <div className="w-40">
+              <select
+                value={filterCourse}
+                onChange={e => { handleFilterCourseChange(e.target.value); setCurrentPage(1); }}
+                className="w-full h-9 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all truncate"
+              >
+                {courseFilterOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <Select
-            label="Program"
-            value={filterProgram}
-            onChange={e => { setFilterProgram(e.target.value); setFilterLevel('All'); setCurrentPage(1); }}
-            options={programFilterOptions}
-            disabled={filterCourse === 'All'}
-          />
+            <div className="w-32">
+              <select
+                value={filterStatus}
+                onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                className="w-full h-9 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-6 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all truncate"
+              >
+                <option value="All">All Statuses</option>
+                {BATCH_STATUS_OPTIONS.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
 
-          <Select
-            label="Academic Level"
-            value={filterLevel}
-            onChange={e => { setFilterLevel(e.target.value); setCurrentPage(1); }}
-            options={levelFilterOptions}
-            disabled={filterProgram === 'All'}
-          />
-
-          <Select
-            label="Academic Year"
-            value={filterYear}
-            onChange={e => { setFilterYear(e.target.value); setCurrentPage(1); }}
-            options={yearFilterOptions}
-          />
-
-          <Select
-            label="Status"
-            value={filterStatus}
-            onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-            options={[
-              { value: 'All', label: 'All Statuses' },
-              ...BATCH_STATUS_OPTIONS.map(s => ({ value: s, label: s })),
-            ]}
-          />
+            {/* Expand / Detailed Filters Button */}
+            <button
+              type="button"
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+              className={`flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs ${
+                isFilterExpanded || activeFilters.some(f => ['Program', 'Level', 'Year'].includes(f.label))
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs hover:bg-slate-800'
+                  : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <Filter size={13} className={isFilterExpanded || activeFilters.some(f => ['Program', 'Level', 'Year'].includes(f.label)) ? 'text-white' : 'text-slate-500'} />
+              <span>More Filters</span>
+              {activeFilters.filter(f => ['Program', 'Level', 'Year'].includes(f.label)).length > 0 && (
+                <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[10px] font-extrabold flex items-center justify-center ml-0.5">
+                  {activeFilters.filter(f => ['Program', 'Level', 'Year'].includes(f.label)).length}
+                </span>
+              )}
+              <ChevronDown size={12} className={`transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
         </div>
+
+        {/* Detailed Filters Panel (when expanded) */}
+        {isFilterExpanded && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm animate-fade-in space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Filter size={13} className="text-blue-600" /> Advanced Batch Filters
+              </span>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="text-xs text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw size={12} /> Reset All Filters
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Academic Program</label>
+                <select
+                  value={filterProgram}
+                  onChange={e => { setFilterProgram(e.target.value); setFilterLevel('All'); setCurrentPage(1); }}
+                  disabled={filterCourse === 'All'}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {programFilterOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Academic Level</label>
+                <select
+                  value={filterLevel}
+                  onChange={e => { setFilterLevel(e.target.value); setCurrentPage(1); }}
+                  disabled={filterProgram === 'All'}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {levelFilterOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Academic Year</label>
+                <select
+                  value={filterYear}
+                  onChange={e => { setFilterYear(e.target.value); setCurrentPage(1); }}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 cursor-pointer"
+                >
+                  {yearFilterOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active Filter Chips Strip */}
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 px-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Active:</span>
+            {activeFilters.map(af => (
+              <span
+                key={af.label}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200/70 text-slate-800 border border-slate-200 transition-colors"
+              >
+                <span className="text-slate-400 font-normal">{af.label}:</span> {af.value}
+                <button
+                  type="button"
+                  onClick={af.clear}
+                  className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md p-0.5 transition-colors cursor-pointer ml-0.5"
+                  title={`Remove ${af.label} filter`}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer ml-1 transition-all"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Directory Table */}
@@ -840,7 +995,19 @@ export const BatchSetup: React.FC = () => {
           </h3>
         </div>
 
-        <Table headers={['Batch Name', 'Academic Track', 'Academic Year', 'Students', 'Capacity', 'Status', 'Actions']}>
+        <Table 
+          minWidth="1050px"
+          colWidths={['20%', '24%', '16%', '9%', '9%', '9%', '13%']}
+          headers={[
+            { label: 'Batch Name', minWidth: '160px' },
+            { label: 'Academic Track', minWidth: '180px' },
+            { label: 'Academic Year', minWidth: '120px' },
+            { label: 'Students', minWidth: '80px' },
+            { label: 'Capacity', minWidth: '80px' },
+            { label: 'Status', minWidth: '80px' },
+            { label: 'Actions', minWidth: '120px', align: 'right' }
+          ]}
+        >
           {isLoading ? (
             <tr>
               <td colSpan={7} className="px-6 py-16">
@@ -920,18 +1087,20 @@ export const BatchSetup: React.FC = () => {
                   <td className="px-5 py-3.5 whitespace-nowrap text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
+                        type="button"
                         onClick={() => openEdit(b)}
                         title="Edit Batch"
-                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 border border-slate-200 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                       >
-                        <Edit2 size={12} /> Edit
+                        <Edit3 size={16} />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleOpenDelete(b)}
                         title="Delete Batch"
-                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 border border-red-100 text-red-600 bg-red-50/50 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       >
-                        <Trash2 size={12} /> Delete
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>

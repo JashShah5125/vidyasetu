@@ -186,16 +186,23 @@ const getInstituteStats = async (req, res) => {
  */
 const getSaasStats = async (req, res) => {
     try {
+        const timeRange = req.query.preset || req.query.time_range || 'monthly';
+        let intervalDays = 30;
+        if (timeRange === 'daily' || timeRange === 'day') intervalDays = 1;
+        else if (timeRange === 'weekly' || timeRange === 'week') intervalDays = 7;
+        else if (timeRange === 'all') intervalDays = 36500;
+
         const [[tenantStats]] = await db.query(`
             SELECT
                 COUNT(*) AS total_tenants,
                 SUM(status = 1) AS active_tenants,
                 SUM(status = 0) AS suspended_tenants,
                 SUM(status = 2) AS draft_tenants,
-                SUM(end_date IS NOT NULL AND end_date < CURRENT_DATE AND status = 1) AS expired_tenants
+                SUM(end_date IS NOT NULL AND end_date < CURRENT_DATE AND status = 1) AS expired_tenants,
+                SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL ? DAY) THEN 1 ELSE 0 END) AS new_tenants
             FROM tenants
             WHERE tenant_type != 'master' AND id != 1 AND status != 3
-        `);
+        `, [intervalDays]);
 
         const [statusRows] = await db.query(`
             SELECT status, COUNT(*) AS count
@@ -205,6 +212,17 @@ const getSaasStats = async (req, res) => {
         `);
 
         const expiringLimit = req.query.expiring_limit === 'all' ? 1000 : (Number(req.query.expiring_limit) || 10);
+
+        const [[expiringCountRow]] = await db.query(`
+            SELECT COUNT(*) AS count
+            FROM tenants
+            WHERE tenant_type != 'master' AND id != 1 AND status != 3
+              AND (
+                (end_date IS NOT NULL AND DATEDIFF(end_date, CURRENT_DATE) <= 30)
+                OR status IN (0, 2)
+              )
+        `);
+        const expiringRenewalsCount = Number(expiringCountRow?.count) || 0;
 
         const [expiringTenants] = await db.query(`
             SELECT t.id, t.name, t.slug, t.status, t.end_date, t.start_date,
@@ -216,9 +234,11 @@ const getSaasStats = async (req, res) => {
             WHERE t.tenant_type != 'master' AND t.id != 1 AND t.status != 3
             ORDER BY
                 CASE
-                    WHEN t.end_date IS NULL THEN 3
-                    WHEN t.end_date < CURRENT_DATE THEN 1
-                    ELSE 2
+                    WHEN t.end_date IS NOT NULL AND DATEDIFF(t.end_date, CURRENT_DATE) < 0 THEN 1
+                    WHEN t.end_date IS NOT NULL AND DATEDIFF(t.end_date, CURRENT_DATE) <= 30 THEN 2
+                    WHEN t.status IN (0, 2) THEN 3
+                    WHEN t.end_date IS NOT NULL THEN 4
+                    ELSE 5
                 END,
                 t.end_date ASC
             LIMIT ?
@@ -257,7 +277,9 @@ const getSaasStats = async (req, res) => {
             WHERE tenant_type != 'master' AND id != 1 AND status = 1
         `);
 
-        const currentYear = new Date().getFullYear();
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
         let mrr_trend = Array(12).fill(0);
         let base_mrr = 0;
         
@@ -273,13 +295,25 @@ const getSaasStats = async (req, res) => {
 
         let runningTotal = base_mrr;
         const trend = mrr_trend.map((added, index) => {
+            const isFuture = index > currentMonth;
+            if (isFuture) {
+                const monthStr = new Date(currentYear, index, 1).toLocaleString('en-US', { month: 'short' });
+                return {
+                    m: monthStr,
+                    val: '₹0',
+                    raw_val: 0,
+                    isCurrent: false,
+                    isFuture: true
+                };
+            }
             runningTotal += added;
             const monthStr = new Date(currentYear, index, 1).toLocaleString('en-US', { month: 'short' });
             return {
                 m: monthStr,
                 val: '₹' + (runningTotal / 100000).toFixed(2) + 'L',
                 raw_val: runningTotal,
-                isCurrent: index === new Date().getMonth()
+                isCurrent: index === currentMonth,
+                isFuture: false
             };
         });
         
@@ -288,11 +322,6 @@ const getSaasStats = async (req, res) => {
             ...t,
             h: Math.round((t.raw_val / maxMrr) * 85) + '%'
         }));
-
-        const timeRange = req.query.time_range || 'monthly';
-        let intervalDays = 30;
-        if (timeRange === 'daily') intervalDays = 1;
-        else if (timeRange === 'weekly') intervalDays = 7;
 
         const [[userStats]] = await db.query(`
             SELECT
@@ -331,6 +360,8 @@ const getSaasStats = async (req, res) => {
                 suspended_tenants: Number(tenantStats.suspended_tenants) || 0,
                 draft_tenants: Number(tenantStats.draft_tenants) || 0,
                 expired_tenants: Number(tenantStats.expired_tenants) || 0,
+                expiring_renewals_count: expiringRenewalsCount,
+                new_tenants: Number(tenantStats.new_tenants) || 0,
                 status_distribution: statusRows,
                 recently_registered: expiringTenants,
                 expiring_tenants: expiringTenants,
@@ -349,7 +380,8 @@ const getSaasStats = async (req, res) => {
                 total_mrr: Number(mrrStats.total_mrr) || 0,
                 plan_distribution: planAdoption,
                 mrr_trend: trendWithHeights,
-                time_range: timeRange
+                time_range: timeRange,
+                interval_days: intervalDays
             }
         });
     } catch (error) {
@@ -388,14 +420,106 @@ const getAcademicYears = async (req, res) => {
     }
 };
 
+const getMySQLYearWeek = (date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}${String(weekNo).padStart(2, '0')}`;
+};
+
 /**
  * GET /api/admin/dashboard/saas-revenue
  */
 const getSaasRevenue = async (req, res) => {
     try {
+        const timeRange = req.query.preset || req.query.time_range || 'monthly';
         const selectedYear = (req.query.year && req.query.year !== 'all') ? Number(req.query.year) : new Date().getFullYear();
         const selectedMonth = (req.query.month && req.query.month !== 'all') ? Number(req.query.month) : null;
 
+        // 1. Daily breakdown: Past 7 days
+        if (timeRange === 'daily' || timeRange === 'day') {
+            const [rows] = await db.query(`
+                SELECT
+                    DATE(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) AS day_date,
+                    SUM(i.total_amount) AS rev
+                FROM saas_invoices i
+                WHERE i.status = 'paid' AND i.deleted_at IS NULL
+                  AND DATE(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) >= DATE_SUB(CURRENT_DATE, INTERVAL 6 DAY)
+                GROUP BY DATE(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))
+            `);
+            const revByDate = {};
+            rows.forEach(r => {
+                if (r.day_date) {
+                    const d = new Date(r.day_date);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const dStr = `${y}-${m}-${day}`;
+                    revByDate[dStr] = Number(r.rev) || 0;
+                }
+            });
+
+            const trend = [];
+            const today = new Date();
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dStr = `${y}-${m}-${day}`;
+                const dayName = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+                const rev = Math.round(revByDate[dStr] || 0);
+                trend.push({
+                    m: dayName,
+                    val: '₹' + rev.toLocaleString('en-IN'),
+                    raw_val: rev,
+                    isCurrent: i === 0,
+                    isFuture: false
+                });
+            }
+            return res.status(200).json({ status: 'success', data: { revenue_trend: trend } });
+        }
+
+        // 2. Weekly breakdown: Past 8 weeks
+        if (timeRange === 'weekly' || timeRange === 'week') {
+            const [rows] = await db.query(`
+                SELECT
+                    YEARWEEK(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)), 1) AS yw,
+                    MIN(DATE(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))) AS week_start,
+                    SUM(i.total_amount) AS rev
+                FROM saas_invoices i
+                WHERE i.status = 'paid' AND i.deleted_at IS NULL
+                  AND DATE(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) >= DATE_SUB(CURRENT_DATE, INTERVAL 7 WEEK)
+                GROUP BY YEARWEEK(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)), 1)
+            `);
+            const revByWeek = {};
+            rows.forEach(r => {
+                revByWeek[String(r.yw)] = Number(r.rev) || 0;
+            });
+
+            const trend = [];
+            const today = new Date();
+            for (let i = 7; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - (i * 7));
+                const weekLabel = `Wk ${8 - i} (${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`;
+                const yw = getMySQLYearWeek(d);
+                const rev = Math.round(revByWeek[yw] || 0);
+                trend.push({
+                    m: weekLabel,
+                    val: '₹' + rev.toLocaleString('en-IN'),
+                    raw_val: rev,
+                    isCurrent: i === 0,
+                    isFuture: false
+                });
+            }
+            return res.status(200).json({ status: 'success', data: { revenue_trend: trend } });
+        }
+
+        // 3. Monthly breakdown (Default or selected year/month)
         const [paidByMonth] = await db.query(`
             SELECT
                 YEAR(COALESCE(i.payment_date, i.created_at)) AS yr,
@@ -416,22 +540,51 @@ const getSaasRevenue = async (req, res) => {
             if (yr < selectedYear) {
                 baseTotal += rev;
             } else if (yr === selectedYear && mo >= 0 && mo < 12) {
-                if (selectedMonth === null || (mo + 1) === selectedMonth) {
-                    monthTotals[mo] += rev;
-                }
+                monthTotals[mo] += rev;
             }
         });
 
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
+
         let runningTotal = baseTotal;
         const trend = monthTotals.map((added, index) => {
-            runningTotal += added;
             const monthStr = new Date(selectedYear, index, 1).toLocaleString('en-US', { month: 'short' });
+
+            // 1. Specific single month selected -> Show value ONLY on that month
+            if (selectedMonth !== null) {
+                const isSelected = (index + 1) === selectedMonth;
+                const isFuture = selectedYear > currentYear || (selectedYear === currentYear && index > currentMonth);
+                const val = (!isFuture && isSelected) ? Math.round(added) : 0;
+                return {
+                    m: monthStr,
+                    val: '₹' + val.toLocaleString('en-IN'),
+                    raw_val: val,
+                    isCurrent: selectedYear === currentYear && index === currentMonth,
+                    isFuture: isFuture || !isSelected
+                };
+            }
+
+            // 2. All months selected -> Cumulative growth up to current month
+            const isFuture = selectedYear > currentYear || (selectedYear === currentYear && index > currentMonth);
+            if (isFuture) {
+                return {
+                    m: monthStr,
+                    val: '₹0',
+                    raw_val: 0,
+                    isCurrent: false,
+                    isFuture: true
+                };
+            }
+            runningTotal += added;
             const roundedTotal = Math.round(runningTotal);
             return {
                 m: monthStr,
                 val: '₹' + roundedTotal.toLocaleString('en-IN'),
                 raw_val: roundedTotal,
-                isCurrent: selectedYear === new Date().getFullYear() && index === new Date().getMonth()
+                isCurrent: selectedYear === currentYear && index === currentMonth,
+                isFuture: false
             };
         });
 

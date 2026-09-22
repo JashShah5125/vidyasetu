@@ -3,11 +3,10 @@ import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Edit, Eye, Trash, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Plus, Edit3, Eye, Trash2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import type { TenantSubscription, SubscriptionPlan } from '../data/mockData';
 import { formatDate } from '../data/mockData';
 
@@ -553,18 +552,30 @@ export const TenantSubscriptions: React.FC = () => {
                           : <span className="text-xs text-slate-400">Plan defaults</span>}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex gap-1.5 flex-nowrap">
-                          <button onClick={() => { setViewingItem(sub); setShowView(true); }}
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
-                            <Eye size={13} /> View
+                        <div className="flex items-center gap-1.5 flex-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => { setViewingItem(sub); setShowView(true); }}
+                            title="View Subscription"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          >
+                            <Eye size={16} />
                           </button>
-                          <button onClick={() => handleOpenEdit(sub)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-slate-200 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors">
-                            <Edit size={13} /> Edit
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(sub)}
+                            title="Edit Subscription"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <Edit3 size={16} />
                           </button>
-                          <button onClick={() => handleDelete(sub.id, sub.tenantName)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1.5 border border-red-100 text-red-600 bg-red-50/50 hover:bg-red-50 rounded-lg cursor-pointer transition-colors">
-                            <Trash size={13} /> Cancel
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(sub.id, sub.tenantName)}
+                            title="Cancel / Delete Subscription"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>

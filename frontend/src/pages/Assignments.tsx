@@ -1054,35 +1054,45 @@ export const Assignments: React.FC = () => {
             No {activeTab === 'assignments' ? 'homework assignments' : 'evaluations'} found for this scope.
           </div>
         ) : (
-          <Table headers={['Title', 'Subject', 'Target Batch', 'Due Date', 'Submissions', 'Status', 'Actions']}>
+          <Table
+            dense
+            borderless
+            minWidth="1020px"
+            colWidths={['26%', '14%', '15%', '12%', '11%', '10%', '12%']}
+            headers={[
+              { label: 'Title', align: 'left' },
+              { label: 'Subject', align: 'left' },
+              { label: 'Target Batch', align: 'left' },
+              { label: 'Due Date', align: 'left' },
+              { label: 'Submissions', align: 'center' },
+              { label: 'Status', align: 'center' },
+              { label: 'Actions', align: 'right' }
+            ]}
+          >
             {paginatedItems.map(item => (
-              <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                <td className="px-6 py-4">
-                  <div className="font-bold text-slate-800">{item.title}</div>
+              <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                <td className="px-4 py-3 text-left">
+                  <div className="font-semibold text-slate-900 text-sm truncate max-w-[240px]" title={item.title}>
+                    {item.title}
+                  </div>
                   {item.files && item.files.length > 0 && (
                     <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 font-semibold font-mono">
                       📄 {item.files.length} attachment(s)
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4">
-                  <span className="font-semibold text-slate-700">{item.subjectName}</span>
+                <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[140px]" title={item.subjectName}>
+                  {item.subjectName}
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex flex-wrap gap-1 max-w-xs">
-                    {item.batchNames && item.batchNames.length > 0 ? (
-                      item.batchNames.map((bn, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
-                          {bn}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate-400">—</span>
-                    )}
-                  </div>
+                <td className="px-4 py-3 text-left text-slate-600 text-xs truncate max-w-[160px]" title={item.batchNames?.join(', ') || ''}>
+                  {item.batchNames && item.batchNames.length > 0 ? (
+                    item.batchNames.join(', ')
+                  ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                  )}
                 </td>
-                <td className="px-6 py-4 font-mono text-xs font-semibold text-slate-700">{item.dueDate}</td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-3 text-left font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">{item.dueDate}</td>
+                <td className="px-4 py-3 text-center whitespace-nowrap">
                   <button
                     onClick={() => openRoster(item)}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold font-mono transition-colors cursor-pointer border border-blue-200"
@@ -1090,7 +1100,7 @@ export const Assignments: React.FC = () => {
                     {item.submittedCount} / {item.totalCount} <span className="font-sans font-normal text-[11px] text-blue-500">graded</span>
                   </button>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-3 text-center whitespace-nowrap">
                   <span
                     className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
                       item.status === 'Published'
@@ -1103,38 +1113,42 @@ export const Assignments: React.FC = () => {
                     {item.status}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-1.5">
                     <button
+                      type="button"
                       onClick={() => setSelectedItem(item)}
                       title="View Details"
-                      className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                      className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
                     >
-                      <Eye size={16} />
+                      <Eye size={15} />
                     </button>
                     <button
+                      type="button"
                       onClick={() => openRoster(item)}
                       title="Grade Roster"
-                      className="p-1.5 text-blue-600 hover:text-blue-800 rounded-lg hover:bg-blue-50 transition-colors"
+                      className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-200 transition-colors cursor-pointer"
                     >
-                      <FileSpreadsheet size={16} />
+                      <FileSpreadsheet size={15} />
                     </button>
                     {item.status === 'Draft' && (
                       <button
+                        type="button"
                         onClick={() => handlePublish(item.id)}
                         title="Publish Assignment"
-                        className="p-1.5 text-emerald-600 hover:text-emerald-800 rounded-lg hover:bg-emerald-50 transition-colors"
+                        className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors cursor-pointer"
                       >
-                        <CheckCircle2 size={16} />
+                        <CheckCircle2 size={15} />
                       </button>
                     )}
                     {item.status !== 'Published' && (
                       <button
+                        type="button"
                         onClick={() => handleDelete(item.id)}
                         title="Delete"
-                        className="p-1.5 text-rose-500 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition-colors"
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>

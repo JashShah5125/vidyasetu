@@ -242,6 +242,7 @@ const addFollowup = async (req, res) => {
         // Auto-advance status from new -> contacted after first followup
         if (lead.status === 1 && updatedLead.status === 1) {
             await leadModel.updateLeadStatus(id, 2, createdBy);
+            updatedLead.status = 2;
         }
 
         res.status(201).json({ status: 'success', message: 'Follow-up added successfully', data: { id: followupId, lead: updatedLead } });

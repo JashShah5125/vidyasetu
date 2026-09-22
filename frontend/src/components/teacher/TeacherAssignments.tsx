@@ -297,7 +297,9 @@ export const TeacherAssignments: React.FC = () => {
   const batchNameById = useMemo(() => {
     const m = new Map<number, string>();
     (scoping?.batches || []).forEach(b => m.set(Number(b.id), b.name));
-    (batches || []).forEach(b => m.set(Number(b.id), b.name));
+    (batches || []).forEach(b => {
+      if (b.id) m.set(Number(b.id), b.name);
+    });
     return m;
   }, [scoping?.batches, batches]);
 
@@ -564,7 +566,11 @@ export const TeacherAssignments: React.FC = () => {
     }
     setGradingId(submission.id);
     try {
-      await assignmentApi.gradeSubmission(submission.homeworkId, submission.id, marks, input.feedback || '');
+      await assignmentApi.gradeSubmission(submission.homeworkId, submission.id, {
+        marksObtained: marks,
+        feedback: input.feedback || '',
+        studentId: submission.studentId,
+      });
       addToast(`Graded ${submission.studentName}.`, 'success');
       if (showHwDetail) await openDetail(showHwDetail);
     } catch (err: any) {
@@ -1599,19 +1605,19 @@ export const TeacherAssignments: React.FC = () => {
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-500 flex-wrap">
-                            {b.levelName && (
+                            {(b as any).levelName && (
                               <span className="font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                {b.levelName}
+                                {(b as any).levelName}
                               </span>
                             )}
-                            {b.academicYearName && (
+                            {(b as any).academicYearName && (
                               <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                                {b.academicYearName}
+                                {(b as any).academicYearName}
                               </span>
                             )}
-                            {b.branchName && (
+                            {(b as any).branchName && (
                               <span className="truncate text-slate-400">
-                                {b.branchName}
+                                {(b as any).branchName}
                               </span>
                             )}
                           </div>
@@ -2103,15 +2109,25 @@ export const TeacherAssignments: React.FC = () => {
             <p className="text-sm">Loading data...</p>
           </div>
         ) : (
-          <Table headers={[
-            activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam',
-            'Subject',
-            'Target Batch',
-            activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date',
-            ...(activeSubTab === 'active' ? ['Submissions'] : []),
-            'Status',
-            'Actions'
-          ]}>
+          <Table
+            dense
+            borderless
+            minWidth="1020px"
+            colWidths={
+              activeSubTab === 'active'
+                ? ['26%', '14%', '15%', '12%', '11%', '10%', '12%']
+                : ['30%', '16%', '18%', '14%', '10%', '12%']
+            }
+            headers={[
+              { label: activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam', align: 'left' },
+              { label: 'Subject', align: 'left' },
+              { label: 'Target Batch', align: 'left' },
+              { label: activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date', align: 'left' },
+              ...(activeSubTab === 'active' ? [{ label: 'Submissions', align: 'center' as const }] : []),
+              { label: 'Status', align: 'center' as const },
+              { label: 'Actions', align: 'right' as const }
+            ]}
+          >
             {(paginatedData as HomeworkItem[]).length === 0 ? (
               <tr>
                 <td colSpan={activeSubTab === 'active' ? 8 : 7} className="px-6 py-12 text-center text-slate-500">
@@ -2126,54 +2142,87 @@ export const TeacherAssignments: React.FC = () => {
               </tr>
             ) : (
               (paginatedData as HomeworkItem[]).map((assign) => (
-                <tr key={assign.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-slate-900">{assign.title}</div>
+                <tr key={assign.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="px-4 py-3 text-left">
+                    <div className="font-semibold text-slate-900 text-sm truncate max-w-[240px]" title={assign.title}>
+                      {assign.title}
+                    </div>
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider ${getTypeBadgeColor(assign.assignmentType)}`}>
                         {typeLabel(assign.assignmentType)}
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-slate-700">{assign.subjectName}</td>
-                  <td className="px-6 py-4 text-slate-600">{assign.batchNames.join(', ')}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-600">{assign.dueDate}</td>
+                  <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[140px]" title={assign.subjectName}>
+                    {assign.subjectName}
+                  </td>
+                  <td className="px-4 py-3 text-left text-slate-600 text-xs truncate max-w-[160px]" title={assign.batchNames.join(', ')}>
+                    {assign.batchNames.join(', ') || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-left font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
+                    {assign.dueDate}
+                  </td>
                   {activeSubTab === 'active' && (
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className="px-4 py-3 text-center text-slate-600 whitespace-nowrap">
                       {assign.status === 'Draft' ? '—' : (
-                        <span className={`font-bold ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                        <span className={`font-bold font-mono text-xs ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
                           {assign.submittedCount}
                         </span>
                       )} / {assign.totalCount > 0 ? assign.totalCount : '—'}
                     </td>
                   )}
-                  <td className="px-6 py-4">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(assign.status)}`}>
+                  <td className="px-4 py-3 text-center whitespace-nowrap">
+                    <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(assign.status)}`}>
                       {assign.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => openDetail(assign)} title="View Details" className="cursor-pointer hover:bg-slate-100">
-                        <Eye className="w-4 h-4 text-slate-500" />
-                      </Button>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openDetail(assign)}
+                        title="View Details"
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
                       {(assign.status === 'Published' || assign.status === 'Closed') && (
-                        <Button variant="ghost" size="sm" onClick={() => openEvaluate(assign)} title="Evaluate Submissions" className="cursor-pointer hover:bg-purple-50">
-                          <ClipboardCheck className="w-4 h-4 text-purple-600" />
-                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => openEvaluate(assign)}
+                          title="Evaluate Submissions"
+                          className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-200 transition-colors cursor-pointer"
+                        >
+                          <ClipboardCheck className="w-3.5 h-3.5" />
+                        </button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => openEditForm(assign)} title={activePrimaryTab === 'exams' ? 'Edit Exam' : activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'} className="cursor-pointer hover:bg-blue-50">
-                        <Edit3 className="w-4 h-4 text-blue-600" />
-                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(assign)}
+                        title={activePrimaryTab === 'exams' ? 'Edit Exam' : activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
                       {assign.status === 'Published' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleCloseAssign(assign)} title="Close" className="cursor-pointer hover:bg-amber-50">
-                          <XCircle className="w-4 h-4 text-amber-600" />
-                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleCloseAssign(assign)}
+                          title="Close"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                        </button>
                       )}
                       {assign.status !== 'Published' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteAssign(assign)} title="Delete" className="cursor-pointer hover:bg-red-50">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAssign(assign)}
+                          title="Delete"
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </div>
                   </td>

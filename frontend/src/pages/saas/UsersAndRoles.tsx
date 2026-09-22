@@ -5,6 +5,8 @@ import {
   ShieldCheck,
   Plus,
   Edit,
+  Edit3,
+  Eye,
   Trash2,
   Key,
   Ban,
@@ -479,6 +481,15 @@ export const UsersAndRoles: React.FC = () => {
   // Assign Role Modal (Inside Sub-Tab 2)
   const [showAssignRoleModal, setShowAssignRoleModal] = useState(false);
   const [assigningRoleId, setAssigningRoleId] = useState<number | null>(null);
+  const [assigningRoleConfirm, setAssigningRoleConfirm] = useState<{ roleId: number; roleName: string } | null>(null);
+
+  // Suspend User Access Confirmation Modal
+  const [suspendingUser, setSuspendingUser] = useState<UserRecord | null>(null);
+  const [suspendSubmitting, setSuspendSubmitting] = useState(false);
+
+  // Sessions Tab Pagination
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionLimit, setSessionLimit] = useState(10);
 
   // Revoke Role Confirmation Modal
   const [revokingRole, setRevokingRole] = useState<{ roleId: number; roleName: string } | null>(null);
@@ -850,7 +861,8 @@ export const UsersAndRoles: React.FC = () => {
         role_id: roleId
       });
       if (res.data.status === 'success') {
-        addToast(`Role "${roleNameStr}" assigned to ${managedUser.name} successfully!`, 'info');
+        addToast(`Role "${roleNameStr}" assigned to ${managedUser.name} successfully!`, 'success');
+        setAssigningRoleConfirm(null);
         reloadManagedUser(managedUser.id);
         fetchUsers();
       }
@@ -868,7 +880,7 @@ export const UsersAndRoles: React.FC = () => {
     try {
       const res = await api.delete(`/admin/users/${managedUser.id}/roles/${revokingRole.roleId}`);
       if (res.data.status === 'success') {
-        addToast(`Role "${revokingRole.roleName}" revoked from ${managedUser.name}.`, 'info');
+        addToast(`Role "${revokingRole.roleName}" revoked from ${managedUser.name} successfully.`, 'success');
         setRevokingRole(null);
         reloadManagedUser(managedUser.id);
         fetchUsers();
@@ -985,25 +997,30 @@ export const UsersAndRoles: React.FC = () => {
     }
   };
 
-  // Toggle User Suspension
-  const handleToggleSuspension = async (u: UserRecord) => {
-    const nextState = u.app_access_suspended === 1 ? 0 : 1;
+  // Confirm Suspend / Restore User Access Handler
+  const handleConfirmSuspend = async () => {
+    if (!suspendingUser) return;
+    const nextState = suspendingUser.app_access_suspended === 1 ? 0 : 1;
+    setSuspendSubmitting(true);
     try {
-      const res = await api.put(`/admin/users/${u.id}`, {
+      const res = await api.put(`/admin/users/${suspendingUser.id}`, {
         app_access_suspended: nextState
       });
       if (res.data.status === 'success') {
         addToast(
-          `User "${u.name}" access ${nextState === 1 ? 'SUSPENDED' : 'RESTORED'}.`,
-          'info'
+          `User "${suspendingUser.name}" app access ${nextState === 1 ? 'SUSPENDED' : 'RESTORED'} successfully.`,
+          'success'
         );
-        if (managedUser && managedUser.id === u.id) {
-          reloadManagedUser(u.id);
+        if (managedUser && managedUser.id === suspendingUser.id) {
+          reloadManagedUser(suspendingUser.id);
         }
         fetchUsers();
+        setSuspendingUser(null);
       }
-    } catch (err) {
-      addToast('Failed to change suspension status.', 'error');
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to change suspension status.', 'error');
+    } finally {
+      setSuspendSubmitting(false);
     }
   };
 
@@ -1154,13 +1171,14 @@ export const UsersAndRoles: React.FC = () => {
   const customRolesCount = rolesList.filter(r => r.is_system === 0).length;
 
   // =========================================================================
-  // CONDITIONAL RENDER: FULL PAGE MANAGE USER VIEW
+  // UNIFIED RENDER (MANAGE USER VIEW OR TABBED DIRECTORY/ROLES VIEW)
   // =========================================================================
-  if (selectedManageUserId) {
-    return (
-      <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
-        {/* Back Button & Breadcrumbs */}
-        <div className="flex items-center justify-between">
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {selectedManageUserId ? (
+        <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+          {/* Back Button & Breadcrumbs */}
+          <div className="flex items-center justify-between">
           <button
             onClick={() => { setSelectedManageUserId(null); setManagedUser(null); }}
             className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-600 transition cursor-pointer"
@@ -1507,7 +1525,7 @@ export const UsersAndRoles: React.FC = () => {
                         <div className="flex flex-wrap gap-3">
                           <button
                             type="button"
-                            onClick={() => handleToggleSuspension(managedUser)}
+                            onClick={() => setSuspendingUser(managedUser)}
                             className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 ${managedUser.app_access_suspended === 1
                               ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                               : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
@@ -3116,7 +3134,7 @@ export const UsersAndRoles: React.FC = () => {
                                       type="button"
                                       variant="primary"
                                       disabled={isAssigningThis}
-                                      onClick={() => handleAssignRoleToUser(r.id, r.name)}
+                                      onClick={() => setAssigningRoleConfirm({ roleId: r.id, roleName: r.name })}
                                       className="px-3 py-1.5 text-xs shadow-2xs"
                                     >
                                       {isAssigningThis ? 'Assigning...' : 'Assign Role'}
@@ -3844,60 +3862,73 @@ export const UsersAndRoles: React.FC = () => {
                     </div>
 
                     {managedUser.recent_sessions && managedUser.recent_sessions.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                          <thead>
-                            <tr className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                              <th className="px-4 py-3">Device / User Agent</th>
-                              <th className="px-4 py-3">IP Address</th>
-                              <th className="px-4 py-3">Login Timestamp</th>
-                              <th className="px-4 py-3">Session Expiry</th>
-                              <th className="px-4 py-3 text-center">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {managedUser.recent_sessions.map((sess) => {
-                              const isRevoked = sess.revoked_at !== null;
-                              const isExpired = sess.expires_at ? new Date(sess.expires_at).getTime() < Date.now() : false;
-                              const isActive = !isRevoked && !isExpired;
+                      <div className="space-y-4">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                                <th className="px-4 py-3">Device / User Agent</th>
+                                <th className="px-4 py-3">IP Address</th>
+                                <th className="px-4 py-3">Login Timestamp</th>
+                                <th className="px-4 py-3">Session Expiry</th>
+                                <th className="px-4 py-3 text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {managedUser.recent_sessions
+                                .slice((sessionPage - 1) * sessionLimit, sessionPage * sessionLimit)
+                                .map((sess) => {
+                                  const isRevoked = sess.revoked_at !== null;
+                                  const isExpired = sess.expires_at ? new Date(sess.expires_at).getTime() < Date.now() : false;
+                                  const isActive = !isRevoked && !isExpired;
 
-                              return (
-                                <tr key={sess.id} className="hover:bg-slate-50/60 transition">
-                                  <td className="px-4 py-3 text-slate-900 font-medium max-w-xs truncate" title={sess.user_agent || 'Unknown device'}>
-                                    <div className="flex items-center gap-2">
-                                      <Laptop size={14} className="text-slate-400 shrink-0" />
-                                      <span className="truncate">{sess.user_agent || 'Browser Session'}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 font-mono text-slate-700">
-                                    {sess.ip_address || '—'}
-                                  </td>
-                                  <td className="px-4 py-3 text-slate-600">
-                                    {new Date(sess.created_at).toLocaleString()}
-                                  </td>
-                                  <td className="px-4 py-3 text-slate-600">
-                                    {sess.expires_at ? new Date(sess.expires_at).toLocaleString() : '—'}
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    {isActive ? (
-                                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10px] uppercase">
-                                        Active
-                                      </span>
-                                    ) : isRevoked ? (
-                                      <span className="px-2.5 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full font-bold text-[10px] uppercase">
-                                        Revoked
-                                      </span>
-                                    ) : (
-                                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold text-[10px] uppercase">
-                                        Expired
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                                  return (
+                                    <tr key={sess.id} className="hover:bg-slate-50/60 transition">
+                                      <td className="px-4 py-3 text-slate-900 font-medium max-w-xs truncate" title={sess.user_agent || 'Unknown device'}>
+                                        <div className="flex items-center gap-2">
+                                          <Laptop size={14} className="text-slate-400 shrink-0" />
+                                          <span className="truncate">{sess.user_agent || 'Browser Session'}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-slate-700">
+                                        {sess.ip_address || '—'}
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-600">
+                                        {new Date(sess.created_at).toLocaleString()}
+                                      </td>
+                                      <td className="px-4 py-3 text-slate-600">
+                                        {sess.expires_at ? new Date(sess.expires_at).toLocaleString() : '—'}
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        {isActive ? (
+                                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10px] uppercase">
+                                            Active
+                                          </span>
+                                        ) : isRevoked ? (
+                                          <span className="px-2.5 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full font-bold text-[10px] uppercase">
+                                            Revoked
+                                          </span>
+                                        ) : (
+                                          <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold text-[10px] uppercase">
+                                            Expired
+                                          </span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <Pagination
+                          currentPage={sessionPage}
+                          totalPages={Math.max(1, Math.ceil(managedUser.recent_sessions.length / sessionLimit))}
+                          totalItems={managedUser.recent_sessions.length}
+                          pageSize={sessionLimit}
+                          onPageChange={setSessionPage}
+                          onPageSizeChange={setSessionLimit}
+                        />
                       </div>
                     ) : (
                       <div className="p-8 text-center bg-slate-50 rounded-xl text-slate-400 text-xs border border-dashed border-slate-200">
@@ -3910,99 +3941,11 @@ export const UsersAndRoles: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* RESET PASSWORD MODAL FOR MANAGE VIEW */}
-        {showResetModal && resetUser && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in">
-              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Key size={18} className="text-amber-500" />
-                  Reset Password for {resetUser.name}
-                </h3>
-                <button onClick={() => setShowResetModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition cursor-pointer">✕</button>
-              </div>
-
-              <form onSubmit={handleResetPassword} className="p-6 space-y-4">
-                {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-semibold text-red-800">
-                    ⚠ New password and confirm password do not match.
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">New Password <span className="text-red-500">*</span></label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Enter new password..."
-                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
-                    />
-                    <Button type="button" variant="secondary" onClick={generateRandomPass}>Generate</Button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Confirm New Password <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter new password..."
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                  <Button type="button" variant="secondary" onClick={() => setShowResetModal(false)}>Cancel</Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={resetSubmitting || (Boolean(newPassword) && newPassword !== confirmPassword)}
-                  >
-                    {resetSubmitting ? 'Resetting...' : 'Confirm Reset Password'}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* DELETE USER MODAL FOR MANAGE VIEW */}
-        {showDeleteUserModal && deletingUser && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 text-center animate-fade-in">
-              <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto border border-red-100">
-                <AlertTriangle size={28} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Delete User Account?</h3>
-                <p className="text-sm text-slate-500 mt-1">
-                  Are you sure you want to soft-delete user <span className="font-bold text-slate-800">"{deletingUser.name}"</span>?
-                </p>
-              </div>
-              <div className="flex justify-center gap-3 pt-2">
-                <Button variant="secondary" onClick={() => setShowDeleteUserModal(false)}>Cancel</Button>
-                <Button variant="danger" onClick={handleDeleteUser}>Confirm Delete</Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // NORMAL RENDER: TABBED MAIN VIEW (USERS DIRECTORY / ROLES MATRIX)
-  // =========================================================================
-  return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        </div>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Users &amp; Roles</h2>
           <p className="text-sm text-slate-500 mt-1">
@@ -4149,9 +4092,9 @@ export const UsersAndRoles: React.FC = () => {
             </CardHeader>
             <Table
               dense
-              minWidth="1100px"
-              colWidths={['25%', '15%', '18%', '16%', '11%', '15%']}
-              headers={['User Details', 'Contact', 'Tenant Workspace', 'Role Mapping', 'Status', 'Actions']}
+              minWidth="1000px"
+              colWidths={['22%', '12%', '17%', '12%', '13%', '24%']}
+              headers={['User Details', 'Contact', 'Tenant Workspace', 'Role Mapping', 'Status', { label: 'Actions', align: 'center' }]}
             >
               {userLoading ? (
                 <tr>
@@ -4205,7 +4148,11 @@ export const UsersAndRoles: React.FC = () => {
                       </td>
 
                       <td className="px-3.5 py-3 whitespace-nowrap">
-                        {u.status === 'active' ? (
+                        {u.app_access_suspended === 1 || u.status === 'suspended' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 text-amber-700 font-bold rounded-full text-xs uppercase border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Suspended
+                          </span>
+                        ) : u.status === 'active' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded-full text-xs uppercase border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
                           </span>
@@ -4217,29 +4164,23 @@ export const UsersAndRoles: React.FC = () => {
                       </td>
 
                       <td className="px-3.5 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Button
+                        <div className="flex items-center justify-center gap-1.5 min-w-[100px]">
+                          <button
                             type="button"
-                            size="sm"
-                            variant="secondary"
                             onClick={() => handleOpenManageUser(u)}
                             title="Manage User & Permissions"
-                            className="text-xs px-2.5 py-1 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 font-semibold gap-1"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                           >
-                            <Sliders size={13} />
-                            Manage
-                          </Button>
-                          <Button
+                            <Eye size={16} />
+                          </button>
+                          <button
                             type="button"
-                            size="sm"
-                            variant="danger"
                             onClick={() => { setDeletingUser(u); setShowDeleteUserModal(true); }}
                             title="Delete User"
-                            className="text-xs px-2.5 py-1 font-semibold gap-1"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                           >
-                            <Trash2 size={13} />
-                            Delete
-                          </Button>
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -4340,7 +4281,7 @@ export const UsersAndRoles: React.FC = () => {
             <Table
               dense
               minWidth="1050px"
-              colWidths={['22%', '28%', '14%', '12%', '12%', '12%']}
+              colWidths={['20%', '24%', '14%', '12%', '10%', '10%', '10%']}
               headers={['Role Name', 'Description', 'Type', 'Assigned Users', 'Permissions', 'Status', 'Actions']}
             >
               {rolesLoading ? (
@@ -4411,24 +4352,24 @@ export const UsersAndRoles: React.FC = () => {
                       </td>
 
                       <td className="px-3.5 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-1.5 min-w-[80px]">
                           <button
                             type="button"
                             onClick={() => handleOpenEditRole(r)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                             title="Edit Permissions Matrix"
                           >
-                            <ShieldCheck size={15} />
+                            <Edit3 size={16} />
                           </button>
 
                           {!isSystem && (
                             <button
                               type="button"
                               onClick={() => { setDeletingRole(r); setShowDeleteRoleModal(true); }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                               title="Delete Custom Role"
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={16} />
                             </button>
                           )}
                         </div>
@@ -4440,6 +4381,8 @@ export const UsersAndRoles: React.FC = () => {
             </Table>
           </Card>
         </div>
+      )}
+      </>
       )}
 
       {/* CREATE USER MODAL */}
@@ -4588,15 +4531,24 @@ export const UsersAndRoles: React.FC = () => {
                             {perms.map((p) => {
                               const isChecked = selectedPermissionIds.includes(p.id);
                               return (
-                                <label key={p.id} onClick={() => handleTogglePermission(p.id)} className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition cursor-pointer select-none ${isChecked ? 'bg-blue-50/80 border-blue-200 text-blue-900' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
-                                  <input type="checkbox" checked={isChecked} onChange={() => { }} className="mt-0.5 h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" />
+                                <div
+                                  key={p.id}
+                                  onClick={() => handleTogglePermission(p.id)}
+                                  className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition cursor-pointer select-none ${isChecked ? 'bg-blue-50/80 border-blue-200 text-blue-900' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => { e.stopPropagation(); handleTogglePermission(p.id); }}
+                                    className="mt-0.5 h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                  />
                                   <div className="min-w-0 flex-1">
                                     <div className="text-xs font-bold leading-tight flex items-center justify-between">
                                       <span>{p.code}</span>
                                     </div>
                                     <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{p.description}</div>
                                   </div>
-                                </label>
+                                </div>
                               );
                             })}
                           </div>
@@ -4756,6 +4708,86 @@ export const UsersAndRoles: React.FC = () => {
             <div className="flex justify-center gap-3 pt-2">
               <Button variant="secondary" onClick={() => setShowDeleteRoleModal(false)}>Cancel</Button>
               <Button variant="danger" onClick={handleDeleteRole}>Confirm Delete</Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* SUSPEND USER CONFIRMATION MODAL */}
+      {suspendingUser && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => !suspendSubmitting && setSuspendingUser(null)} />
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 text-center animate-fade-in relative z-10 my-auto">
+            <div className={`w-14 h-14 ${suspendingUser.app_access_suspended === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'} rounded-2xl flex items-center justify-center mx-auto border`}>
+              {suspendingUser.app_access_suspended === 1 ? <CheckCircle2 size={28} /> : <Ban size={28} />}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">
+                {suspendingUser.app_access_suspended === 1 ? 'Restore App Access?' : 'Suspend App Access?'}
+              </h3>
+              <p className="text-sm text-slate-500 mt-1">
+                {suspendingUser.app_access_suspended === 1
+                  ? <>Are you sure you want to restore application access for <span className="font-bold text-slate-800">{suspendingUser.name}</span>?</>
+                  : <>Are you sure you want to suspend application access for <span className="font-bold text-slate-800">{suspendingUser.name}</span>?</>}
+              </p>
+            </div>
+            <div className={`p-3 rounded-xl text-left border ${suspendingUser.app_access_suspended === 1 ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={14} className="shrink-0" />
+                {suspendingUser.app_access_suspended === 1
+                  ? 'This will immediately re-enable account login and restore access across all platform modules.'
+                  : 'This will immediately revoke active sessions and block the user from logging in until restored.'}
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setSuspendingUser(null)} disabled={suspendSubmitting}>
+                Cancel
+              </Button>
+              <Button
+                variant={suspendingUser.app_access_suspended === 1 ? 'primary' : 'danger'}
+                onClick={handleConfirmSuspend}
+                disabled={suspendSubmitting}
+              >
+                {suspendSubmitting ? 'Updating...' : suspendingUser.app_access_suspended === 1 ? 'Restore Access' : 'Confirm Suspend'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ASSIGN ROLE CONFIRMATION MODAL */}
+      {assigningRoleConfirm && managedUser && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => assigningRoleId === null && setAssigningRoleConfirm(null)} />
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 text-center animate-fade-in relative z-10 my-auto">
+            <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto border border-blue-100">
+              <ShieldCheck size={28} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Assign Role to User?</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Are you sure you want to assign the role <span className="font-bold text-slate-800">"{assigningRoleConfirm.roleName}"</span> to <span className="font-bold text-slate-800">{managedUser.name}</span>?
+              </p>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-left">
+              <p className="text-xs text-blue-800 font-semibold flex items-center gap-1.5">
+                <ShieldCheck size={14} className="shrink-0 text-blue-600" />
+                This will grant the user all permissions bundled with this role immediately.
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setAssigningRoleConfirm(null)} disabled={assigningRoleId !== null}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => handleAssignRoleToUser(assigningRoleConfirm.roleId, assigningRoleConfirm.roleName)}
+                disabled={assigningRoleId !== null}
+              >
+                {assigningRoleId !== null ? 'Assigning...' : 'Confirm Assignment'}
+              </Button>
             </div>
           </div>
         </div>,

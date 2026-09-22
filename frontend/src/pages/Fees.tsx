@@ -39,10 +39,14 @@ const COMPLIANCE_STATUS_OPTIONS = [
   { value: 'paid', label: 'Fully Paid' }
 ];
 
-const statusBadge = (status?: string) => {
+const statusBadge = (status?: string, totalFees?: number) => {
   const norm = (status || '').toLowerCase().trim();
   let cls = 'bg-slate-100 text-slate-700 border border-slate-200';
   let label = 'UNASSIGNED';
+
+  if (!norm || norm === 'unassigned' || totalFees === 0) {
+    return { cls: 'bg-slate-100 text-slate-600 border border-slate-200', label: 'UNASSIGNED' };
+  }
 
   if (norm === 'paid') {
     cls = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
@@ -67,6 +71,15 @@ const getCalculationFlag = (s: StudentRosterItem) => {
   const isOverdue = (Number(s.fees_overdue) || 0) > 0;
   const remaining = s.fees_remaining !== undefined ? Number(s.fees_remaining) : (Number(s.fees_outstanding) || 0);
   const total = Number(s.total_fees) || 0;
+  const paid = Number(s.fees_paid) || 0;
+
+  if (total <= 0 && (!s.fee_status || s.fee_status.toLowerCase() === 'unassigned')) {
+    return {
+      flag: 'unassigned',
+      label: 'No Plan Assigned',
+      badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200'
+    };
+  }
 
   if (s.fee_status === 'paid' || (total > 0 && remaining <= 0)) {
     return {
@@ -84,6 +97,14 @@ const getCalculationFlag = (s: StudentRosterItem) => {
     };
   }
 
+  if (paid > 0 && remaining > 0) {
+    return {
+      flag: 'partial',
+      label: 'In Progress',
+      badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200'
+    };
+  }
+
   return {
     flag: 'on_schedule',
     label: 'On Schedule',
@@ -95,6 +116,14 @@ const getComplianceStatus = (s: StudentRosterItem) => {
   const isOverdue = (Number(s.fees_overdue) || 0) > 0;
   const remaining = s.fees_remaining !== undefined ? Number(s.fees_remaining) : (Number(s.fees_outstanding) || 0);
   const total = Number(s.total_fees) || 0;
+
+  if (total <= 0) {
+    return {
+      status: 'unassigned',
+      label: 'Unassigned',
+      badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200 font-medium'
+    };
+  }
 
   if (s.fee_status === 'paid' || (total > 0 && remaining <= 0)) {
     return {
@@ -836,7 +865,8 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
             <Table
               dense
               borderless
-              minWidth="950px"
+              minWidth="1050px"
+              colWidths={['22%', '11%', '12%', '11%', '12%', '10%', '11%', '11%']}
               headers={[
                 { label: 'Student & Batch', align: 'left' },
                 { label: 'Net Fee', align: 'right' },
@@ -845,7 +875,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                 { label: 'Remaining', align: 'right' },
                 { label: 'Overdue', align: 'right' },
                 { label: 'Status', align: 'center' },
-                { label: 'Action', align: 'right' }
+                { label: 'Action', align: 'center' }
               ]}
             >
               {rosterLoading && roster.length === 0 ? (
@@ -877,7 +907,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                 roster.map((s, idx) => {
                   const isOverdue = (Number(s.fees_overdue) || 0) > 0;
                   const remaining = s.fees_remaining !== undefined ? s.fees_remaining : (s.fees_outstanding || 0);
-                  const st = statusBadge(s.fee_status);
+                  const st = statusBadge(s.fee_status, s.total_fees);
                   const flag = getCalculationFlag(s);
 
                   return (
@@ -887,33 +917,37 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       className="hover:bg-slate-50 cursor-pointer transition-colors"
                     >
                       {/* 1. Student Name & Batch */}
-                      <td className="px-2.5 py-2 text-left">
-                        <div className="text-sm font-semibold text-slate-900 leading-snug">{s.full_name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{s.batch_name || 'No Batch'}</div>
+                      <td className="px-3.5 py-2.5 text-left">
+                        <div className="text-sm font-semibold text-slate-900 leading-snug truncate max-w-[220px]" title={s.full_name}>
+                          {s.full_name}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5 truncate max-w-[220px]" title={s.batch_name || 'No Batch Assigned'}>
+                          {s.batch_name || 'No Batch'}
+                        </div>
                       </td>
 
                       {/* 2. Net Fee */}
-                      <td className="px-2 py-2 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
                         {fmt(s.total_fees || 0)}
                       </td>
 
                       {/* 3. Expected Due Till Today */}
-                      <td className="px-2 py-2 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
                         {fmt(s.expected_due_till_date || 0)}
                       </td>
 
                       {/* 4. Paid Amount */}
-                      <td className="px-2 py-2 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
                         {fmt(s.fees_paid || 0)}
                       </td>
 
                       {/* 5. Remaining Balance */}
-                      <td className="px-2 py-2 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
                         {fmt(remaining)}
                       </td>
 
                       {/* 6. Overdue */}
-                      <td className="px-2 py-2 text-right text-xs sm:text-sm tabular-nums whitespace-nowrap">
+                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm tabular-nums whitespace-nowrap">
                         {isOverdue ? (
                           <span className="inline-block text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
                             {fmt(s.fees_overdue || 0)}
@@ -924,8 +958,8 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       </td>
 
                       {/* 7. Backend Status & Dynamic Calculation Flag */}
-                      <td className="px-2 py-2 text-center whitespace-nowrap">
-                        <div className="flex flex-col items-center justify-center gap-0.5">
+                      <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center justify-center gap-1">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>
                             {st.label}
                           </span>
@@ -937,7 +971,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       </td>
 
                       {/* 8. Action */}
-                      <td className="px-2 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-2.5 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {isOverdue ? (
                           <Button
                             size="sm"
