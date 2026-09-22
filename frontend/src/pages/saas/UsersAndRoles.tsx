@@ -282,6 +282,7 @@ interface UserSessionItem {
 }
 
 type CounsellorRoleData = StaffProfile;
+type FinanceRoleData = StaffProfile;
 
 interface BranchAdminRoleData extends Partial<StaffProfile> {
   managed_branches?: {
@@ -554,6 +555,42 @@ export const UsersAndRoles: React.FC = () => {
   // Delete Role Modal
   const [showDeleteRoleModal, setShowDeleteRoleModal] = useState(false);
   const [deletingRole, setDeletingRole] = useState<RoleRecord | null>(null);
+
+  // Dynamic role-specific badge colors
+  const getRoleBadge = (role: string | null | undefined, size: 'sm' | 'md' = 'sm') => {
+    const text = (role || 'USER').replace(/_/g, ' ').toUpperCase();
+    const normalized = (role || '').toLowerCase().trim();
+
+    let colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
+
+    if (normalized.includes('parent') || normalized.includes('guardian')) {
+      colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+    } else if (normalized.includes('student') || normalized.includes('learner')) {
+      colorClasses = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    } else if (normalized.includes('finance') || normalized.includes('accountant') || normalized.includes('acc')) {
+      colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    } else if (normalized.includes('teacher') || normalized.includes('faculty') || normalized.includes('instructor')) {
+      colorClasses = 'bg-teal-50 text-teal-700 border-teal-200';
+    } else if (normalized.includes('counsel')) {
+      colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
+    } else if (normalized.includes('branch')) {
+      colorClasses = 'bg-sky-50 text-sky-700 border-sky-200';
+    } else if (normalized.includes('inst') || normalized.includes('institute') || normalized.includes('owner')) {
+      colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+    } else if (normalized.includes('saas') || normalized.includes('super')) {
+      colorClasses = 'bg-purple-50 text-purple-700 border-purple-200';
+    }
+
+    const sizeClasses = size === 'md'
+      ? 'px-3 py-1 rounded-lg text-xs font-bold'
+      : 'px-2 py-0.5 rounded text-[10px] font-extrabold';
+
+    return (
+      <span className={`inline-flex items-center uppercase tracking-wider border shadow-2xs ${sizeClasses} ${colorClasses}`}>
+        {text}
+      </span>
+    );
+  };
 
   // Password Reset Handler
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -1227,9 +1264,7 @@ export const UsersAndRoles: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg text-xs uppercase tracking-wider border border-blue-100">
-                  {managedUser.user_type}
-                </span>
+                {getRoleBadge(managedUser.user_type, 'md')}
               </div>
             </div>
 
@@ -4142,9 +4177,7 @@ export const UsersAndRoles: React.FC = () => {
                       </td>
 
                       <td className="px-3.5 py-3 text-sm whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded text-[10px] uppercase tracking-wider border border-blue-100">
-                          {u.role_name || u.user_type}
-                        </span>
+                        {getRoleBadge(u.role_name || u.user_type)}
                       </td>
 
                       <td className="px-3.5 py-3 whitespace-nowrap">

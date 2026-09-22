@@ -6,7 +6,6 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Table } from '../ui/Table';
 import { Pagination } from '../ui/Pagination';
-import { Modal } from '../ui/Modal';
 import { BulkImportModal } from '../ui/BulkImportModal';
 import {
   Plus,
@@ -26,21 +25,18 @@ import {
   Paperclip,
   Send,
   Check,
-  X,
   Layers,
   Calendar,
   Award,
-  Star,
   Search,
   Users,
   Clock,
-  AlertCircle,
   ExternalLink
 } from 'lucide-react';
 import type { ExamItem } from '../../types';
 import { assignmentApi } from '../../services/assignmentApi';
-import type { HomeworkItem, HomeworkScoping, HomeworkSubmission, ScopingOption } from '../../services/assignmentApi';
-import { subjectApi } from '../../services/subjectApi';
+import type { HomeworkItem, HomeworkScoping } from '../../services/assignmentApi';
+
 
 interface HomeworkFormState {
   id?: string;
@@ -110,8 +106,7 @@ export const TeacherAssignments: React.FC = () => {
     setExams,
     currentUser,
     sendNotification,
-    addToast,
-    batches
+    addToast
   } = useApp();
   const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
@@ -141,10 +136,6 @@ export const TeacherAssignments: React.FC = () => {
   const [hwForm, setHwForm] = useState<HomeworkFormState>(EMPTY_HW_FORM);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [showHwDetail, setShowHwDetail] = useState<HomeworkItem | null>(null);
-  const [detailLoading, setDetailLoading] = useState<boolean>(false);
-  const [submissions, setSubmissions] = useState<HomeworkSubmission[]>([]);
-  const [gradeInputs, setGradeInputs] = useState<Record<string, { marks: string; feedback: string }>>({});
-  const [gradingId, setGradingId] = useState<string | null>(null);
 
   // Evaluate roster
   interface RosterStudent {
@@ -293,15 +284,6 @@ export const TeacherAssignments: React.FC = () => {
     if (hwForm.branchId === 0) return scoping.batches;
     return scoping.batches.filter(b => !b.branchId || Number(b.branchId) === hwForm.branchId);
   }, [scoping?.batches, hwForm.branchId]);
-
-  const batchNameById = useMemo(() => {
-    const m = new Map<number, string>();
-    (scoping?.batches || []).forEach(b => m.set(Number(b.id), b.name));
-    (batches || []).forEach(b => {
-      if (b.id) m.set(Number(b.id), b.name);
-    });
-    return m;
-  }, [scoping?.batches, batches]);
 
   const subjectOptions = useMemo(() => {
     return scoping?.subjects || [];
@@ -533,51 +515,8 @@ export const TeacherAssignments: React.FC = () => {
     addToast('Evaluation roster exported successfully', 'success');
   };
 
-  const openDetail = async (item: HomeworkItem) => {
+  const openDetail = (item: HomeworkItem) => {
     setShowHwDetail(item);
-    if (item.status !== 'Published' && item.status !== 'Closed') {
-      setSubmissions([]);
-      return;
-    }
-    setDetailLoading(true);
-    setSubmissions([]);
-    setGradeInputs({});
-    try {
-      const res = await assignmentApi.getSubmissions(item.id);
-      setSubmissions(res.submissions);
-      const initial: Record<string, { marks: string; feedback: string }> = {};
-      res.submissions.forEach(s => {
-        initial[s.id] = { marks: s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '', feedback: s.feedback || '' };
-      });
-      setGradeInputs(initial);
-    } catch (err: any) {
-      addToast(err.message || 'Failed to load submissions.', 'error');
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const handleGrade = async (submission: HomeworkSubmission) => {
-    const input = gradeInputs[submission.id];
-    const marks = input ? Number(input.marks) : NaN;
-    if (isNaN(marks) || !input || input.marks.trim() === '') {
-      addToast('Enter marks before grading.', 'error');
-      return;
-    }
-    setGradingId(submission.id);
-    try {
-      await assignmentApi.gradeSubmission(submission.homeworkId, submission.id, {
-        marksObtained: marks,
-        feedback: input.feedback || '',
-        studentId: submission.studentId,
-      });
-      addToast(`Graded ${submission.studentName}.`, 'success');
-      if (showHwDetail) await openDetail(showHwDetail);
-    } catch (err: any) {
-      addToast(err.message || 'Failed to grade submission.', 'error');
-    } finally {
-      setGradingId(null);
-    }
   };
 
   // ─── Exam (mock) actions ──────────────────────────────────────────────────
@@ -653,12 +592,6 @@ export const TeacherAssignments: React.FC = () => {
     addToast(`Exam "${item?.name || ''}" cancelled.`, 'info');
   };
 
-  const handleDeleteExam = (id: string) => {
-    const item = exams.find(e => e.id === id);
-    setExams(prev => prev.filter(e => e.id !== id));
-    setShowExamDetails(null);
-    addToast(`Exam draft "${item?.name || ''}" deleted.`, 'success');
-  };
 
   // ─── Full page: Assignment detail (view only) ───────────────────────────────
   if (showHwDetail) {

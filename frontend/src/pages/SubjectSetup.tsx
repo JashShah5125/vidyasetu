@@ -27,6 +27,8 @@ export const SubjectSetup: React.FC = () => {
   
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deleteSubjectTarget, setDeleteSubjectTarget] = useState<Subject | null>(null);
+  const [isDeletingSubject, setIsDeletingSubject] = useState(false);
   const [deleteBundleTarget, setDeleteBundleTarget] = useState<SubjectBundle | null>(null);
   
   // Courses Data
@@ -144,6 +146,26 @@ export const SubjectSetup: React.FC = () => {
   useEffect(() => {
     fetchSubjects();
   }, [filterStatus, selectedCourseId, selectedProgramId, selectedLevelId]);
+
+  // Handle Delete Subject
+  const handleConfirmDeleteSubject = async () => {
+    if (!deleteSubjectTarget) return;
+    try {
+      setIsDeletingSubject(true);
+      const res = await subjectApi.delete(deleteSubjectTarget.code);
+      if (res?.status === 'success') {
+        addToast(res.message || `Subject "${deleteSubjectTarget.name}" deleted successfully`, 'success');
+        setDeleteSubjectTarget(null);
+        fetchSubjects();
+      } else {
+        addToast(res?.message || 'Failed to delete subject', 'error');
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to delete subject', 'error');
+    } finally {
+      setIsDeletingSubject(false);
+    }
+  };
 
   // 4. Fetch Bundles (optionally filtered by level)
   const fetchBundles = async (levelOverride?: string, page: number = bundleCurrentPage, pageSizeArg: number = bundlePageSize) => {
@@ -522,6 +544,16 @@ export const SubjectSetup: React.FC = () => {
                         >
                           <Eye size={16} />
                         </button>
+                        {!isBranchAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteSubjectTarget(subject)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Delete Subject"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -756,6 +788,16 @@ export const SubjectSetup: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteSubjectTarget)}
+        onClose={() => !isDeletingSubject && setDeleteSubjectTarget(null)}
+        onConfirm={handleConfirmDeleteSubject}
+        itemType="subject"
+        itemName={deleteSubjectTarget?.name}
+        description="Deleting this subject will remove it from the master catalog. This action cannot be undone."
+        isLoading={isDeletingSubject}
+      />
 
       <ConfirmDeleteModal
         isOpen={Boolean(deleteBundleTarget)}

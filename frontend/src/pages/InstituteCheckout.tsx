@@ -1,53 +1,111 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { ChevronLeft, Receipt, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, Receipt, ShieldCheck, Loader2 } from 'lucide-react';
+import { planService } from '../services/planService';
+import { getInstituteProfile, type InstituteTenant } from '../services/instituteApi';
+import { getPrimaryPlanPrice, type SubscriptionPlan } from '../types/saas';
+import type { Tenant } from '../types';
 
 export const InstituteCheckout: React.FC = () => {
   const { planId } = useParams<{ planId: string }>();
   const navigate = useNavigate();
   const { currentUser, tenants, tenantSubscriptions, plans, addToast } = useApp();
 
-  const myTenant = tenants.find(t => t.id === currentUser?.tenantId);
-  const currentSub = tenantSubscriptions.find(s => s.tenantId === currentUser?.tenantId && s.status === 'Active');
-  
-  // The plan they are checking out for (either renewal or upgrade)
-  const targetPlan = plans.find(p => p.id === planId);
-  
+  const [targetPlan, setTargetPlan] = useState<SubscriptionPlan | null>(() => {
+    return ((plans.find(p => p.id === planId) as unknown as SubscriptionPlan)) || null;
+  });
+  const [tenantData, setTenantData] = useState<Tenant | InstituteTenant | null>(() => {
+    return tenants.find(t => t.id === currentUser?.tenantId) || null;
+  });
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(!targetPlan || !tenantData);
+
   // Form State — pre-filled from tenant data
-  const [billingName, setBillingName] = useState(myTenant?.ownerName || myTenant?.name || '');
-  const [billingEmail, setBillingEmail] = useState(myTenant?.email || myTenant?.defaultEmail || '');
-  const [billingPhone, setBillingPhone] = useState(myTenant?.mobile || '');
-  const [gstin, setGstin] = useState(myTenant?.gstNo || '');
-  const [billingAddress, setBillingAddress] = useState(myTenant?.address || '');
+  const [billingName, setBillingName] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
+  const [billingPhone, setBillingPhone] = useState('');
+  const [gstin, setGstin] = useState('');
+  const [billingAddress, setBillingAddress] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  if (!targetPlan || !myTenant) {
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchCheckoutData = async () => {
+      try {
+        const [plansRes, profileRes] = await Promise.all([
+          planId ? planService.getPlans(['Active', 'active']).catch(() => null) : null,
+          getInstituteProfile().catch(() => null),
+        ]);
+
+        if (!isMounted) return;
+
+        if (plansRes?.data && Array.isArray(plansRes.data)) {
+          const found = plansRes.data.find((p: SubscriptionPlan) => String(p.id) === String(planId));
+          if (found) setTargetPlan(found);
+        }
+
+        if (profileRes?.tenant) {
+          const resolvedTenant = profileRes.tenant;
+          setTenantData(resolvedTenant);
+          const tAny = resolvedTenant as any;
+          setBillingName(tAny.ownerName || tAny.name || '');
+          setBillingEmail(tAny.email || tAny.defaultEmail || '');
+          setBillingPhone(tAny.mobile || '');
+          setGstin(tAny.gstNo || '');
+          setBillingAddress(tAny.address || '');
+        }
+      } catch (err) {
+        console.error('Failed to load checkout dependencies:', err);
+      } finally {
+        if (isMounted) setIsLoadingData(false);
+      }
+    };
+
+    fetchCheckoutData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [planId]);
+
+  if (isLoadingData) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <h3 className="text-xl font-bold mb-2">Checkout Error</h3>
-        <p>Invalid plan or tenant data. Please go back.</p>
-        <Button className="mt-4" onClick={() => navigate('/institute')}>Back to Institute</Button>
+      <div className="flex flex-col items-center justify-center py-24">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-slate-600 font-medium">Preparing checkout details...</p>
       </div>
     );
   }
 
+  if (!targetPlan) {
+    return (
+      <div className="p-8 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 max-w-lg mx-auto mt-12 shadow-sm">
+        <h3 className="text-xl font-bold mb-2 text-slate-800">Plan Not Found</h3>
+        <p className="text-sm">The selected subscription plan could not be located. Please choose from available plans.</p>
+        <Button className="mt-6 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => navigate('/institute/upgrade')}>View Subscription Plans</Button>
+      </div>
+    );
+  }
+
+  const defaultBilling = getPrimaryPlanPrice(targetPlan);
+  const currentSub = tenantSubscriptions.find(s => s.tenantId === currentUser?.tenantId && s.status === 'Active');
   const isRenewal = currentSub?.planId === targetPlan.id;
-  const isFree = targetPlan.price === 0;
-  
+  const isFree = defaultBilling.price === 0;
+
   // Financial Calculations
-  const basePrice = targetPlan.price;
+  const basePrice = defaultBilling.price;
   const setupFee = targetPlan.setupFee || 0;
-  const applicableSetupFee = isRenewal ? 0 : setupFee; 
+  const applicableSetupFee = isRenewal ? 0 : setupFee;
   const subtotal = basePrice + applicableSetupFee;
   const gstRate = 0.18;
   const taxes = subtotal * gstRate;
   const totalAmount = subtotal + taxes;
 
-  const currencySymbol = targetPlan.currency === 'INR' ? '₹' : targetPlan.currency === 'USD' ? '$' : '€';
+  const currencySymbol = (defaultBilling.currency || targetPlan.currency) === 'INR' ? '₹' : (defaultBilling.currency || targetPlan.currency) === 'USD' ? '$' : '€';
 
   const handleCheckout = () => {
     setIsProcessing(true);
@@ -69,8 +127,9 @@ export const InstituteCheckout: React.FC = () => {
         <p className="text-sm text-slate-500">Review your billing details and complete the payment to activate your plan.</p>
       </div>
 
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Left Column: Form Details */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
@@ -122,7 +181,7 @@ export const InstituteCheckout: React.FC = () => {
                 onChange={(e) => setBillingAddress(e.target.value)}
                 placeholder="Full address for invoice"
               />
-              
+
               <div className="pt-2 flex items-start gap-2 text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
                 <ShieldCheck size={14} className="text-blue-400 mt-0.5 shrink-0" />
                 <span>These details are pre-filled from your Institute Profile and are fully editable. Changes here apply only to this invoice and will not update your primary profile.</span>
@@ -137,12 +196,12 @@ export const InstituteCheckout: React.FC = () => {
             <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
               Order Summary
             </h3>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="font-bold text-lg">{targetPlan.name}</div>
-                  <div className="text-xs text-slate-400 mt-1 uppercase tracking-widest">{targetPlan.billingType} Plan</div>
+                  <div className="text-xs text-slate-400 mt-1 uppercase tracking-widest">{defaultBilling.billingCycle} Plan</div>
                 </div>
                 <div className="font-mono font-bold">
                   {currencySymbol}{basePrice.toLocaleString()}
@@ -180,13 +239,12 @@ export const InstituteCheckout: React.FC = () => {
               </div>
             </div>
 
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onClick={handleCheckout}
               disabled={isProcessing}
-              className={`w-full mt-8 py-3.5 text-base shadow-lg transition-all ${
-                isProcessing ? 'opacity-80 cursor-not-allowed' : 'hover:scale-[1.02]'
-              }`}
+              className={`w-full mt-8 py-3.5 text-base shadow-lg transition-all ${isProcessing ? 'opacity-80 cursor-not-allowed' : 'hover:scale-[1.02]'
+                }`}
               style={{ backgroundColor: '#10b981', color: 'white', borderColor: '#10b981' }}
             >
               <div className="flex justify-center items-center gap-2 w-full">
@@ -198,7 +256,7 @@ export const InstituteCheckout: React.FC = () => {
                 )}
               </div>
             </Button>
-            
+
             <p className="text-[10px] text-center text-slate-400 mt-4 px-2">
               By proceeding, you agree to our Terms of Service and Privacy Policy. Secured by Razorpay.
             </p>

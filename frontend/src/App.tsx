@@ -4,6 +4,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FeeConfigProvider } from './context/FeeConfigContext';
 import { SchedulerProvider } from './features/scheduler/context/SchedulerContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Layout } from './components/layout/Layout';
 import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
@@ -644,16 +645,18 @@ const ScrollToTop = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <FeeConfigProvider>
-          <SchedulerProvider>
-            <ScrollToTop />
-            <MainContent />
-          </SchedulerProvider>
-        </FeeConfigProvider>
-      </AppProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppProvider>
+          <FeeConfigProvider>
+            <SchedulerProvider>
+              <ScrollToTop />
+              <MainContent />
+            </SchedulerProvider>
+          </FeeConfigProvider>
+        </AppProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

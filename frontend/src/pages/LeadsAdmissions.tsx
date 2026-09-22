@@ -62,7 +62,7 @@ const StatusBadge: React.FC<{ status: string | number }> = ({ status }) => {
   const classes = leadMap[statusStr] || studentStatusBadgeStyle(status);
 
   return (
-    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${classes}`}>
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border whitespace-nowrap select-none shadow-2xs ${classes}`}>
       {statusStr}
     </span>
   );
@@ -2692,26 +2692,26 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             </CardHeader>
             <Table 
               dense
-              minWidth="950px"
-              colWidths={['90px', '140px', '130px', '150px', '140px', '130px', '140px']}
-              headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', 'Actions']}
+              minWidth="1120px"
+              colWidths={['160px', '180px', '130px', '140px', '170px', '170px', '140px']}
+              headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', { label: 'Actions', align: 'center' }]}
             >
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-400 whitespace-nowrap">{s.studentId}</td>
-                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenDocModal(s)}>{s.name}</td>
-                  <td className="px-3.5 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{s.mobile || '—'}</td>
-                  <td className="px-3.5 py-3 text-xs text-slate-600 font-medium whitespace-nowrap">{s.course}</td>
+                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenDocModal(s)}>{s.name}</td>
+                  <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.mobile || '—'}</td>
+                  <td className="px-3.5 py-3 text-xs text-slate-700 font-medium whitespace-nowrap">{s.course}</td>
                   <td className="px-3.5 py-3 whitespace-nowrap">
                     {s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 ? (
-                      <span className="text-emerald-600 text-xs font-semibold flex items-center gap-1"><CheckCircle size={12} /> Verified</span>
+                      <span className="text-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5"><CheckCircle size={12} /> Verified</span>
                     ) : (
-                      <span className="text-amber-600 text-xs font-semibold flex items-center gap-1"><Clock size={12} /> Verification Pending</span>
+                      <span className="text-amber-600 text-xs font-semibold inline-flex items-center gap-1.5"><Clock size={12} /> Verification Pending</span>
                     )}
                   </td>
                   <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
-                  <td className="px-3.5 py-3 whitespace-nowrap">
-                    <Button variant="primary" size="sm" onClick={() => handleOpenDocModal(s)} className="cursor-pointer text-xs" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+                  <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                    <Button variant="primary" size="sm" onClick={() => handleOpenDocModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1" style={{ backgroundColor: '#2563eb', color: 'white' }}>
                       Review Docs <ChevronRight size={12} className="ml-1" />
                     </Button>
                   </td>
@@ -2733,26 +2733,35 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Batch Allocation Queue</CardTitle>
             </CardHeader>
-            <Table headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', 'Actions']}>
+            <Table
+              dense
+              minWidth="1050px"
+              colWidths={['140px', '170px', '110px', '130px', '130px', '140px', '160px', '140px']}
+              headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', { label: 'Actions', align: 'center' }]}
+            >
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{s.studentId}</td>
-                  <td className="px-6 py-4 font-semibold text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenBatchModal(s)}>
+                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenBatchModal(s)}>
                     {s.name}
                   </td>
-                  <td className="px-6 py-4 text-xs text-slate-700">{s.course}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{s.branch}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.admissionDate || '—'}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
+                  <td className="px-3.5 py-3 text-xs text-slate-600 whitespace-nowrap">{s.branch || '—'}</td>
+                  <td className="px-3.5 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{s.admissionDate || '—'}</td>
+                  <td className="px-3.5 py-3 whitespace-nowrap">
                     {s.batch ? (
-                      <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{s.batch}</span>
+                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
+                        {s.batch}
+                      </span>
                     ) : (
-                      <span className="text-xs text-amber-600 font-semibold flex items-center gap-1"><Clock size={12} /> Unassigned</span>
+                      <span className="text-xs text-amber-700 font-semibold inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                        <Clock size={12} /> Unassigned
+                      </span>
                     )}
                   </td>
-                  <td className="px-6 py-4"><StatusBadge status={s.status} /></td>
-                  <td className="px-6 py-4">
-                    <Button variant="secondary" size="sm" onClick={() => handleOpenBatchModal(s)} className="cursor-pointer text-xs">
+                  <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
+                  <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenBatchModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1">
                       <Layers size={12} className="mr-1" /> Allocate Batch
                     </Button>
                   </td>
@@ -2788,17 +2797,22 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Fee Activation & Status Ledger</CardTitle>
             </CardHeader>
-            <Table headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', 'Actions']}>
+            <Table
+              dense
+              minWidth="1250px"
+              colWidths={['160px', '170px', '120px', '170px', '110px', '110px', '110px', '160px', '140px']}
+              headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Actions', align: 'center' }]}
+            >
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-400">{s.studentId}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">{s.name}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600">{s.course}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{s.batch || '—'}</td>
-                  <td className="px-6 py-4 text-xs font-semibold text-slate-800">₹{(s.feePlan?.total || 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-xs font-bold text-emerald-600">₹{(s.feePlan?.paid || 0).toLocaleString()}</td>
-                  <td className="px-6 py-4 text-xs font-bold text-red-500">₹{(s.feePlan?.pending || 0).toLocaleString()}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                  <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">{s.name}</td>
+                  <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
+                  <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.batch || '—'}</td>
+                  <td className="px-3.5 py-3 text-xs font-semibold text-slate-800 whitespace-nowrap">₹{(s.feePlan?.total || 0).toLocaleString()}</td>
+                  <td className="px-3.5 py-3 text-xs font-bold text-emerald-600 whitespace-nowrap">₹{(s.feePlan?.paid || 0).toLocaleString()}</td>
+                  <td className="px-3.5 py-3 text-xs font-bold text-red-500 whitespace-nowrap">₹{(s.feePlan?.pending || 0).toLocaleString()}</td>
+                  <td className="px-3.5 py-3 whitespace-nowrap">
                     {s.status === 'Active Student' ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold rounded-md uppercase tracking-wider select-none">
                         <Zap size={10} className="fill-emerald-500 text-emerald-500" /> Active
@@ -2807,7 +2821,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       <StatusBadge status={s.status} />
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3.5 py-3 whitespace-nowrap text-center">
                     <button
                       onClick={() => {
                         const receipt = recordPayment(s.id, s.feePlan?.pending || 0, 'Cash');
@@ -2816,7 +2830,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                         }
                       }}
                       disabled={(s.feePlan?.pending || 0) === 0}
-                      className={`flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded border transition-colors select-none ${
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded border transition-colors select-none ${
                         (s.feePlan?.pending || 0) > 0
                           ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 cursor-pointer'
                           : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'

@@ -170,7 +170,7 @@ export const SaasAdminDashboard: React.FC = () => {
   const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [expiringLimit, setExpiringLimit] = useState<string>('10');
+  const [expiringLimit, setExpiringLimit] = useState<string>('5');
   const [loading, setLoading] = useState(true);
   const [hoveredStatusIndex, setHoveredStatusIndex] = useState<number | null>(null);
   const [hoveredUserStatusIndex, setHoveredUserStatusIndex] = useState<number | null>(null);
@@ -358,6 +358,37 @@ export const SaasAdminDashboard: React.FC = () => {
     }
   };
 
+  const getRoleBadge = (role: string | null | undefined) => {
+    const text = (role || 'USER').replace(/_/g, ' ').toUpperCase();
+    const normalized = (role || '').toLowerCase().trim();
+
+    let colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
+
+    if (normalized.includes('parent') || normalized.includes('guardian')) {
+      colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+    } else if (normalized.includes('student') || normalized.includes('learner')) {
+      colorClasses = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    } else if (normalized.includes('finance') || normalized.includes('accountant') || normalized.includes('acc')) {
+      colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    } else if (normalized.includes('teacher') || normalized.includes('faculty') || normalized.includes('instructor')) {
+      colorClasses = 'bg-teal-50 text-teal-700 border-teal-200';
+    } else if (normalized.includes('counsel')) {
+      colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
+    } else if (normalized.includes('branch')) {
+      colorClasses = 'bg-sky-50 text-sky-700 border-sky-200';
+    } else if (normalized.includes('inst') || normalized.includes('institute') || normalized.includes('owner')) {
+      colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+    } else if (normalized.includes('saas') || normalized.includes('super')) {
+      colorClasses = 'bg-purple-50 text-purple-700 border-purple-200';
+    }
+
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs ${colorClasses}`}>
+        {text}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-4 animate-fade-in pb-8">
       {/* ── HEADER: Title + Granularity Pills + Refresh ─────────────────────── */}
@@ -381,8 +412,8 @@ export const SaasAdminDashboard: React.FC = () => {
               type="button"
               onClick={() => setPreset('daily')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95 ${preset === 'daily'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
             >
               Daily
@@ -391,8 +422,8 @@ export const SaasAdminDashboard: React.FC = () => {
               type="button"
               onClick={() => setPreset('weekly')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95 ${preset === 'weekly'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
             >
               Weekly
@@ -401,8 +432,8 @@ export const SaasAdminDashboard: React.FC = () => {
               type="button"
               onClick={() => setPreset('monthly')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95 ${preset === 'monthly'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
             >
               Monthly
@@ -690,8 +721,8 @@ export const SaasAdminDashboard: React.FC = () => {
                 type="button"
                 onClick={() => setActiveEcosystemTab('tenants')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all ${activeEcosystemTab === 'tenants'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 <PieIcon size={12} />
@@ -701,8 +732,8 @@ export const SaasAdminDashboard: React.FC = () => {
                 type="button"
                 onClick={() => setActiveEcosystemTab('users')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-all ${activeEcosystemTab === 'users'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
                   }`}
               >
                 <Users size={12} />
@@ -961,8 +992,8 @@ export const SaasAdminDashboard: React.FC = () => {
               type="button"
               onClick={() => setActiveTableTab('expiring')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTableTab === 'expiring'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               <span>Expiring Renewals</span>
@@ -975,8 +1006,8 @@ export const SaasAdminDashboard: React.FC = () => {
               type="button"
               onClick={() => setActiveTableTab('payments')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTableTab === 'payments'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               <span>Recent Payments</span>
@@ -989,8 +1020,8 @@ export const SaasAdminDashboard: React.FC = () => {
               type="button"
               onClick={() => setActiveTableTab('users')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTableTab === 'users'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
                 }`}
             >
               <span>Recent Users</span>
@@ -1229,9 +1260,7 @@ export const SaasAdminDashboard: React.FC = () => {
                     <div className="text-[10px] text-slate-400">{user.email}</div>
                   </td>
                   <td className="px-3 py-2.5 text-xs">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                      {user.user_type?.replace(/_/g, ' ')?.toUpperCase() || 'USER'}
-                    </span>
+                    {getRoleBadge(user.user_type)}
                   </td>
                   <td className="px-3 py-2.5 text-slate-700 text-xs font-semibold">
                     {user.tenant_name || 'Vidya Setu Platform'}

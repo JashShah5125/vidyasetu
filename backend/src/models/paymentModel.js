@@ -37,7 +37,7 @@ const getStudentLedger = async (tenantId, studentId, accessContext = null) => {
             se.batch_id,
             bat.name AS batch_name
          FROM students s
-         JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+         LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
          LEFT JOIN branches b ON s.primary_branch_id = b.id AND b.tenant_id = s.tenant_id
          LEFT JOIN academic_years ay ON se.academic_year_id = ay.id AND ay.tenant_id = s.tenant_id
          LEFT JOIN batches bat ON se.batch_id = bat.id AND bat.tenant_id = s.tenant_id
@@ -578,12 +578,12 @@ const collectBranchPayment = async ({
         const [students] = await conn.query(
             `SELECT s.id, s.primary_branch_id, s.full_name, s.student_code, se.id AS enrollment_id
              FROM students s
-             JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+             LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
              WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
              FOR UPDATE`,
             [tid, sid]
         );
-        if (students.length === 0) throw httpError(404, 'Active student enrollment not found');
+        if (students.length === 0) throw httpError(404, 'Student not found');
 
         const student = students[0];
         if (bid && Number(student.primary_branch_id) !== bid) {
@@ -784,12 +784,12 @@ const updateStudentFeeAssignment = async (tenantId, studentId, payload, accessCo
         const [students] = await conn.query(
             `SELECT s.id, s.primary_branch_id, se.id AS enrollment_id
              FROM students s
-             JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
+             LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
              WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
              FOR UPDATE`,
             [tid, sid]
         );
-        if (students.length === 0) throw httpError(404, 'Student enrollment not found');
+        if (students.length === 0) throw httpError(404, 'Student not found');
 
         const student = students[0];
         if (accessContext && accessContext.scope === 'BRANCH' && accessContext.authorizedBranchId) {
