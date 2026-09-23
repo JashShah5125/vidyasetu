@@ -37,7 +37,8 @@ import {
   CreditCard,
   Clock,
   FileText,
-  CheckCircle
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import api from '../../services/api';
@@ -519,6 +520,7 @@ export const UsersAndRoles: React.FC = () => {
   const [formUserStatus, setFormUserStatus] = useState<'active' | 'inactive'>('active');
   const [formPassword, setFormPassword] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [createUserError, setCreateUserError] = useState<string | null>(null);
 
   // Reset Password Modal
   const [showResetModal, setShowResetModal] = useState(false);
@@ -797,6 +799,7 @@ export const UsersAndRoles: React.FC = () => {
     setFormRoleId(roles[0]?.id || '');
     setFormUserStatus('active');
     setFormPassword('');
+    setCreateUserError(null);
     setShowCreateModal(true);
   };
 
@@ -833,8 +836,11 @@ export const UsersAndRoles: React.FC = () => {
   // Submit Create User Form
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateUserError(null);
     if (!formName || !formEmail || !formTenantId || !formUserType || !formPassword) {
-      addToast('Please fill in all required fields.', 'error');
+      const msg = 'Please fill in all required fields.';
+      setCreateUserError(msg);
+      addToast(msg, 'error');
       return;
     }
 
@@ -856,7 +862,9 @@ export const UsersAndRoles: React.FC = () => {
         fetchUsers();
       }
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Failed to create user.', 'error');
+      const errorMsg = err.response?.data?.message || 'Failed to create user.';
+      setCreateUserError(errorMsg);
+      addToast(errorMsg, 'error');
     } finally {
       setFormSubmitting(false);
     }
@@ -4431,6 +4439,13 @@ export const UsersAndRoles: React.FC = () => {
             </div>
 
             <form onSubmit={handleCreateUserSubmit} className="p-6 space-y-4">
+              {createUserError && (
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-sm animate-fade-in">
+                  <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 font-medium">{createUserError}</div>
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-semibold text-slate-700 mb-1 block">Belongs To Tenant <span className="text-red-500">*</span></label>
                 <select value={formTenantId} onChange={(e) => setFormTenantId(Number(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
