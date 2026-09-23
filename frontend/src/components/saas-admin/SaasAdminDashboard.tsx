@@ -583,9 +583,6 @@ export const SaasAdminDashboard: React.FC = () => {
                       ? 'Weekly Revenue Trajectory (8 Weeks)'
                       : `Revenue Collection Trend (${selectedYear === 'all' ? 'All-Time / ' + new Date().getFullYear() : selectedYear})`}
                 </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {formatINR(billing?.collected_revenue || 0)}
-                </span>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">Real-time paid invoice receipts aggregated by period</p>
             </div>

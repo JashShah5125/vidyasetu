@@ -19,15 +19,30 @@ const buildDateRangeClause = (params, startDate, endDate) => {
 const buildInvoiceDateFilter = (alias, params, { year, month, startDate, endDate } = {}) => {
     const p = (field) => `${alias}${field}`;
     let clause = '';
-    // Only apply YEAR(...) = year if explicit date range is NOT provided
-    if (year && year !== 'all' && !startDate && !endDate) {
-        clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
-        params.push(Number(year));
-    }
-    if (month && month !== 'all') {
+
+    const hasSpecificYear = year && year !== 'all';
+    const hasSpecificMonth = month && month !== 'all';
+
+    // If specific month is selected (e.g. month=4 for April)
+    if (hasSpecificMonth) {
         clause += ` AND MONTH(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
         params.push(Number(month));
+
+        if (hasSpecificYear) {
+            clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
+            params.push(Number(year));
+        }
+        return clause;
     }
+
+    // If specific year is selected without specific month (e.g. year=2026)
+    if (hasSpecificYear) {
+        clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
+        params.push(Number(year));
+        return clause;
+    }
+
+    // Otherwise apply explicit date range if provided (daily/weekly/monthly preset)
     if (startDate) {
         clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) >= DATE(?)`;
         params.push(startDate);
@@ -156,33 +171,27 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
         ${whereClause}
     `, params);
 
-    // 4. MRR computation for active subscriptions
-    let mrrWhere = `WHERE t.tenant_type = 'customer' AND t.id != 1 AND t.status = 'active'`;
-    const mrrParams = [];
-    mrrWhere += buildInvoiceDateFilter('i.', mrrParams, { year, month, startDate, endDate });
-
-    const [[mrrRows]] = await pool.query(`
+    // 4. MRR computation for active customer subscriptions
+    const [[tenantMrr]] = await pool.query(`
         SELECT
             SUM(
-                COALESCE(i.total_amount, t.subscription_final_price, 0) / CASE COALESCE(i.billing_cycle, 'monthly')
+                t.subscription_final_price / CASE LOWER(t.billing_cycle)
                     WHEN 'monthly'     THEN 1
                     WHEN 'quarterly'   THEN 3
                     WHEN 'half_yearly' THEN 6
                     WHEN 'yearly'      THEN 12
+                    WHEN 'annual'      THEN 12
                     WHEN 'lifetime'    THEN 36
                     ELSE 1
                 END
             ) AS mrr
         FROM tenants t
-        LEFT JOIN saas_invoices i ON i.tenant_id = t.id AND i.status = 'paid' AND i.deleted_at IS NULL
-        ${mrrWhere}
-    `, mrrParams);
-
-    const [[tenantMrr]] = await pool.query(`
-        SELECT SUM(subscription_final_price) AS mrr
-        FROM tenants
-        WHERE tenant_type = 'customer' AND id != 1 AND status = 'active'
+        WHERE t.tenant_type = 'customer' AND t.id != 1 AND (t.status = 1 OR t.status = '1')
     `);
+
+    const rawMrr = Number(tenantMrr?.mrr) || 0;
+    const mrr = Math.round(rawMrr);
+    const arr = Math.round(mrr * 12);
 
     // 5. Top 5 recent paid invoice receipts for selected period
     let paymentsWhere = `WHERE i.status = 'paid' AND i.deleted_at IS NULL AND t.tenant_type = 'customer' AND t.id != 1`;
@@ -201,9 +210,6 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
         LIMIT 5
     `, paymentsParams);
 
-    const rawMrr = Number(mrrRows?.mrr) || Number(tenantMrr?.mrr) || 0;
-    const mrr = Math.round(rawMrr);
-    const arr = Math.round(mrr * 12);
     const total_revenue = Math.round(Number(revRows.total_invoiced) || 0);
     const collected_revenue = Math.round(Number(revRows.collected_revenue) || 0);
     const outstanding_revenue = Math.round(Number(revRows.outstanding_revenue) || 0);

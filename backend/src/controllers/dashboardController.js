@@ -266,9 +266,20 @@ const getSaasStats = async (req, res) => {
         `);
 
         const [[mrrStats]] = await db.query(`
-            SELECT SUM(subscription_final_price) as total_mrr
+            SELECT 
+                SUM(
+                    subscription_final_price / CASE LOWER(billing_cycle)
+                        WHEN 'monthly'     THEN 1
+                        WHEN 'quarterly'   THEN 3
+                        WHEN 'half_yearly' THEN 6
+                        WHEN 'yearly'      THEN 12
+                        WHEN 'annual'      THEN 12
+                        WHEN 'lifetime'    THEN 36
+                        ELSE 1
+                    END
+                ) as total_mrr
             FROM tenants
-            WHERE tenant_type != 'master' AND id != 1 AND status = 1
+            WHERE tenant_type != 'master' AND id != 1 AND (status = 1 OR status = '1')
         `);
 
         const [allActive] = await db.query(`

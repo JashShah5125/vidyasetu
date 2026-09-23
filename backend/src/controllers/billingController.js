@@ -28,8 +28,10 @@ const getBillingSummary = async (req, res) => {
         let sDate = startDate;
         let eDate = endDate;
 
+        const hasCustomFilter = (year && year !== 'all') || (month && month !== 'all');
         const effectivePreset = preset || time_range;
-        if (effectivePreset && (!sDate && !eDate)) {
+
+        if (effectivePreset && (!sDate && !eDate) && !hasCustomFilter) {
             const today = new Date();
             const pad = (n) => String(n).padStart(2, '0');
             const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
