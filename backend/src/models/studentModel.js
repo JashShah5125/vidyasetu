@@ -565,12 +565,19 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
         let studentUserId = null;
         // Check if user already exists
         const [existingStudentUsers] = await connection.query(
-            `SELECT id FROM users WHERE email = ? AND tenant_id = ?`,
-            [studentEmail, tenantId]
+            `SELECT id, tenant_id FROM users WHERE LOWER(email) = LOWER(?) AND deleted_at IS NULL`,
+            [studentEmail]
         );
 
         if (existingStudentUsers.length > 0) {
-            studentUserId = existingStudentUsers[0].id;
+            const matchedTenantUser = existingStudentUsers.find(u => u.tenant_id === tenantId);
+            if (matchedTenantUser) {
+                studentUserId = matchedTenantUser.id;
+            } else {
+                const err = new Error('An account with this email address already exists.');
+                err.statusCode = 409;
+                throw err;
+            }
         } else {
             const [userRes] = await connection.query(`
                 INSERT INTO users (
@@ -636,12 +643,19 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
 
             let guardianUserId = null;
             const [existingParentUsers] = await connection.query(
-                `SELECT id FROM users WHERE email = ? AND tenant_id = ?`,
-                [guardianEmail, tenantId]
+                `SELECT id, tenant_id FROM users WHERE LOWER(email) = LOWER(?) AND deleted_at IS NULL`,
+                [guardianEmail]
             );
 
             if (existingParentUsers.length > 0) {
-                guardianUserId = existingParentUsers[0].id;
+                const matchedTenantParent = existingParentUsers.find(u => u.tenant_id === tenantId);
+                if (matchedTenantParent) {
+                    guardianUserId = matchedTenantParent.id;
+                } else {
+                    const err = new Error('An account with this guardian email address already exists.');
+                    err.statusCode = 409;
+                    throw err;
+                }
             } else {
                 const [parentUserRes] = await connection.query(`
                     INSERT INTO users (

@@ -39,15 +39,20 @@ const updateProfile = async (req, res) => {
         const { name, email } = req.body;
         const userId = req.user.userId;
 
-        const existing = await userModel.findUserByEmail(email, req.user.tenantId);
-        if (existing && existing.length > 0 && existing[0].id !== userId) {
-            return res.status(409).json({ status: 'error', message: 'Email is already in use by another account' });
+        if (email) {
+            const existing = await userModel.findUserByEmail(email.trim());
+            if (existing && existing.length > 0 && existing.some(u => u.id !== userId)) {
+                return res.status(409).json({ status: 'error', message: 'An account with this email address already exists.' });
+            }
         }
 
         await userModel.updateUserProfile(userId, { name, email });
         res.status(200).json({ status: 'success', message: 'Profile updated successfully' });
     } catch (error) {
         console.error('Update profile error:', error);
+        if (error.statusCode === 409 || (error.message && error.message.includes('already in use'))) {
+            return res.status(409).json({ status: 'error', message: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Unable to update profile' });
     }
 };

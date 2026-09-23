@@ -27,6 +27,19 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
         throw new Error('Tenant slug already exists');
     }
 
+    // Check if admin email already exists for any user
+    if (adminEmail) {
+        const [existingUsers] = await pool.query(
+            'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND deleted_at IS NULL',
+            [adminEmail.trim()]
+        );
+        if (existingUsers && existingUsers.length > 0) {
+            const err = new Error('An account with this email address already exists.');
+            err.statusCode = 409;
+            throw err;
+        }
+    }
+
     // Generate unique internal code
     const code = 'T-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 

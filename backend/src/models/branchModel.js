@@ -308,15 +308,22 @@ const linkOrCreateBranchAdmin = async (conn, tenantId, branchId, data, actingUse
     let targetUserId = null;
 
     if (adminEmail) {
-        // Check if an existing user has this email
+        // Check if an existing user globally has this email
         const [existingByEmail] = await conn.query(
-            `SELECT id, name, email, mobile FROM users WHERE tenant_id = ? AND email = ?`,
-            [tenantId, adminEmail]
+            `SELECT id, tenant_id, name, email, mobile FROM users WHERE LOWER(email) = LOWER(?) AND deleted_at IS NULL`,
+            [adminEmail.trim()]
         );
 
-        if (existingByEmail[0]) {
-            // Reassign to the existing user who owns this email
-            targetUserId = existingByEmail[0].id;
+        if (existingByEmail && existingByEmail.length > 0) {
+            const matchedTenantUser = existingByEmail.find(u => u.tenant_id === tenantId);
+            if (matchedTenantUser) {
+                // Reassign to the existing user in this tenant who owns this email
+                targetUserId = matchedTenantUser.id;
+            } else {
+                const err = new Error('An account with this email address already exists.');
+                err.statusCode = 409;
+                throw err;
+            }
         } else if (existingBranchAdmin) {
             // Change the email of the existing branch admin
             targetUserId = existingBranchAdmin.id;
@@ -326,7 +333,7 @@ const linkOrCreateBranchAdmin = async (conn, tenantId, branchId, data, actingUse
                     updated_by = ?,
                     updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?`,
-                [adminEmail, actingUserId, targetUserId]
+                [adminEmail.trim(), actingUserId, targetUserId]
             );
         } else {
             // Create a brand new admin user

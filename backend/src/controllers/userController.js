@@ -49,10 +49,10 @@ const createUser = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Tenant, name, email, password, and user type are required' });
         }
 
-        // Check email uniqueness within tenant
-        const existing = await userModel.findUserByEmail(email, tenant_id);
+        // Check global email uniqueness across all users
+        const existing = await userModel.findUserByEmail(email.trim());
         if (existing && existing.length > 0) {
-            return res.status(409).json({ status: 'error', message: 'Email address is already in use for this tenant' });
+            return res.status(409).json({ status: 'error', message: 'An account with this email address already exists.' });
         }
 
         const password_hash = await bcrypt.hash(password, 10);
@@ -61,7 +61,7 @@ const createUser = async (req, res) => {
         const newUserId = await userModel.createUser({
             tenant_id,
             name,
-            email,
+            email: email.trim(),
             mobile,
             password_hash,
             user_type,
@@ -77,6 +77,9 @@ const createUser = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating user:', error);
+        if (error.statusCode === 409 || (error.message && error.message.includes('already exists'))) {
+            return res.status(409).json({ status: 'error', message: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to create user' });
     }
 };
@@ -91,11 +94,11 @@ const updateUser = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'User not found' });
         }
 
-        // Email conflict check
-        if (email && email !== user.email) {
-            const existing = await userModel.findUserByEmail(email, user.tenant_id);
-            if (existing && existing.length > 0 && existing[0].id !== parseInt(id)) {
-                return res.status(409).json({ status: 'error', message: 'Email is already used by another account in this tenant' });
+        // Global email conflict check
+        if (email && email.trim().toLowerCase() !== (user.email || '').toLowerCase()) {
+            const existing = await userModel.findUserByEmail(email.trim());
+            if (existing && existing.length > 0 && existing.some(u => u.id !== parseInt(id))) {
+                return res.status(409).json({ status: 'error', message: 'This email address is already in use by another account.' });
             }
         }
 

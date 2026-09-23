@@ -33,7 +33,20 @@ const createStaff = async (tenantId, staffData, creatorUserId, accessContext = {
             );
         }
 
-        const email = staffData.email || null;
+        const email = staffData.email ? staffData.email.trim() : null;
+
+        // Check if email already belongs to an existing user
+        if (email) {
+            const [existingEmail] = await connection.query(
+                'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND deleted_at IS NULL',
+                [email]
+            );
+            if (existingEmail && existingEmail.length > 0) {
+                const err = new Error('An account with this email address already exists.');
+                err.statusCode = 409;
+                throw err;
+            }
+        }
 
         // 1. Create User (Email is default login ID, password auto-generated, must change on first login)
         let userId = null;
@@ -416,7 +429,22 @@ const updateStaff = async (tenantId, staffId, staffData, accessContext = { scope
             }
         }
 
-        const email = staffData.email || null;
+        const email = staffData.email ? staffData.email.trim() : null;
+
+        // Check if email already belongs to another user
+        if (email) {
+            const [existingEmail] = await connection.query(
+                `SELECT u.id FROM users u 
+                 JOIN staff_profiles sp ON u.id = sp.user_id 
+                 WHERE LOWER(u.email) = LOWER(?) AND sp.id != ? AND u.deleted_at IS NULL`,
+                [email, staffId]
+            );
+            if (existingEmail && existingEmail.length > 0) {
+                const err = new Error('This email address is already in use by another account.');
+                err.statusCode = 409;
+                throw err;
+            }
+        }
 
         const workingDays = Array.isArray(staffData.workingDays)
             ? staffData.workingDays

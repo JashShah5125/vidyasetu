@@ -91,6 +91,9 @@ const createStudent = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating student:', error);
+        if (error.statusCode === 409 || (error.message && error.message.includes('already exists'))) {
+            return res.status(409).json({ status: 'error', message: error.message });
+        }
         res.status(500).json({ status: 'error', message: 'Failed to create student' });
     }
 };

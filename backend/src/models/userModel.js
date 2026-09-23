@@ -653,9 +653,21 @@ const updatePassword = async (userId, passwordHash) => {
 };
 
 const updateUserProfile = async (userId, { name, email }) => {
+    if (email) {
+        const [existing] = await pool.query(
+            'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id != ? AND deleted_at IS NULL',
+            [email.trim(), userId]
+        );
+        if (existing && existing.length > 0) {
+            const err = new Error('This email address is already in use by another account.');
+            err.statusCode = 409;
+            throw err;
+        }
+    }
+
     const [result] = await pool.query(
         'UPDATE users SET name = ?, email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [name, email, userId]
+        [name, email ? email.trim() : email, userId]
     );
     return result.affectedRows > 0;
 };
@@ -766,10 +778,22 @@ const createUser = async ({ tenant_id, name, email, mobile, password_hash, user_
     try {
         await connection.beginTransaction();
 
+        if (email) {
+            const [existing] = await connection.query(
+                'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND deleted_at IS NULL',
+                [email.trim()]
+            );
+            if (existing && existing.length > 0) {
+                const err = new Error('An account with this email address already exists.');
+                err.statusCode = 409;
+                throw err;
+            }
+        }
+
         const [result] = await connection.query(
             `INSERT INTO users (tenant_id, name, email, mobile, password_hash, user_type, status, must_change_password, password_generated_at, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)`,
-            [tenant_id, name, email, mobile || null, password_hash, user_type, status, created_by || null]
+            [tenant_id, name, email ? email.trim() : email, mobile || null, password_hash, user_type, status, created_by || null]
         );
 
         const newUserId = result.insertId;
@@ -811,11 +835,23 @@ const updateUser = async (id, { name, email, mobile, user_type, status, app_acce
     try {
         await connection.beginTransaction();
 
+        if (email) {
+            const [existing] = await connection.query(
+                'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id != ? AND deleted_at IS NULL',
+                [email.trim(), id]
+            );
+            if (existing && existing.length > 0) {
+                const err = new Error('This email address is already in use by another account.');
+                err.statusCode = 409;
+                throw err;
+            }
+        }
+
         await connection.query(
             `UPDATE users 
              SET name = ?, email = ?, mobile = ?, user_type = ?, status = ?, app_access_suspended = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ? AND deleted_at IS NULL`,
-            [name, email, mobile || null, user_type, status, app_access_suspended ? 1 : 0, updated_by || null, id]
+            [name, email ? email.trim() : email, mobile || null, user_type, status, app_access_suspended ? 1 : 0, updated_by || null, id]
         );
 
         if (role_id) {

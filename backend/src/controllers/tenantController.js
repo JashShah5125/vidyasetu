@@ -141,7 +141,7 @@ const createTenant = async (req, res) => {
         res.status(201).json({ status: 'success', message: 'Tenant created successfully', data: responseData });
     } catch (error) {
         console.error('Error creating tenant:', error);
-        if (error.message === 'Tenant slug already exists' || error.message === 'Lead has already been converted') {
+        if (error.statusCode === 409 || error.message === 'Tenant slug already exists' || error.message === 'Lead has already been converted' || (error.message && error.message.includes('already exists'))) {
             return res.status(409).json({ status: 'error', message: error.message });
         }
         res.status(500).json({ status: 'error', message: 'Internal server error' });

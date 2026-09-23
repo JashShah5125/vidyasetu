@@ -21,6 +21,9 @@ const createStaff = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating staff:', error);
+        if (error.statusCode === 409 || (error.message && (error.message.includes('already exists') || error.message.includes('already in use')))) {
+            return res.status(409).json({ message: error.message });
+        }
         res.status(500).json({ message: 'Internal server error while creating staff.', error: error.message });
     }
 };
@@ -93,6 +96,9 @@ const updateStaff = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating staff:', error);
+        if (error.statusCode === 409 || (error.message && (error.message.includes('already exists') || error.message.includes('already in use')))) {
+            return res.status(409).json({ message: error.message });
+        }
         res.status(500).json({ message: 'Internal server error while updating staff.', error: error.message });
     }
 };
