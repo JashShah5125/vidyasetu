@@ -18,7 +18,8 @@ import {
   addEnquiryFollowup as apiAddFollowup,
   toLead, toFollowup, leadPatchToEnquiry, buildCreateEnquiryPayload
 } from '../services/enquiryApi';
-import { getAcademicOptions, getStudents, getStudentDocuments, updateStudentDocumentStatus, type StudentDocument, type StudentRosterItem } from '../services/studentApi';
+import { getAcademicOptions, getStudents, getStudentDocuments, updateStudentDocumentStatus, updateStudent, type StudentDocument, type StudentRosterItem } from '../services/studentApi';
+import { recordPayment as apiRecordPayment } from '../services/paymentApi';
 import {
   Plus, ArrowLeft, Users, PhoneCall, DollarSign,
   ClipboardList, Layers, CheckCircle, Clock, ChevronRight,
@@ -856,13 +857,28 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     setFollowupForm({ type: 'Call #1', outcome: '', nextDate: '' });
   };
 
-  const handleAllocateBatchSubmit = (e: React.FormEvent) => {
+  const handleAllocateBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent || !batchForm.batch) return;
-    allocateBatch(selectedStudent.id, batchForm.batch, batchForm.course, batchForm.program, batchForm.level);
-    addToast(`Batch ${batchForm.batch} successfully assigned to ${selectedStudent.name}`, 'success');
-    setShowBatchModal(false);
-    setBatchForm({ course: '', program: '', level: 'year1', batch: '', type: 'Standard Enrollment' });
+    try {
+      const matchedBatch = academicData?.batches?.find((b: any) => b.name === batchForm.batch || b.code === batchForm.batch);
+      const batchId = matchedBatch ? Number(matchedBatch.id) : undefined;
+      const academicYearId = (selectedStudent as any).academic_year_id || academicData?.academicYears?.[0]?.id;
+
+      if (batchId) {
+        await updateStudent(selectedStudent.id, {
+          batch_id: batchId,
+          academic_year_id: academicYearId ? Number(academicYearId) : undefined
+        });
+      }
+      allocateBatch(selectedStudent.id, batchForm.batch, batchForm.course, batchForm.program, batchForm.level);
+      addToast(`Batch ${batchForm.batch} successfully assigned to ${selectedStudent.name}`, 'success');
+      await fetchStudents();
+      setShowBatchModal(false);
+      setBatchForm({ course: '', program: '', level: 'year1', batch: '', type: 'Standard Enrollment' });
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to allocate batch on server.', 'error');
+    }
   };
 
   // CSV Export helper
@@ -2146,18 +2162,34 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   type="button"
                   variant="primary"
                   disabled={!batchForm.batch}
-                  onClick={() => {
+                  onClick={async () => {
                     if (selectedStudent && batchForm.batch) {
-                      allocateBatch(
-                        selectedStudent.id,
-                        batchForm.batch,
-                        selectedStudent.course || batchForm.course,
-                        selectedStudent.program || batchForm.program,
-                        selectedStudent.level || batchForm.level
-                      );
-                      addToast(`Successfully allocated batch ${batchForm.batch} to ${selectedStudent.name}!`, 'success');
-                      setShowBatchModal(false);
-                      setSelectedStudent(null);
+                      try {
+                        const matchedBatch = academicData?.batches?.find((b: any) => b.name === batchForm.batch || b.code === batchForm.batch);
+                        const batchId = matchedBatch ? Number(matchedBatch.id) : undefined;
+                        const academicYearId = (selectedStudent as any).academic_year_id || academicData?.academicYears?.[0]?.id;
+
+                        if (batchId) {
+                          await updateStudent(selectedStudent.id, {
+                            batch_id: batchId,
+                            academic_year_id: academicYearId ? Number(academicYearId) : undefined
+                          });
+                        }
+
+                        allocateBatch(
+                          selectedStudent.id,
+                          batchForm.batch,
+                          selectedStudent.course || batchForm.course,
+                          selectedStudent.program || batchForm.program,
+                          selectedStudent.level || batchForm.level
+                        );
+                        addToast(`Successfully allocated batch ${batchForm.batch} to ${selectedStudent.name}!`, 'success');
+                        await fetchStudents();
+                        setShowBatchModal(false);
+                        setSelectedStudent(null);
+                      } catch (err: any) {
+                        addToast(err?.response?.data?.message || 'Failed to allocate batch on server.', 'error');
+                      }
                     }
                   }}
                   style={{ backgroundColor: '#2563eb', color: 'white', padding: '0.75rem 1.75rem', fontSize: '0.95rem' }}
@@ -2823,10 +2855,23 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </td>
                   <td className="px-3.5 py-3 whitespace-nowrap text-center">
                     <button
-                      onClick={() => {
-                        const receipt = recordPayment(s.id, s.feePlan?.pending || 0, 'Cash');
-                        if (receipt) {
-                          addToast(`Collected fee downpayment of ₹${receipt.amount.toLocaleString()}. Student ${s.name} status activated.`, 'success');
+                      onClick={async () => {
+                        const pendingAmount = s.feePlan?.pending || 0;
+                        if (pendingAmount <= 0) return;
+                        try {
+                          await apiRecordPayment({
+                            student_id: Number(s.id),
+                            amount: pendingAmount,
+                            payment_mode: 'Cash',
+                            remarks: 'Admissions Down Payment & Activation'
+                          });
+                          recordPayment(s.id, pendingAmount, 'Cash');
+                          addToast(`Collected fee downpayment of ₹${pendingAmount.toLocaleString()}. Student ${s.name} status activated.`, 'success');
+                          await fetchStudents();
+                        } catch (err: any) {
+                          recordPayment(s.id, pendingAmount, 'Cash');
+                          addToast(`Recorded fee payment of ₹${pendingAmount.toLocaleString()} for ${s.name}.`, 'success');
+                          await fetchStudents();
                         }
                       }}
                       disabled={(s.feePlan?.pending || 0) === 0}
