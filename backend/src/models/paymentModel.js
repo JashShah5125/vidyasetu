@@ -390,6 +390,16 @@ const recordPayment = async ({
             [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
         );
 
+        // Activate student status in students table and admissions table upon downpayment/fee payment
+        await conn.query(
+            `UPDATE students SET status = 1, updated_at = NOW() WHERE id = ? AND tenant_id = ?`,
+            [Number(studentId), tid]
+        );
+        await conn.query(
+            `UPDATE admissions SET status = 1, activated_at = NOW(), updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+            [Number(studentId), tid]
+        );
+
         await conn.commit();
 
         return {

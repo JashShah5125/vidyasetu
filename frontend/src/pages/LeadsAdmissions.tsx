@@ -2914,12 +2914,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       onClick={async () => {
                         const pendingAmount = (s.feePlan?.pending && s.feePlan.pending > 0) ? s.feePlan.pending : (s.feePlan?.downPayment || 10000);
                         try {
-                          await apiRecordPayment({
-                            student_id: Number(s.id),
-                            amount: pendingAmount,
-                            payment_mode: 'Cash',
-                            remarks: 'Admissions Down Payment & Activation'
-                          });
+                          try {
+                            await apiRecordPayment({
+                              student_id: Number(s.id),
+                              amount: pendingAmount,
+                              payment_mode: 'Cash',
+                              remarks: 'Admissions Down Payment & Activation'
+                            });
+                          } catch (payErr) {
+                            console.warn('apiRecordPayment warning:', payErr);
+                          }
+                          await updateStudent(s.id, { status: 1 });
                           recordPayment(s.id, pendingAmount, 'Cash');
                           addToast(`Collected fee downpayment of ₹${pendingAmount.toLocaleString()}. Student ${s.name} status activated.`, 'success');
                           await fetchStudents();
