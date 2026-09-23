@@ -2912,8 +2912,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   <td className="px-3.5 py-3 whitespace-nowrap text-center">
                     <button
                       onClick={async () => {
-                        const pendingAmount = s.feePlan?.pending || 0;
-                        if (pendingAmount <= 0) return;
+                        const pendingAmount = (s.feePlan?.pending && s.feePlan.pending > 0) ? s.feePlan.pending : (s.feePlan?.downPayment || 10000);
                         try {
                           await apiRecordPayment({
                             student_id: Number(s.id),
@@ -2930,14 +2929,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                           await fetchStudents();
                         }
                       }}
-                      disabled={(s.feePlan?.pending || 0) === 0}
+                      disabled={s.status === 'Active Student'}
                       className={`inline-flex items-center justify-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-colors select-none whitespace-nowrap ${
-                        (s.feePlan?.pending || 0) > 0
+                        s.status !== 'Active Student'
                           ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 cursor-pointer shadow-xs'
                           : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
                       }`}
                     >
-                      Record Payment
+                      {s.status === 'Active Student' ? 'Activated' : 'Record Payment'}
                     </button>
                   </td>
                 </tr>

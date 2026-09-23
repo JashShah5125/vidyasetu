@@ -1019,10 +1019,44 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
                 ]);
                 effectiveEnrollmentId = enrollmentRes.insertId;
                 await connection.query(`UPDATE batches SET current_strength = current_strength + 1 WHERE id = ? AND tenant_id = ?`, [updateData.batch_id, tenantId]);
+
+                // Ensure a fee assignment exists for this student
+                const [checkFee] = await connection.query(
+                    `SELECT id FROM student_fee_assignments WHERE student_id = ? AND tenant_id = ?`,
+                    [id, tenantId]
+                );
+                if (!checkFee.length) {
+                    const [enqFee] = await connection.query(
+                        `SELECT enq.actual_price, enq.concession_amount, enq.final_price, enq.down_payment, enq.installment_months, enq.installment_amount
+                         FROM admissions adm
+                         JOIN enquiries enq ON adm.enquiry_id = enq.id
+                         WHERE adm.student_id = ? AND adm.tenant_id = ? LIMIT 1`,
+                        [id, tenantId]
+                    );
+                    const enq = enqFee[0] || {};
+                    const gross = Number(enq.actual_price || enq.final_price || 120000);
+                    const disc = Number(enq.concession_amount || 0);
+                    const net = Math.max(0, gross - disc);
+                    const down = Number(enq.down_payment || 10000);
+                    const instCount = Math.max(1, Number(enq.installment_months || 3));
+                    const instAmount = Number(enq.installment_amount || Math.round((net - down) / instCount));
+
+                    await connection.query(`
+                        INSERT INTO student_fee_assignments (
+                            tenant_id, branch_id, student_id, enrollment_id, fee_source_type, fee_source_id,
+                            gross_amount, total_concession, net_amount, down_payment, installment_count, installment_amount,
+                            paid_amount, balance_amount, status, created_by, updated_by
+                        ) VALUES (?, ?, ?, ?, 'bundle', NULL, ?, ?, ?, ?, ?, ?, 0, ?, 'pending', ?, ?)
+                    `, [
+                        tenantId, effectiveBranchId, id, effectiveEnrollmentId,
+                        gross, disc, net, down, instCount, instAmount,
+                        net, updatedBy, updatedBy
+                    ]);
+                }
             }
         }
 
-        // 5. Dynamic Partial Update on `student_fee_assignments` table
+        // 5. Dynamic Partial Update on \`student_fee_assignments\` table
         const feeFields = ['gross_amount', 'discount_amount', 'total_concession', 'downpayment_amount', 'down_payment', 'installment_count', 'installment_amount'];
         const hasFeeUpdates = feeFields.some(f => updateData[f] !== undefined);
 
