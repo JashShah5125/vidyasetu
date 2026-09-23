@@ -2779,9 +2779,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             </CardHeader>
             <Table
               dense
-              minWidth="1050px"
-              colWidths={['140px', '170px', '110px', '130px', '130px', '140px', '160px', '140px']}
-              headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', { label: 'Actions', align: 'center' }]}
+              minWidth="1180px"
+              colWidths={['140px', '160px', '120px', '130px', '130px', '150px', '160px', '170px']}
+              headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', { label: 'Actions', align: 'center', minWidth: '160px' }]}
             >
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
@@ -2805,8 +2805,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </td>
                   <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
                   <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                    <Button variant="secondary" size="sm" onClick={() => handleOpenBatchModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1">
-                      <Layers size={12} className="mr-1" /> Allocate Batch
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenBatchModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap">
+                      <Layers size={13} /> Allocate Batch
                     </Button>
                   </td>
                 </tr>
@@ -2843,9 +2843,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             </CardHeader>
             <Table
               dense
-              minWidth="1250px"
-              colWidths={['160px', '170px', '120px', '170px', '110px', '110px', '110px', '160px', '140px']}
-              headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Actions', align: 'center' }]}
+              minWidth="1220px"
+              colWidths={['140px', '160px', '120px', '150px', '100px', '100px', '110px', '150px', '160px']}
+              headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Actions', align: 'center', minWidth: '150px' }]}
             >
               {paginatedStudents.map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors">
@@ -2887,9 +2887,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                         }
                       }}
                       disabled={(s.feePlan?.pending || 0) === 0}
-                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded border transition-colors select-none ${
+                      className={`inline-flex items-center justify-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-colors select-none whitespace-nowrap ${
                         (s.feePlan?.pending || 0) > 0
-                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 cursor-pointer'
+                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 cursor-pointer shadow-xs'
                           : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
                       }`}
                     >
