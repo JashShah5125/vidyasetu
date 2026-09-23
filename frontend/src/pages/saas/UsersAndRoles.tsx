@@ -553,6 +553,7 @@ export const UsersAndRoles: React.FC = () => {
   const [roleIsActive, setRoleIsActive] = useState(true);
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<number[]>([]);
   const [roleSubmitting, setRoleSubmitting] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   // Delete Role Modal
   const [showDeleteRoleModal, setShowDeleteRoleModal] = useState(false);
@@ -840,7 +841,6 @@ export const UsersAndRoles: React.FC = () => {
     if (!formName || !formEmail || !formTenantId || !formUserType || !formPassword) {
       const msg = 'Please fill in all required fields.';
       setCreateUserError(msg);
-      addToast(msg, 'error');
       return;
     }
 
@@ -864,7 +864,6 @@ export const UsersAndRoles: React.FC = () => {
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to create user.';
       setCreateUserError(errorMsg);
-      addToast(errorMsg, 'error');
     } finally {
       setFormSubmitting(false);
     }
@@ -1099,6 +1098,7 @@ export const UsersAndRoles: React.FC = () => {
     setRoleDescription('');
     setRoleIsActive(true);
     setSelectedPermissionIds([]);
+    setRoleError(null);
     setShowRoleModal(true);
   };
 
@@ -1109,6 +1109,7 @@ export const UsersAndRoles: React.FC = () => {
     setRoleDescription(r.description || '');
     setRoleIsActive(r.is_active === 1);
     setSelectedPermissionIds([]);
+    setRoleError(null);
     setShowRoleModal(true);
 
     try {
@@ -1143,13 +1144,17 @@ export const UsersAndRoles: React.FC = () => {
 
   const handleSubmitRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleName) {
-      addToast('Role Name is required.', 'error');
+    setRoleError(null);
+
+    if (!roleName.trim()) {
+      const msg = 'Role Display Name is required. Please enter a role name.';
+      setRoleError(msg);
       return;
     }
 
-    if (!editingRole && !roleCode) {
-      addToast('Role Code is required for new custom roles.', 'error');
+    if (!editingRole && !roleCode.trim()) {
+      const msg = 'Role Code is required for new custom roles (e.g. content_manager).';
+      setRoleError(msg);
       return;
     }
 
@@ -1157,8 +1162,8 @@ export const UsersAndRoles: React.FC = () => {
     try {
       if (editingRole) {
         const res = await api.put(`/admin/roles/${editingRole.id}`, {
-          name: roleName,
-          description: roleDescription,
+          name: roleName.trim(),
+          description: roleDescription ? roleDescription.trim() : '',
           is_active: roleIsActive ? 1 : 0,
           permission_ids: selectedPermissionIds
         });
@@ -1169,9 +1174,9 @@ export const UsersAndRoles: React.FC = () => {
         }
       } else {
         const res = await api.post('/admin/roles', {
-          name: roleName,
-          code: roleCode,
-          description: roleDescription,
+          name: roleName.trim(),
+          code: roleCode.trim(),
+          description: roleDescription ? roleDescription.trim() : '',
           is_active: roleIsActive ? 1 : 0,
           permission_ids: selectedPermissionIds
         });
@@ -1182,7 +1187,8 @@ export const UsersAndRoles: React.FC = () => {
         }
       }
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Failed to save role.', 'error');
+      const errMsg = err.response?.data?.message || err.message || 'Failed to save role.';
+      setRoleError(errMsg);
     } finally {
       setRoleSubmitting(false);
     }
@@ -1523,8 +1529,10 @@ export const UsersAndRoles: React.FC = () => {
                           <label className="text-xs font-semibold text-slate-700 mb-1 block">Mobile Number</label>
                           <input
                             type="text"
+                            maxLength={10}
+                            placeholder="e.g. 9876543210"
                             value={formMobile}
-                            onChange={(e) => setFormMobile(e.target.value)}
+                            onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                             className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
                           />
                         </div>
@@ -4467,7 +4475,14 @@ export const UsersAndRoles: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 mb-1 block">Mobile Number</label>
-                  <input type="text" value={formMobile} onChange={(e) => setFormMobile(e.target.value)} placeholder="+91 9876543210" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition" />
+                  <input
+                    type="text"
+                    maxLength={10}
+                    placeholder="9876543210"
+                    value={formMobile}
+                    onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 mb-1 block">User Type / Category <span className="text-red-500">*</span></label>
@@ -4531,6 +4546,13 @@ export const UsersAndRoles: React.FC = () => {
 
             <form onSubmit={handleSubmitRole} className="flex flex-col flex-1 overflow-hidden">
               <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                {roleError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2 animate-shake">
+                    <AlertCircle size={16} className="text-red-600 shrink-0" />
+                    <span>{roleError}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-700 mb-1 block">Role Display Name <span className="text-red-500">*</span></label>
@@ -4539,7 +4561,7 @@ export const UsersAndRoles: React.FC = () => {
 
                   <div>
                     <label className="text-xs font-semibold text-slate-700 mb-1 block">Unique Role Code <span className="text-red-500">*</span></label>
-                    <input type="text" required disabled={!!editingRole} value={roleCode} onChange={(e) => setRoleCode(e.target.value)} placeholder="e.g. content_manager" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition disabled:bg-slate-100 disabled:text-slate-500 cursor-not-allowed" />
+                    <input type="text" required disabled={!!editingRole} value={roleCode} onChange={(e) => setRoleCode(e.target.value)} placeholder="e.g. content_manager" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed" />
                   </div>
                 </div>
 

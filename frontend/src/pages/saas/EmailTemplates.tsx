@@ -28,11 +28,13 @@ const STATUS_BADGE: Record<string, string> = {
   INACTIVE: 'bg-slate-100 text-slate-500',
 };
 
+const DEFAULT_CATEGORIES = ['AUTHENTICATION', 'ONBOARDING', 'TENANT', 'SUBSCRIPTION', 'NOTIFICATIONS', 'MARKETING', 'GENERAL'];
+
 const ITEMS_PER_PAGE = 10;
 
 export const EmailTemplates: React.FC = () => {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [categoriesList, setCategoriesList] = useState<string[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>(DEFAULT_CATEGORIES);
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [selectedTemplate, setSelectedTemplate] = useState<(EmailTemplate & { _isNew?: boolean }) | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,7 +56,7 @@ export const EmailTemplates: React.FC = () => {
 
   const [editName, setEditName] = useState('');
   const [editTemplateKey, setEditTemplateKey] = useState('');
-  const [editCategory, setEditCategory] = useState<string>('General');
+  const [editCategory, setEditCategory] = useState<string>('GENERAL');
   const [editSubject, setEditSubject] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
@@ -76,8 +78,10 @@ export const EmailTemplates: React.FC = () => {
       });
       setTemplates(result.data || []);
       setTotalItems(result.pagination?.total || 0);
-      if (result.categories && Array.isArray(result.categories)) {
-        setCategoriesList(result.categories);
+      if (result.categories && Array.isArray(result.categories) && result.categories.length > 0) {
+        setCategoriesList(Array.from(new Set([...result.categories, ...DEFAULT_CATEGORIES])));
+      } else {
+        setCategoriesList(DEFAULT_CATEGORIES);
       }
     } catch (err: any) {
       console.error('Failed to fetch email templates:', err);
@@ -471,10 +475,11 @@ export const EmailTemplates: React.FC = () => {
           <Card>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Template Name *" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="e.g. Password Reset" required />
-                <Input label="Template Key *" value={editTemplateKey} onChange={(e) => setEditTemplateKey(e.target.value)} placeholder="e.g. AUTH_PASSWORD_RESET" required disabled={!selectedTemplate?._isNew} />
+                <Input label="Template Name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="e.g. Password Reset" required />
+                <Input label="Template Key" value={editTemplateKey} onChange={(e) => setEditTemplateKey(e.target.value)} placeholder="e.g. AUTH_PASSWORD_RESET" required disabled={!selectedTemplate?._isNew} />
                 <Select
-                  label="Category *"
+                  label="Category"
+                  required
                   value={editCategory}
                   onChange={(e) => setEditCategory(e.target.value)}
                   options={categoriesList.map((c) => ({ value: c, label: c }))}
@@ -482,7 +487,7 @@ export const EmailTemplates: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Subject Line *" value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="e.g. Reset your password for {{platform_name}}" required />
+                <Input label="Subject Line" value={editSubject} onChange={(e) => setEditSubject(e.target.value)} placeholder="e.g. Reset your password for {{platform_name}}" required />
                 <Select
                   label="Status"
                   value={editStatus}

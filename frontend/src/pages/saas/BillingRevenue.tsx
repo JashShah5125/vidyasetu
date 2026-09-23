@@ -982,11 +982,11 @@ export const BillingRevenue: React.FC = () => {
                     {inv.status}
                   </span>
                 </td>
-                <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                <td className="px-5 py-3.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1.5">
                     <button
                       type="button"
-                      onClick={() => openViewInvoice(inv)}
+                      onClick={(e) => { e.stopPropagation(); openViewInvoice(inv); }}
                       title="View invoice"
                       className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                     >
@@ -994,7 +994,7 @@ export const BillingRevenue: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => openEditInvoice(inv)}
+                      onClick={(e) => { e.stopPropagation(); openEditInvoice(inv); }}
                       title="Edit invoice"
                       className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                     >
@@ -1002,7 +1002,7 @@ export const BillingRevenue: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleOpenDeleteInvoice(inv)}
+                      onClick={(e) => { e.stopPropagation(); handleOpenDeleteInvoice(inv); }}
                       title="Delete invoice"
                       className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                     >

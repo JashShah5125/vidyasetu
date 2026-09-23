@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
-import { Loader2, Receipt, ArrowLeft } from 'lucide-react';
+import { Loader2, Receipt, ArrowLeft, AlertCircle } from 'lucide-react';
 import { billingService } from '../../services/billingService';
 import { tenantService } from '../../services/tenantService';
 import { planService } from '../../services/planService';
@@ -175,11 +175,16 @@ export const InvoiceFormPage: React.FC = () => {
     return { base, discountAmount, subtotal, taxAmount, totalAmount };
   }, [form.plan_amount, form.setup_fee, form.discount_percent, form.tax_rate]);
 
+  const showError = (msg: string) => {
+    setError(msg);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSave = async () => {
     setError('');
-    if (!form.tenant_id) { setError('Please select a tenant'); return; }
-    if (!form.plan_id) { setError('Please select a subscription plan'); return; }
-    if (!form.billing_period_start || !form.billing_period_end) { setError('Billing period start and end are required'); return; }
+    if (!form.tenant_id) { showError('Please select a tenant'); return; }
+    if (!form.plan_id) { showError('Please select a subscription plan'); return; }
+    if (!form.billing_period_start || !form.billing_period_end) { showError('Billing period start and end are required'); return; }
 
     let paymentDate = form.payment_date;
     if ((form.status === 'paid' || form.status === 'refunded') && !paymentDate) {
@@ -215,13 +220,31 @@ export const InvoiceFormPage: React.FC = () => {
       }
       navigate('/billing');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to save invoice');
+      showError(err?.response?.data?.message || 'Failed to save invoice');
     } finally {
       setSaving(false);
     }
   };
 
-  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+  const currSymbol = useMemo(() => {
+    switch (form.currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      default: return '₹';
+    }
+  }, [form.currency]);
+
+  const currLocale = useMemo(() => {
+    switch (form.currency) {
+      case 'USD': return 'en-US';
+      case 'EUR': return 'de-DE';
+      case 'GBP': return 'en-GB';
+      default: return 'en-IN';
+    }
+  }, [form.currency]);
+
+  const fmt = (n: number) => `${currSymbol}${Math.round(n).toLocaleString(currLocale)}`;
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -258,6 +281,13 @@ export const InvoiceFormPage: React.FC = () => {
         </div>
       ) : (
         <>
+          {error && (
+            <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-2xl p-4 shadow-sm animate-shake">
+              <AlertCircle size={20} className="text-red-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 text-xs text-indigo-700 font-medium">
             <Receipt size={14} className="shrink-0" />
             Leave the invoice number blank to auto-generate it (INV-YYYY-NNNN). You can also type a custom number.
@@ -421,12 +451,6 @@ export const InvoiceFormPage: React.FC = () => {
               onChange={(e) => setField('notes', e.target.value)}
               placeholder="Optional internal notes for this invoice"
             />
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-lg px-3 py-2">
-                {error}
-              </div>
-            )}
           </div>
         </>
       )}

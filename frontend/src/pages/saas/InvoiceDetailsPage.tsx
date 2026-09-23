@@ -6,7 +6,21 @@ import { Loader2, ArrowLeft, Edit, Receipt, Building2, CalendarDays, Hash, Badge
 import { billingService } from '../../services/billingService';
 import { formatDate } from '../../utils/dateFormatter';
 
-const formatINR = (n: number) => `₹${Math.round(n || 0).toLocaleString('en-IN')}`;
+const getCurrencySymbol = (c?: string) => {
+  switch (c) {
+    case 'USD': return '$';
+    case 'EUR': return '€';
+    case 'GBP': return '£';
+    default: return '₹';
+  }
+};
+
+const formatCurr = (n: number, currency = 'INR') => {
+  const sym = getCurrencySymbol(currency);
+  const loc = currency === 'USD' ? 'en-US' : currency === 'EUR' ? 'de-DE' : currency === 'GBP' ? 'en-GB' : 'en-IN';
+  return `${sym}${Math.round(n || 0).toLocaleString(loc)}`;
+};
+
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '-';
 
 const statusColors: Record<string, string> = {
@@ -51,12 +65,13 @@ export const InvoiceDetailsPage: React.FC = () => {
     );
   }
 
+  const curr = invoice.currency || 'INR';
   const amounts = [
-    { label: 'Plan Amount', value: formatINR(invoice.plan_amount) },
-    { label: 'Setup Fee', value: formatINR(invoice.setup_fee) },
-    { label: 'Discount', value: `- ${formatINR(invoice.discount_amount)} (${invoice.discount_percent || 0}%)` },
-    { label: 'Subtotal', value: formatINR(invoice.subtotal) },
-    { label: `Tax (${invoice.tax_rate || 0}%)`, value: formatINR(invoice.tax_amount) }
+    { label: 'Plan Amount', value: formatCurr(invoice.plan_amount, curr) },
+    { label: 'Setup Fee', value: formatCurr(invoice.setup_fee, curr) },
+    { label: 'Discount', value: `- ${formatCurr(invoice.discount_amount, curr)} (${invoice.discount_percent || 0}%)` },
+    { label: 'Subtotal', value: formatCurr(invoice.subtotal, curr) },
+    { label: `Tax (${invoice.tax_rate || 0}%)`, value: formatCurr(invoice.tax_amount, curr) }
   ];
 
   return (
@@ -186,7 +201,7 @@ export const InvoiceDetailsPage: React.FC = () => {
               ))}
               <div className="flex justify-between items-center pt-2">
                 <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Total</span>
-                <span className="text-2xl font-extrabold text-indigo-600">{formatINR(invoice.total_amount)}</span>
+                <span className="text-2xl font-extrabold text-indigo-600">{formatCurr(invoice.total_amount, curr)}</span>
               </div>
             </div>
           </Card>

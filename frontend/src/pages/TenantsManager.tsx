@@ -13,7 +13,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { 
   Plus, Upload, Trash, Trash2, ArrowLeft, X, 
   Image as ImageIcon, AlertTriangle, Check, Eye, Edit3, ShieldAlert,
-  ChevronLeft, ChevronRight 
+  ChevronLeft, ChevronRight, Pencil 
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getTenantStatus, getTenantStatusLabel } from '../types';
@@ -933,7 +933,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 <div className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 gap-4 items-start">
                     <Input 
-                      label="Address Line 1 *" 
+                      label="Address Line 1" 
                       required
                       placeholder="e.g. 401, Western Express Highway, Mumbai" 
                       value={address} 
@@ -956,21 +956,21 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Input 
-                      label="City *" 
+                      label="City" 
                       required
                       placeholder="e.g. Mumbai" 
                       value={city} 
                       onChange={(e) => setCity(e.target.value)} 
                     />
                     <Input 
-                      label="State *" 
+                      label="State" 
                       required
                       placeholder="e.g. Maharashtra" 
                       value={state} 
                       onChange={(e) => setState(e.target.value)} 
                     />
                     <Input 
-                      label="PIN Code *" 
+                      label="PIN Code" 
                       required
                       placeholder="e.g. 400001" 
                       value={pincode} 
@@ -979,7 +979,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
-                      label="Timezone *"
+                      label="Timezone"
+                      required
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
                       options={[
@@ -1009,7 +1010,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input 
-                  label="Owner / Primary Admin Name *" 
+                  label="Owner / Primary Admin Name" 
                   required 
                   placeholder="Dr. Ramesh Kumar (or admin_apex)" 
                   value={ownerName} 
@@ -1017,8 +1018,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                 />
                 <div className="flex flex-col gap-1.5 w-full">
                   <div className="flex justify-between items-center select-none">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                      Admin Email Login *
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center">
+                      Admin Email Login <span className="text-red-500 font-bold ml-1">*</span>
                     </label>
                     {!isViewOnly && (
                       <button
@@ -1120,11 +1121,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                 <Input 
-                  label="Primary Mobile Contact *" 
+                  label="Primary Mobile Contact" 
                   required
                   placeholder="9876543210" 
                   value={mobile} 
-                  onChange={(e) => setMobile(e.target.value)} 
+                  maxLength={10}
+                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} 
                 />
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Temporary Password (Sent by Email)</label>
@@ -1149,13 +1151,15 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Select 
-                  label="Subscription Tier *" 
+                  label="Subscription Tier" 
+                  required
                   value={plan} 
                   onChange={(e) => setPlan(e.target.value)} 
                   options={availablePlans.map((p) => ({ value: p.id.toString(), label: p.name }))}
                 />
                 <Select
-                  label="Billing Cycle *"
+                  label="Billing Cycle"
+                  required
                   value={billingCycle}
                   onChange={(e) => setBillingCycle(e.target.value)}
                   options={[
@@ -1167,7 +1171,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   ]}
                 />
                 <Input 
-                  label="Plan Start Date *" 
+                  label="Plan Start Date" 
                   type="date" 
                   required
                   value={startDate} 

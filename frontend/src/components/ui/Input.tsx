@@ -14,6 +14,8 @@ export const Input: React.FC<InputProps> = ({
   id,
   ...props
 }) => {
+  const displayLabel = label ? label.replace(/\s*\*+\s*$/, '') : '';
+
   return (
     <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
       {label && (
@@ -21,7 +23,7 @@ export const Input: React.FC<InputProps> = ({
           htmlFor={id} 
           className="text-xs font-semibold text-slate-700 flex items-center"
         >
-          {label}
+          {displayLabel}
           {props.required && <span className="text-red-500 font-bold ml-1">*</span>}
         </label>
       )}

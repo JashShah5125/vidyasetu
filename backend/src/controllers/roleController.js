@@ -61,8 +61,11 @@ const createRole = async (req, res) => {
     try {
         const { name, code, description, is_active, permission_ids } = req.body;
 
-        if (!name || !code) {
-            return res.status(400).json({ status: 'error', message: 'Role name and role code are required' });
+        if (!name || !name.trim()) {
+            return res.status(400).json({ status: 'error', message: 'Role display name is required' });
+        }
+        if (!code || !code.trim()) {
+            return res.status(400).json({ status: 'error', message: 'Role code is required' });
         }
 
         // Sanitize code to snake_case format e.g. custom_counsellor
@@ -70,15 +73,15 @@ const createRole = async (req, res) => {
 
         const existing = await roleModel.findRoleByCode(formattedCode);
         if (existing) {
-            return res.status(409).json({ status: 'error', message: `Role code '${formattedCode}' already exists` });
+            return res.status(409).json({ status: 'error', message: `Role code '${formattedCode}' already exists. Please choose a different code.` });
         }
 
         const created_by = req.user ? req.user.userId : null;
 
         const roleId = await roleModel.createRole({
-            name,
+            name: name.trim(),
             code: formattedCode,
-            description,
+            description: description ? description.trim() : null,
             is_active: is_active !== undefined ? is_active : 1,
             permission_ids: Array.isArray(permission_ids) ? permission_ids : [],
             created_by
@@ -91,7 +94,10 @@ const createRole = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating role:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to create role' });
+        if (error.code === 'ER_DUP_ENTRY' || (error.message && error.message.includes('Duplicate entry'))) {
+            return res.status(409).json({ status: 'error', message: 'A role with this code or name already exists' });
+        }
+        res.status(500).json({ status: 'error', message: error.message || 'Failed to create role' });
     }
 };
 

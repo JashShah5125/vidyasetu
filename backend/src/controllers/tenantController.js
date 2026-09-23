@@ -113,7 +113,8 @@ const createTenant = async (req, res) => {
             try { parsedAltEmails = JSON.parse(alternate_emails); } catch (e) {}
         }
 
-        const parseNum = (val) => val === undefined || val === '' || val === 'null' ? undefined : Number(val);
+        const parseNum = (val) => (val === undefined ? undefined : (val === '' || val === 'null' || val === null || isNaN(Number(val)) ? null : Number(val)));
+        const parseStr = (val) => (val === undefined ? undefined : (val === '' || val === 'null' || val === null ? null : String(val).trim()));
         
         const result = await tenantService.createTenantWithAdmin({
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, logoUrl, alternateEmails: parsedAltEmails,
@@ -126,8 +127,8 @@ const createTenant = async (req, res) => {
             maxStudents: parseNum(maxStudents),
             maxParents: parseNum(maxParents),
             maxTeachers: parseNum(maxTeachers),
-            maxStorage,
-            maxFileSize,
+            maxStorage: parseStr(maxStorage),
+            maxFileSize: parseStr(maxFileSize),
             maxSmsCredits: parseNum(maxSmsCredits),
             maxWhatsappMsgs: parseNum(maxWhatsappMsgs)
         }, leadId ? Number(leadId) : null);
@@ -209,7 +210,8 @@ const updateTenant = async (req, res) => {
             try { parsedAltEmails = JSON.parse(alternate_emails); } catch (e) {}
         }
 
-        const parseNum = (val) => val === undefined || val === '' || val === 'null' ? undefined : Number(val);
+        const parseNum = (val) => (val === undefined ? undefined : (val === '' || val === 'null' || val === null || isNaN(Number(val)) ? null : Number(val)));
+        const parseStr = (val) => (val === undefined ? undefined : (val === '' || val === 'null' || val === null ? null : String(val).trim()));
 
         const success = await tenantService.updateTenant(id, {
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, alternateEmails: parsedAltEmails, logoUrl,
@@ -222,8 +224,8 @@ const updateTenant = async (req, res) => {
             maxStudents: parseNum(maxStudents),
             maxParents: parseNum(maxParents),
             maxTeachers: parseNum(maxTeachers),
-            maxStorage,
-            maxFileSize,
+            maxStorage: parseStr(maxStorage),
+            maxFileSize: parseStr(maxFileSize),
             maxSmsCredits: parseNum(maxSmsCredits),
             maxWhatsappMsgs: parseNum(maxWhatsappMsgs)
         });

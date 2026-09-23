@@ -10,6 +10,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options: SelectOption[];
   error?: string;
   wrapperClassName?: string;
+  required?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -20,16 +21,20 @@ export const Select: React.FC<SelectProps> = ({
   wrapperClassName = '',
   id,
   disabled,
+  required,
   ...props
 }) => {
+  const displayLabel = label ? label.replace(/\s*\*+\s*$/, '') : '';
+
   return (
     <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
       {label && (
         <label 
           htmlFor={id} 
-          className="text-xs font-semibold text-slate-700"
+          className="text-xs font-semibold text-slate-700 flex items-center"
         >
-          {label}
+          {displayLabel}
+          {required && <span className="text-red-500 font-bold ml-1">*</span>}
         </label>
       )}
       <div className="relative">

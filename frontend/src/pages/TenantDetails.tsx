@@ -27,6 +27,11 @@ interface StudentHistoryRecord {
   assignments: { name: string; score: string; date: string }[];
 }
 
+const getInitials = (name?: string) => {
+  if (!name) return 'TN';
+  return name.trim().split(/\s+/).map(n => n[0] || '').join('').substring(0, 2).toUpperCase() || 'TN';
+};
+
 const mockStudentsData: Record<string, StudentHistoryRecord[]> = {
   'VS-001': [
     {
@@ -296,7 +301,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
           {/* Tenant identity banner */}
           <div className="flex items-center gap-4 bg-slate-50 border-b border-slate-200 px-6 py-5">
             <div className="w-14 h-14 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xl shadow flex-shrink-0">
-              {viewingTenant.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+              {getInitials(viewingTenant?.name)}
             </div>
             <div>
               <div className="text-lg font-bold text-slate-900">{viewingTenant.name}</div>
@@ -361,8 +366,9 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mobile Number</label>
                   <Input
                     type="tel"
+                    maxLength={10}
                     value={editForm.mobile}
-                    onChange={e => setEditForm(f => ({ ...f, mobile: e.target.value }))}
+                    onChange={e => setEditForm(f => ({ ...f, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
                     placeholder="10-digit mobile"
                   />
                 </div>
@@ -424,7 +430,7 @@ export const TenantDetails: React.FC<{ tenantId: string; onBack: () => void }> =
         {/* Top Info Banner */}
         <div className="flex items-center gap-4 bg-slate-50 border border-slate-150 p-5 rounded-xl shadow-inner">
           <div className="w-14 h-14 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xl shadow flex-shrink-0">
-            {viewingTenant.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+            {getInitials(viewingTenant?.name)}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-lg font-bold text-slate-900 truncate">{viewingTenant.name}</h4>

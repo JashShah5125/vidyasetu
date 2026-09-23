@@ -267,6 +267,10 @@ export const SubscriptionPlans: React.FC = () => {
         return { isValid: false, error: 'Please select a currency for billing.' };
       }
       const prices = [monthlyPrice, quarterlyPrice, halfYearlyPrice, yearlyPrice, lifetimePrice];
+      const hasAtLeastOnePrice = prices.some(p => p !== '' && p !== null && p !== undefined && !isNaN(Number(p)));
+      if (!hasAtLeastOnePrice) {
+        return { isValid: false, error: 'Please enter at least one pricing tier amount (e.g. Monthly or Yearly Price).' };
+      }
       for (const p of prices) {
         if (p !== '' && (isNaN(Number(p)) || Number(p) < 0)) {
           return { isValid: false, error: 'Plan prices must be positive numbers or 0.' };
@@ -472,7 +476,13 @@ export const SubscriptionPlans: React.FC = () => {
             <Input label="Half-Yearly Price" type="number" min="0" placeholder="e.g. 13000" value={halfYearlyPrice} onChange={e => setHalfYearlyPrice(e.target.value)} />
             <Input label="Yearly Price" type="number" min="0" placeholder="e.g. 25000" value={yearlyPrice} onChange={e => setYearlyPrice(e.target.value)} />
             <Input label="Lifetime Price" type="number" min="0" placeholder="e.g. 100000" value={lifetimePrice} onChange={e => setLifetimePrice(e.target.value)} />
-            <Select label="Currency" value={currency} onChange={e => setCurrency(e.target.value)} options={[{ value: 'INR', label: 'INR' }, { value: 'USD', label: 'USD' }, { value: 'EUR', label: 'EUR' }]} />
+            <Select 
+              label="Currency" 
+              value={currency} 
+              onChange={e => setCurrency(e.target.value)} 
+              disabled={!!editingPlanId} 
+              options={[{ value: 'INR', label: 'INR (₹)' }, { value: 'USD', label: 'USD ($)' }, { value: 'EUR', label: 'EUR (€)' }]} 
+            />
             <Input label="Trial Days" type="number" min="0" placeholder="e.g. 15" value={trialDays} onChange={e => setTrialDays(e.target.value)} />
             <Input label="Setup Fee" type="number" min="0" placeholder="e.g. 4999" value={setupFee} onChange={e => setSetupFee(e.target.value)} />
           </div>
