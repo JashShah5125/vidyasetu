@@ -335,29 +335,66 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   const availableBatchesForStudent = useMemo(() => {
     if (!selectedStudent) return [];
-    const cName = batchForm.course || selectedStudent.course;
-    const pName = batchForm.program || selectedStudent.program;
-    const lName = batchForm.level || selectedStudent.level;
+    const cName = String(batchForm.course || selectedStudent.course || '').toLowerCase().trim();
+    const pName = String(batchForm.program || selectedStudent.program || '').toLowerCase().trim();
+    const lName = String(batchForm.level || selectedStudent.level || '').toLowerCase().trim();
+    const bBranch = String(selectedStudent.branch || '').toLowerCase().trim();
 
+    // 1. Prioritize live academicData batches from the database
+    if (academicData?.batches && academicData.batches.length > 0) {
+      const liveBatches = academicData.batches;
+      const courseObj = academicData.courses?.find((c: any) => 
+        c.name.toLowerCase() === cName || c.name.toLowerCase().includes(cName) || (cName && cName.includes(c.name.toLowerCase()))
+      );
+      const branchObj = academicData.branches?.find((b: any) => b.name.toLowerCase() === bBranch);
+
+      // Filter by branch and course if possible
+      let matched = liveBatches.filter((b: any) => {
+        if (branchObj && b.branch_id && Number(b.branch_id) !== Number(branchObj.id)) return false;
+        if (courseObj) {
+          const levelObj = academicData.levels?.find((l: any) => Number(l.id) === Number(b.level_id));
+          if (levelObj && levelObj.course_id && Number(levelObj.course_id) !== Number(courseObj.id)) return false;
+        }
+        return true;
+      });
+
+      if (matched.length > 0) {
+        return matched.map((b: any) => b.name || b.code);
+      }
+
+      // If no course match for this branch, return all batches for this branch
+      if (branchObj) {
+        const branchBatches = liveBatches.filter((b: any) => Number(b.branch_id) === Number(branchObj.id));
+        if (branchBatches.length > 0) {
+          return branchBatches.map((b: any) => b.name || b.code);
+        }
+      }
+
+      // Otherwise return all live batches for the institute
+      return liveBatches.map((b: any) => b.name || b.code);
+    }
+
+    // 2. Fallback to mock courseHierarchy / context
     const courseData = (courseHierarchy as any[]).find(
-      c => c.courseName?.toLowerCase() === cName?.toLowerCase()
+      c => c.courseName?.toLowerCase() === cName
     );
     const progData = courseData?.programs?.find(
-      (p: any) => p.programName?.toLowerCase() === pName?.toLowerCase()
+      (p: any) => p.programName?.toLowerCase() === pName
     );
     const lvlData = progData?.levels?.find(
-      (l: any) => (l.levelId?.toLowerCase() === lName?.toLowerCase() || l.levelName?.toLowerCase() === lName?.toLowerCase())
+      (l: any) => (l.levelId?.toLowerCase() === lName || l.levelName?.toLowerCase() === lName)
     );
 
     const hierarchyBatches: string[] = lvlData?.batches || [];
-
     const contextBatches = batches
-      .filter(b => (!cName || b.course === cName))
+      .filter(b => (!cName || b.course.toLowerCase() === cName))
       .map(b => b.name);
 
     const combined = Array.from(new Set([...hierarchyBatches, ...contextBatches]));
-    return combined;
-  }, [selectedStudent, batchForm.course, batchForm.program, batchForm.level, batches]);
+    if (combined.length > 0) return combined;
+
+    return batches.map(b => b.name);
+  }, [selectedStudent, batchForm.course, batchForm.program, batchForm.level, batches, academicData]);
 
   // ── Lead data loaded from the backend (page-local fetch) ───────────────────
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -2129,10 +2166,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   onChange={e => setBatchForm(prev => ({ ...prev, batch: e.target.value }))}
                   options={[
                     { value: '', label: 'Choose a Batch from Course Hierarchy...' },
-                    ...availableBatchesForStudent.map(bName => ({
-                      value: bName,
-                      label: `${bName} (${selectedStudent.course || ''} - ${selectedStudent.program || ''})`
-                    }))
+                    ...availableBatchesForStudent.map(bName => {
+                      const matchedB = academicData?.batches?.find((b: any) => b.name === bName || b.code === bName);
+                      const levelObj = matchedB ? academicData?.levels?.find((l: any) => Number(l.id) === Number(matchedB.level_id)) : null;
+                      const courseObj = levelObj ? academicData?.courses?.find((c: any) => Number(c.id) === Number(levelObj.course_id)) : null;
+                      const branchObj = matchedB ? academicData?.branches?.find((br: any) => Number(br.id) === Number(matchedB.branch_id)) : null;
+                      const extra = [courseObj?.name, branchObj?.name].filter(Boolean).join(' • ');
+                      return {
+                        value: bName,
+                        label: extra ? `${bName} (${extra})` : bName
+                      };
+                    })
                   ]}
                 />
               </div>
