@@ -68,6 +68,7 @@ export interface ReferenceMaps {
   programIdByName: Record<string, number>;
   branchIdByName: Record<string, number>;
   academicYearIdByName: Record<string, number>;
+  levelIdByName: Record<string, number>;
 }
 
 // ─── Reference data (course/program/branch name <-> id) ────────────────────
@@ -78,7 +79,8 @@ const EMPTY_MAPS: ReferenceMaps = {
   courseIdByName: {},
   programIdByName: {},
   branchIdByName: {},
-  academicYearIdByName: {}
+  academicYearIdByName: {},
+  levelIdByName: {}
 };
 
 export const getReferenceMaps = async (): Promise<ReferenceMaps> => {
@@ -105,7 +107,11 @@ export const getReferenceMaps = async (): Promise<ReferenceMaps> => {
     (data.academicYears || []).forEach((y: any) => {
       if (y?.name) academicYearIdByName[String(y.name).toLowerCase()] = Number(y.id);
     });
-    cachedMaps = { courseIdByName, programIdByName, branchIdByName, academicYearIdByName };
+    const levelIdByName: Record<string, number> = {};
+    (data.levels || []).forEach((l: any) => {
+      if (l?.name) levelIdByName[String(l.name).toLowerCase()] = Number(l.id);
+    });
+    cachedMaps = { courseIdByName, programIdByName, branchIdByName, academicYearIdByName, levelIdByName };
   } catch {
     cachedMaps = EMPTY_MAPS;
   }
@@ -335,7 +341,9 @@ export const buildCreateEnquiryPayload = async (form: {
   parentMobile?: string;
   parentEmail?: string;
   course: string;
+  courseId?: number | null;
   program?: string;
+  programId?: number | null;
   level?: string;
   interestedLevelId?: number | null;
   packageType?: number | null;
@@ -345,6 +353,7 @@ export const buildCreateEnquiryPayload = async (form: {
   source: string;
   remarks: string;
   branch?: string;
+  branchId?: number | null;
   counsellor?: string;
   counsellorId?: number | null;
 }): Promise<Record<string, any>> => {
@@ -353,7 +362,11 @@ export const buildCreateEnquiryPayload = async (form: {
   const programName = String(form.program || '').toLowerCase();
   const branchName = String(form.branch || '').toLowerCase();
   const firstBranchId = Object.values(maps.branchIdByName)[0] || 1;
-  const branchId = maps.branchIdByName[branchName] || firstBranchId;
+  const branchId = form.branchId || maps.branchIdByName[branchName] || firstBranchId;
+  const courseId = form.courseId || maps.courseIdByName[courseName] || null;
+  const programId = form.programId || maps.programIdByName[programName] || null;
+  const levelId = form.interestedLevelId !== undefined ? form.interestedLevelId : (form.level && maps.levelIdByName ? maps.levelIdByName[String(form.level).toLowerCase()] : null);
+  const academicYearId = form.academicYearId || (form.academicYear && maps.academicYearIdByName ? maps.academicYearIdByName[String(form.academicYear).toLowerCase()] : null);
 
   const payload: Record<string, any> = {
     student_name: form.name.trim(),
@@ -365,12 +378,12 @@ export const buildCreateEnquiryPayload = async (form: {
     source: sourceCodeOf(form.source),
     remarks: form.remarks || null,
     status: 0,
-    interested_course_id: maps.courseIdByName[courseName] || null,
-    interested_program_id: maps.programIdByName[programName] || null,
+    interested_course_id: courseId,
+    interested_program_id: programId,
     package_type: form.packageType !== undefined ? form.packageType : null,
     package_details: form.packageDetails !== undefined ? form.packageDetails : null,
-    interested_level_id: form.interestedLevelId !== undefined ? form.interestedLevelId : null,
-    interested_academic_year_id: form.academicYearId || null,
+    interested_level_id: levelId || null,
+    interested_academic_year_id: academicYearId || null,
     counsellor_id: form.counsellorId || null,
     assigned_branch_id: branchId,
     preferred_branch_id: branchId

@@ -806,6 +806,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     }
 
     try {
+      const courseObj = academicData?.courses?.find(c => c.name === leadForm.course);
+      const progObj = academicData?.programs?.find(p => p.name === leadForm.program && (!courseObj || Number(p.course_id) === Number(courseObj.id)));
+      const levelObj = academicData?.levels?.find(l => l.name === leadForm.level && ((progObj && Number(l.program_id) === Number(progObj.id)) || (courseObj && Number(l.course_id) === Number(courseObj.id))));
+      const branchObj = academicData?.branches?.find(b => b.name === leadForm.branch);
+      const yearObj = academicData?.academicYears?.find(y => y.name === leadForm.academicYear);
+
       const payload = await buildCreateEnquiryPayload({
         name: leadForm.name.trim(),
         email: leadForm.email.trim(),
@@ -814,12 +820,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         parentMobile: leadForm.parentMobile.trim(),
         parentEmail: leadForm.parentEmail.trim(),
         course: leadForm.course,
+        courseId: courseObj ? Number(courseObj.id) : undefined,
         program: leadForm.program,
+        programId: progObj ? Number(progObj.id) : undefined,
         level: leadForm.level,
+        interestedLevelId: levelObj ? Number(levelObj.id) : undefined,
         academicYear: leadForm.academicYear,
+        academicYearId: yearObj ? Number(yearObj.id) : undefined,
         source: leadForm.source,
         remarks: leadForm.remarks,
         branch: leadForm.branch,
+        branchId: branchObj ? Number(branchObj.id) : undefined,
         counsellor: leadForm.counsellor
       });
       await apiCreateEnquiry(payload);
@@ -844,7 +855,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       await fetchLeads();
     } catch (err: any) {
       console.error('Failed to log enquiry:', err);
-      addToast('Failed to log enquiry.', 'error');
+      const errMsg = err?.response?.data?.errors?.join?.(', ') || err?.response?.data?.message || err?.message || 'Failed to log enquiry.';
+      addToast(errMsg, 'error');
     }
   };
 

@@ -7,6 +7,7 @@ const createEnquirySchema = Joi.object({
     }),
     assigned_branch_id: Joi.number().integer().optional(),
     source: Joi.number().integer().min(0).max(8).default(0),
+    status: Joi.number().integer().min(-2).max(7).default(0).optional(),
     student_name: Joi.string().trim().min(1).max(255).required().messages({
         'any.required': 'Student name is required',
         'string.empty': 'Student name is required'
@@ -33,7 +34,7 @@ const createEnquirySchema = Joi.object({
     down_payment: Joi.number().min(0).allow(null).optional(),
     installment_months: Joi.number().integer().min(1).allow(null).optional(),
     counselling_notes: Joi.string().allow(null, '').optional()
-});
+}).unknown(true);
 
 const updateEnquirySchema = Joi.object({
     preferred_branch_id: Joi.number().integer().optional(),
@@ -67,7 +68,7 @@ const updateEnquirySchema = Joi.object({
     counselling_notes: Joi.string().allow(null, '').optional(),
     remarks: Joi.string().allow(null, '').optional(),
     log_notes: Joi.string().allow(null, '').optional()
-});
+}).unknown(true);
 
 const convertEnquirySchema = Joi.object({
     full_name: Joi.string().trim().min(1).max(255).required().messages({
