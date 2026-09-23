@@ -63,17 +63,33 @@ const login = async (req, res) => {
             return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
         }
 
-        if (users.length > 1) {
-            // For now, if multiple users share an email, require tenant identification.
-            // Since frontend doesn't send tenantId yet, we just block it to prevent IDOR.
-            return res.status(400).json({ status: 'error', message: 'Multiple accounts found with this email. Please contact support.' });
-        }
+        let user = null;
+        if (users.length === 1) {
+            user = users[0];
+            const isMatch = await bcrypt.compare(password, user.password_hash);
+            if (!isMatch) {
+                return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
+            }
+        } else {
+            // When multiple tenant accounts share the same email, resolve by checking matching password hash
+            const matchingUsers = [];
+            for (const candidate of users) {
+                if (candidate.status === 'active') {
+                    const matches = await bcrypt.compare(password, candidate.password_hash);
+                    if (matches) {
+                        matchingUsers.push(candidate);
+                    }
+                }
+            }
 
-        const user = users[0];
-
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
-            return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
+            if (matchingUsers.length === 1) {
+                user = matchingUsers[0];
+            } else if (matchingUsers.length > 1) {
+                // If multiple accounts share both email and password, prioritize SaaS Admin (tenant_id = 1) or first active account
+                user = matchingUsers.find(u => u.tenant_id === MASTER_TENANT_ID || u.tenant_id === 1 || u.user_type === 'saas_admin') || matchingUsers[0];
+            } else {
+                return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
+            }
         }
 
         if (user.status !== 'active') {
