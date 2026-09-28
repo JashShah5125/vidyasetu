@@ -177,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Core Academics',
             links: [
               { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subject Setup', path: '/subjects', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subjects', path: '/subjects', icon: BookOpen },
               { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
               { name: 'Classroom Master', label: 'Classroom Master', path: '/classrooms', icon: DoorOpen }
             ]
@@ -231,7 +231,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Core Academics',
             links: [
               { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subject Setup', path: '/subjects', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subjects', path: '/subjects', icon: BookOpen },
               { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
               { name: 'Classroom Master', label: 'Classroom Master', path: '/classrooms', icon: DoorOpen }
             ]
