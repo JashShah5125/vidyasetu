@@ -764,7 +764,7 @@ export const Leads: React.FC = () => {
         <Table
           dense
           minWidth="1700px"
-          colWidths={['60px', '250px', '210px', '270px', '110px', '150px', '140px', '150px', '150px', '160px']}
+          colWidths={['60px', '240px', '200px', '280px', '130px', '150px', '140px', '150px', '150px', '160px']}
           headers={['ID', 'Institute', 'Contact', 'Mobile / Email', 'Source', 'Plan', 'Status', 'Next Follow-up', 'Created', 'Actions']}
         >
           {isLoading && leads.length === 0 ? (
@@ -777,14 +777,28 @@ export const Leads: React.FC = () => {
               return (
                 <tr key={l.id} onClick={() => handleViewLead(l)} className="hover:bg-slate-50 cursor-pointer transition-colors">
                   <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
-                  <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.instituteName}</td>
-                  <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">
-                    <span className="font-medium text-slate-800">{l.contactPerson}</span>
-                    {l.designation && <span className="text-slate-400"> · {l.designation}</span>}
+                  <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm">
+                    <div className="truncate max-w-[220px]" title={l.instituteName}>
+                      {l.instituteName}
+                    </div>
                   </td>
-                  <td className="px-3.5 py-3 text-sm whitespace-nowrap">
-                    <span className="font-medium text-slate-800">{l.mobile}</span>
-                    {l.email && <span className="text-slate-400"> · {l.email}</span>}
+                  <td className="px-3.5 py-3 text-sm text-slate-700">
+                    <div className="font-medium text-slate-800 truncate max-w-[180px]" title={l.contactPerson}>
+                      {l.contactPerson}
+                    </div>
+                    {l.designation && (
+                      <div className="text-xs text-slate-400 truncate max-w-[180px]" title={l.designation}>
+                        {l.designation}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3.5 py-3 text-sm">
+                    <div className="font-medium text-slate-800">{l.mobile || '—'}</div>
+                    {l.email && (
+                      <div className="text-xs text-slate-500 truncate max-w-[260px]" title={l.email}>
+                        {l.email}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3.5 py-3 text-sm text-slate-600 whitespace-nowrap">{LEAD_SOURCE_MAP[l.source] || '—'}</td>
                   <td className="px-3.5 py-3 text-sm whitespace-nowrap">
