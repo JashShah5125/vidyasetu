@@ -8,11 +8,13 @@ const listUsers = async (req, res) => {
 
         const users = await userModel.getUsersList({ page, limit, search, status, tenantId, userType, roleId: effectiveRoleId });
         const total = await userModel.getUsersCount({ search, status, tenantId, userType, roleId: effectiveRoleId });
+        const summary = await userModel.getUsersSummaryCounts({ search, tenantId, userType, roleId: effectiveRoleId });
 
         res.status(200).json({
             status: 'success',
             data: {
                 users,
+                summary,
                 pagination: {
                     total,
                     page: parseInt(page),

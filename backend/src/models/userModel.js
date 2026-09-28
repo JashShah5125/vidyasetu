@@ -773,6 +773,47 @@ const getUsersCount = async ({ search = '', status = '', tenantId = '', userType
     return rows[0].total;
 };
 
+const getUsersSummaryCounts = async ({ search = '', tenantId = '', userType = '', roleId = '' } = {}) => {
+    const params = [];
+    let whereClause = 'WHERE u.deleted_at IS NULL';
+
+    if (search) {
+        whereClause += ' AND (u.name LIKE ? OR u.email LIKE ? OR u.mobile LIKE ?)';
+        const searchTerm = `%${search}%`;
+        params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    if (tenantId) {
+        whereClause += ' AND u.tenant_id = ?';
+        params.push(tenantId);
+    }
+
+    if (userType) {
+        whereClause += ' AND u.user_type = ?';
+        params.push(userType);
+    }
+
+    if (roleId) {
+        whereClause += ' AND EXISTS (SELECT 1 FROM user_roles ur2 LEFT JOIN roles r2 ON ur2.role_id = r2.id WHERE ur2.user_id = u.id AND ur2.revoked_at IS NULL AND (ur2.role_id = ? OR r2.code = ? OR r2.name = ?))';
+        params.push(roleId, roleId, roleId);
+    }
+
+    const [rows] = await pool.query(
+        `SELECT 
+            COUNT(DISTINCT u.id) AS total,
+            COUNT(DISTINCT CASE WHEN u.status = 'active' AND (u.app_access_suspended = 0 OR u.app_access_suspended IS NULL) THEN u.id END) AS active_count,
+            COUNT(DISTINCT CASE WHEN u.status = 'suspended' OR u.app_access_suspended = 1 THEN u.id END) AS suspended_count
+         FROM users u ${whereClause}`,
+        params
+    );
+
+    return {
+        total: Number(rows[0]?.total) || 0,
+        active: Number(rows[0]?.active_count) || 0,
+        suspended: Number(rows[0]?.suspended_count) || 0
+    };
+};
+
 const createUser = async ({ tenant_id, name, email, mobile, password_hash, user_type, status = 'active', role_id, created_by }) => {
     const connection = await pool.getConnection();
     try {
@@ -1047,6 +1088,7 @@ module.exports = {
     updateUserProfile,
     getUsersList,
     getUsersCount,
+    getUsersSummaryCounts,
     createUser,
     updateUser,
     deleteUser,

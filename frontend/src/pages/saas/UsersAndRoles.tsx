@@ -454,6 +454,7 @@ export const UsersAndRoles: React.FC = () => {
   const [userLimit, setUserLimit] = useState(10);
   const [userTotalPages, setUserTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [userSummary, setUserSummary] = useState<{ total: number; active: number; suspended: number }>({ total: 0, active: 0, suspended: 0 });
 
   // User Filters
   const [userSearch, setUserSearch] = useState('');
@@ -671,6 +672,9 @@ export const UsersAndRoles: React.FC = () => {
         setUsers(res.data.data.users || []);
         setUserTotalPages(res.data.data.pagination.totalPages || 1);
         setTotalUsers(res.data.data.pagination.total || 0);
+        if (res.data.data.summary) {
+          setUserSummary(res.data.data.summary);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
@@ -1228,8 +1232,8 @@ export const UsersAndRoles: React.FC = () => {
     return true;
   });
 
-  const activeUserCount = users.filter(u => u.status === 'active' && u.app_access_suspended === 0).length;
-  const suspendedUserCount = users.filter(u => u.app_access_suspended === 1 || u.status === 'suspended').length;
+  const activeUserCount = userSummary.total > 0 ? userSummary.active : users.filter(u => u.status === 'active' && u.app_access_suspended === 0).length;
+  const suspendedUserCount = userSummary.total > 0 ? userSummary.suspended : users.filter(u => u.app_access_suspended === 1 || u.status === 'suspended').length;
   const systemRolesCount = rolesList.filter(r => r.is_system === 1).length;
   const customRolesCount = rolesList.filter(r => r.is_system === 0).length;
 
