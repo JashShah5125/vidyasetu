@@ -634,7 +634,7 @@ export const SaasAdminDashboard: React.FC = () => {
           </div>
 
           {/* Area / Bar Chart */}
-          <div className="w-full h-52 outline-none focus:outline-none focus-visible:outline-none select-none [&_*]:outline-none [&_*]:focus:outline-none">
+          <div className="w-full h-60 outline-none focus:outline-none focus-visible:outline-none select-none [&_*]:outline-none [&_*]:focus:outline-none">
             {loading ? (
               <div className="w-full h-full flex items-center justify-center">
                 <Loader2 size={24} className="animate-spin text-slate-300" />
@@ -647,7 +647,7 @@ export const SaasAdminDashboard: React.FC = () => {
               <ResponsiveContainer width="100%" height="100%" style={{ outline: 'none' }}>
                 <AreaChart
                   data={revenueTrend.map(t => ({ month: t.m, revenue: t.raw_val, isCurrent: t.isCurrent }))}
-                  margin={{ top: 10, right: 12, left: -15, bottom: 0 }}
+                  margin={{ top: 10, right: 30, left: 10, bottom: 26 }}
                   style={{ outline: 'none' }}
                 >
                   <defs>
@@ -659,12 +659,46 @@ export const SaasAdminDashboard: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis
                     dataKey="month"
+                    interval={0}
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }}
+                    tick={(props: any) => {
+                      const { x, y, payload } = props;
+                      const val = String(payload?.value || '');
+                      const wkMatch = val.match(/^(Wk\s*\d+)\s*\((.*?)\)$/);
+                      if (wkMatch) {
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text textAnchor="middle" fill="#64748b" fontSize={10} fontWeight={600}>
+                              <tspan x={0} dy={10}>{wkMatch[1]}</tspan>
+                              <tspan x={0} dy={12} fill="#94a3b8" fontSize={9} fontWeight={500}>({wkMatch[2]})</tspan>
+                            </text>
+                          </g>
+                        );
+                      }
+                      const dayMatch = val.match(/^([A-Za-z]+),\s*(.+)$/);
+                      if (dayMatch) {
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text textAnchor="middle" fill="#64748b" fontSize={10} fontWeight={600}>
+                              <tspan x={0} dy={10}>{dayMatch[1]}</tspan>
+                              <tspan x={0} dy={12} fill="#94a3b8" fontSize={9} fontWeight={500}>{dayMatch[2]}</tspan>
+                            </text>
+                          </g>
+                        );
+                      }
+                      return (
+                        <g transform={`translate(${x},${y})`}>
+                          <text x={0} y={0} dy={12} textAnchor="middle" fill="#64748b" fontSize={10} fontWeight={600}>
+                            {val}
+                          </text>
+                        </g>
+                      );
+                    }}
                   />
                   <YAxis
                     type="number"
+                    width={64}
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: '#64748b', fontSize: 10 }}

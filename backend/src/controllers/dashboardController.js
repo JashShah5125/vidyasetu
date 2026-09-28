@@ -542,15 +542,12 @@ const getSaasRevenue = async (req, res) => {
         `);
 
         let monthTotals = Array(12).fill(0);
-        let baseTotal = 0;
 
         paidByMonth.forEach(row => {
             const yr = Number(row.yr);
             const mo = Number(row.mo) - 1;
             const rev = Number(row.rev) || 0;
-            if (yr < selectedYear) {
-                baseTotal += rev;
-            } else if (yr === selectedYear && mo >= 0 && mo < 12) {
+            if (yr === selectedYear && mo >= 0 && mo < 12) {
                 monthTotals[mo] += rev;
             }
         });
@@ -559,14 +556,13 @@ const getSaasRevenue = async (req, res) => {
         const currentYear = today.getFullYear();
         const currentMonth = today.getMonth();
 
-        let runningTotal = baseTotal;
         const trend = monthTotals.map((added, index) => {
             const monthStr = new Date(selectedYear, index, 1).toLocaleString('en-US', { month: 'short' });
+            const isFuture = selectedYear > currentYear || (selectedYear === currentYear && index > currentMonth);
 
             // 1. Specific single month selected -> Show value ONLY on that month
             if (selectedMonth !== null) {
                 const isSelected = (index + 1) === selectedMonth;
-                const isFuture = selectedYear > currentYear || (selectedYear === currentYear && index > currentMonth);
                 const val = (!isFuture && isSelected) ? Math.round(added) : 0;
                 return {
                     m: monthStr,
@@ -577,8 +573,7 @@ const getSaasRevenue = async (req, res) => {
                 };
             }
 
-            // 2. All months selected -> Cumulative growth up to current month
-            const isFuture = selectedYear > currentYear || (selectedYear === currentYear && index > currentMonth);
+            // 2. All months selected -> Monthly collection for each month
             if (isFuture) {
                 return {
                     m: monthStr,
@@ -588,12 +583,12 @@ const getSaasRevenue = async (req, res) => {
                     isFuture: true
                 };
             }
-            runningTotal += added;
-            const roundedTotal = Math.round(runningTotal);
+
+            const monthVal = Math.round(added);
             return {
                 m: monthStr,
-                val: '₹' + roundedTotal.toLocaleString('en-IN'),
-                raw_val: roundedTotal,
+                val: '₹' + monthVal.toLocaleString('en-IN'),
+                raw_val: monthVal,
                 isCurrent: selectedYear === currentYear && index === currentMonth,
                 isFuture: false
             };
