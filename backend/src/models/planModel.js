@@ -134,9 +134,43 @@ const getPlanById = async (id) => {
     return formatPlan(rows[0]);
 };
 
-const checkExactDuplicate = async (planData) => {
-    const billing = planData.billing || {};
-    const rl = planData.resource_limits || {};
+const normalizePlanPayload = (planData) => {
+    if (!planData) return {};
+    const billing = planData.billing || {
+        monthly_price: planData.monthlyPrice ?? planData.monthly_price ?? 0,
+        quarterly_price: planData.quarterlyPrice ?? planData.quarterly_price ?? 0,
+        half_yearly_price: planData.halfYearlyPrice ?? planData.half_yearly_price ?? 0,
+        yearly_price: planData.yearlyPrice ?? planData.yearly_price ?? 0,
+        lifetime_price: planData.lifetimePrice ?? planData.lifetime_price ?? 0,
+        currency: planData.currency || 'INR',
+        trial_days: planData.trialDays ?? planData.trial_days ?? 0,
+        setup_fee: planData.setupFee ?? planData.setup_fee ?? 0,
+        auto_renewal: planData.autoRenewal ? 1 : 0
+    };
+
+    const resource_limits = planData.resource_limits || {
+        max_branches: planData.maxBranches ?? planData.max_branches ?? -1,
+        max_staff_users: planData.maxStaffUsers ?? planData.max_staff_users ?? -1,
+        max_students: planData.maxStudents ?? planData.max_students ?? -1,
+        max_parents: planData.maxParents ?? planData.max_parents ?? -1,
+        max_teachers: planData.maxTeachers ?? planData.max_teachers ?? -1,
+        max_storage: planData.maxStorage ?? planData.max_storage ?? '-1',
+        max_file_size: planData.maxFileSize ?? planData.max_file_size ?? '-1',
+        max_sms_credits: planData.maxSmsCredits ?? planData.max_sms_credits ?? -1,
+        max_whatsapp_msgs: planData.maxWhatsappMsgs ?? planData.max_whatsapp_msgs ?? -1
+    };
+
+    return {
+        ...planData,
+        billing,
+        resource_limits
+    };
+};
+
+const checkExactDuplicate = async (rawPlanData) => {
+    const planData = normalizePlanPayload(rawPlanData);
+    const billing = planData.billing;
+    const rl = planData.resource_limits;
     const fa = planData.features || {};
     const s = planData.support || {};
     const br = planData.branding || {};
@@ -218,7 +252,9 @@ const checkExactDuplicate = async (planData) => {
     return rows.length > 0 ? rows[0].id : null;
 };
 
-const createPlan = async (planData) => {
+const createPlan = async (rawPlanData) => {
+    const planData = normalizePlanPayload(rawPlanData);
+
     // Check for exact duplicate before any DB writes
     const duplicateId = await checkExactDuplicate(planData);
     if (duplicateId) {
@@ -304,7 +340,8 @@ const createPlan = async (planData) => {
     }
 };
 
-const updatePlan = async (id, planData) => {
+const updatePlan = async (id, rawPlanData) => {
+    const planData = normalizePlanPayload(rawPlanData);
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();

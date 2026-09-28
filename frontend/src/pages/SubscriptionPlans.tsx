@@ -436,6 +436,8 @@ export const SubscriptionPlans: React.FC = () => {
     // Pre-fill the form with the parent plan's data but treat it as a NEW creation
     setEditingPlanId(null); // must be null — this is a create, not an edit
     populateForm(p);
+    setName(`${p.name} (Copy)`);
+    setCode(`${p.code}-COPY`);
     setCurrentStep(0);
     setShowViewModal(false);
     setShowAddModal(true);

@@ -14,12 +14,13 @@ const createPlan = async (planData) => {
         throw new Error('Name and Code are required');
     }
 
+    const billing = planData.billing || {};
     const prices = [
-        planData.monthlyPrice, 
-        planData.quarterlyPrice, 
-        planData.halfYearlyPrice, 
-        planData.yearlyPrice, 
-        planData.lifetimePrice
+        planData.monthlyPrice ?? planData.monthly_price ?? billing.monthly_price, 
+        planData.quarterlyPrice ?? planData.quarterly_price ?? billing.quarterly_price, 
+        planData.halfYearlyPrice ?? planData.half_yearly_price ?? billing.half_yearly_price, 
+        planData.yearlyPrice ?? planData.yearly_price ?? billing.yearly_price, 
+        planData.lifetimePrice ?? planData.lifetime_price ?? billing.lifetime_price
     ];
     const hasAtLeastOnePrice = prices.some(p => p !== undefined && p !== null && p !== '' && !isNaN(Number(p)) && Number(p) >= 0);
     if (!hasAtLeastOnePrice) {
