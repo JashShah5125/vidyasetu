@@ -480,7 +480,7 @@ export const ClassroomSetup: React.FC = () => {
           )}
         </div>
 
-        <Table headers={['Room Name', ...(!isBranchAdmin ? ['Branch'] : []), 'Type', 'Capacity', 'Status', 'Actions']}>
+        <Table headers={['Room Name', ...(!isBranchAdmin ? ['Branch'] : []), 'Type', 'Capacity', 'Status', { label: 'Actions', align: 'right' }]}>
           {isLoading ? (
             <tr>
               <td colSpan={isBranchAdmin ? 5 : 6} className="px-6 py-16">
