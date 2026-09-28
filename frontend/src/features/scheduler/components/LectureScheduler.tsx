@@ -546,8 +546,8 @@ export const LectureScheduler = () => {
               {/* Header Row: Title & Button */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col">
-                  <h2 className="text-2xl font-bold text-slate-900">Timetable</h2>
-                  <p className="text-sm text-slate-500">Academic timetable management</p>
+                  <h2 className="text-2xl font-bold text-slate-900">Lecture Schedule</h2>
+                  <p className="text-sm text-slate-500">Academic timetable and lecture schedule management</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <Button variant="primary" onClick={() => setIsWizardOpen(true)}>

@@ -454,11 +454,7 @@ export const SupportTickets: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
         <div>
           <h2 className="text-4xl font-display font-extrabold text-slate-900 tracking-tight">
-            {isBranchAdmin
-              ? 'Branch Support Desk'
-              : isInstAdmin
-              ? 'Support & Communications'
-              : 'Support Tickets'}
+            Support Tickets
           </h2>
           <p className="text-base text-slate-500 mt-2">
             {isBranchAdmin

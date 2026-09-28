@@ -61,10 +61,10 @@ const createCourse = async (req, res) => {
         res.status(201).json({ status: 'success', message: 'Course created successfully', data: result });
     } catch (error) {
         console.error('Error creating course:', error);
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ status: 'error', message: 'Course code already exists for this institute' });
+        if (error.statusCode === 409 || error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ status: 'error', message: error.message || 'Course code or name already exists for this institute' });
         }
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        res.status(500).json({ status: 'error', message: error.message || 'Internal server error' });
     }
 };
 
@@ -84,10 +84,10 @@ const updateCourse = async (req, res) => {
         res.status(200).json({ status: 'success', message: 'Course updated successfully', data: result });
     } catch (error) {
         console.error('Error updating course:', error);
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ status: 'error', message: 'A program/level code already exists for this course' });
+        if (error.statusCode === 409 || error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ status: 'error', message: error.message || 'A program/level code or course name already exists' });
         }
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        res.status(500).json({ status: 'error', message: error.message || 'Internal server error' });
     }
 };
 

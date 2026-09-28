@@ -795,7 +795,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
       )}
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">
-          {subTab === 'sheet' ? 'Attendance registers' : 'Class Timetable Schedules'}
+          {subTab === 'sheet' ? 'Attendance Roster' : 'Class Timetable Schedules'}
         </h2>
         <p className="text-sm text-slate-500 mt-1">
           {subTab === 'sheet' 

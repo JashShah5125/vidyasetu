@@ -44,20 +44,16 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           <Menu size={20} />
         </button>
 
-
-
         {/* Tenant name badge */}
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 shadow-sm">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
           <span className="whitespace-nowrap truncate max-w-[100px] sm:max-w-none">{currentUser.tenantName}</span>
         </div>
-
-
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
         <span className={`px-2.5 py-1.5 border rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider select-none whitespace-nowrap ${currentRoleBadgeColor(currentUser.role)}`}>
-          {roleLabels[currentUser.role]}
+          {roleLabels[currentUser.role] || currentUser.role}
         </span>
 
         <button

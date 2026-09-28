@@ -43,7 +43,8 @@ const computeDates = (preset: DatePreset): { from: string; to: string } => {
   return { from: isoDate(new Date(today.getFullYear(), today.getMonth(), 1)), to: todayStr };
 };
 
-const STORAGE_KEY = 'inst_dashboard_v3_filters';
+const getStorageKey = (tenantId?: string | number) =>
+  tenantId ? `inst_dashboard_v3_filters_${tenantId}` : 'inst_dashboard_v3_filters';
 
 const defaultFilters = (): DashboardHeaderFilters => {
   const today = new Date();
@@ -60,9 +61,9 @@ const defaultFilters = (): DashboardHeaderFilters => {
   };
 };
 
-const loadSavedFilters = (): DashboardHeaderFilters => {
+const loadSavedFilters = (tenantId?: string | number): DashboardHeaderFilters => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey(tenantId));
     if (!raw) return defaultFilters();
     const parsed = JSON.parse(raw);
     const validPreset: DatePreset =
@@ -81,16 +82,21 @@ const loadSavedFilters = (): DashboardHeaderFilters => {
 // ─────────────────────────────────────────────────────────────────────────────
 const InstituteDashboard: React.FC = () => {
   const { currentUser } = useAuth();
-  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const isBranchAdmin =
+    currentUser?.role === 'branch-admin' ||
+    currentUser?.role === 'branch_admin' ||
+    currentUser?.role === 'branchadmin';
 
-  const [filters, setFilters] = useState<DashboardHeaderFilters>(loadSavedFilters);
+  const [filters, setFilters] = useState<DashboardHeaderFilters>(() =>
+    loadSavedFilters(currentUser?.tenant_id)
+  );
 
-  // Keep filters in sync with localStorage
+  // Keep filters in sync with localStorage scoped to tenant
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+      localStorage.setItem(getStorageKey(currentUser?.tenant_id), JSON.stringify(filters));
     } catch { /* ignore */ }
-  }, [filters]);
+  }, [filters, currentUser?.tenant_id]);
 
   // Branch-admin: lock to their branch
   useEffect(() => {

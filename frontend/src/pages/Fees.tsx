@@ -596,7 +596,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Student Fee Collections & Register</h2>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Collect Payments</h2>
           <p className="text-base text-slate-500 mt-2">
             Track student fee plans, collected revenues, remaining balances, and overdue dues.
           </p>

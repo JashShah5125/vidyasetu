@@ -465,7 +465,7 @@ export const FeesMaster: React.FC = () => {
       <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Fees Master</h2>
+              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Fee Structures</h2>
               <p className="text-sm text-slate-500 mt-1">
                 {isBranchAdmin
                   ? 'View program-wise, bundle-wise and subject-wise fee structures assigned to your branch.'

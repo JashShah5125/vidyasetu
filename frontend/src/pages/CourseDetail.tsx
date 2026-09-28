@@ -213,22 +213,28 @@ export const CourseDetail: React.FC = () => {
     setActiveTab(nextTab);
   };
 
-  const handleSave = async () => {
+  const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
+
+  const handleSave = () => {
     const generalCheck = validateStep('general');
     if (!generalCheck.isValid) {
       addToast(generalCheck.error || 'Please enter both Course Name and Course Code.', 'error');
       setActiveTab('general');
       return;
     }
+    setShowSaveConfirmModal(true);
+  };
 
+  const handleConfirmSave = async () => {
+    setShowSaveConfirmModal(false);
     try {
       setIsSaving(true);
       if (isNew) {
         await courseApi.create(formData);
-        addToast(`Course "${formData.name}" created successfully.`, 'info');
+        addToast(`Course "${formData.name}" created successfully.`, 'success');
       } else if (code) {
         await courseApi.update(code, formData);
-        addToast(`Course "${formData.name}" updated successfully.`, 'info');
+        addToast(`Course "${formData.name}" updated successfully.`, 'success');
       }
       navigate('/courses');
     } catch (err: any) {
@@ -268,8 +274,8 @@ export const CourseDetail: React.FC = () => {
       {/* Top Header & Actions */}
       <div className="bg-white border border-slate-200/80 rounded-2xl px-6 py-5 shadow-sm">
         <Breadcrumbs items={[
-          { label: 'Courses Directory', href: '/courses' },
-          { label: isNew ? 'Create New Course' : (formData.name || 'Course Details') }
+          { label: 'Courses', href: '/courses' },
+          { label: isNew ? 'Create Course' : (formData.name || 'Edit Course') }
         ]} />
 
         {isReadOnly && (
@@ -283,7 +289,7 @@ export const CourseDetail: React.FC = () => {
           <div>
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
               <BookOpen size={28} className="text-blue-600" />
-              {isNew ? 'Create Master Course' : (formData.name || 'Course Details')}
+              {isNew ? 'Create Course' : (formData.name || 'Edit Course')}
             </h2>
             <p className="text-sm text-slate-500 mt-1">
               {isNew ? 'Define a new master course, programs, academic levels and subjects.' : `Manage ${formData.code || 'course'} catalog and structure.`}
@@ -301,12 +307,36 @@ export const CourseDetail: React.FC = () => {
                 disabled={isSaving}
                 className="px-5 py-2.5 text-sm shadow-sm font-bold"
               >
-                {isSaving ? 'Saving...' : 'Save Course'}
+                {isSaving ? 'Saving...' : isNew ? 'Create Course' : 'Update Course'}
               </Button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal for Edit / Create */}
+      <Modal
+        isOpen={showSaveConfirmModal}
+        onClose={() => setShowSaveConfirmModal(false)}
+        title={isNew ? 'Confirm Course Creation' : 'Confirm Course Update'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            {isNew
+              ? `Are you sure you want to create the course "${formData.name}" with code "${formData.code}"?`
+              : `Are you sure you want to save the changes to course "${formData.name}"?`}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setShowSaveConfirmModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleConfirmSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : isNew ? 'Confirm & Create' : 'Confirm & Update'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Tab Navigation */}
       <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap scrollbar-none mt-6 px-6">
@@ -362,9 +392,18 @@ export const CourseDetail: React.FC = () => {
                   value={formData.code}
                   placeholder="e.g. JEE-PREP, NEET-MED"
                   onChange={e => setFormData({ ...formData, code: e.target.value })}
-                  disabled={disableInputs}
+                  disabled={disableInputs || !isNew}
                   required
                 />
+                <div className="md:col-span-2">
+                  <Input
+                    label="Description"
+                    value={formData.description || ''}
+                    placeholder="Brief overview or description of the course..."
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    disabled={disableInputs}
+                  />
+                </div>
               </div>
             </Card>
           )}

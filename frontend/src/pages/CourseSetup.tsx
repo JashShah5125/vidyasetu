@@ -186,7 +186,7 @@ export const CourseSetup: React.FC = () => {
         <div>
           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
             <BookOpen size={32} className="text-indigo-600" />
-            Academic Courses Directory
+            Courses
           </h2>
           <p className="text-base text-slate-500 mt-2">
             {isBranchAdmin ? (
@@ -655,18 +655,30 @@ export const CourseSetup: React.FC = () => {
           ['NEET Foundation', 'NEET-FOUND', 'NEET Pre-foundation for class X'],
           ['JEE Advanced Crash', 'JEE-CRASH', 'JEE Advanced crash practice program']
         ]}
-        onImport={(importedRows) => {
-          const newCourses = importedRows.map((row, rIdx) => {
-            return {
-              id: `CRS-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
-              name: row['Name'] || 'Imported Course',
-              code: row['Code'] || `C-${Math.floor(100 + Math.random() * 900)}`,
-              description: row['Description'] || '',
-              branches: [],
-              programs: []
-            };
-          });
-          setCourses(prev => [...newCourses, ...prev]);
+        onImport={async (importedRows) => {
+          setIsLoading(true);
+          let successCount = 0;
+          for (const row of importedRows) {
+            const name = (row['Name'] || row['Course Name'] || '').trim();
+            const code = (row['Code'] || row['Course Code'] || `C-${Math.floor(1000 + Math.random() * 9000)}`).trim();
+            const description = (row['Description'] || '').trim();
+            if (!name) continue;
+            try {
+              await courseApi.create({
+                name,
+                code,
+                description,
+                is_active: true,
+                branches: [],
+                programs: []
+              });
+              successCount++;
+            } catch (err: any) {
+              console.error('Failed to import course row:', row, err);
+            }
+          }
+          await fetchCourses();
+          addToast(`Successfully imported ${successCount} courses into the catalog!`, 'success');
         }}
       />
     </div>

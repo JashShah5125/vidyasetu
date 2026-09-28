@@ -226,6 +226,17 @@ const createCourse = async (tenantId, data, userId) => {
     try {
         await conn.beginTransaction();
 
+        const [existing] = await conn.query(
+            `SELECT id, name, code FROM courses WHERE tenant_id = ? AND (LOWER(code) = LOWER(?) OR LOWER(name) = LOWER(?)) AND deleted_at IS NULL`,
+            [tenantId, (code || '').trim(), (name || '').trim()]
+        );
+        if (existing.length > 0) {
+            const isCodeDup = existing.some(e => e.code.toLowerCase() === (code || '').trim().toLowerCase());
+            const err = new Error(isCodeDup ? `Course code "${code}" is already in use.` : `Course name "${name}" already exists.`);
+            err.statusCode = 409;
+            throw err;
+        }
+
         const [insert] = await conn.query(
             `INSERT INTO courses (tenant_id, name, code, description, is_active, created_by, updated_by)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -261,6 +272,18 @@ const updateCourse = async (tenantId, code, data, userId) => {
         if (!courseId) {
             await conn.rollback();
             return null;
+        }
+
+        if (name) {
+            const [existing] = await conn.query(
+                `SELECT id FROM courses WHERE tenant_id = ? AND id != ? AND LOWER(name) = LOWER(?) AND deleted_at IS NULL`,
+                [tenantId, courseId, name.trim()]
+            );
+            if (existing.length > 0) {
+                const err = new Error(`Course name "${name}" already exists for another course.`);
+                err.statusCode = 409;
+                throw err;
+            }
         }
 
         await conn.query(

@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Reports & Auditing',
             links: [
               { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Audit Trail Logs', path: '/audit-logs', icon: ClipboardList }
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
             ]
           },
           {
@@ -264,7 +264,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Reports & Auditing',
             links: [
               { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Audit Trail Logs', path: '/audit-logs', icon: ClipboardList }
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
             ]
           },
           {

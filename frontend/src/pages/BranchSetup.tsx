@@ -119,7 +119,7 @@ export const BranchSetup: React.FC = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Branch Management</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Branches Setup</h2>
           <p className="text-sm text-slate-500 mt-1">Manage and configure all physical centers and branches for your institute.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

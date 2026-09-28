@@ -220,7 +220,7 @@ export const Notifications: React.FC = () => {
 
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Broadcast Notification</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Broadcast</h2>
           <p className="text-sm text-slate-500 mt-1">
             Compose circulars, target audience groups, and schedule automatic push messages.
           </p>

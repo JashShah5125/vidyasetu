@@ -92,7 +92,7 @@ export const Settings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-display font-bold text-slate-900">User Account Settings</h2>
+        <h2 className="text-2xl font-display font-bold text-slate-900">Global Settings</h2>
         <p className="text-sm text-slate-500 mt-1">Configure profile details, manage logins, and review platform configs.</p>
       </div>
 

@@ -19,15 +19,25 @@ const toMySqlDatetime = (date) => {
 const changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
+        const userId = req.user?.userId || req.user?.id;
 
-        const user = await userModel.findUserById(req.user.userId);
-        if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {
+        const user = await userModel.findUserById(userId);
+        if (!user) {
+            return res.status(404).json({ status: 'error', message: 'User account not found' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!isMatch) {
             return res.status(401).json({ status: 'error', message: 'Current password is incorrect' });
         }
 
+        if (currentPassword === newPassword) {
+            return res.status(400).json({ status: 'error', message: 'New password cannot be the same as the current password' });
+        }
+
         const passwordHash = await bcrypt.hash(newPassword, 10);
-        await userModel.updatePassword(req.user.userId, passwordHash);
-        res.status(200).json({ status: 'success', message: 'Password changed successfully' });
+        await userModel.updatePassword(userId, passwordHash);
+        res.status(200).json({ status: 'success', message: 'Password changed successfully. Please use your new password next time you sign in.' });
     } catch (error) {
         console.error('Change password error:', error);
         res.status(500).json({ status: 'error', message: 'Unable to change password' });

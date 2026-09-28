@@ -1906,7 +1906,7 @@ export const TeacherAssignments: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Homeworks and Exams</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Homework &amp; Exams</h2>
           <p className="text-sm text-slate-500 mt-1">Manage homework, assignments, practice sets, and classroom evaluations</p>
         </div>
         {activePrimaryTab === 'homework' && (

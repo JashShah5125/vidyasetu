@@ -767,7 +767,7 @@ export const Students: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Student Profile Roster</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Students Roster</h2>
           <p className="text-sm text-slate-500 mt-1">
             Manage active students, assigned batches, subject bundles, and guardian records.
           </p>

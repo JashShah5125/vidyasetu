@@ -358,7 +358,7 @@ export const SubjectSetup: React.FC = () => {
         <div>
           <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
             <BookOpen size={32} className="text-indigo-600" />
-            Academic Subjects Directory
+            Subjects
           </h2>
           <p className="text-base text-slate-500 mt-2">
             Configure master subjects, syllabus types, curriculum mappings, and subject bundles.

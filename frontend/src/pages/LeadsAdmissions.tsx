@@ -2267,7 +2267,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Leads & Admissions</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Leads &amp; Enquiries</h2>
           <p className="text-sm text-slate-500 mt-1">Full pipeline lifecycle from initial enquiry to fee activation.</p>
         </div>
         <div className="flex items-center gap-2">

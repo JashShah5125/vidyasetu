@@ -6,8 +6,9 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Edit3, Trash2, ArrowLeft, Upload } from 'lucide-react';
+import { Plus, Edit3, Trash2, ArrowLeft, Upload, RotateCcw } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { Modal } from '../components/ui/Modal';
 
 interface MastersProps {
   initialSubTab?: 'courses' | 'batches' | 'subjects' | 'branches';
@@ -87,7 +88,12 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     setShowAddModal(true);
   };
 
+  const [editingItemOriginal, setEditingItemOriginal] = useState<any | null>(null);
+  const [showConfirmUpdateModal, setShowConfirmUpdateModal] = useState(false);
+  const [courseFilterDuration, setCourseFilterDuration] = useState('all');
+
   const handleEdit = (item: any) => {
+    setEditingItemOriginal(item);
     setEditingName(item.name);
     if (subTab === 'courses') {
       setCourseName(item.name);
@@ -123,41 +129,76 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (subTab === 'courses') {
-      if (!courseName || !courseCode) return;
-      if (editingName) {
-        setCourses(prev => prev.map(c => c.name === editingName 
-          ? { ...c, name: courseName, code: courseCode, fees: courseFees, duration: courseDuration } 
+      if (!courseName.trim() || !courseCode.trim()) {
+        addToast('Course Name and Course Code are required.', 'error');
+        return;
+      }
+      // Duplicate check
+      if (!editingItemOriginal) {
+        const isDup = courses.some(c => c.name.toLowerCase() === courseName.trim().toLowerCase() || c.code.toLowerCase() === courseCode.trim().toLowerCase());
+        if (isDup) {
+          addToast(`Course with name "${courseName}" or code "${courseCode}" already exists.`, 'error');
+          return;
+        }
+      } else {
+        const isDup = courses.some(c => c !== editingItemOriginal && (c.name.toLowerCase() === courseName.trim().toLowerCase() || c.code.toLowerCase() === courseCode.trim().toLowerCase()));
+        if (isDup) {
+          addToast(`Another course with name "${courseName}" or code "${courseCode}" already exists.`, 'error');
+          return;
+        }
+      }
+    }
+
+    if (editingItemOriginal) {
+      setShowConfirmUpdateModal(true);
+      return;
+    }
+
+    executeSubmit();
+  };
+
+  const executeSubmit = () => {
+    if (subTab === 'courses') {
+      if (editingItemOriginal) {
+        setCourses(prev => prev.map(c => c === editingItemOriginal || c.code === editingItemOriginal.code
+          ? { ...c, name: courseName.trim(), code: courseCode.trim(), fees: courseFees, duration: courseDuration } 
           : c
         ));
+        addToast(`Course "${courseName}" updated successfully.`, 'success');
       } else {
         addCourse({
-          name: courseName,
-          code: courseCode,
+          name: courseName.trim(),
+          code: courseCode.trim(),
           fees: Number(courseFees),
           duration: courseDuration,
           batches: '0 Batches',
           programs: []
         });
+        addToast(`Course "${courseName}" added successfully.`, 'success');
       }
     } else if (subTab === 'batches') {
-      if (!batchName) return;
-      if (editingName) {
-        setBatches(prev => prev.map(b => b.name === editingName 
-          ? { ...b, name: batchName, course: batchCourse, timing: batchTiming, room: batchRoom, teacher: batchTeacher } 
+      if (!batchName.trim()) return;
+      if (editingItemOriginal) {
+        setBatches(prev => prev.map(b => b === editingItemOriginal || b.name === editingItemOriginal.name
+          ? { ...b, name: batchName.trim(), course: batchCourse, timing: batchTiming, room: batchRoom, teacher: batchTeacher } 
           : b
         ));
+        addToast(`Batch "${batchName}" updated successfully.`, 'success');
       } else {
         addBatch({
-          name: batchName,
+          name: batchName.trim(),
           course: batchCourse || courses[0]?.name || 'JEE Prep',
           timing: batchTiming,
           room: batchRoom,
           teacher: batchTeacher
         });
+        addToast(`Batch "${batchName}" added successfully.`, 'success');
       }
     }
+    setShowConfirmUpdateModal(false);
     setShowAddModal(false);
     setEditingName(null);
+    setEditingItemOriginal(null);
   };
 
   const filteredAndSortedBranches = branches
@@ -165,7 +206,11 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedCourses = courses
-    .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(c => {
+      const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDuration = courseFilterDuration === 'all' || c.duration === courseFilterDuration;
+      return matchesSearch && matchesDuration;
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedBatches = batches
@@ -297,13 +342,43 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
       </div>
 
       {/* Search, Filter, Sort Controls */}
-      <div className="flex bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-4 bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm items-center">
         <Input 
           placeholder={`Search ${subTab}...`} 
           value={searchTerm} 
           onChange={(e) => setSearchTerm(e.target.value)} 
-          wrapperClassName="w-full"
+          wrapperClassName="flex-1 w-full"
         />
+
+        {subTab === 'courses' && (
+          <div className="w-full sm:w-48">
+            <Select
+              label=""
+              value={courseFilterDuration}
+              onChange={(e) => setCourseFilterDuration(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Durations' },
+                { value: '1 Year', label: '1 Year' },
+                { value: '2 Years', label: '2 Years' },
+                { value: '3 Months', label: '3 Months' },
+                { value: '6 Months', label: '6 Months' }
+              ]}
+            />
+          </div>
+        )}
+
+        {(searchTerm || (subTab === 'courses' && courseFilterDuration !== 'all')) && (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSearchTerm('');
+              setCourseFilterDuration('all');
+            }}
+            className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 shrink-0"
+          >
+            <RotateCcw size={13} /> Reset
+          </Button>
+        )}
       </div>
 
       {/* Tab Selectors */}
@@ -548,6 +623,27 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
           }
         }}
       />
+
+      <Modal
+        isOpen={showConfirmUpdateModal}
+        onClose={() => setShowConfirmUpdateModal(false)}
+        title={`Confirm ${subTab === 'courses' ? 'Course' : subTab === 'batches' ? 'Batch' : 'Record'} Update`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Are you sure you want to apply and save changes to this {subTab === 'courses' ? 'course' : subTab === 'batches' ? 'batch' : 'record'}?
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setShowConfirmUpdateModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={executeSubmit}>
+              Confirm & Update
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmDeleteModal
         isOpen={Boolean(deleteTarget)}

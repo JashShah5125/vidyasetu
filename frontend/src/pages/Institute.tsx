@@ -188,7 +188,7 @@ export const Institute: React.FC = () => {
         </div>
       )}
       <div>
-        <h2 className="text-2xl font-display font-bold text-slate-900">Institute Configuration</h2>
+        <h2 className="text-2xl font-display font-bold text-slate-900">Institute Profile</h2>
         <p className="text-sm text-slate-500 mt-1">Manage your identity, view subscription limits, and plan details.</p>
       </div>
 

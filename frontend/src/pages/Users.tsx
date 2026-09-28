@@ -888,7 +888,7 @@ export const Users: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Staff Members Directory</h2>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Staff Directory</h2>
           <p className="text-base text-slate-500 mt-2">
             {isBranchAdmin
               ? "Manage branch personnel profiles, assign operational roles, and update staff details."

@@ -245,6 +245,9 @@ export const ClassroomSetup: React.FC = () => {
     return errs;
   };
 
+  // Confirmation modal state for update
+  const [showUpdateConfirmModal, setShowUpdateConfirmModal] = useState(false);
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validateForm();
@@ -253,6 +256,15 @@ export const ClassroomSetup: React.FC = () => {
       return;
     }
 
+    if (editingClassroom) {
+      setShowUpdateConfirmModal(true);
+      return;
+    }
+
+    await executeSave();
+  };
+
+  const executeSave = async () => {
     setIsSubmitting(true);
     const branchId = form.branchId;
 
@@ -279,6 +291,7 @@ export const ClassroomSetup: React.FC = () => {
         addToast(res?.message || `Classroom "${form.name}" added successfully.`, 'success');
       }
 
+      setShowUpdateConfirmModal(false);
       setIsFormModalOpen(false);
       await loadClassrooms();
     } catch (err: any) {
@@ -762,6 +775,28 @@ export const ClassroomSetup: React.FC = () => {
         )}
       </Modal>
 
+      {/* Update Confirmation Modal */}
+      <Modal
+        isOpen={showUpdateConfirmModal}
+        onClose={() => setShowUpdateConfirmModal(false)}
+        title="Confirm Classroom Update"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Are you sure you want to save the updated details for classroom <strong className="text-slate-900">"{form.name}"</strong>?
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setShowUpdateConfirmModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={executeSave} disabled={isSubmitting}>
+              {isSubmitting ? 'Updating...' : 'Confirm & Update'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Bulk Import Modal */}
       <BulkImportModal
         isOpen={isImportModalOpen}
@@ -773,23 +808,30 @@ export const ClassroomSetup: React.FC = () => {
           ['Room 201', '201', '60', 'Classroom', 'Active', 'Mumbai West'],
           ['Chemistry Lab B', 'L-02', '35', 'Lab', 'Active', 'Pune Camp']
         ]}
-        onImport={(importedRows) => {
-          const newRooms = importedRows.map((row, rIdx) => {
-            const bName = row['BranchName'] || 'Mumbai West';
-            const bId = branches.find(b => b.name === bName || b.code === bName)?.id || bName;
-            return {
-              id: `CR-IMP-${Math.floor(10000 + Math.random() * 90000)}-${rIdx}`,
-              branchId: String(bId),
-              branchName: bName,
-              name: row['Name'] || 'Imported Room',
-              roomNumber: row['RoomNumber'] || '101',
-              capacity: parseInt(row['Capacity'], 10) || 50,
-              type: (row['Type'] || 'Classroom') as ClassroomType,
-              status: (row['Status'] || 'Active') as ClassroomStatus
-            };
-          });
-          setClassrooms(prev => [...newRooms, ...prev]);
-          addToast(`Imported ${newRooms.length} classroom(s) successfully.`, 'success');
+        onImport={async (importedRows) => {
+          setIsLoading(true);
+          let successCount = 0;
+          for (const row of importedRows) {
+            const bName = row['BranchName'] || (branches[0]?.name || 'Main Branch');
+            const foundBranch = branches.find(b => b.name === bName || b.code === bName || String(b.id) === String(bName));
+            const bId = foundBranch ? foundBranch.id : (accessibleBranches[0]?.id || branches[0]?.id || 1);
+            const name = (row['Name'] || row['Classroom Name'] || '').trim();
+            if (!name) continue;
+            try {
+              await classroomApi.create(String(bId), {
+                name,
+                roomNumber: (row['RoomNumber'] || row['Room Number'] || '').trim() || undefined,
+                capacity: parseInt(row['Capacity'], 10) || 50,
+                type: (row['Type'] || 'Classroom') as ClassroomType,
+                status: (row['Status'] || 'Active') as ClassroomStatus
+              });
+              successCount++;
+            } catch (err) {
+              console.error('Failed to import classroom row:', row, err);
+            }
+          }
+          await loadClassrooms();
+          addToast(`Imported ${successCount} classroom(s) successfully!`, 'success');
         }}
       />
     </div>
