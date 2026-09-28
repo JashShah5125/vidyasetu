@@ -332,33 +332,62 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     }
   };
 
-  // Calculate Expiry date automatically based on Plan Duration
-  const calculateExpiryDate = (startStr: string, selectedPlan: string) => {
+  // Calculate Expiry date automatically based on Plan Duration & Cycle
+  const calculateExpiryDate = (startStr: string, selectedPlan: string, cycle?: string) => {
     if (!startStr) return '';
     const date = new Date(startStr);
     if (isNaN(date.getTime())) return '';
 
-    if (selectedPlan === 'Starter Trial') {
-      date.setDate(date.getDate() + 14); // 14 Days free trial
-    } else if (selectedPlan === 'Pro Enterprise') {
-      date.setFullYear(date.getFullYear() + 1); // 1 Year (12 months)
+    const matchedPlan = availablePlans.find(p => String(p.id) === String(selectedPlan) || p.name === selectedPlan);
+    const planName = matchedPlan?.name || selectedPlan;
+    const currentCycle = (cycle || billingCycle).toLowerCase();
+
+    if (planName === 'Starter Trial' || (matchedPlan && matchedPlan.trial_days > 0)) {
+      date.setDate(date.getDate() + (matchedPlan?.trial_days || 14));
+    } else if (currentCycle === 'yearly' || currentCycle === 'annual') {
+      date.setFullYear(date.getFullYear() + 1);
+    } else if (currentCycle === 'quarterly') {
+      date.setMonth(date.getMonth() + 3);
+    } else if (currentCycle === 'half-yearly' || currentCycle === 'half_yearly') {
+      date.setMonth(date.getMonth() + 6);
+    } else if (currentCycle === 'lifetime') {
+      date.setFullYear(date.getFullYear() + 99);
     } else {
-      date.setMonth(date.getMonth() + 1); // 1 Month (Growth Plan)
+      date.setMonth(date.getMonth() + 1);
     }
     return date.toISOString().split('T')[0];
   };
 
-  const expiryDate = calculateExpiryDate(startDate, plan);
+  const expiryDate = calculateExpiryDate(startDate, plan, billingCycle);
 
-  const autoFinalPrice = () => {
+  const autoFinalPrice = (discVal?: string, planVal?: string, cycleVal?: string) => {
+    const currentPlanId = planVal !== undefined ? planVal : plan;
+    const currentCycle = (cycleVal !== undefined ? cycleVal : billingCycle).toLowerCase();
+    const currentDiscount = discVal !== undefined ? discVal : discount;
+
+    const matchedPlan = availablePlans.find(p => String(p.id) === String(currentPlanId) || p.name === currentPlanId || p.code === currentPlanId);
     let base = 0;
-    if (plan === 'Growth Plan') {
-      base = billingCycle === 'annual' ? 15000 * 12 : 15000;
-    } else if (plan === 'Pro Enterprise') {
-      base = billingCycle === 'annual' ? 30000 * 12 : 30000;
+    if (matchedPlan) {
+      if (currentCycle === 'yearly' || currentCycle === 'annual') {
+        base = Number(matchedPlan.yearly_price ?? matchedPlan.yearlyPrice ?? matchedPlan.price_yearly ?? (Number(matchedPlan.monthly_price || 0) * 12)) || 0;
+      } else if (currentCycle === 'quarterly') {
+        base = Number(matchedPlan.quarterly_price ?? matchedPlan.quarterlyPrice ?? matchedPlan.price_quarterly ?? (Number(matchedPlan.monthly_price || 0) * 3)) || 0;
+      } else if (currentCycle === 'half-yearly' || currentCycle === 'half_yearly') {
+        base = Number(matchedPlan.half_yearly_price ?? matchedPlan.halfYearlyPrice ?? matchedPlan.price_half_yearly ?? (Number(matchedPlan.monthly_price || 0) * 6)) || 0;
+      } else if (currentCycle === 'lifetime') {
+        base = Number(matchedPlan.lifetime_price ?? matchedPlan.lifetimePrice ?? matchedPlan.price_lifetime ?? 0) || 0;
+      } else {
+        base = Number(matchedPlan.monthly_price ?? matchedPlan.monthlyPrice ?? matchedPlan.price_monthly ?? 0) || 0;
+      }
+    } else {
+      if (currentPlanId === 'Growth Plan' || currentPlanId === '2') {
+        base = (currentCycle === 'yearly' || currentCycle === 'annual') ? 49990 : 4999;
+      } else if (currentPlanId === 'Pro Enterprise' || currentPlanId === '3') {
+        base = (currentCycle === 'yearly' || currentCycle === 'annual') ? 199990 : 19999;
+      }
     }
-    const d = parseFloat(discount) || 0;
-    return Math.round(base - (base * d / 100)).toString();
+    const d = parseFloat(currentDiscount) || 0;
+    return Math.max(0, Math.round(base - (base * d / 100))).toString();
   };
 
   const handleOpenAddModal = () => {
@@ -1177,14 +1206,22 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   label="Subscription Tier" 
                   required
                   value={plan} 
-                  onChange={(e) => setPlan(e.target.value)} 
+                  onChange={(e) => {
+                    const newPlan = e.target.value;
+                    setPlan(newPlan);
+                    setFinalPrice(autoFinalPrice(discount, newPlan, billingCycle));
+                  }} 
                   options={availablePlans.map((p) => ({ value: p.id.toString(), label: p.name }))}
                 />
                 <Select
                   label="Billing Cycle"
                   required
                   value={billingCycle}
-                  onChange={(e) => setBillingCycle(e.target.value)}
+                  onChange={(e) => {
+                    const newCycle = e.target.value;
+                    setBillingCycle(newCycle);
+                    setFinalPrice(autoFinalPrice(discount, plan, newCycle));
+                  }}
                   options={[
                     { value: 'Monthly', label: 'Monthly' },
                     { value: 'Quarterly', label: 'Quarterly' },
@@ -1225,11 +1262,15 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Input label="Discount %" type="number" min={0} max={100} placeholder="e.g. 10"
-                    value={discount} onChange={e => { setDiscount(e.target.value); setFinalPrice(autoFinalPrice()); }} />
+                    value={discount} onChange={e => { 
+                      const newDisc = e.target.value;
+                      setDiscount(newDisc); 
+                      setFinalPrice(autoFinalPrice(newDisc)); 
+                    }} />
                 </div>
                 <div>
                   <Input label="Final Price" type="number" placeholder="Auto-calculated or override"
-                    value={finalPrice || autoFinalPrice()} onChange={e => setFinalPrice(e.target.value)} />
+                    value={finalPrice !== '' ? finalPrice : autoFinalPrice()} onChange={e => setFinalPrice(e.target.value)} />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
