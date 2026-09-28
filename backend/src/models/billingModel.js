@@ -274,6 +274,10 @@ const getRevenueTrend = async (year = null, startDate = null, endDate = null) =>
         rowMap.set(`${r.yr}-${r.mo}`, Number(r.rev) || 0);
     });
 
+    const now = new Date();
+    const currentYr = now.getFullYear();
+    const currentMo = now.getMonth() + 1;
+
     const trend = monthSlots.map(slot => {
         const isFuture = slot.yr > currentYr || (slot.yr === currentYr && slot.mo > currentMo);
         if (isFuture) {
