@@ -480,7 +480,10 @@ export const ClassroomSetup: React.FC = () => {
           )}
         </div>
 
-        <Table headers={['Room Name', ...(!isBranchAdmin ? ['Branch'] : []), 'Type', 'Capacity', 'Status', { label: 'Actions', align: 'right' }]}>
+        <Table
+          colWidths={isBranchAdmin ? ['40%', '20%', '16%', '14%', '100px'] : ['28%', '22%', '18%', '14%', '10%', '90px']}
+          headers={['Room Name', ...(!isBranchAdmin ? ['Branch'] : []), 'Type', 'Capacity', 'Status', { label: 'Actions', align: 'center', minWidth: '90px' }]}
+        >
           {isLoading ? (
             <tr>
               <td colSpan={isBranchAdmin ? 5 : 6} className="px-6 py-16">
@@ -559,8 +562,8 @@ export const ClassroomSetup: React.FC = () => {
                 </td>
 
                 {/* Actions */}
-                <td className="px-5 py-3.5 whitespace-nowrap text-right">
-                  <div className="flex items-center justify-end gap-1.5">
+                <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                  <div className="flex items-center justify-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(c)}
