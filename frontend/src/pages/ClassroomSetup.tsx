@@ -353,7 +353,7 @@ export const ClassroomSetup: React.FC = () => {
               <DoorOpen size={22} />
             </div>
             <div>
-              <h2 className="text-2xl font-display font-bold text-slate-900">Classroom Master</h2>
+              <h2 className="text-2xl font-display font-bold text-slate-900">Classrooms</h2>
               <p className="text-sm text-slate-500">
                 Manage physical classrooms, labs, and lecture halls for timetable scheduling.
               </p>
