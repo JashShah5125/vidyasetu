@@ -306,6 +306,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     setActiveTab(targetTabId);
   };
 
+  const lastStepAdvanceTime = React.useRef<number>(0);
+
   const handleNextStep = () => {
     const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'limits'];
     const currentIdx = tabOrder.indexOf(activeTab);
@@ -315,6 +317,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       return;
     }
     setErrorMsg('');
+    lastStepAdvanceTime.current = Date.now();
     if (currentIdx < tabOrder.length - 1) {
       setActiveTab(tabOrder[currentIdx + 1]);
     }
@@ -538,8 +541,13 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isViewOnly) return;
+    if (isViewOnly || isUploading) return;
     
+    // If user just transitioned to this tab in the last 500ms, ignore immediate submit events
+    if (Date.now() - lastStepAdvanceTime.current < 500) {
+      return;
+    }
+
     // If not on the final tab (limits), advance to the next step instead of submitting prematurely
     if (activeTab !== 'limits') {
       handleNextStep();
@@ -1291,13 +1299,13 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   )}
                 </div>
                 <div className="flex gap-3 items-center">
-                  <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+                  <Button key="wizard-cancel-btn" type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
                   {formTabs.findIndex(t => t.id === activeTab) < formTabs.length - 1 ? (
-                    <Button type="button" variant="primary" onClick={handleNextStep} className="flex items-center gap-1.5 shadow-sm">
+                    <Button key="wizard-next-step-btn" type="button" variant="primary" onClick={handleNextStep} className="flex items-center gap-1.5 shadow-sm">
                       Next: {formTabs[formTabs.findIndex(t => t.id === activeTab) + 1].label.replace(/^\d+\.\s*/, '')} <ChevronRight size={16} />
                     </Button>
                   ) : (
-                    <Button type="submit" variant="primary" disabled={isUploading} className="flex items-center gap-1.5 shadow-sm">
+                    <Button key="wizard-submit-btn" type="submit" variant="primary" disabled={isUploading} className="flex items-center gap-1.5 shadow-sm">
                       {isUploading ? (editingTenantId ? 'Saving Changes...' : 'Creating Institute...') : (editingTenantId ? 'Save Changes' : 'Provision Tenant')}
                     </Button>
                   )}
