@@ -16,6 +16,7 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
     const { 
         name, legal_name, slug, adminEmail, mobile, planId, address, city, state, pincode, panNo, gstNo,
         timezone, billingCycle, logoUrl, alternateEmails,
+        startDate, endDate, renewalDate,
         discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
         maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
     } = tenantData;
@@ -39,6 +40,27 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
             throw err;
         }
     }
+
+    // Auto-calculate subscription start, end and renewal dates
+    const finalStartDate = startDate || new Date().toISOString().split('T')[0];
+    let finalEndDate = endDate || null;
+    if (!finalEndDate && finalStartDate) {
+        const d = new Date(finalStartDate);
+        const cycle = (billingCycle || 'annual').toLowerCase();
+        if (cycle === 'yearly' || cycle === 'annual') {
+            d.setFullYear(d.getFullYear() + 1);
+        } else if (cycle === 'quarterly') {
+            d.setMonth(d.getMonth() + 3);
+        } else if (cycle === 'half-yearly' || cycle === 'half_yearly') {
+            d.setMonth(d.getMonth() + 6);
+        } else if (cycle === 'lifetime') {
+            d.setFullYear(d.getFullYear() + 99);
+        } else {
+            d.setMonth(d.getMonth() + 1);
+        }
+        finalEndDate = d.toISOString().split('T')[0];
+    }
+    const finalRenewalDate = renewalDate || finalEndDate;
 
     // Generate unique internal code
     const code = 'T-' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -77,15 +99,15 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
         const [tenantResult] = await connection.query(
             `INSERT INTO tenants (
                 name, slug, code, tenant_type, status, owner_name, primary_email, owner_mobile, plan_id, 
-                subscription_status, address_line1, city, state, pincode, pan_number, gst_number, timezone, billing_cycle, 
+                subscription_status, start_date, end_date, renewal_date, address_line1, city, state, pincode, pan_number, gst_number, timezone, billing_cycle, 
                 logo_url, alternate_emails, subscription_discount, subscription_final_price, subscription_tax, 
                 subscription_invoice_number, override_max_branches, override_max_staff_users, override_max_students, 
                 override_max_parents, override_max_teachers, override_max_storage, override_max_file_size, 
                 override_max_sms_credits, override_max_whatsapp_msgs
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 name, slug, code, 'customer', 1, legal_name || name, adminEmail, mobile || '', planId || null, 
-                'active', address || null, city || null, state || null, pincode || null, panNo || null, gstNo || null,
+                'active', finalStartDate, finalEndDate, finalRenewalDate, address || null, city || null, state || null, pincode || null, panNo || null, gstNo || null,
                 timezone || 'Asia/Kolkata', billingCycle || 'annual', logoUrl || null, 
                 alternateEmails ? JSON.stringify(alternateEmails) : null,
                 discount !== undefined ? discount : null, 

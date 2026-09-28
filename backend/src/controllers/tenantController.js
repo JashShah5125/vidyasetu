@@ -48,6 +48,7 @@ const createTenant = async (req, res) => {
         const { 
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, 
             panNo, gstNo, mobile, timezone, billingCycle, alternate_emails, leadId,
+            startDate, endDate, start_date, end_date, renewalDate, renewal_date,
             discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
             maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
         } = req.body;
@@ -126,6 +127,9 @@ const createTenant = async (req, res) => {
         
         const result = await tenantService.createTenantWithAdmin({
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, logoUrl, alternateEmails: parsedAltEmails,
+            startDate: parseStr(startDate || start_date),
+            endDate: parseStr(endDate || end_date),
+            renewalDate: parseStr(renewalDate || renewal_date),
             discount: parseNum(discount),
             finalPrice: parseNum(finalPrice),
             tax: parseNum(tax),
@@ -184,6 +188,7 @@ const updateTenant = async (req, res) => {
         const { id } = req.params;
         const {
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, alternate_emails,
+            startDate, endDate, start_date, end_date, renewalDate, renewal_date,
             discount, finalPrice, tax, invoiceNumber, maxBranches, maxStaffUsers, maxStudents, maxParents, 
             maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
         } = req.body;
@@ -223,6 +228,9 @@ const updateTenant = async (req, res) => {
 
         const success = await tenantService.updateTenant(id, {
             name, legal_name, slug, adminEmail, planId, address, city, state, pincode, panNo, gstNo, mobile, timezone, billingCycle, alternateEmails: parsedAltEmails, logoUrl,
+            startDate: parseStr(startDate || start_date),
+            endDate: parseStr(endDate || end_date),
+            renewalDate: parseStr(renewalDate || renewal_date),
             discount: parseNum(discount),
             finalPrice: parseNum(finalPrice),
             tax: parseNum(tax),

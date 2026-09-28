@@ -629,6 +629,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         if (mobile) formData.append('mobile', mobile);
         if (timezone) formData.append('timezone', timezone);
         if (billingCycle) formData.append('billingCycle', billingCycle);
+        if (startDate) formData.append('startDate', startDate);
+        if (expiryDate) formData.append('endDate', expiryDate);
         if (logoFile) {
             formData.append('logo', logoFile);
         } else if (!logoPreview && editingTenantId) {
