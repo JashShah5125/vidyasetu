@@ -20,10 +20,23 @@ const buildInvoiceDateFilter = (alias, params, { year, month, startDate, endDate
     const p = (field) => `${alias}${field}`;
     let clause = '';
 
+    // 1. Explicit date range takes priority (e.g., Financial Year Apr 1 to Mar 31 or custom date range)
+    if (startDate || endDate) {
+        if (startDate) {
+            clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) >= DATE(?)`;
+            params.push(startDate);
+        }
+        if (endDate) {
+            clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) <= DATE(?)`;
+            params.push(endDate);
+        }
+        return clause;
+    }
+
     const hasSpecificYear = year && year !== 'all';
     const hasSpecificMonth = month && month !== 'all';
 
-    // If specific month is selected (e.g. month=4 for April)
+    // 2. If specific month is selected (e.g. month=4 for April)
     if (hasSpecificMonth) {
         clause += ` AND MONTH(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
         params.push(Number(month));
@@ -35,22 +48,13 @@ const buildInvoiceDateFilter = (alias, params, { year, month, startDate, endDate
         return clause;
     }
 
-    // If specific year is selected without specific month (e.g. year=2026)
+    // 3. If specific year is selected without specific month (e.g. year=2026)
     if (hasSpecificYear) {
         clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
         params.push(Number(year));
         return clause;
     }
 
-    // Otherwise apply explicit date range if provided (daily/weekly/monthly preset)
-    if (startDate) {
-        clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) >= DATE(?)`;
-        params.push(startDate);
-    }
-    if (endDate) {
-        clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) <= DATE(?)`;
-        params.push(endDate);
-    }
     return clause;
 };
 
