@@ -9,6 +9,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { Plus, Edit3, Trash2, ArrowLeft, Upload, RotateCcw } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
 
 interface MastersProps {
   initialSubTab?: 'courses' | 'batches' | 'subjects' | 'branches';
@@ -31,7 +32,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
   const [editingName, setEditingName] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const [branchesPage, setBranchesPage] = useState(1);
   const [coursesPage, setCoursesPage] = useState(1);
   const [batchesPage, setBatchesPage] = useState(1);
   const [subjectsPage, setSubjectsPage] = useState(1);
@@ -43,12 +43,6 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     { name: 'Organic Chemistry', department: 'Chemistry Department', batches: 'JEE-Morning-A, NEET-Regular-B' },
     { name: 'Electromagnetism', department: 'Physics Department', batches: 'JEE-Evening-B' }
   ]);
-
-  // Form states - Branch
-  const [branchName, setBranchName] = useState('');
-  const [branchCode, setBranchCode] = useState('');
-  const [branchAdmin, setBranchAdmin] = useState('');
-  const [branchCapacity, setBranchCapacity] = useState(100);
 
   // Form states - Course
   const [courseName, setCourseName] = useState('');
