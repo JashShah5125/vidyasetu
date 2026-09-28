@@ -305,7 +305,7 @@ export const ProductAnalytics: React.FC = () => {
       {/* Feature/Module adoption table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="font-bold text-slate-800 text-sm">Feature & Module Adoption Telemetry</h3>
+          <h3 className="font-bold text-slate-800 text-sm">Module Usage Analytics</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
