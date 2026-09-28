@@ -62,6 +62,17 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
             }
         }
 
+        // Check if admin email already exists (Bug 18 fix)
+        const [existingUsers] = await connection.query(
+            'SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))',
+            [adminEmail]
+        );
+        if (existingUsers && existingUsers.length > 0) {
+            const err = new Error('An account with this email address already exists. Please use a different Admin Email.');
+            err.statusCode = 409;
+            throw err;
+        }
+
         // 1. Create Tenant (including profile and subscription)
         const [tenantResult] = await connection.query(
             `INSERT INTO tenants (

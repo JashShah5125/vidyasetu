@@ -300,8 +300,9 @@ export const StudentRegistration = () => {
         addToast('Please select Student Gender', 'error');
         return false;
       }
-      if (!formData.student.email?.trim() || !formData.student.email.includes('@')) {
-        addToast('Please enter a valid Student Email ID', 'error');
+      const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!formData.student.email?.trim() || !EMAIL_REGEX.test(formData.student.email.trim())) {
+        addToast('Please enter a valid Student Email ID without invalid special characters', 'error');
         return false;
       }
       if (!formData.student.address.street?.trim()) {
@@ -368,8 +369,9 @@ export const StudentRegistration = () => {
         addToast('Please select Parent Relation', 'error');
         return false;
       }
-      if (!formData.parent.email?.trim() || !formData.parent.email.includes('@')) {
-        addToast('Please enter a valid Parent Email ID', 'error');
+      const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!formData.parent.email?.trim() || !EMAIL_REGEX.test(formData.parent.email.trim())) {
+        addToast('Please enter a valid Parent Email ID without invalid special characters', 'error');
         return false;
       }
       if (!formData.parent.occupation?.trim()) {

@@ -844,12 +844,18 @@ export const UsersAndRoles: React.FC = () => {
       return;
     }
 
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(formEmail.trim())) {
+      setCreateUserError('Please enter a valid email address without invalid characters (e.g. name@example.com).');
+      return;
+    }
+
     setFormSubmitting(true);
     try {
       const res = await api.post('/admin/users', {
         tenant_id: formTenantId,
-        name: formName,
-        email: formEmail,
+        name: formName.trim(),
+        email: formEmail.trim().toLowerCase(),
         mobile: formMobile,
         user_type: formUserType,
         password: formPassword,
@@ -874,11 +880,17 @@ export const UsersAndRoles: React.FC = () => {
     e.preventDefault();
     if (!managedUser) return;
 
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (formEmail && !EMAIL_REGEX.test(formEmail.trim())) {
+      addToast('Please enter a valid email address without invalid characters (e.g. name@example.com).', 'error');
+      return;
+    }
+
     setFormSubmitting(true);
     try {
       const res = await api.put(`/admin/users/${managedUser.id}`, {
-        name: formName,
-        email: formEmail,
+        name: formName.trim(),
+        email: formEmail.trim().toLowerCase(),
         mobile: formMobile,
         user_type: formUserType,
         status: formUserStatus,
@@ -4446,7 +4458,7 @@ export const UsersAndRoles: React.FC = () => {
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition cursor-pointer">✕</button>
             </div>
 
-            <form onSubmit={handleCreateUserSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateUserSubmit} noValidate className="p-6 space-y-4">
               {createUserError && (
                 <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-sm animate-fade-in">
                   <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />

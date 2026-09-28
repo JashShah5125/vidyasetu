@@ -112,14 +112,14 @@ export const SubscriptionPlans: React.FC = () => {
   const [displayOrder, setDisplayOrder] = useState('');
 
   // Section 2
-  const [monthlyPrice, setMonthlyPrice] = useState('0');
-  const [quarterlyPrice, setQuarterlyPrice] = useState('0');
-  const [halfYearlyPrice, setHalfYearlyPrice] = useState('0');
-  const [yearlyPrice, setYearlyPrice] = useState('0');
-  const [lifetimePrice, setLifetimePrice] = useState('0');
+  const [monthlyPrice, setMonthlyPrice] = useState('');
+  const [quarterlyPrice, setQuarterlyPrice] = useState('');
+  const [halfYearlyPrice, setHalfYearlyPrice] = useState('');
+  const [yearlyPrice, setYearlyPrice] = useState('');
+  const [lifetimePrice, setLifetimePrice] = useState('');
   const [currency, setCurrency] = useState('INR');
-  const [trialDays, setTrialDays] = useState('0');
-  const [setupFee, setSetupFee] = useState('0');
+  const [trialDays, setTrialDays] = useState('');
+  const [setupFee, setSetupFee] = useState('');
   const [autoRenewal, setAutoRenewal] = useState(false);
 
   // Section 3
@@ -178,11 +178,11 @@ export const SubscriptionPlans: React.FC = () => {
   const resetForm = () => {
     setCurrentStep(0);
     setName(''); setCode(''); setDescription(''); setStatus('Active'); setDisplayOrder('');
-    setMonthlyPrice('0'); setQuarterlyPrice('0'); setHalfYearlyPrice('0');
-    setYearlyPrice('0'); setLifetimePrice('0');
+    setMonthlyPrice(''); setQuarterlyPrice(''); setHalfYearlyPrice('');
+    setYearlyPrice(''); setLifetimePrice('');
     setCurrency('INR');
-    setTrialDays('0');
-    setSetupFee('0');
+    setTrialDays('');
+    setSetupFee('');
     setAutoRenewal(false);
     setMaxBranches(''); setMaxStaffUsers(''); setMaxStudents('');
     setMaxParents(''); setMaxTeachers(''); setMaxStorage(''); setMaxFileSize('');

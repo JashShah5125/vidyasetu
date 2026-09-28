@@ -633,10 +633,19 @@ const ScrollToTop = () => {
       rows.forEach(row => tbody.appendChild(row));
     };
 
+    const handleGlobalWheel = () => {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.tagName === 'INPUT' && (activeEl as HTMLInputElement).type === 'number') {
+        (activeEl as HTMLInputElement).blur();
+      }
+    };
+
     document.addEventListener('click', handleTableClick);
+    window.addEventListener('wheel', handleGlobalWheel, { passive: true });
     return () => {
       clearInterval(interval);
       document.removeEventListener('click', handleTableClick);
+      window.removeEventListener('wheel', handleGlobalWheel);
     };
   }, []);
 

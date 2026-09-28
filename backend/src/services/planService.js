@@ -13,6 +13,19 @@ const createPlan = async (planData) => {
     if (!planData.name || !planData.code) {
         throw new Error('Name and Code are required');
     }
+
+    const prices = [
+        planData.monthlyPrice, 
+        planData.quarterlyPrice, 
+        planData.halfYearlyPrice, 
+        planData.yearlyPrice, 
+        planData.lifetimePrice
+    ];
+    const hasAtLeastOnePrice = prices.some(p => p !== undefined && p !== null && p !== '' && !isNaN(Number(p)) && Number(p) >= 0);
+    if (!hasAtLeastOnePrice) {
+        throw new Error('At least one pricing tier amount is required (e.g., Monthly or Yearly Price).');
+    }
+
     return await planModel.createPlan(planData);
 };
 

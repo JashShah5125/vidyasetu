@@ -623,8 +623,9 @@ export const StaffCreate: React.FC = () => {
       if (!form.mobile.trim() || cleanMobile.length < 10) {
         return { isValid: false, error: 'Please enter a valid 10-digit Mobile Number.' };
       }
-      if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-        return { isValid: false, error: 'Please enter a valid Email Address.' };
+      const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!form.email.trim() || !EMAIL_REGEX.test(form.email.trim())) {
+        return { isValid: false, error: 'Please enter a valid Email Address without invalid special characters (e.g. name@institute.com).' };
       }
     }
     if (tabId === 'employment') {

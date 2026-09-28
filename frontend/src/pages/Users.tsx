@@ -342,16 +342,19 @@ export const Users: React.FC = () => {
   const totalPages = Math.ceil(totalStaff / itemsPerPage);
   const paginatedStaff = apiStaff;
 
-  // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [role, setRole] = useState('Teacher');
   const [branch, setBranch] = useState('Mumbai West');
+
+  const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   const handleOpenAddModal = () => {
     setEditingEmail(null);
     setName('');
     setEmail('');
+    setEmailError('');
     setRole('Teacher');
     setBranch(currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West');
     setShowAddModal(true);
@@ -361,6 +364,7 @@ export const Users: React.FC = () => {
     setEditingEmail(item.email);
     setName(item.name);
     setEmail(item.email);
+    setEmailError('');
     setRole(item.role);
     setBranch(item.branch);
     setShowAddModal(true);
@@ -375,11 +379,34 @@ export const Users: React.FC = () => {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email) return;
+    setEmailError('');
+
+    if (!name.trim()) return;
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setEmailError('Email address is required.');
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(cleanEmail)) {
+      setEmailError('Please enter a valid email address without invalid characters (e.g. name@apexiit.com)');
+      return;
+    }
+
+    // Check duplicate email
+    const duplicate = staff.some(s => 
+      s.email && s.email.toLowerCase() === cleanEmail.toLowerCase() && 
+      (!editingEmail || s.email.toLowerCase() !== editingEmail.toLowerCase())
+    );
+    if (duplicate) {
+      setEmailError('A staff member with this email address already exists.');
+      return;
+    }
 
     if (editingEmail) {
       setStaff(prev => prev.map(s => s.email === editingEmail
-        ? { ...s, name, email, role, branch }
+        ? { ...s, name: name.trim(), email: cleanEmail, role, branch }
         : s
       ));
     } else {
@@ -389,8 +416,8 @@ export const Users: React.FC = () => {
       addStaff({
         firstName,
         lastName,
-        name,
-        email,
+        name: name.trim(),
+        email: cleanEmail,
         mobile: '9876543210',
         role,
         branch,
@@ -400,6 +427,7 @@ export const Users: React.FC = () => {
 
     setName('');
     setEmail('');
+    setEmailError('');
     setShowAddModal(false);
     setEditingEmail(null);
     addToast(editingEmail ? 'Staff details updated successfully!' : 'New staff profile created successfully!', 'success');
@@ -424,9 +452,22 @@ export const Users: React.FC = () => {
         </div>
 
         <div className="w-full">
-          <form onSubmit={handleFormSubmit} className="space-y-4">
+          <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
             <Input label="Full Name" required placeholder="e.g. Mrs. Seema Deshpande" value={name} onChange={(e) => setName(e.target.value)} />
-            <Input label="Email Address Login" type="email" required placeholder="seema@apexiit.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input 
+              label="Email Address Login" 
+              type="email" 
+              required 
+              placeholder="seema@apexiit.com" 
+              value={email} 
+              error={emailError}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (emailError && (EMAIL_REGEX.test(e.target.value.trim()) || !e.target.value.trim())) {
+                  setEmailError('');
+                }
+              }} 
+            />
             <div className="grid grid-cols-2 gap-4">
               <Select 
                 label="Primary Security Role" 

@@ -252,8 +252,14 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       if (!ownerName.trim()) {
         return { isValid: false, error: 'Owner / Primary Admin Name is compulsory.' };
       }
-      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-        return { isValid: false, error: 'Admin Email Login is compulsory and must be a valid email address.' };
+      const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!email.trim() || !EMAIL_REGEX.test(email.trim())) {
+        return { isValid: false, error: 'Admin Email Login is compulsory and must be a valid email address without invalid special characters (e.g. admin@institute.com).' };
+      }
+      for (const alt of altEmails) {
+        if (alt && alt.trim() && !EMAIL_REGEX.test(alt.trim())) {
+          return { isValid: false, error: `Alternate Email "${alt}" is invalid. Please enter a valid email address without invalid characters.` };
+        }
       }
       const cleanMobile = mobile.replace(/[^0-9]/g, '');
       if (!mobile.trim() || cleanMobile.length < 10) {
@@ -789,7 +795,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             </nav>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             <fieldset disabled={isViewOnly} className="space-y-6 group">
             
             {/* === TAB 1: Institute Profile & Branding === */}

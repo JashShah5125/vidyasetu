@@ -12,9 +12,17 @@ export const Input: React.FC<InputProps> = ({
   className = '',
   wrapperClassName = '',
   id,
+  onWheel,
   ...props
 }) => {
   const displayLabel = label ? label.replace(/\s*\*+\s*$/, '') : '';
+
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    if (props.type === 'number') {
+      (e.currentTarget as HTMLInputElement).blur();
+    }
+    onWheel?.(e);
+  };
 
   return (
     <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
@@ -29,6 +37,7 @@ export const Input: React.FC<InputProps> = ({
       )}
       <input
         id={id}
+        onWheel={handleWheel}
         className={`w-full border ${props.disabled ? 'bg-slate-50 text-slate-400 cursor-default border-slate-200' : 'bg-white text-slate-800 border-slate-200 focus:border-blue-500 focus:ring-blue-100'} ${error ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''} rounded-lg px-3 py-2 text-sm placeholder-slate-400 outline-none transition duration-150 focus:ring-4 ${className}`}
         {...props}
       />

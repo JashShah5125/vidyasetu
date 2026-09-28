@@ -34,19 +34,26 @@ const changePassword = async (req, res) => {
     }
 };
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 const updateProfile = async (req, res) => {
     try {
         const { name, email } = req.body;
         const userId = req.user.userId;
 
+        let normalizedEmail = email;
         if (email) {
-            const existing = await userModel.findUserByEmail(email.trim());
+            normalizedEmail = email.trim().toLowerCase();
+            if (!EMAIL_REGEX.test(normalizedEmail)) {
+                return res.status(400).json({ status: 'error', message: 'Invalid email format: Email ID contains invalid characters' });
+            }
+            const existing = await userModel.findUserByEmail(normalizedEmail);
             if (existing && existing.length > 0 && existing.some(u => u.id !== userId)) {
                 return res.status(409).json({ status: 'error', message: 'An account with this email address already exists.' });
             }
         }
 
-        await userModel.updateUserProfile(userId, { name, email });
+        await userModel.updateUserProfile(userId, { name: name ? name.trim() : name, email: normalizedEmail });
         res.status(200).json({ status: 'success', message: 'Profile updated successfully' });
     } catch (error) {
         console.error('Update profile error:', error);
@@ -61,8 +68,9 @@ const updateProfile = async (req, res) => {
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
+        const normalizedEmail = (email || '').trim().toLowerCase();
 
-        const users = await userModel.findUserByEmail(email);
+        const users = await userModel.findUserByEmail(normalizedEmail);
         
         if (!users || users.length === 0) {
             return res.status(401).json({ status: 'error', message: 'Invalid credentials' });

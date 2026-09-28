@@ -5,6 +5,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Eye, EyeOff } from 'lucide-react';
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 export const Login: React.FC = () => {
   const { login, error, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -12,12 +14,50 @@ export const Login: React.FC = () => {
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [emailError, setEmailError] = useState('');
+
+  const getEmailValidationMessage = (val: string): string => {
+    const trimmed = val.trim();
+    if (!trimmed) return 'Email address is required';
+    // Check if there are illegal characters
+    if (/[^a-zA-Z0-9.@_%+-]/.test(trimmed)) {
+      return 'Email ID cannot contain invalid special characters or spaces';
+    }
+    if (!EMAIL_REGEX.test(trimmed)) {
+      return 'Please enter a valid email address (e.g. name@example.com)';
+    }
+    return '';
+  };
+
+  const handleEmailChange = (val: string) => {
+    setEmailInput(val);
+    if (emailError) {
+      setEmailError('');
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (emailInput.trim()) {
+      const msg = getEmailValidationMessage(emailInput);
+      setEmailError(msg);
+    } else {
+      setEmailError('');
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setEmailError('');
 
-    const success = await login(emailInput, passwordInput);
+    const cleanEmail = emailInput.trim();
+    const validationError = getEmailValidationMessage(cleanEmail);
+    if (validationError) {
+      setEmailError(validationError);
+      return;
+    }
+
+    const success = await login(cleanEmail, passwordInput);
     if (!success) return;
 
     const savedUser = localStorage.getItem('vs_current_user');
@@ -47,12 +87,14 @@ export const Login: React.FC = () => {
         </div>
 
         {/* Credentials Form */}
-        <form onSubmit={handleSignIn} className="space-y-4" autoComplete="off">
+        <form onSubmit={handleSignIn} noValidate className="space-y-4" autoComplete="off">
           <Input
             label="Email Address"
             placeholder="Enter your email address"
             value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
+            onChange={(e) => handleEmailChange(e.target.value)}
+            onBlur={handleEmailBlur}
+            error={emailError}
             required
             autoComplete="username"
             name="email"

@@ -52,7 +52,7 @@ const createTenant = async (req, res) => {
         } = req.body;
         
         // Data Validation Regex
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         const mobileRegex = /^[0-9]{10}$/;
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
         const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
@@ -82,8 +82,15 @@ const createTenant = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'PIN Code is compulsory and must be exactly 6 digits' });
         }
         if (!adminEmail || !emailRegex.test(adminEmail.trim())) {
-            return res.status(400).json({ status: 'error', message: 'Admin Email is compulsory and must be a valid email address' });
+            return res.status(400).json({ status: 'error', message: 'Admin Email is compulsory and must be a valid email address without invalid special characters' });
         }
+
+        // Check if admin email already exists in users table (Bug 18 fix)
+        const existingUser = await userModel.findUserByEmail(adminEmail.trim().toLowerCase());
+        if (existingUser && existingUser.length > 0) {
+            return res.status(409).json({ status: 'error', message: 'An account with this email address already exists. Please use a different Admin Email.' });
+        }
+
         const cleanMobile = (mobile || '').replace(/[^0-9]/g, '');
         if (!cleanMobile || cleanMobile.length < 10) {
             return res.status(400).json({ status: 'error', message: 'Primary Mobile Number is compulsory and must be at least 10 digits' });
@@ -180,7 +187,7 @@ const updateTenant = async (req, res) => {
             maxTeachers, maxStorage, maxFileSize, maxSmsCredits, maxWhatsappMsgs
         } = req.body;
 
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         const mobileRegex = /^[0-9]{10}$/;
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
         const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
@@ -191,7 +198,7 @@ const updateTenant = async (req, res) => {
         if (city !== undefined && !city.trim()) return res.status(400).json({ status: 'error', message: 'City cannot be empty' });
         if (state !== undefined && !state.trim()) return res.status(400).json({ status: 'error', message: 'State cannot be empty' });
         if (pincode !== undefined && (!pincode.trim() || !pincodeRegex.test(pincode.trim()))) return res.status(400).json({ status: 'error', message: 'PIN Code must be exactly 6 digits' });
-        if (adminEmail && !emailRegex.test(adminEmail.trim())) return res.status(400).json({ status: 'error', message: 'Invalid format: Admin Email is incorrectly formatted' });
+        if (adminEmail && !emailRegex.test(adminEmail.trim())) return res.status(400).json({ status: 'error', message: 'Invalid format: Admin Email is incorrectly formatted or contains invalid special characters' });
         const cleanMobile = mobile ? mobile.replace(/[^0-9]/g, '') : '';
         if (mobile && cleanMobile.length < 10) return res.status(400).json({ status: 'error', message: 'Invalid format: Mobile Number must be at least 10 digits' });
         if (panNo && !panRegex.test(panNo.toUpperCase())) return res.status(400).json({ status: 'error', message: 'Invalid format: PAN Number must be 10 alphanumeric characters' });

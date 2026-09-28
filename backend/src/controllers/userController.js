@@ -41,6 +41,8 @@ const getUserById = async (req, res) => {
     }
 };
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 const createUser = async (req, res) => {
     try {
         const { tenant_id, name, email, mobile, password, user_type, status, role_id } = req.body;
@@ -49,8 +51,13 @@ const createUser = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Tenant, name, email, password, and user type are required' });
         }
 
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!EMAIL_REGEX.test(normalizedEmail)) {
+            return res.status(400).json({ status: 'error', message: 'Invalid email format: Email ID contains invalid characters' });
+        }
+
         // Check global email uniqueness across all users
-        const existing = await userModel.findUserByEmail(email.trim());
+        const existing = await userModel.findUserByEmail(normalizedEmail);
         if (existing && existing.length > 0) {
             return res.status(409).json({ status: 'error', message: 'An account with this email address already exists.' });
         }
@@ -60,8 +67,8 @@ const createUser = async (req, res) => {
 
         const newUserId = await userModel.createUser({
             tenant_id,
-            name,
-            email: email.trim(),
+            name: name.trim(),
+            email: normalizedEmail,
             mobile,
             password_hash,
             user_type,
@@ -94,11 +101,19 @@ const updateUser = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'User not found' });
         }
 
-        // Global email conflict check
-        if (email && email.trim().toLowerCase() !== (user.email || '').toLowerCase()) {
-            const existing = await userModel.findUserByEmail(email.trim());
-            if (existing && existing.length > 0 && existing.some(u => u.id !== parseInt(id))) {
-                return res.status(409).json({ status: 'error', message: 'This email address is already in use by another account.' });
+        let normalizedEmail = user.email;
+        if (email !== undefined) {
+            normalizedEmail = email.trim().toLowerCase();
+            if (!EMAIL_REGEX.test(normalizedEmail)) {
+                return res.status(400).json({ status: 'error', message: 'Invalid email format: Email ID contains invalid characters' });
+            }
+
+            // Global email conflict check
+            if (normalizedEmail !== (user.email || '').toLowerCase()) {
+                const existing = await userModel.findUserByEmail(normalizedEmail);
+                if (existing && existing.length > 0 && existing.some(u => u.id !== parseInt(id))) {
+                    return res.status(409).json({ status: 'error', message: 'This email address is already in use by another account.' });
+                }
             }
         }
 
