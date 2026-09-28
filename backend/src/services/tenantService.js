@@ -157,7 +157,7 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
 
         // 8. Audit Log
         await connection.query(
-            'INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (UUID(), ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
             [tenantId, adminUserId, 'CREATE', 'tenant', tenantId, '127.0.0.1'] // Placeholder IP
         );
 
@@ -216,7 +216,7 @@ const updateTenant = async (id, tenantData) => {
     try {
         // Add audit log (optional but good practice)
         await pool.query(
-            'INSERT INTO audit_logs (id, tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (UUID(), ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
             [id, null, 'UPDATE', 'tenant', id, '127.0.0.1']
         );
     } catch (auditError) {
