@@ -15,8 +15,8 @@ import {
   Image as ImageIcon, AlertTriangle, Check, Eye, Edit3, ShieldAlert,
   ChevronLeft, ChevronRight, Pencil 
 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getTenantStatus, getTenantStatusLabel } from '../types';
+import { useSearchParams } from 'react-router-dom';
+import { getTenantStatusLabel } from '../types';
 
 const formatDate = (dateStr: string | undefined): string => {
   if (!dateStr) return '';
@@ -40,7 +40,6 @@ const formatDate = (dateStr: string | undefined): string => {
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
   const { addToast } = useApp();
-  const navigate = useNavigate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,13 +48,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   
   const [tenants, setTenants] = useState<any[]>([]);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
-  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
   const [totalItems, setTotalItems] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
 
   const fetchTenants = async () => {
     try {
-      setIsLoading(true);
       // Map frontend filters to backend expectations
       const statusFilter = filterStatus !== 'All' ? filterStatus : '';
 
@@ -68,13 +64,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       });
       setTenants(result.data || []);
       setTotalItems(result.pagination?.total || 0);
-      if (result.filters?.statuses) {
-        setAvailableStatuses(result.filters.statuses);
-      }
     } catch (error) {
       console.error('Failed to fetch tenants:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -175,11 +166,11 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [plan, setPlan] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [defaultPassword, setDefaultPassword] = useState('');
-  const [logoUploaded, setLogoUploaded] = useState(false);
+  const [_logoUploaded, setLogoUploaded] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [_uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
   
   // Commercial states
@@ -549,6 +540,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     e.preventDefault();
     if (isViewOnly) return;
     
+    // If not on the final tab (limits), advance to the next step instead of submitting prematurely
+    if (activeTab !== 'limits') {
+      handleNextStep();
+      return;
+    }
+    
     // Validate all required steps
     const requiredSteps = ['profile', 'admin', 'plan'];
     for (const stepId of requiredSteps) {
@@ -795,7 +792,19 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             </nav>
           </div>
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-6">
+          <form 
+            onSubmit={handleSubmit} 
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+                if (activeTab !== 'limits') {
+                  e.preventDefault();
+                  handleNextStep();
+                }
+              }
+            }}
+            noValidate 
+            className="space-y-6"
+          >
             <fieldset disabled={isViewOnly} className="space-y-6 group">
             
             {/* === TAB 1: Institute Profile & Branding === */}
