@@ -14,7 +14,7 @@ export const tenantService = {
     return data;
   },
 
-  getTenantById: async (id: string) => {
+  getTenantById: async (id: string | number) => {
     const { data } = await api.get(`/admin/tenants/${id}`);
     return data;
   },
@@ -27,7 +27,7 @@ export const tenantService = {
     return data;
   },
 
-  updateTenant: async (id: string, tenantData: any, onUploadProgress?: (progressEvent: any) => void) => {
+  updateTenant: async (id: string | number, tenantData: any, onUploadProgress?: (progressEvent: any) => void) => {
     const { data } = await api.put(`/admin/tenants/${id}`, tenantData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress
@@ -35,7 +35,7 @@ export const tenantService = {
     return data;
   },
 
-  updateTenantStatus: async (id: string, status: string) => {
+  updateTenantStatus: async (id: string | number, status: string | number) => {
     const { data } = await api.patch(`/admin/tenants/${id}/status`, { status });
     return data;
   }
