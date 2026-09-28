@@ -1,4 +1,5 @@
 const tenantService = require('../services/tenantService');
+const userModel = require('../models/userModel');
 
 const getTenants = async (req, res) => {
     try {
