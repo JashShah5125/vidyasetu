@@ -606,7 +606,7 @@ export const BillingRevenue: React.FC = () => {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 {trendChartType === 'area' ? (
-                  <AreaChart data={trend} margin={{ top: 10, right: 16, left: 0, bottom: 4 }}>
+                  <AreaChart data={trend} margin={{ top: 10, right: 20, left: 6, bottom: 6 }}>
                     <defs>
                       <linearGradient id="revAreaGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
@@ -618,7 +618,7 @@ export const BillingRevenue: React.FC = () => {
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      width={52}
+                      width={58}
                       tick={{ fill: '#64748b', fontSize: 11 }}
                       tickFormatter={(v: number) => {
                         if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
@@ -652,7 +652,7 @@ export const BillingRevenue: React.FC = () => {
                     />
                   </AreaChart>
                 ) : (
-                  <BarChart data={trend} margin={{ top: 10, right: 16, left: 0, bottom: 4 }} barCategoryGap="25%">
+                  <BarChart data={trend} margin={{ top: 10, right: 20, left: 6, bottom: 6 }} barCategoryGap="25%">
                     <defs>
                       <linearGradient id="revBarGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#818cf8" />
@@ -664,7 +664,7 @@ export const BillingRevenue: React.FC = () => {
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      width={52}
+                      width={58}
                       tick={{ fill: '#64748b', fontSize: 11 }}
                       tickFormatter={(v: number) => {
                         if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
