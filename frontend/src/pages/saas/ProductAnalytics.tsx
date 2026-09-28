@@ -115,7 +115,7 @@ export const ProductAnalytics: React.FC = () => {
   ];
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
+  const itemsPerPage = 5;
   const totalPages = Math.ceil(usageMetrics.length / itemsPerPage);
   const paginatedMetrics = usageMetrics.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
