@@ -85,6 +85,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
   const [editingItemOriginal, setEditingItemOriginal] = useState<any | null>(null);
   const [showConfirmUpdateModal, setShowConfirmUpdateModal] = useState(false);
   const [courseFilterDuration, setCourseFilterDuration] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState<{ name: string; type: string } | null>(null);
 
   const handleEdit = (item: any) => {
     setEditingItemOriginal(item);
