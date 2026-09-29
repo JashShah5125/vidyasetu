@@ -19,9 +19,10 @@ import {
   GraduationCap, Calendar, CheckCircle2, Clock, FileText, Search,
   Download, ExternalLink, ShieldCheck, Activity, Phone, Mail,
   MapPin, Server, HardDrive, Smartphone, DollarSign, Receipt,
-  BadgePercent, Layers, Sparkles, RefreshCw
+  BadgePercent, Layers, Sparkles, RefreshCw, LogIn
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { getTenantStatusLabel } from '../types';
 
 const formatDate = (dateStr: string | undefined): string => {
@@ -118,6 +119,31 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   alternateEmails: 'Alternate Emails'
 };
 
+const formatAuditDisplayVal = (k: string, val: any): string => {
+  if (val === null || val === undefined || val === '') return 'None';
+  let str = String(val);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    try {
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const yr = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${yr}-${mo}-${day}`;
+      }
+    } catch {}
+  }
+  if (['finalPrice', 'subscription_final_price', 'plan_amount'].includes(k)) {
+    const num = Number(str.replace(/[^0-9.-]/g, ''));
+    if (!isNaN(num)) return `₹${num.toLocaleString('en-IN')}`;
+  }
+  if (['discount', 'subscription_discount', 'tax', 'subscription_tax'].includes(k)) {
+    const num = Number(str.replace(/[^0-9.-]/g, ''));
+    if (!isNaN(num)) return `${num}%`;
+  }
+  return str;
+};
+
 interface StudentHistoryRecord {
   id: string | number;
   studentId: string;
@@ -139,6 +165,13 @@ interface StudentHistoryRecord {
 
 export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
   const { addToast, plans = [] } = useApp();
+  const { currentUser, isImpersonating, impersonateTenant } = useAuth();
+  const navigate = useNavigate();
+  const isSuperAdmin = Boolean(
+    (currentUser?.role === 'saas-admin' || currentUser?.role === 'super-admin' || currentUser?.isSaasAdmin) &&
+    !isImpersonating
+  );
+  const [isImpersonatingLoading, setIsImpersonatingLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -148,6 +181,23 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [tenants, setTenants] = useState<any[]>([]);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
+
+  const handleImpersonate = async (targetTenantId: string | number, tenantName: string) => {
+    try {
+      setIsImpersonatingLoading(true);
+      const success = await impersonateTenant(targetTenantId);
+      if (success) {
+        addToast(`Successfully switched to ${tenantName} administrator portal.`, 'success');
+        navigate('/dashboard', { replace: true });
+      } else {
+        addToast('Failed to switch to tenant portal.', 'error');
+      }
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || err.message || 'Impersonation failed.', 'error');
+    } finally {
+      setIsImpersonatingLoading(false);
+    }
+  };
 
   const fetchTenants = async () => {
     try {
@@ -255,6 +305,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [mobile, setMobile] = useState('');
   const [plan, setPlan] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [status, setStatus] = useState<number>(1);
   const [defaultPassword, setDefaultPassword] = useState('');
   const [_logoUploaded, setLogoUploaded] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -582,6 +633,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
     setMobile(t.owner_mobile || t.contact_phone || '');
     setPlan(t.plan_id ? String(t.plan_id) : (t.planId ? String(t.planId) : (availablePlans.length > 0 ? availablePlans[0].id.toString() : '')));
     setStartDate(t.created_at ? t.created_at.split('T')[0] : (t.start_date ? t.start_date.split('T')[0] : new Date().toISOString().split('T')[0]));
+    setStatus(t.status !== undefined && t.status !== null ? Number(t.status) : 1);
     setLogoUploaded(!!t.logo_url);
     setLogoFile(null);
     setLogoPreview(t.logo_url || null);
@@ -779,15 +831,39 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         notes: newInvoiceNotes || null,
       };
 
-      await billingService.createInvoice(payload);
+      const createdRes = await billingService.createInvoice(payload);
       addToast('Invoice created and recorded successfully!', 'success');
       setShowAddInvoiceModal(false);
+
+      // Keep active form inputs in sync with newly created contract invoice
+      setBillingCycle(payload.billing_cycle);
+      setPlan(String(payload.plan_id));
+      setStartDate(payload.billing_period_start);
+      if (payload.invoice_number) setInvoiceNumber(payload.invoice_number);
+      if (payload.discount_percent) setDiscount(String(payload.discount_percent));
+      if (payload.tax_rate) setTax(String(payload.tax_rate));
+      if (payload.plan_amount) setFinalPrice(String(payload.plan_amount));
+
       await loadTenantDeepHistory(editingTenantId);
+      await fetchTenants();
     } catch (err: any) {
       console.error('Failed to create invoice:', err);
       addToast(err?.response?.data?.message || 'Failed to create invoice', 'error');
     } finally {
       setIsSavingInvoice(false);
+    }
+  };
+
+  const handleToggleStatus = async (e: React.MouseEvent, t: any) => {
+    e.stopPropagation();
+    const currentStatus = Number(t.status ?? 1);
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    try {
+      await tenantService.updateTenantStatus(t.id, newStatus);
+      addToast(`Tenant "${t.name}" status changed to ${newStatus === 1 ? 'Active' : 'Inactive'}.`, 'success');
+      fetchTenants();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to update tenant status', 'error');
     }
   };
 
@@ -891,6 +967,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       formData.append('startDate', startDate);
       formData.append('endDate', expiryDate);
       formData.append('renewalDate', expiryDate);
+      formData.append('status', String(status));
       
       if (sourceLead && !editingTenantId) {
         formData.append('leadId', String(sourceLead.id));
@@ -1102,19 +1179,24 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
             {isViewOnly ? (
               <>
+                {isSuperAdmin && (
+                  <Button 
+                    variant="primary" 
+                    onClick={() => handleImpersonate(editingTenantId || activeTenantObj.id, name || 'Tenant')}
+                    disabled={isImpersonatingLoading}
+                    className="flex items-center gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border-0 cursor-pointer"
+                    title="Directly login into VidyaSetu as this Tenant's Administrator without password"
+                  >
+                    <LogIn size={15} className={isImpersonatingLoading ? 'animate-spin' : ''} />
+                    {isImpersonatingLoading ? 'Logging In...' : 'Login as Tenant'}
+                  </Button>
+                )}
                 <Button 
                   variant="primary" 
                   onClick={() => setIsViewOnly(false)}
                   className="flex items-center gap-1.5 font-semibold shadow-sm"
                 >
                   <Pencil size={15} /> Edit Tenant
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  onClick={() => setShowAddModal(false)}
-                  className="font-semibold"
-                >
-                  Close
                 </Button>
               </>
             ) : (
@@ -1139,23 +1221,23 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </div>
 
         {/* Top Summary Banner Card (Visible in both View and Edit modes for instant context) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white p-6 rounded-2xl shadow-md border border-slate-700">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white text-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 md:col-span-2">
-            <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center p-2 shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center p-2 shrink-0">
               {logoPreview && !logoError ? (
                 <img src={logoPreview} alt="Logo" className="max-w-full max-h-full object-contain" />
               ) : (
-                <Building size={32} className="text-blue-300" />
+                <Building size={32} className="text-blue-600" />
               )}
             </div>
             <div className="min-w-0">
-              <div className="text-xl font-bold truncate">{name || 'Institute Workspace'}</div>
-              <div className="text-xs text-slate-300 flex items-center gap-2 mt-1">
+              <div className="text-xl font-bold text-slate-900 truncate">{name || 'Institute Workspace'}</div>
+              <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
                 <span>ID: #{editingTenantId || 'N/A'}</span>
                 <span>•</span>
                 <span>Slug: {customSlug || 'default'}</span>
                 {customSlug && (
-                  <span className="text-blue-300 font-mono text-[11px] underline">
+                  <span className="text-blue-600 font-mono text-[11px] underline">
                     {customSlug}.vidyasetu.com
                   </span>
                 )}
@@ -1163,23 +1245,23 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl flex flex-col justify-center">
-            <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Subscription Plan</div>
-            <div className="text-base font-bold text-white mt-0.5 flex items-center gap-1.5 truncate">
-              <Sparkles size={14} className="text-amber-400 shrink-0" />
+          <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl flex flex-col justify-center">
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Subscription Plan</div>
+            <div className="text-base font-bold text-slate-900 mt-0.5 flex items-center gap-1.5 truncate">
+              <Sparkles size={14} className="text-amber-500 shrink-0" />
               {planName}
             </div>
-            <div className="text-xs text-slate-300 mt-1">
+            <div className="text-xs text-slate-500 mt-1">
               Expires: {expiryDate ? formatDate(expiryDate) : 'Ongoing'}
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 p-3.5 rounded-xl flex flex-col justify-center">
-            <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Workspace Stats</div>
-            <div className="text-base font-bold text-emerald-400 mt-0.5">
+          <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl flex flex-col justify-center">
+            <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Workspace Stats</div>
+            <div className="text-base font-bold text-emerald-600 mt-0.5">
               {liveStudentCount} Enrolled Students
             </div>
-            <div className="text-xs text-slate-300 mt-1 flex items-center gap-2">
+            <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
               <span>{liveBranchCount} Branch{liveBranchCount !== 1 ? 'es' : ''}</span>
               <span>•</span>
               <span>{liveUserCount} User{liveUserCount !== 1 ? 's' : ''}</span>
@@ -1196,8 +1278,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
           )}
 
           {/* All 7 Unified Executive Horizontal Tabs */}
-          <div className="mb-6 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs overflow-x-auto">
-            <nav className="flex items-center gap-1.5 min-w-max">
+          <div className="mb-6 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+            <nav className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 w-full">
               {formTabs.map((tab, idx) => {
                 const isActive = activeTab === tab.id;
                 const TabIcon = tab.icon;
@@ -1208,23 +1290,21 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                     key={tab.id}
                     type="button"
                     onClick={() => handleTabClick(tab.id)}
-                    className={`group flex items-center gap-2.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                    className={`group flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer min-w-0 ${
                       isActive
                         ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 ring-2 ring-blue-500/15'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 border border-transparent'
                     }`}
                   >
-                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                    <div className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-all ${
                       isActive 
                         ? 'bg-blue-600 text-white shadow-xs' 
                         : 'bg-slate-200/80 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600'
                     }`}>
-                      {TabIcon ? <TabIcon size={13} /> : <span className="text-[10px] font-mono">{stepNum}</span>}
+                      {TabIcon ? <TabIcon size={12} /> : <span className="text-[10px] font-mono">{stepNum}</span>}
                     </div>
                     
-                    <div className="flex items-center">
-                      <span className="tracking-tight">{tab.label}</span>
-                    </div>
+                    <span className="tracking-tight truncate text-[11px] xl:text-xs">{tab.label}</span>
                   </button>
                 );
               })}
@@ -1596,7 +1676,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                   Active Subscription
                 </span>
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Select 
                   label="Subscription Tier" 
                   required
@@ -1623,6 +1703,16 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                     { value: 'Half-Yearly', label: 'Half-Yearly' },
                     { value: 'Yearly', label: 'Yearly' },
                     { value: 'Lifetime', label: 'Lifetime' }
+                  ]}
+                />
+                <Select
+                  label="Operational Status"
+                  value={String(status)}
+                  onChange={(e) => setStatus(Number(e.target.value))}
+                  options={[
+                    { value: '1', label: 'Active' },
+                    { value: '0', label: 'Inactive' },
+                    { value: '2', label: 'Draft' }
                   ]}
                 />
                 <Input 
@@ -2160,19 +2250,22 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                           <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
                             {Object.entries(parsedChanges).map(([k, v]) => {
                               const label = AUDIT_FIELD_LABELS[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                              const oldVal = parsedOld && parsedOld[k] !== undefined && parsedOld[k] !== null ? String(parsedOld[k]) : null;
-                              const newVal = String(v ?? '');
+                              const rawOld = parsedOld && parsedOld[k] !== undefined && parsedOld[k] !== null ? parsedOld[k] : null;
+                              const oldFormatted = rawOld !== null ? formatAuditDisplayVal(k, rawOld) : null;
+                              const newFormatted = formatAuditDisplayVal(k, v);
+                              const isDiff = oldFormatted !== null && oldFormatted !== newFormatted;
+
                               return (
                                 <span key={k} className="inline-flex items-center gap-1.5 text-xs bg-slate-50 text-slate-800 px-2.5 py-1 rounded-md border border-slate-200 font-medium shadow-2xs">
                                   <span className="text-slate-500 font-semibold">{label}:</span>
-                                  {oldVal !== null && oldVal !== newVal ? (
+                                  {isDiff ? (
                                     <span className="inline-flex items-center gap-1">
-                                      <span className="line-through text-slate-400">{oldVal}</span>
+                                      <span className="line-through text-slate-400">{oldFormatted}</span>
                                       <span className="text-slate-400 font-bold">→</span>
-                                      <span className="font-bold text-blue-700">{newVal}</span>
+                                      <span className="font-bold text-blue-700">{newFormatted}</span>
                                     </span>
                                   ) : (
-                                    <span className="font-bold text-slate-900">{newVal}</span>
+                                    <span className="font-bold text-slate-900">{newFormatted}</span>
                                   )}
                                 </span>
                               );
@@ -2892,9 +2985,18 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
         </CardHeader>
         <Table 
           dense 
-          minWidth="1200px"
-          colWidths={['55px', '190px', '140px', '210px', '120px', '110px', '140px', '100px', '135px']}
-          headers={['ID', 'Institute Name', 'Owner', 'Email / Contact', 'Plan Tier', 'Start Date', 'Expiry Date', 'Status', 'Actions']}
+          colWidths={['4%', '17%', '12%', '18%', '10%', '10%', '10%', '9%', '10%']}
+          headers={[
+            'ID', 
+            'Institute Name', 
+            'Owner', 
+            'Email / Contact', 
+            'Plan Tier', 
+            'Start Date', 
+            'Expiry Date', 
+            { label: 'Status', align: 'center' }, 
+            { label: 'Actions', align: 'center' }
+          ]}
         >
           {(() => {
             const paginatedTenants = filteredAndSortedTenants;
@@ -2906,34 +3008,34 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                     onClick={() => handleViewTenant(t)}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
                   >
-                    <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{t.id}</td>
-                    <td className="px-3.5 py-3 font-semibold text-slate-900 text-sm">{t.name}</td>
-                    <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">{t.legal_name || t.admin_name || 'N/A'}</td>
-                    <td className="px-3.5 py-3 text-sm">
+                    <td className="px-2 py-2.5 font-semibold text-slate-900 text-sm whitespace-nowrap">{t.id}</td>
+                    <td className="px-2 py-2.5 font-semibold text-slate-900 text-sm">{t.name}</td>
+                    <td className="px-2 py-2.5 text-sm text-slate-700 whitespace-nowrap truncate">{t.legal_name || t.admin_name || 'N/A'}</td>
+                    <td className="px-2 py-2.5 text-sm">
                       <div className="text-slate-800 font-medium truncate">
                         {t.contact_email || t.admin_email || 'N/A'}
                       </div>
                       {t.contact_phone && (
-                        <div className="text-sm text-slate-500 mt-0.5">{t.contact_phone}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{t.contact_phone}</div>
                       )}
                     </td>
-                    <td className="px-3.5 py-3 text-sm whitespace-nowrap">
-                      <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-sm font-medium">
+                    <td className="px-2 py-2.5 text-sm whitespace-nowrap">
+                      <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-xs font-medium">
                         {t.plan_name || 'Standard'}
                       </span>
                     </td>
-                    <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">{t.start_date ? formatDate(t.start_date) : 'N/A'}</td>
-                    <td className="px-3.5 py-3 text-sm text-slate-700 whitespace-nowrap">
-                      <div className="flex flex-col gap-1 items-start">
+                    <td className="px-2 py-2.5 text-sm text-slate-700 whitespace-nowrap">{t.start_date ? formatDate(t.start_date) : 'N/A'}</td>
+                    <td className="px-2 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      <div className="flex flex-col gap-0.5 items-start">
                         <span>{t.end_date ? formatDate(t.end_date) : 'N/A'}</span>
                         {t.is_expiring_soon === 1 && (
-                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 font-medium rounded text-[11px] flex items-center gap-1 border border-amber-200 w-fit whitespace-nowrap">
-                            <AlertTriangle size={11} className="shrink-0 text-amber-600" /> Expiring Soon
+                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-800 font-medium rounded text-[10px] flex items-center gap-1 border border-amber-200 w-fit whitespace-nowrap">
+                            <AlertTriangle size={10} className="shrink-0 text-amber-600" /> Expiring Soon
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3.5 py-3 whitespace-nowrap">
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center">
                       {(() => {
                         const s = t.status;
                         const label = getTenantStatusLabel(s);
@@ -2948,37 +3050,52 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
                           badgeColors = 'bg-slate-100 text-slate-600 border-slate-300';
                         }
                         return (
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${badgeColors}`}>
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleStatus(e, t)}
+                            title={`Click to switch to ${s === 1 || s === '1' ? 'Inactive' : 'Active'}`}
+                            className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${badgeColors} hover:opacity-80 hover:scale-105 active:scale-95 transition-all cursor-pointer`}
+                          >
                             {label}
-                          </span>
+                          </button>
                         );
                       })()}
                     </td>
-                    <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                        {isSuperAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleImpersonate(t.id, t.name)}
+                            title="Login into VidyaSetu as this Tenant"
+                            className="p-1 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          >
+                            <LogIn size={15} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleViewTenant(t)}
                           title="View Complete History & Details"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                         >
-                          <Eye size={16} />
+                          <Eye size={15} />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleEditTenant(t)}
                           title="Edit Tenant Settings"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
                         >
-                          <Edit3 size={16} />
+                          <Edit3 size={15} />
                         </button>
                         <button
                           type="button"
                           onClick={() => setTenantToDelete(t)}
                           title="Delete Tenant"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>

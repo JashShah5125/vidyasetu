@@ -259,7 +259,7 @@ const updateTenant = async (id, tenantData, userId = null, ipAddress = '127.0.0.
     };
 
     const isNumericField = (key) => [
-        'discount', 'finalPrice', 'tax', 'maxBranches', 'maxStaffUsers',
+        'status', 'discount', 'finalPrice', 'tax', 'maxBranches', 'maxStaffUsers',
         'maxStudents', 'maxParents', 'maxTeachers', 'maxSmsCredits', 'maxWhatsappMsgs'
     ].includes(key);
 
@@ -278,6 +278,7 @@ const updateTenant = async (id, tenantData, userId = null, ipAddress = '127.0.0.
         name: 'name',
         legal_name: 'owner_name',
         slug: 'slug',
+        status: 'status',
         planId: 'plan_id',
         address: 'address_line1',
         city: 'city',
@@ -315,8 +316,8 @@ const updateTenant = async (id, tenantData, userId = null, ipAddress = '127.0.0.
             const oldValNorm = normalizeVal(key, existingTenant[dbField]);
 
             if (newValNorm !== oldValNorm) {
-                changes[key] = tenantData[key];
-                oldValues[key] = existingTenant[dbField] ?? null;
+                changes[key] = newValNorm;
+                oldValues[key] = oldValNorm;
             }
         }
     }

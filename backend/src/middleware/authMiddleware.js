@@ -13,15 +13,19 @@ const requireAuth = async (req, res, next) => {
         const decoded = verifyToken(token);
         req.user = decoded;
 
+        if (decoded.isImpersonated) {
+            req.user.isImpersonated = true;
+        }
+
         // Verify active role assignment in user_roles table or SaaS Admin status
         const roleCodes = await userModel.getUserRoleCodes(decoded.userId);
-        let isSaasAdmin = decoded.isSaasAdmin || decoded.tenantId === 1 || decoded.userType === 'saas_admin' || decoded.userType === 'saas-admin' || roleCodes.includes('saas_admin') || roleCodes.includes('saas-admin');
+        let isSaasAdmin = !decoded.isImpersonated && (decoded.isSaasAdmin || decoded.tenantId === 1 || decoded.userType === 'saas_admin' || decoded.userType === 'saas-admin' || roleCodes.includes('saas_admin') || roleCodes.includes('saas-admin'));
 
         if (isSaasAdmin) {
             req.user.isSaasAdmin = true;
         }
 
-        if (!isSaasAdmin && (!roleCodes || roleCodes.length === 0)) {
+        if (!isSaasAdmin && !decoded.isImpersonated && (!roleCodes || roleCodes.length === 0)) {
             return res.status(403).json({
                 status: 'error',
                 message: 'Access denied. No active security role assigned to your account. Please contact system administrator.'
@@ -36,8 +40,8 @@ const requireAuth = async (req, res, next) => {
 };
 
 const requireSaasAdmin = (req, res, next) => {
-    if (!req.user || !req.user.isSaasAdmin) {
-        return res.status(403).json({ status: 'error', message: 'Forbidden. Requires SaaS Admin privileges.' });
+    if (!req.user || !req.user.isSaasAdmin || req.user.isImpersonated) {
+        return res.status(403).json({ status: 'error', message: 'Forbidden. Requires active SaaS Admin privileges.' });
     }
     next();
 };
@@ -48,8 +52,8 @@ const requirePermission = (action) => {
             return res.status(401).json({ status: 'error', message: 'Unauthorized' });
         }
         
-        // SaaS Admins bypass permission checks for now
-        if (req.user.isSaasAdmin) {
+        // SaaS Super Admins and Impersonating Admins have full unrestricted access to perform and edit all actions
+        if (req.user.isSaasAdmin || req.user.isImpersonated) {
             return next();
         }
         

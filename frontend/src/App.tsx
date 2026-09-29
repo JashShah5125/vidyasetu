@@ -279,8 +279,12 @@ const TenantDetailsWrapper = () => {
 };
 
 const ContentRouter = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, isImpersonating } = useAuth();
   const isTeacher = currentUser?.role === 'teacher';
+  const isSaasAdminUser = Boolean(
+    (currentUser?.role === 'saas-admin' || currentUser?.role === 'super-admin' || currentUser?.isSaasAdmin) &&
+    !isImpersonating
+  );
 
   if (currentUser?.mustChangePassword) {
     return (
@@ -297,11 +301,11 @@ const ContentRouter = () => {
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : currentUser?.role === 'finance' ? <FinanceDashboard /> : <Dashboard />} />
-      <Route path="/tenants" element={<TenantsManager initialOpenCreate={false} />} />
-      <Route path="/tenants/create" element={<TenantsManager initialOpenCreate={true} />} />
-      <Route path="/tenants/:id" element={<TenantDetailsWrapper />} />
-      <Route path="/plans" element={<SubscriptionPlans />} />
-      <Route path="/feature-flags" element={<FeatureFlags />} />
+      <Route path="/tenants" element={isSaasAdminUser ? <TenantsManager initialOpenCreate={false} /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/tenants/create" element={isSaasAdminUser ? <TenantsManager initialOpenCreate={true} /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/tenants/:id" element={isSaasAdminUser ? <TenantDetailsWrapper /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/plans" element={isSaasAdminUser ? <SubscriptionPlans /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/feature-flags" element={isSaasAdminUser ? <FeatureFlags /> : <Navigate to="/dashboard" replace />} />
 
       {/* ── Branch Finance Routes ── */}
       <Route path="/finance/expenses/other/new" element={<OtherExpenseFormPage />} />
@@ -316,22 +320,22 @@ const ContentRouter = () => {
       <Route path="/finance" element={<BranchFinancePage />} />
 
 
-      <Route path="/support" element={<SupportTickets />} />
-      <Route path="/saas/leads" element={<Leads />} />
-      <Route path="/communication" element={<CommunicationCenter />} />
-      <Route path="/email-templates" element={<EmailTemplates />} />
-      <Route path="/sms-templates" element={<SmsTemplates />} />
-      <Route path="/whatsapp-templates" element={<WhatsAppTemplates />} />
-      <Route path="/billing" element={<BillingRevenue />} />
-      <Route path="/billing/invoices/new" element={<InvoiceFormPage />} />
-      <Route path="/billing/invoices/:id" element={<InvoiceDetailsPage />} />
-      <Route path="/billing/invoices/:id/edit" element={<InvoiceFormPage />} />
-      <Route path="/analytics" element={<ProductAnalytics />} />
-      <Route path="/system-config" element={<SystemConfiguration />} />
-      <Route path="/system-settings/email" element={<EmailConfiguration />} />
-      <Route path="/system-settings/sms" element={<SmsConfiguration />} />
-      <Route path="/system-settings/whatsapp" element={<WhatsAppConfiguration />} />
-      <Route path="/users-and-roles" element={<UsersAndRoles />} />
+      <Route path="/support" element={isSaasAdminUser ? <SupportTickets /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/saas/leads" element={isSaasAdminUser ? <Leads /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/communication" element={isSaasAdminUser ? <CommunicationCenter /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/email-templates" element={isSaasAdminUser ? <EmailTemplates /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/sms-templates" element={isSaasAdminUser ? <SmsTemplates /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/whatsapp-templates" element={isSaasAdminUser ? <WhatsAppTemplates /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/billing" element={isSaasAdminUser ? <BillingRevenue /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/billing/invoices/new" element={isSaasAdminUser ? <InvoiceFormPage /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/billing/invoices/:id" element={isSaasAdminUser ? <InvoiceDetailsPage /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/billing/invoices/:id/edit" element={isSaasAdminUser ? <InvoiceFormPage /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/analytics" element={isSaasAdminUser ? <ProductAnalytics /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/system-config" element={isSaasAdminUser ? <SystemConfiguration /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/system-settings/email" element={isSaasAdminUser ? <EmailConfiguration /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/system-settings/sms" element={isSaasAdminUser ? <SmsConfiguration /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/system-settings/whatsapp" element={isSaasAdminUser ? <WhatsAppConfiguration /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/users-and-roles" element={isSaasAdminUser ? <UsersAndRoles /> : <Navigate to="/dashboard" replace />} />
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />

@@ -11,6 +11,7 @@ export interface UserProfile {
   tenantId?: string;
   tenantName?: string;
   mustChangePassword?: boolean;
+  isImpersonated?: boolean;
 }
 
 export type TenantStatusCode = 0 | 1 | 2 | 3;

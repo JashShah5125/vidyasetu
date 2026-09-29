@@ -546,8 +546,8 @@ export const SaasAdminDashboard: React.FC = () => {
               </span>
               <span className="text-[10px] font-semibold text-slate-400">/ {stats?.user_metrics?.total_users ?? 0}</span>
             </div>
-            <span className="text-[10px] text-indigo-600 font-bold block mt-0.5">
-              +{stats?.user_metrics?.new_users ?? 0} {preset === 'daily' ? 'today' : preset === 'weekly' ? 'this wk' : 'this mo'}
+            <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+              Across registered institutes
             </span>
           </div>
         </div>
