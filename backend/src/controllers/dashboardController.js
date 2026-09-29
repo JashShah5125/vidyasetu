@@ -533,12 +533,13 @@ const getSaasRevenue = async (req, res) => {
         // 3. Monthly breakdown (Default or selected year/month)
         const [paidByMonth] = await db.query(`
             SELECT
-                YEAR(COALESCE(i.payment_date, i.created_at)) AS yr,
-                MONTH(COALESCE(i.payment_date, i.created_at)) AS mo,
+                YEAR(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) AS yr,
+                MONTH(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) AS mo,
                 SUM(i.total_amount) AS rev
             FROM saas_invoices i
-            WHERE i.status = 'paid' AND i.deleted_at IS NULL
-            GROUP BY YEAR(COALESCE(i.payment_date, i.created_at)), MONTH(COALESCE(i.payment_date, i.created_at))
+            JOIN tenants t ON i.tenant_id = t.id
+            WHERE i.status = 'paid' AND i.deleted_at IS NULL AND (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1
+            GROUP BY YEAR(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))), MONTH(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))
         `);
 
         let monthTotals = Array(12).fill(0);

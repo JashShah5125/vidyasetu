@@ -20,6 +20,20 @@ const BUNDLE_SELECT = `
     FROM subject_bundles sb
 `;
 
+const parseSubjectIds = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+        try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) return parsed;
+        } catch {
+            return val.split(',').map(s => s.trim()).filter(Boolean);
+        }
+    }
+    return [];
+};
+
 const getBundles = async (tenantId, {
     levelId = null,
     branchId = null,
@@ -78,28 +92,31 @@ const getBundles = async (tenantId, {
         queryParams
     );
 
-    const subjectDetails = await resolveSubjectDetails(rows.flatMap(r => r.subject_ids || []));
+    const subjectDetails = await resolveSubjectDetails(rows.flatMap(r => parseSubjectIds(r.subject_ids)));
     const levelDetails = await resolveLevelDetails(rows.map(r => r.level_id));
     const branchDetails = await resolveBranchDetails(rows.map(r => r.branch_id));
 
-    const data = rows.map(row => ({
-        ...row,
-        id: String(row.id),
-        branch_id: String(row.branch_id),
-        level_id: String(row.level_id),
-        level_name: levelDetails[row.level_id]?.level_name || null,
-        program_id: levelDetails[row.level_id]?.program_id ? String(levelDetails[row.level_id].program_id) : null,
-        program_name: levelDetails[row.level_id]?.program_name || null,
-        course_id: levelDetails[row.level_id]?.course_id ? String(levelDetails[row.level_id].course_id) : null,
-        course_name: levelDetails[row.level_id]?.course_name || null,
-        branch_name: branchDetails[row.branch_id] || null,
-        fee_amount: row.fee_amount !== null && row.fee_amount !== undefined ? Number(row.fee_amount) : null,
-        fee_plan_id: row.fee_plan_id ? String(row.fee_plan_id) : null,
-        is_active: !!row.is_active,
-        created_by: row.created_by ? String(row.created_by) : null,
-        updated_by: row.updated_by ? String(row.updated_by) : null,
-        subjects: (row.subject_ids || []).map(id => subjectDetails[id]).filter(Boolean)
-    }));
+    const data = rows.map(row => {
+        const rowSubjectIds = parseSubjectIds(row.subject_ids);
+        return {
+            ...row,
+            id: String(row.id),
+            branch_id: String(row.branch_id),
+            level_id: String(row.level_id),
+            level_name: levelDetails[row.level_id]?.level_name || null,
+            program_id: levelDetails[row.level_id]?.program_id ? String(levelDetails[row.level_id].program_id) : null,
+            program_name: levelDetails[row.level_id]?.program_name || null,
+            course_id: levelDetails[row.level_id]?.course_id ? String(levelDetails[row.level_id].course_id) : null,
+            course_name: levelDetails[row.level_id]?.course_name || null,
+            branch_name: branchDetails[row.branch_id] || null,
+            fee_amount: row.fee_amount !== null && row.fee_amount !== undefined ? Number(row.fee_amount) : null,
+            fee_plan_id: row.fee_plan_id ? String(row.fee_plan_id) : null,
+            is_active: !!row.is_active,
+            created_by: row.created_by ? String(row.created_by) : null,
+            updated_by: row.updated_by ? String(row.updated_by) : null,
+            subjects: rowSubjectIds.map(id => subjectDetails[id]).filter(Boolean)
+        };
+    });
 
     return { data, total: countRows[0].total };
 };
@@ -149,7 +166,8 @@ const getBundleById = async (tenantId, id) => {
     if (rows.length === 0) return null;
 
     const bundle = rows[0];
-    const subjectDetails = await resolveSubjectDetails(bundle.subject_ids || []);
+    const bundleSubjectIds = parseSubjectIds(bundle.subject_ids);
+    const subjectDetails = await resolveSubjectDetails(bundleSubjectIds);
     const [levelMap] = await pool.query(
         `SELECT l.id, l.name AS level_name, p.id AS program_id, p.name AS program_name,
                 c.id AS course_id, c.name AS course_name
@@ -179,7 +197,7 @@ const getBundleById = async (tenantId, id) => {
         is_active: !!bundle.is_active,
         created_by: bundle.created_by ? String(bundle.created_by) : null,
         updated_by: bundle.updated_by ? String(bundle.updated_by) : null,
-        subjects: (bundle.subject_ids || []).map(id => subjectDetails[id]).filter(Boolean)
+        subjects: bundleSubjectIds.map(id => subjectDetails[id]).filter(Boolean)
     };
 };
 

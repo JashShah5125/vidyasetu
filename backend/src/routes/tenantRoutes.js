@@ -25,6 +25,7 @@ const handleUpload = (req, res, next) => {
 router.get('/', requirePermission('tenant.view'), tenantController.getTenants);
 router.post('/', requirePermission('tenant.create'), handleUpload, verifyFileSignature, tenantController.createTenant);
 router.get('/:id', requirePermission('tenant.view'), tenantController.getTenantById);
+router.get('/:id/audit-logs', requirePermission('tenant.view'), tenantController.getTenantAuditLogs);
 router.put('/:id', requirePermission('tenant.update'), handleUpload, verifyFileSignature, tenantController.updateTenant);
 router.patch('/:id/status', requirePermission('tenant.update_status'), tenantController.updateTenantStatus);
 

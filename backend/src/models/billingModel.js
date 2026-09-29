@@ -75,8 +75,8 @@ const getInvoices = async (limit = 10, offset = 0, search = '', status = '', ten
     }
 
     if (tenant && tenant !== 'All') {
-        query += ` AND t.name = ?`;
-        params.push(tenant);
+        query += ` AND (t.name = ? OR t.id = ? OR i.tenant_id = ?)`;
+        params.push(tenant, tenant, tenant);
     }
 
     if (status && status !== 'All') {
@@ -156,7 +156,7 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
     availableYears.sort((a, b) => b - a);
 
     // 2. Build SQL filter clause for saas_invoices using effective invoice date
-    let whereClause = `WHERE deleted_at IS NULL AND tenant_id IN (SELECT id FROM tenants WHERE tenant_type = 'customer' AND id != 1)`;
+    let whereClause = `WHERE deleted_at IS NULL AND tenant_id IN (SELECT id FROM tenants WHERE (tenant_type != 'master' OR tenant_type IS NULL) AND id != 1)`;
     const params = [];
     whereClause += buildInvoiceDateFilter('', params, { year, month, startDate, endDate });
 
@@ -190,7 +190,7 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
                 END
             ) AS mrr
         FROM tenants t
-        WHERE t.tenant_type = 'customer' AND t.id != 1 AND (t.status = 1 OR t.status = '1')
+        WHERE (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1 AND (t.status = 1 OR t.status = '1')
     `);
 
     const rawMrr = Number(tenantMrr?.mrr) || 0;
@@ -198,7 +198,7 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
     const arr = Math.round(mrr * 12);
 
     // 5. Top 5 recent paid invoice receipts for selected period
-    let paymentsWhere = `WHERE i.status = 'paid' AND i.deleted_at IS NULL AND t.tenant_type = 'customer' AND t.id != 1`;
+    let paymentsWhere = `WHERE i.status = 'paid' AND i.deleted_at IS NULL AND (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1`;
     const paymentsParams = [];
     paymentsWhere += buildInvoiceDateFilter('i.', paymentsParams, { year, month, startDate, endDate });
 
@@ -237,7 +237,7 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
 // Monthly collected revenue trend (paid invoices) grouped by month.
 // Supports Financial Year (Apr-Mar) as well as calendar years.
 const getRevenueTrend = async (year = null, startDate = null, endDate = null) => {
-    let where = `WHERE i.status = 'paid' AND i.deleted_at IS NULL AND t.tenant_type = 'customer' AND t.id != 1`;
+    let where = `WHERE i.status = 'paid' AND i.deleted_at IS NULL AND (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1`;
     const params = [];
     where += buildInvoiceDateFilter('i.', params, { year, startDate, endDate });
 
@@ -336,7 +336,7 @@ const getRevenueByMethod = async () => {
             SUM(i.total_amount) AS revenue
         FROM saas_invoices i
         JOIN tenants t ON i.tenant_id = t.id
-        WHERE i.status = 'paid' AND i.deleted_at IS NULL AND t.tenant_type = 'customer' AND t.id != 1
+        WHERE i.status = 'paid' AND i.deleted_at IS NULL AND (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1
           AND i.payment_method IS NOT NULL AND i.payment_method != ''
         GROUP BY i.payment_method
         ORDER BY revenue DESC
@@ -350,7 +350,7 @@ const getRevenueByMethod = async () => {
 
 // Collected + outstanding revenue grouped by subscription plan.
 const getRevenueByPlan = async (startDate = null, endDate = null) => {
-    let where = `WHERE i.deleted_at IS NULL AND t.tenant_type = 'customer' AND t.id != 1`;
+    let where = `WHERE i.deleted_at IS NULL AND (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1`;
     const params = [];
     if (startDate) {
         where += ` AND DATE(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) >= DATE(?)`;
@@ -475,6 +475,65 @@ const getInvoiceById = async (id) => {
     return rows[0] || null;
 };
 
+const syncTenantSubscriptionFromInvoice = async (tenantId) => {
+    if (!tenantId) return;
+    try {
+        // Find the latest active/paid invoice or the latest invoice for this tenant
+        const [invoices] = await pool.query(`
+            SELECT * FROM saas_invoices
+            WHERE tenant_id = ? AND deleted_at IS NULL
+            ORDER BY
+                CASE WHEN status = 'paid' THEN 1 ELSE 2 END,
+                COALESCE(payment_date, billing_period_start, created_at) DESC,
+                id DESC
+            LIMIT 1
+        `, [tenantId]);
+
+        if (invoices.length === 0) return;
+        const inv = invoices[0];
+
+        const finalPrice = inv.subtotal !== null ? Number(inv.subtotal) : (Number(inv.plan_amount) || 0);
+
+        const updateFields = [
+            'plan_id = ?',
+            'billing_cycle = ?',
+            'start_date = ?',
+            'end_date = ?',
+            'renewal_date = ?',
+            'subscription_discount = ?',
+            'subscription_tax = ?',
+            'subscription_final_price = ?',
+            'subscription_invoice_number = ?',
+            'subscription_status = ?',
+            'updated_at = CURRENT_TIMESTAMP'
+        ];
+        const updateParams = [
+            inv.plan_id,
+            inv.billing_cycle,
+            inv.billing_period_start,
+            inv.billing_period_end,
+            inv.billing_period_end,
+            Number(inv.discount_percent) || 0,
+            Number(inv.tax_rate) || 0,
+            finalPrice,
+            inv.invoice_number,
+            inv.status === 'paid' ? 'active' : (inv.status === 'overdue' ? 'expired' : 'active')
+        ];
+
+        if (inv.status === 'paid') {
+            updateFields.push('status = CASE WHEN status = 3 THEN 3 ELSE 1 END');
+        }
+
+        await pool.query(`
+            UPDATE tenants
+            SET ${updateFields.join(', ')}
+            WHERE id = ?
+        `, [...updateParams, tenantId]);
+    } catch (err) {
+        console.error('Error syncing tenant subscription from invoice:', err);
+    }
+};
+
 const createInvoice = async (data, userId = 1) => {
     await validateInvoiceData(data);
 
@@ -508,12 +567,14 @@ const createInvoice = async (data, userId = 1) => {
         ]
     );
 
+    await syncTenantSubscriptionFromInvoice(data.tenant_id);
+
     return getInvoiceById(result.insertId);
 };
 
 const updateInvoice = async (id, data, userId = 1) => {
     const [existingRows] = await pool.query(
-        'SELECT id, invoice_number FROM saas_invoices WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, invoice_number, tenant_id FROM saas_invoices WHERE id = ? AND deleted_at IS NULL',
         [id]
     );
     if (existingRows.length === 0) throw httpError(404, 'Invoice not found');
@@ -552,15 +613,24 @@ const updateInvoice = async (id, data, userId = 1) => {
         ]
     );
 
+    await syncTenantSubscriptionFromInvoice(data.tenant_id || existingRows[0].tenant_id);
+
     return getInvoiceById(id);
 };
 
 const deleteInvoice = async (id) => {
+    const [rows] = await pool.query(
+        'SELECT tenant_id FROM saas_invoices WHERE id = ? AND deleted_at IS NULL',
+        [id]
+    );
     const [result] = await pool.query(
         'UPDATE saas_invoices SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
         [id]
     );
     if (result.affectedRows === 0) throw httpError(404, 'Invoice not found');
+    if (rows[0]?.tenant_id) {
+        await syncTenantSubscriptionFromInvoice(rows[0].tenant_id);
+    }
     return { id: Number(id) };
 };
 

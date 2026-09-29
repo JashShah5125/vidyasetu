@@ -1,5 +1,6 @@
 const tenantService = require('../services/tenantService');
 const userModel = require('../models/userModel');
+const pool = require('../config/db');
 
 const getTenants = async (req, res) => {
     try {
@@ -171,7 +172,7 @@ const updateTenantStatus = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Invalid status. Expected 0 (inactive), 1 (active), 2 (draft), or 3 (deleted)' });
         }
 
-        const success = await tenantService.updateTenantStatus(id, status);
+        const success = await tenantService.updateTenantStatus(id, status, req.user?.id, req.ip);
         if (!success) {
             return res.status(404).json({ status: 'error', message: 'Tenant not found' });
         }
@@ -244,7 +245,7 @@ const updateTenant = async (req, res) => {
             maxFileSize: parseStr(maxFileSize),
             maxSmsCredits: parseNum(maxSmsCredits),
             maxWhatsappMsgs: parseNum(maxWhatsappMsgs)
-        });
+        }, req.user?.id, req.ip);
 
         if (!success) {
             return res.status(404).json({ status: 'error', message: 'Tenant not found' });
@@ -260,9 +261,29 @@ const updateTenant = async (req, res) => {
     }
 };
 
+const getTenantAuditLogs = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [rows] = await pool.query(
+            `SELECT a.*, u.name AS user_name, u.email AS user_email
+             FROM audit_logs a
+             LEFT JOIN users u ON a.user_id = u.id
+             WHERE a.tenant_id = ?
+             ORDER BY a.created_at DESC
+             LIMIT 50`,
+            [id]
+        );
+        res.status(200).json({ status: 'success', data: rows });
+    } catch (error) {
+        console.error('Error fetching tenant audit logs:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to fetch audit logs' });
+    }
+};
+
 module.exports = {
     getTenants,
     getTenantById,
+    getTenantAuditLogs,
     createTenant,
     updateTenantStatus,
     updateTenant

@@ -219,30 +219,117 @@ const getTenantById = async (id) => {
     return await tenantModel.getTenantById(id);
 };
 
-const updateTenantStatus = async (id, status) => {
+const updateTenantStatus = async (id, status, userId = null, ipAddress = '127.0.0.1') => {
+    try {
+        const existing = await tenantModel.getTenantById(id);
+        const oldStatus = existing ? existing.status : null;
+        const newStatus = Number(status);
+        if (oldStatus !== newStatus) {
+            await pool.query(
+                'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, userId || null, 'STATUS_CHANGE', 'tenant', id, JSON.stringify({ status: oldStatus }), JSON.stringify({ status: newStatus }), ipAddress]
+            );
+        }
+    } catch (auditError) {
+        console.error('Audit log failed, proceeding anyway:', auditError.message);
+    }
     return await tenantModel.updateTenantStatus(id, status);
 };
 
-const updateTenant = async (id, tenantData) => {
-    // If slug is being updated, verify it doesn't exist for a DIFFERENT tenant
-    if (tenantData.slug) {
-        const existingTenant = await tenantModel.getTenantById(id);
-        if (existingTenant.slug !== tenantData.slug) {
-            const slugExists = await tenantModel.checkSlugExists(tenantData.slug);
-            if (slugExists) {
-                throw new Error('Tenant slug already exists');
+const updateTenant = async (id, tenantData, userId = null, ipAddress = '127.0.0.1') => {
+    const existingTenant = await tenantModel.getTenantById(id);
+    if (!existingTenant) return null;
+
+    if (tenantData.slug && existingTenant.slug !== tenantData.slug) {
+        const slugExists = await tenantModel.checkSlugExists(tenantData.slug);
+        if (slugExists) {
+            throw new Error('Tenant slug already exists');
+        }
+    }
+
+    const formatDateVal = (d) => {
+        if (!d) return null;
+        if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.substring(0, 10);
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return null;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const isNumericField = (key) => [
+        'discount', 'finalPrice', 'tax', 'maxBranches', 'maxStaffUsers',
+        'maxStudents', 'maxParents', 'maxTeachers', 'maxSmsCredits', 'maxWhatsappMsgs'
+    ].includes(key);
+
+    const normalizeVal = (key, val) => {
+        if (val === undefined || val === null || val === '') return null;
+        if (['startDate', 'endDate', 'renewalDate'].includes(key)) return formatDateVal(val);
+        if (isNumericField(key)) {
+            const num = Number(val);
+            return isNaN(num) ? String(val).trim() : num;
+        }
+        if (Array.isArray(val) || (typeof val === 'object' && val !== null)) return JSON.stringify(val);
+        return String(val).trim();
+    };
+
+    const fieldMap = {
+        name: 'name',
+        legal_name: 'owner_name',
+        slug: 'slug',
+        planId: 'plan_id',
+        address: 'address_line1',
+        city: 'city',
+        state: 'state',
+        pincode: 'pincode',
+        panNo: 'pan_number',
+        gstNo: 'gst_number',
+        timezone: 'timezone',
+        billingCycle: 'billing_cycle',
+        startDate: 'start_date',
+        endDate: 'end_date',
+        renewalDate: 'renewal_date',
+        alternateEmails: 'alternate_emails',
+        discount: 'subscription_discount',
+        finalPrice: 'subscription_final_price',
+        tax: 'subscription_tax',
+        invoiceNumber: 'subscription_invoice_number',
+        maxBranches: 'override_max_branches',
+        maxStaffUsers: 'override_max_staff_users',
+        maxStudents: 'override_max_students',
+        maxParents: 'override_max_parents',
+        maxTeachers: 'override_max_teachers',
+        maxStorage: 'override_max_storage',
+        maxFileSize: 'override_max_file_size',
+        maxSmsCredits: 'override_max_sms_credits',
+        maxWhatsappMsgs: 'override_max_whatsapp_msgs'
+    };
+
+    const changes = {};
+    const oldValues = {};
+
+    for (const [key, dbField] of Object.entries(fieldMap)) {
+        if (tenantData[key] !== undefined) {
+            const newValNorm = normalizeVal(key, tenantData[key]);
+            const oldValNorm = normalizeVal(key, existingTenant[dbField]);
+
+            if (newValNorm !== oldValNorm) {
+                changes[key] = tenantData[key];
+                oldValues[key] = existingTenant[dbField] ?? null;
             }
         }
     }
-    
-    try {
-        // Add audit log (optional but good practice)
-        await pool.query(
-            'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, ip_address) VALUES (?, ?, ?, ?, ?, ?)',
-            [id, null, 'UPDATE', 'tenant', id, '127.0.0.1']
-        );
-    } catch (auditError) {
-        console.error('Audit log failed, proceeding anyway:', auditError.message);
+
+    if (Object.keys(changes).length > 0) {
+        try {
+            await pool.query(
+                'INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [id, userId || null, 'SETTINGS_UPDATE', 'tenant', id, JSON.stringify(oldValues), JSON.stringify(changes), ipAddress]
+            );
+        } catch (auditError) {
+            console.error('Audit log failed, proceeding anyway:', auditError.message);
+        }
     }
 
     return await tenantModel.updateTenant(id, tenantData);
