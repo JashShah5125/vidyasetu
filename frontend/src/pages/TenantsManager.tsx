@@ -358,6 +358,36 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   const [auditFilter, setAuditFilter] = useState<'all' | 'billing' | 'lifecycle' | 'limits'>('all');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Auto-prefill form fields when converting a lead into a tenant
+  useEffect(() => {
+    if (sourceLead && !editingTenantId) {
+      const instName = sourceLead.instituteName || sourceLead.institute_name || '';
+      const slug = sourceLead.preferredSlug || sourceLead.preferred_slug || '';
+      const addr = sourceLead.addressLine1 || sourceLead.address_line1 || '';
+      const cty = sourceLead.city || '';
+      const st = sourceLead.state || '';
+      const pin = sourceLead.pincode || '';
+      const contact = sourceLead.contactPerson || sourceLead.contact_person || '';
+      const em = sourceLead.email || '';
+      const mob = sourceLead.mobile || '';
+      const pId = sourceLead.planId || sourceLead.plan_id;
+
+      if (instName) setName(instName);
+      if (slug) setCustomSlug(slug);
+      if (addr) setAddress(addr);
+      if (cty) setCity(cty);
+      if (st) setState(st);
+      if (pin) setPincode(pin);
+      if (contact) setOwnerName(contact);
+      if (em) setEmail(em);
+      if (mob) setMobile(mob);
+      if (pId) setPlan(String(pId));
+      
+      setShowAddModal(true);
+      setLeadPrefillApplied(true);
+    }
+  }, [sourceLead, editingTenantId]);
+
   // All 7 unified tabs with icons (present in BOTH View and Edit modes)
   const [activeTab, setActiveTab] = useState('profile');
   

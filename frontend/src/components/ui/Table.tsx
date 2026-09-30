@@ -28,7 +28,7 @@ export const Table: React.FC<TableProps> = ({
   borderless = false,
   minWidth
 }) => {
-  const paddingClass = dense ? 'px-3.5 py-3' : 'px-4 py-3.5';
+  const paddingClass = dense ? 'px-3 py-2.5' : 'px-4 py-3.5';
 
   const renderHeaderCell = (h: TableHeaderItem, i: number) => {
     const isObj = typeof h === 'object' && h !== null && 'label' in h;

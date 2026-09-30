@@ -27,6 +27,7 @@ const getLeads = async (req, res) => {
                 page: Number(page),
                 limit: Number(limit)
             },
+            statusCounts: result.status_counts || {},
             filters: {
                 statuses: result.available_statuses
             }

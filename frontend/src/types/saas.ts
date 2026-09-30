@@ -224,13 +224,13 @@ export interface SaasLead {
 }
 
 export const LEAD_STATUS_MAP: Record<number, string> = {
-  1: 'New',
+  1: 'New Lead',
   2: 'Contacted',
-  3: 'Follow-up',
+  3: 'Follow-up (Warm)',
   4: 'Plan Assigned',
-  5: 'Interested',
+  5: 'Hot Lead (Interested)',
   6: 'Converted',
-  7: 'Lost'
+  7: 'Lost / Cold'
 };
 
 export const LEAD_SOURCE_MAP: Record<number, string> = {

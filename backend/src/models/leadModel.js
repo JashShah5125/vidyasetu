@@ -107,10 +107,20 @@ const getLeads = async ({ limit = 10, offset = 0, search = '', status = '', sour
         `SELECT DISTINCT status FROM saas_leads WHERE deleted_at IS NULL`
     );
 
+    const [statusCountRows] = await pool.query(
+        `SELECT status, COUNT(*) AS count FROM saas_leads WHERE deleted_at IS NULL GROUP BY status`
+    );
+
+    const statusCounts = {};
+    for (const row of statusCountRows) {
+        statusCounts[row.status] = Number(row.count);
+    }
+
     return {
         data: rows.map(r => mapLead(r)),
         total,
-        available_statuses: statusRows.map(r => r.status)
+        available_statuses: statusRows.map(r => r.status),
+        status_counts: statusCounts
     };
 };
 
