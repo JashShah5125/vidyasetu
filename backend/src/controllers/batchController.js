@@ -261,9 +261,35 @@ const getAcademicYears = async (req, res) => {
     }
 };
 
+const getBatchStudents = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tenantId = resolveTenantId(req);
+        const batch = await batchModel.getBatch(tenantId, id);
+
+        if (!batch) {
+            return res.status(404).json({ status: 'error', message: 'Batch not found' });
+        }
+
+        const userRole = req.user?.role;
+        if (isBranchAdmin(userRole)) {
+            const hasAccess = await branchModel.verifyUserBranchAccess(tenantId, req.user.userId, batch.branchId);
+            if (!hasAccess) {
+                return res.status(403).json({ status: 'error', message: 'Forbidden: You can only view batches for your assigned branch.' });
+            }
+        }
+
+        const students = await batchModel.getBatchStudents(tenantId, id);
+        res.status(200).json({ status: 'success', data: students });
+    } catch (error) {
+        handleError(res, error, 'Error fetching batch enrolled students:');
+    }
+};
+
 module.exports = {
     getBatches,
     getBatch,
+    getBatchStudents,
     createBatch,
     updateBatch,
     toggleBatchStatus,

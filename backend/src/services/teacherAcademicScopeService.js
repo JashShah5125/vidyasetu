@@ -153,34 +153,152 @@ class TeacherAcademicScopeService {
     /**
      * Validates teacher access to an existing homework/assessment.
      * Enforces BOTH batch allocation intersection AND subject allocation authorization.
+     * Supports multi-table resolution across homeworks, assignments, and exams.
      * Returns the homework record if authorized, or throws 403 / 404.
      */
     async validateHomeworkAccess(tenantId, teacherUserId, homeworkId) {
         const tid = Number(tenantId);
-        const hid = Number(homeworkId);
+        const rawId = String(homeworkId || '').trim();
 
-        const [rows] = await pool.query(
-            `SELECT h.*, s.name AS subject_name, s.code AS subject_code
-             FROM homeworks h
-             LEFT JOIN subjects s ON s.id = h.subject_id AND s.deleted_at IS NULL
-             WHERE h.id = ? AND h.tenant_id = ? AND h.deleted_at IS NULL`,
-            [hid, tid]
-        );
+        let entityType = 'unknown';
+        let numId = Number(rawId);
 
-        if (!rows.length) {
+        if (rawId.startsWith('asg-')) {
+            entityType = 'assignment';
+            numId = Number(rawId.replace('asg-', ''));
+        } else if (rawId.startsWith('exam-')) {
+            entityType = 'exam';
+            numId = Number(rawId.replace('exam-', ''));
+        } else if (rawId.startsWith('hw-')) {
+            entityType = 'homework';
+            numId = Number(rawId.replace('hw-', ''));
+        }
+
+        let homework = null;
+        let hwBatchIds = [];
+
+        if (entityType === 'assignment') {
+            const [rows] = await pool.query(
+                `SELECT a.*, s.name AS subject_name, s.code AS subject_code
+                 FROM assignments a
+                 LEFT JOIN subjects s ON s.id = a.subject_id AND s.deleted_at IS NULL
+                 WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL`,
+                [numId, tid]
+            );
+            if (rows.length) {
+                homework = rows[0];
+                homework._entityType = 'assignment';
+                homework.assignment_type = 'assignment';
+                try {
+                    hwBatchIds = homework.batch_ids ? (Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids)) : [homework.batch_id];
+                } catch {
+                    hwBatchIds = homework.batch_id ? [homework.batch_id] : [];
+                }
+            }
+        } else if (entityType === 'exam') {
+            const [rows] = await pool.query(
+                `SELECT e.*, e.name AS title, e.exam_date AS due_date,
+                        s.name AS subject_name, s.code AS subject_code,
+                        (SELECT JSON_ARRAYAGG(eba.batch_id) FROM exam_batch_assignments eba WHERE eba.exam_id = e.id) AS batch_ids
+                 FROM exams e
+                 LEFT JOIN subjects s ON s.id = e.subject_id AND s.deleted_at IS NULL
+                 WHERE e.id = ? AND e.tenant_id = ? AND e.deleted_at IS NULL`,
+                [numId, tid]
+            );
+            if (rows.length) {
+                homework = rows[0];
+                homework._entityType = 'exam';
+                homework.assignment_type = 'exam';
+                try {
+                    hwBatchIds = homework.batch_ids ? (Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids)) : [];
+                } catch {
+                    hwBatchIds = [];
+                }
+            }
+        } else if (entityType === 'homework') {
+            const [rows] = await pool.query(
+                `SELECT h.*, s.name AS subject_name, s.code AS subject_code
+                 FROM homeworks h
+                 LEFT JOIN subjects s ON s.id = h.subject_id AND s.deleted_at IS NULL
+                 WHERE h.id = ? AND h.tenant_id = ? AND h.deleted_at IS NULL`,
+                [numId, tid]
+            );
+            if (rows.length) {
+                homework = rows[0];
+                homework._entityType = 'homework';
+                homework.assignment_type = 'homework';
+                try {
+                    hwBatchIds = Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids || '[]');
+                } catch {
+                    hwBatchIds = [];
+                }
+            }
+        } else {
+            // Unprefixed fallback: check homeworks, assignments, exams
+            const [hRows] = await pool.query(
+                `SELECT h.*, s.name AS subject_name, s.code AS subject_code
+                 FROM homeworks h
+                 LEFT JOIN subjects s ON s.id = h.subject_id AND s.deleted_at IS NULL
+                 WHERE h.id = ? AND h.tenant_id = ? AND h.deleted_at IS NULL`,
+                [numId, tid]
+            );
+            if (hRows.length) {
+                homework = hRows[0];
+                homework._entityType = 'homework';
+                homework.assignment_type = 'homework';
+                try {
+                    hwBatchIds = Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids || '[]');
+                } catch {
+                    hwBatchIds = [];
+                }
+            } else {
+                const [aRows] = await pool.query(
+                    `SELECT a.*, s.name AS subject_name, s.code AS subject_code
+                     FROM assignments a
+                     LEFT JOIN subjects s ON s.id = a.subject_id AND s.deleted_at IS NULL
+                     WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL`,
+                    [numId, tid]
+                );
+                if (aRows.length) {
+                    homework = aRows[0];
+                    homework._entityType = 'assignment';
+                    homework.assignment_type = 'assignment';
+                    try {
+                        hwBatchIds = homework.batch_ids ? (Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids)) : [homework.batch_id];
+                    } catch {
+                        hwBatchIds = homework.batch_id ? [homework.batch_id] : [];
+                    }
+                } else {
+                    const [eRows] = await pool.query(
+                        `SELECT e.*, e.name AS title, e.exam_date AS due_date,
+                                s.name AS subject_name, s.code AS subject_code,
+                                (SELECT JSON_ARRAYAGG(eba.batch_id) FROM exam_batch_assignments eba WHERE eba.exam_id = e.id) AS batch_ids
+                         FROM exams e
+                         LEFT JOIN subjects s ON s.id = e.subject_id AND s.deleted_at IS NULL
+                         WHERE e.id = ? AND e.tenant_id = ? AND e.deleted_at IS NULL`,
+                        [numId, tid]
+                    );
+                    if (eRows.length) {
+                        homework = eRows[0];
+                        homework._entityType = 'exam';
+                        homework.assignment_type = 'exam';
+                        try {
+                            hwBatchIds = homework.batch_ids ? (Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids)) : [];
+                        } catch {
+                            hwBatchIds = [];
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!homework) {
             const err = new Error('Assessment not found or has been deleted.');
             err.statusCode = 404;
             err.code = 'ER_HOMEWORK_NOT_FOUND';
             throw err;
         }
 
-        const homework = rows[0];
-        let hwBatchIds = [];
-        try {
-            hwBatchIds = Array.isArray(homework.batch_ids) ? homework.batch_ids : JSON.parse(homework.batch_ids || '[]');
-        } catch (e) {
-            hwBatchIds = [];
-        }
         hwBatchIds = hwBatchIds.map(Number).filter(Boolean);
 
         const { batchIds: allowedBatchIds, subjectIds: allowedSubjectIds } = await this.getTeacherAllocations(tid, teacherUserId);

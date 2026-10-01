@@ -504,6 +504,16 @@ export interface ExamItem {
   average: string;
   status: 'Draft' | 'Scheduled' | 'In Progress' | 'Completed' | 'Marks Pending' | 'Marks Published' | 'Cancelled';
   studentMarks?: { [studentId: string]: number };
+  isRecurring?: boolean;
+  recurrenceType?: 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_day' | 'custom';
+  repeatDays?: string[];
+  repeatCount?: number;
+  repeatEndType?: 'count' | 'date';
+  repeatEndDate?: string;
+  repeatInterval?: number;
+  recurrenceSummary?: string;
+  recurringGroupId?: string;
+  recurringInstanceIndex?: number;
 }
 
 export interface FeePlan {

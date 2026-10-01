@@ -179,6 +179,7 @@ interface StatusDropdownMenuProps {
   onToggle: (e: React.MouseEvent) => void;
   onSelectStatus: (targetStatus: number) => void;
   isUpdating: boolean;
+  align?: 'left' | 'right';
 }
 
 const StatusDropdownMenu: React.FC<StatusDropdownMenuProps> = ({
@@ -186,7 +187,8 @@ const StatusDropdownMenu: React.FC<StatusDropdownMenuProps> = ({
   isOpen,
   onToggle,
   onSelectStatus,
-  isUpdating
+  isUpdating,
+  align = 'left'
 }) => {
   const badge = getStatusBadge(lead.status);
   const Icon = badge.icon;
@@ -210,7 +212,7 @@ const StatusDropdownMenu: React.FC<StatusDropdownMenuProps> = ({
 
       {isOpen && (
         <div
-          className="absolute z-50 mt-1.5 left-0 w-56 rounded-2xl bg-white shadow-xl border border-slate-200 py-1.5 text-xs animate-scale-in"
+          className={`absolute z-50 mt-1.5 ${align === 'right' ? 'right-0' : 'left-0'} w-56 rounded-2xl bg-white shadow-xl border border-slate-200 py-1.5 text-xs animate-scale-in`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
@@ -269,7 +271,7 @@ const InteractivePipelineStepper: React.FC<InteractivePipelineStepperProps> = ({
         <div className="flex items-center gap-2">
           <TrendingUp size={18} className="text-blue-600" />
           <h3 className="text-sm font-bold text-slate-900 tracking-tight">CRM Stage Pipeline</h3>
-          <span className="text-xs text-slate-400">• Click any stage to instantly transition this lead</span>
+          <span className="text-xs text-slate-400">• Click any stage to transition this lead</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -352,8 +354,8 @@ const InteractivePipelineStepper: React.FC<InteractivePipelineStepperProps> = ({
 interface SupportStyleFollowupConsoleProps {
   lead: SaasLead;
   onFollowupRecorded: () => void;
-  openStatusMenuId: number | null;
-  setOpenStatusMenuId: React.Dispatch<React.SetStateAction<number | null>>;
+  openStatusMenuId: string | null;
+  setOpenStatusMenuId: React.Dispatch<React.SetStateAction<string | null>>;
   onSelectStatus: (lead: SaasLead, targetStatus: number) => void;
   isUpdatingStatus: boolean;
 }
@@ -441,10 +443,11 @@ const SupportStyleFollowupConsole: React.FC<SupportStyleFollowupConsoleProps> = 
         <div className="flex items-center gap-2">
           <StatusDropdownMenu
             lead={lead}
-            isOpen={openStatusMenuId === lead.id}
+            align="right"
+            isOpen={openStatusMenuId === `console-${lead.id}`}
             onToggle={(e) => {
               e.stopPropagation();
-              setOpenStatusMenuId(openStatusMenuId === lead.id ? null : lead.id);
+              setOpenStatusMenuId(openStatusMenuId === `console-${lead.id}` ? null : `console-${lead.id}`);
             }}
             onSelectStatus={(targetStatus) => {
               setOpenStatusMenuId(null);
@@ -581,6 +584,7 @@ const SupportStyleFollowupConsole: React.FC<SupportStyleFollowupConsoleProps> = 
 
           {/* Outcome & Notes Textarea */}
           <textarea
+            id={`followup-outcome-${lead.id}`}
             rows={3}
             value={localOutcome}
             onChange={(e) => setLocalOutcome(e.target.value)}
@@ -731,9 +735,13 @@ export const Leads: React.FC = () => {
   
   // Quick status update state
   const [updatingStatusLeadId, setUpdatingStatusLeadId] = useState<number | null>(null);
-  const [openStatusMenuId, setOpenStatusMenuId] = useState<number | null>(null);
-  const [promptLostModalLead, setPromptLostModalLead] = useState<SaasLead | null>(null);
-  const [quickLostReason, setQuickLostReason] = useState('');
+  const [openStatusMenuId, setOpenStatusMenuId] = useState<string | null>(null);
+
+  // Status change dialog state (appears on every status change with notes box & automatic logging)
+  const [statusChangeModal, setStatusChangeModal] = useState<{ lead: SaasLead; targetStatus: number } | null>(null);
+  const [statusChangeNotes, setStatusChangeNotes] = useState('');
+  const [statusChangeNextDate, setStatusChangeNextDate] = useState('');
+  const [isSubmittingStatusChange, setIsSubmittingStatusChange] = useState(false);
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<SaasLead | null>(null);
@@ -916,12 +924,12 @@ export const Leads: React.FC = () => {
     }
   };
 
-  const handleViewLead = async (lead: SaasLead) => {
+  const handleViewLead = async (lead: SaasLead, initialTab: 'details' | 'followups' = 'details') => {
     setEditingLeadId(String(lead.id));
     resetForm(lead);
     setCurrentLead(lead);
     setPageMode('view');
-    setViewTab('details');
+    setViewTab(initialTab);
     try {
       const res = await leadService.getLead(String(lead.id));
       if (res?.data) {
@@ -952,46 +960,57 @@ export const Leads: React.FC = () => {
     }
   };
 
-  // Open quick follow-up modal with full interaction history loaded
-  const handleOpenQuickFollowup = async (lead: SaasLead) => {
-    setQuickFollowupLead(lead);
-    setLoadingQuickLead(true);
-    try {
-      const res = await leadService.getLead(String(lead.id));
-      if (res?.data) {
-        setQuickFollowupLead(res.data);
-      }
-    } catch (e) {
-      console.error('Failed to load quick lead followups', e);
-    } finally {
-      setLoadingQuickLead(false);
-    }
-  };
-
-  // Quick direct status updater (1-click transition)
-  const handleQuickStatusChange = async (lead: SaasLead, targetStatus: number, lostReasonInput?: string) => {
-    if (targetStatus === 7 && lostReasonInput === undefined) {
-      setPromptLostModalLead(lead);
-      setQuickLostReason(lead.lostReason || '');
-      return;
-    }
-
+  // Open status change dialog when any status is clicked
+  const handleQuickStatusChange = (lead: SaasLead, targetStatus: number) => {
     if (targetStatus === 6) {
       handleConvert(lead);
       return;
     }
+    setStatusChangeModal({ lead, targetStatus });
+    setStatusChangeNotes(targetStatus === 7 ? (lead.lostReason || '') : '');
+    setStatusChangeNextDate(lead.nextFollowupAt ? lead.nextFollowupAt.split('T')[0] : '');
+  };
 
+  // Confirm status change, persist to database and automatically log note to activity history
+  const handleConfirmStatusChange = async () => {
+    if (!statusChangeModal) return;
+    const { lead, targetStatus } = statusChangeModal;
+    const targetStage = STAGES_CONFIG[targetStatus] || { label: 'Updated Stage' };
+    const oldStage = STAGES_CONFIG[lead.status] || { label: 'Previous Stage' };
+    const isLost = targetStatus === 7;
+
+    setIsSubmittingStatusChange(true);
+    setUpdatingStatusLeadId(lead.id);
     try {
-      setUpdatingStatusLeadId(lead.id);
-      if (targetStatus === 7 && lostReasonInput) {
-        await leadService.updateLead(String(lead.id), { status: 7, lostReason: lostReasonInput });
+      // 1. Update status in database
+      if (isLost) {
+        await leadService.updateLead(String(lead.id), {
+          status: 7,
+          lostReason: statusChangeNotes.trim() || 'Marked as lost'
+        });
       } else {
         await leadService.updateLeadStatus(String(lead.id), targetStatus);
       }
-      
-      const stageName = STAGES_CONFIG[targetStatus]?.label || 'Updated';
-      addToast(`Status updated to "${stageName}"`, 'success');
 
+      // 2. Automatically log follow-up note into database (saas_lead_followups)
+      const followupOutcome = statusChangeNotes.trim()
+        ? `Stage changed from "${oldStage.label}" to "${targetStage.label}": ${statusChangeNotes.trim()}`
+        : `Stage changed from "${oldStage.label}" to "${targetStage.label}"`;
+
+      try {
+        await leadService.addFollowup(String(lead.id), {
+          followupMode: isLost ? 'Marked Lost' : 'Status Change',
+          outcome: followupOutcome,
+          notes: statusChangeNotes.trim() || null,
+          nextFollowupAt: (!isLost && statusChangeNextDate) ? statusChangeNextDate : null
+        });
+      } catch (fErr) {
+        console.warn('Could not auto-log status followup:', fErr);
+      }
+
+      addToast(`Status updated to "${targetStage.label}" & logged to history`, 'success');
+
+      // 3. Refresh views & state
       if (pageMode === 'view' && currentLead?.id === lead.id) {
         const res = await leadService.getLead(String(lead.id));
         if (res?.data) {
@@ -1000,21 +1019,28 @@ export const Leads: React.FC = () => {
         }
       }
 
-      if (quickFollowupLead?.id === lead.id) {
-        setQuickFollowupLead(prev => prev ? { ...prev, status: targetStatus } : null);
-      }
-      
       setLeads((prev) =>
-        prev.map((l) => (l.id === lead.id ? { ...l, status: targetStatus, lostReason: lostReasonInput || l.lostReason } : l))
+        prev.map((l) =>
+          l.id === lead.id
+            ? {
+                ...l,
+                status: targetStatus,
+                lostReason: isLost ? (statusChangeNotes.trim() || l.lostReason) : l.lostReason,
+                nextFollowupAt: (!isLost && statusChangeNextDate) ? statusChangeNextDate : l.nextFollowupAt
+              }
+            : l
+        )
       );
 
-      setPromptLostModalLead(null);
-      setQuickLostReason('');
+      setStatusChangeModal(null);
+      setStatusChangeNotes('');
+      setStatusChangeNextDate('');
       fetchLeads();
     } catch (error: any) {
       console.error('Failed to update status:', error);
       addToast(error?.response?.data?.message || 'Failed to update status', 'error');
     } finally {
+      setIsSubmittingStatusChange(false);
       setUpdatingStatusLeadId(null);
     }
   };
@@ -1181,10 +1207,10 @@ export const Leads: React.FC = () => {
             {pageMode === 'view' && currentLead && (
               <StatusDropdownMenu
                 lead={currentLead}
-                isOpen={openStatusMenuId === currentLead.id}
+                isOpen={openStatusMenuId === `header-${currentLead.id}`}
                 onToggle={(e) => {
                   e.stopPropagation();
-                  setOpenStatusMenuId(openStatusMenuId === currentLead.id ? null : currentLead.id);
+                  setOpenStatusMenuId(openStatusMenuId === `header-${currentLead.id}` ? null : `header-${currentLead.id}`);
                 }}
                 onSelectStatus={(targetStatus) => {
                   setOpenStatusMenuId(null);
@@ -1369,6 +1395,219 @@ export const Leads: React.FC = () => {
     </div>
   );
 
+  const renderSharedModals = () => (
+    <>
+      {/* Dialogue Box that appears on Status Change with Notes box and automatic logging */}
+      {statusChangeModal && (() => {
+        const { lead, targetStatus } = statusChangeModal;
+        const oldStage = STAGES_CONFIG[lead.status] || STAGES_CONFIG[1];
+        const newStage = STAGES_CONFIG[targetStatus] || STAGES_CONFIG[1];
+        const isLost = targetStatus === 7;
+        const OldIcon = oldStage.icon;
+        const NewIcon = newStage.icon;
+
+        return (
+          <Modal
+            isOpen={!!statusChangeModal}
+            onClose={() => { if (!isSubmittingStatusChange) setStatusChangeModal(null); }}
+            title={isLost ? 'Mark Lead as Lost / Cold' : `Update Status: ${newStage.label}`}
+            size="sm"
+            footer={
+              <span className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setStatusChangeModal(null)}
+                  disabled={isSubmittingStatusChange}
+                  className="text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant={isLost ? 'danger' : 'primary'}
+                  onClick={handleConfirmStatusChange}
+                  disabled={isSubmittingStatusChange}
+                  className="flex items-center gap-1.5 text-xs font-bold px-4 cursor-pointer shadow-sm"
+                >
+                  {isSubmittingStatusChange ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={14} />
+                  )}
+                  <span>{isSubmittingStatusChange ? 'Updating...' : 'Update Status & Log Note'}</span>
+                </Button>
+              </span>
+            }
+          >
+            <div className="space-y-3.5">
+              {/* Context Transition Banner */}
+              <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 ${
+                isLost ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-blue-50/80 border-blue-200 text-blue-900'
+              }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                  isLost ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  <NewIcon size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-sm text-slate-900 truncate">
+                    {lead.instituteName}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="text-slate-500 font-medium">Transition:</span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${oldStage.badgeBg} ${oldStage.badgeText} ${oldStage.badgeBorder}`}>
+                      <OldIcon size={11} /> {oldStage.label}
+                    </span>
+                    <ArrowRight size={12} className="text-slate-400" />
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${newStage.badgeBg} ${newStage.badgeText} ${newStage.badgeBorder}`}>
+                      <NewIcon size={11} /> {newStage.label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Textarea */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  {isLost ? 'Reason for Lost / Inactive *' : 'Discussion Notes / Remarks (Logged to History)'}
+                </label>
+                <textarea
+                  value={statusChangeNotes}
+                  onChange={(e) => setStatusChangeNotes(e.target.value)}
+                  placeholder={
+                    isLost
+                      ? 'e.g. Budget constraints, opted for competitor, no response after 5 attempts...'
+                      : 'e.g. Spoke with director, agreed to schedule live product demo next Tuesday...'
+                  }
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-colors resize-y"
+                  autoFocus
+                />
+              </div>
+
+              {/* Optional Next Follow-up Date */}
+              {!isLost && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Next Follow-up Date (optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={statusChangeNextDate}
+                    onChange={(e) => setStatusChangeNextDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                  />
+                </div>
+              )}
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {/* Support-Ticket Style Follow-up Modal */}
+      {quickFollowupLead && (
+        <Modal
+          isOpen={!!quickFollowupLead}
+          onClose={() => setQuickFollowupLead(null)}
+          title={`Follow-up Conversation: ${quickFollowupLead.instituteName}`}
+          size="lg"
+        >
+          <div className="space-y-4">
+            {/* Quick Header Summary */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-sm">
+                  {quickFollowupLead.contactPerson?.charAt(0) || 'U'}
+                </div>
+                <div>
+                  <div className="font-bold text-slate-900 text-sm">{quickFollowupLead.contactPerson}</div>
+                  <div className="text-slate-500">{quickFollowupLead.mobile} {quickFollowupLead.email ? `• ${quickFollowupLead.email}` : ''}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openWhatsApp(quickFollowupLead.mobile, quickFollowupLead.contactPerson, quickFollowupLead.instituteName)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold hover:bg-emerald-100 cursor-pointer"
+                >
+                  <MessageSquare size={13} /> WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCall(quickFollowupLead.mobile)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold hover:bg-blue-100 cursor-pointer"
+                >
+                  <Phone size={13} /> Call
+                </button>
+              </div>
+            </div>
+
+            {loadingQuickLead ? (
+              <div className="py-12 flex items-center justify-center">
+                <Loader2 size={24} className="animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <SupportStyleFollowupConsole
+                lead={quickFollowupLead}
+                onFollowupRecorded={() => refreshLeadData(quickFollowupLead.id)}
+                openStatusMenuId={openStatusMenuId}
+                setOpenStatusMenuId={setOpenStatusMenuId}
+                onSelectStatus={handleQuickStatusChange}
+                isUpdatingStatus={updatingStatusLeadId === quickFollowupLead.id}
+              />
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete confirm Modal */}
+      {deleteTarget && (
+        <Modal
+          isOpen={!!deleteTarget}
+          onClose={() => { setDeleteTarget(null); setDeleteLostReason(''); }}
+          title="Delete Lead"
+          size="sm"
+          footer={
+            <span className="flex items-center gap-3">
+              <Button type="button" variant="secondary" onClick={() => { setDeleteTarget(null); setDeleteLostReason(''); }} className="text-xs font-semibold">
+                Cancel
+              </Button>
+              <Button type="button" variant="danger" onClick={handleDelete} disabled={isDeleting} className="flex items-center gap-1.5">
+                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />} {isDeleting ? 'Deleting...' : 'Delete Lead'}
+              </Button>
+            </span>
+          }
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2.5">
+              <span className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                <Trash2 size={16} className="text-red-600" />
+              </span>
+              <div>
+                <p className="font-bold text-red-900">Warning: This action cannot be undone.</p>
+                <p className="mt-1 text-red-700 leading-relaxed">
+                  Are you sure you want to delete lead <strong className="text-slate-900 font-bold">{deleteTarget.instituteName}</strong>?
+                  This will mark it as lost and remove it from the pipeline.
+                </p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lost Reason (optional)</label>
+              <textarea
+                value={deleteLostReason}
+                onChange={(e) => setDeleteLostReason(e.target.value)}
+                placeholder="e.g. Not interested, budget constraints, went with a competitor..."
+                rows={3}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-colors resize-y"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+
   /* ------------------------------ CREATE / EDIT Page ------------------------------ */
   if (pageMode === 'create' || pageMode === 'edit') {
     const isEdit = pageMode === 'edit';
@@ -1416,6 +1655,7 @@ export const Leads: React.FC = () => {
             )}
           </div>
         )}
+        {renderSharedModals()}
       </div>
     );
   }
@@ -1517,10 +1757,10 @@ export const Leads: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <StatusDropdownMenu
                             lead={lead}
-                            isOpen={openStatusMenuId === lead.id}
+                            isOpen={openStatusMenuId === `card-${lead.id}`}
                             onToggle={(e) => {
                               e.stopPropagation();
-                              setOpenStatusMenuId(openStatusMenuId === lead.id ? null : lead.id);
+                              setOpenStatusMenuId(openStatusMenuId === `card-${lead.id}` ? null : `card-${lead.id}`);
                             }}
                             onSelectStatus={(targetStatus) => {
                               setOpenStatusMenuId(null);
@@ -1610,6 +1850,7 @@ export const Leads: React.FC = () => {
             )}
           </>
         )}
+        {renderSharedModals()}
       </div>
     );
   }
@@ -1776,12 +2017,17 @@ export const Leads: React.FC = () => {
             <tr><td colSpan={9} className="px-3 py-10 text-center text-slate-400">No leads found.</td></tr>
           ) : (
             leads.map((l) => (
-              <tr key={l.id} onClick={() => handleViewLead(l)} className="hover:bg-slate-50/80 cursor-pointer transition-colors group">
+              <tr key={l.id} className="hover:bg-slate-50/60 transition-colors">
                 <td className="px-3 py-2.5 font-semibold text-slate-900 text-xs whitespace-nowrap">#{l.id}</td>
                 <td className="px-3 py-2.5 font-bold text-slate-900 text-sm">
-                  <div className="truncate max-w-[200px]" title={l.instituteName}>
+                  <button
+                    type="button"
+                    onClick={() => handleViewLead(l)}
+                    className="text-left font-bold text-slate-900 hover:text-blue-600 hover:underline transition-colors truncate max-w-[200px] block cursor-pointer"
+                    title={l.instituteName}
+                  >
                     {l.instituteName}
-                  </div>
+                  </button>
                 </td>
                 <td className="px-3 py-2.5 text-xs text-slate-700">
                   <div className="font-semibold text-slate-800 truncate max-w-[160px]" title={l.contactPerson}>
@@ -1814,10 +2060,10 @@ export const Leads: React.FC = () => {
                 <td className="px-3 py-2.5 whitespace-nowrap">
                   <StatusDropdownMenu
                     lead={l}
-                    isOpen={openStatusMenuId === l.id}
+                    isOpen={openStatusMenuId === `table-${l.id}`}
                     onToggle={(e) => {
                       e.stopPropagation();
-                      setOpenStatusMenuId(openStatusMenuId === l.id ? null : l.id);
+                      setOpenStatusMenuId(openStatusMenuId === `table-${l.id}` ? null : `table-${l.id}`);
                     }}
                     onSelectStatus={(targetStatus) => {
                       setOpenStatusMenuId(null);
@@ -1841,8 +2087,8 @@ export const Leads: React.FC = () => {
                   <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={() => handleOpenQuickFollowup(l)}
-                      title="Log Follow-up Interaction"
+                      onClick={() => handleViewLead(l, 'followups')}
+                      title="Interaction Console & Follow-up History"
                       className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                     >
                       <PhoneCall size={14} />
@@ -1894,144 +2140,7 @@ export const Leads: React.FC = () => {
         )}
       </Card>
 
-      {/* Support-Ticket Style Follow-up Modal */}
-      {quickFollowupLead && (
-        <Modal
-          isOpen={!!quickFollowupLead}
-          onClose={() => setQuickFollowupLead(null)}
-          title={`Follow-up Conversation: ${quickFollowupLead.instituteName}`}
-          size="lg"
-        >
-          <div className="space-y-4">
-            {/* Quick Header Summary */}
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-extrabold text-sm">
-                  {quickFollowupLead.contactPerson?.charAt(0) || 'U'}
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900 text-sm">{quickFollowupLead.contactPerson}</div>
-                  <div className="text-slate-500">{quickFollowupLead.mobile} {quickFollowupLead.email ? `• ${quickFollowupLead.email}` : ''}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openWhatsApp(quickFollowupLead.mobile, quickFollowupLead.contactPerson, quickFollowupLead.instituteName)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold hover:bg-emerald-100 cursor-pointer"
-                >
-                  <MessageSquare size={13} /> WhatsApp
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openCall(quickFollowupLead.mobile)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold hover:bg-blue-100 cursor-pointer"
-                >
-                  <Phone size={13} /> Call
-                </button>
-              </div>
-            </div>
-
-            {loadingQuickLead ? (
-              <div className="py-12 flex items-center justify-center">
-                <Loader2 size={24} className="animate-spin text-blue-600" />
-              </div>
-            ) : (
-              <SupportStyleFollowupConsole
-                lead={quickFollowupLead}
-                onFollowupRecorded={() => refreshLeadData(quickFollowupLead.id)}
-                openStatusMenuId={openStatusMenuId}
-                setOpenStatusMenuId={setOpenStatusMenuId}
-                onSelectStatus={handleQuickStatusChange}
-                isUpdatingStatus={updatingStatusLeadId === quickFollowupLead.id}
-              />
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {/* Lost Reason Modal (when switching to Lost) */}
-      {promptLostModalLead && (
-        <Modal
-          isOpen={!!promptLostModalLead}
-          onClose={() => { setPromptLostModalLead(null); setQuickLostReason(''); }}
-          title="Mark Lead as Lost / Cold"
-          size="sm"
-          footer={
-            <span className="flex items-center gap-2">
-              <Button type="button" variant="secondary" onClick={() => { setPromptLostModalLead(null); setQuickLostReason(''); }}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => handleQuickStatusChange(promptLostModalLead, 7, quickLostReason)}
-                disabled={updatingStatusLeadId === promptLostModalLead.id}
-              >
-                {updatingStatusLeadId === promptLostModalLead.id ? 'Updating...' : 'Mark Lost / Cold'}
-              </Button>
-            </span>
-          }
-        >
-          <div className="space-y-3">
-            <p className="text-xs text-slate-600">
-              Please specify the reason why <strong>{promptLostModalLead.instituteName}</strong> is lost or inactive:
-            </p>
-            <textarea
-              value={quickLostReason}
-              onChange={(e) => setQuickLostReason(e.target.value)}
-              placeholder="e.g. Budget constraints, opted for competitor, no response after 5 attempts..."
-              rows={3}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-colors resize-y"
-            />
-          </div>
-        </Modal>
-      )}
-
-      {/* Delete confirm Modal */}
-      {deleteTarget && (
-        <Modal
-          isOpen={!!deleteTarget}
-          onClose={() => { setDeleteTarget(null); setDeleteLostReason(''); }}
-          title="Delete Lead"
-          size="sm"
-          footer={
-            <span className="flex items-center gap-3">
-              <Button type="button" variant="secondary" onClick={() => { setDeleteTarget(null); setDeleteLostReason(''); }} className="text-xs font-semibold">
-                Cancel
-              </Button>
-              <Button type="button" variant="danger" onClick={handleDelete} disabled={isDeleting} className="flex items-center gap-1.5">
-                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />} {isDeleting ? 'Deleting...' : 'Delete Lead'}
-              </Button>
-            </span>
-          }
-        >
-          <div className="space-y-4">
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2.5">
-              <span className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                <Trash2 size={16} className="text-red-600" />
-              </span>
-              <div>
-                <p className="font-bold text-red-900">Warning: This action cannot be undone.</p>
-                <p className="mt-1 text-red-700 leading-relaxed">
-                  Are you sure you want to delete lead <strong className="text-slate-900 font-bold">{deleteTarget.instituteName}</strong>?
-                  This will mark it as lost and remove it from the pipeline.
-                </p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lost Reason (optional)</label>
-              <textarea
-                value={deleteLostReason}
-                onChange={(e) => setDeleteLostReason(e.target.value)}
-                placeholder="e.g. Not interested, budget constraints, went with a competitor..."
-                rows={3}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-colors resize-y"
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
+      {renderSharedModals()}
     </div>
   );
 };

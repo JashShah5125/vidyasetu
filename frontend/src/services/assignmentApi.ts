@@ -40,6 +40,7 @@ export interface HomeworkPayload {
   dueDate: string;
   maxMarks?: number | null;
   existingFiles?: string[];
+  status?: string;
 }
 
 export interface ScopingOption {
@@ -129,6 +130,9 @@ const buildFormData = (payload: HomeworkPayload, files: File[]) => {
   fd.append('dueDate', payload.dueDate);
   if (payload.maxMarks !== undefined && payload.maxMarks !== null) {
     fd.append('maxMarks', String(payload.maxMarks));
+  }
+  if (payload.status !== undefined && payload.status !== null) {
+    fd.append('status', payload.status);
   }
   fd.append('existingFiles', JSON.stringify(payload.existingFiles || []));
   files.forEach(f => fd.append('files', f));

@@ -621,7 +621,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendNotification = (notification: AppNotification) => {
     setNotifications(prev => [notification, ...prev]);
-    addToast('Notification sent successfully!');
   };
 
   const addSupportTicket = (subject: string, description: string, priority: 'Low' | 'Medium' | 'High' | 'Critical', tenantName: string) => {

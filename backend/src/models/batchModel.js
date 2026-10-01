@@ -187,6 +187,7 @@ const buildBatchQuery = (tenantId, { search = '', branch = 'all', status = 'all'
 
 const BATCH_SELECT = `
     SELECT bt.*,
+           COALESCE(se_counts.active_count, 0) AS current_strength,
            b.name AS branch_name,
            ay.name AS academic_year_name,
            lv.name AS level_name,
@@ -201,6 +202,12 @@ const BATCH_SELECT = `
     LEFT JOIN courses c ON lv.course_id = c.id
     LEFT JOIN programs p ON lv.program_id = p.id
     LEFT JOIN classrooms cr ON bt.classroom_id = cr.id
+    LEFT JOIN (
+        SELECT batch_id, tenant_id, COUNT(*) AS active_count
+        FROM student_enrollments
+        WHERE deleted_at IS NULL
+        GROUP BY batch_id, tenant_id
+    ) se_counts ON se_counts.batch_id = bt.id AND se_counts.tenant_id = bt.tenant_id
 `;
 
 const getBatches = async (tenantId, { search = '', branch = 'all', status = 'all', course = 'all', program = 'all', level = 'all', academicYear = 'all', limit = 10, offset = 0 } = {}) => {
@@ -443,9 +450,70 @@ const getAcademicYears = async (tenantId, branch = 'all') => {
     }));
 };
 
+const getBatchStudents = async (tenantId, batchId) => {
+    const [rows] = await pool.query(
+        `SELECT 
+            s.id,
+            s.student_code,
+            s.full_name,
+            s.email,
+            s.mobile,
+            s.gender,
+            s.status,
+            s.created_at,
+            se.id AS enrollment_id,
+            adm.admission_number,
+            se.status AS enrollment_status,
+            COALESCE(se.enrolled_date, se.created_at, s.created_at) AS enrolled_at,
+            g.full_name AS guardian_name,
+            g.mobile AS guardian_mobile,
+            g.relation AS guardian_relation,
+            fa.status AS fee_status,
+            fa.net_amount,
+            fa.paid_amount,
+            fa.balance_amount
+        FROM student_enrollments se
+        JOIN students s ON se.student_id = s.id AND s.deleted_at IS NULL
+        LEFT JOIN admissions adm ON adm.student_id = s.id AND adm.tenant_id = se.tenant_id AND adm.deleted_at IS NULL
+        LEFT JOIN student_guardians sg ON s.id = sg.student_id AND sg.tenant_id = s.tenant_id AND sg.is_primary = 1
+        LEFT JOIN guardians g ON sg.guardian_id = g.id AND g.tenant_id = s.tenant_id
+        LEFT JOIN (
+            SELECT student_id, tenant_id, net_amount, paid_amount, balance_amount, status,
+                   ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY id DESC) AS rn
+            FROM student_fee_assignments
+            WHERE tenant_id = ?
+        ) fa ON fa.student_id = s.id AND fa.rn = 1
+        WHERE se.batch_id = ? AND se.tenant_id = ? AND se.deleted_at IS NULL
+        ORDER BY s.full_name ASC`,
+        [tenantId, Number(batchId), tenantId]
+    );
+
+    return rows.map((r, idx) => ({
+        id: String(r.id),
+        studentCode: r.student_code || '',
+        fullName: r.full_name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        gender: r.gender || '',
+        status: statusToText(r.status),
+        enrollmentId: r.enrollment_id ? String(r.enrollment_id) : '',
+        rollNo: r.admission_number || r.student_code || String(idx + 1).padStart(2, '0'),
+        enrollmentStatus: r.enrollment_status || 'active',
+        enrolledAt: r.enrolled_at ? (r.enrolled_at instanceof Date ? r.enrolled_at.toISOString().split('T')[0] : String(r.enrolled_at).substring(0, 10)) : '',
+        guardianName: r.guardian_name || '',
+        guardianMobile: r.guardian_mobile || '',
+        guardianRelation: r.guardian_relation || 'Parent',
+        feeStatus: r.fee_status || (r.net_amount ? (Number(r.balance_amount || 0) <= 0 ? 'paid' : 'pending') : 'unassigned'),
+        netAmount: r.net_amount ? Number(r.net_amount) : 0,
+        paidAmount: r.paid_amount ? Number(r.paid_amount) : 0,
+        balanceAmount: r.balance_amount ? Number(r.balance_amount) : 0
+    }));
+};
+
 module.exports = {
     getBatches,
     getBatch,
+    getBatchStudents,
     createBatch,
     updateBatch,
     deleteBatch,

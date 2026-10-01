@@ -598,25 +598,66 @@ class TeacherStudentService {
         const studentBatchIds = enrollmentRows.map(e => Number(e.batch_id));
         const batchNameMap = Object.fromEntries(enrollmentRows.map(e => [Number(e.batch_id), e.batch_name]));
 
-        // Fetch published/closed homeworks for the student's tenant scoped strictly to teacher's assigned subjects
+        // Fetch published/closed assessments for the student's tenant scoped strictly to teacher's assigned subjects
+        const allAssessments = [];
+
+        // 1. Homeworks
         const [hwRows] = await pool.query(
             `SELECT 
-                h.id, h.title, h.description, h.assignment_type,
+                h.id, h.title, h.description, 'homework' AS assignment_type,
                 h.batch_ids, h.files, h.due_date, h.max_marks,
                 h.status, h.published_at, h.closed_at, h.created_at,
+                'hw-' AS id_prefix,
                 s.name AS subject_name, s.code AS subject_code
              FROM homeworks h
              JOIN subjects s ON h.subject_id = s.id
              WHERE h.tenant_id = ? 
                AND h.deleted_at IS NULL 
                AND (h.status IN (1, 2, 'published', 'closed', '1', '2'))
-               AND h.subject_id IN (?)
-             ORDER BY h.due_date DESC, h.id DESC`,
+               AND h.subject_id IN (?)`,
             [tid, assignedSubjectIds]
         );
+        allAssessments.push(...hwRows);
 
-        // Filter homeworks where target batch_ids intersects studentBatchIds
-        const matchedHws = hwRows.filter(hw => {
+        // 2. Assignments
+        const [asgRows] = await pool.query(
+            `SELECT 
+                a.id, a.title, a.description, 'assignment' AS assignment_type,
+                COALESCE(a.batch_ids, JSON_ARRAY(a.batch_id)) AS batch_ids, a.files, a.due_date, a.max_marks,
+                a.status, NULL AS published_at, NULL AS closed_at, a.created_at,
+                'asg-' AS id_prefix,
+                s.name AS subject_name, s.code AS subject_code
+             FROM assignments a
+             JOIN subjects s ON a.subject_id = s.id
+             WHERE a.tenant_id = ? 
+               AND a.deleted_at IS NULL 
+               AND a.status IN ('published', 'closed')
+               AND a.subject_id IN (?)`,
+            [tid, assignedSubjectIds]
+        );
+        allAssessments.push(...asgRows);
+
+        // 3. Exams
+        const [examRows] = await pool.query(
+            `SELECT 
+                e.id, e.name AS title, e.description, 'exam' AS assignment_type,
+                (SELECT JSON_ARRAYAGG(eba.batch_id) FROM exam_batch_assignments eba WHERE eba.exam_id = e.id) AS batch_ids,
+                e.files, e.exam_date AS due_date, e.max_marks,
+                e.status, NULL AS published_at, NULL AS closed_at, e.created_at,
+                'exam-' AS id_prefix,
+                s.name AS subject_name, s.code AS subject_code
+             FROM exams e
+             JOIN subjects s ON e.subject_id = s.id
+             WHERE e.tenant_id = ? 
+               AND e.deleted_at IS NULL 
+               AND e.status IN ('scheduled', 'completed', 'published', 'closed')
+               AND e.subject_id IN (?)`,
+            [tid, assignedSubjectIds]
+        );
+        allAssessments.push(...examRows);
+
+        // Filter assessments where target batch_ids intersects studentBatchIds
+        const matchedAssessments = allAssessments.filter(hw => {
             let bIds = [];
             if (Array.isArray(hw.batch_ids)) bIds = hw.batch_ids.map(Number);
             else if (typeof hw.batch_ids === 'string') {
@@ -630,22 +671,50 @@ class TeacherStudentService {
             return bIds.some(id => studentBatchIds.includes(id));
         });
 
-        if (!matchedHws.length) {
+        if (!matchedAssessments.length) {
             return [];
         }
 
-        const hwIds = matchedHws.map(h => Number(h.id));
+        // Fetch submissions for this student across the 3 tables
+        const hwIds = matchedAssessments.filter(a => a.assignment_type === 'homework').map(h => Number(h.id));
+        const asgIds = matchedAssessments.filter(a => a.assignment_type === 'assignment').map(h => Number(h.id));
+        const examIds = matchedAssessments.filter(a => a.assignment_type === 'exam').map(h => Number(h.id));
 
-        // Fetch submissions for this student across these homeworks
-        const [subRows] = await pool.query(
-            `SELECT id AS submission_id, homework_id, response_text, files, status,
-                    marks_obtained, teacher_feedback, submitted_at, graded_at
-             FROM homework_submissions
-             WHERE tenant_id = ? AND student_id = ? AND homework_id IN (?) AND deleted_at IS NULL`,
-            [tid, sid, hwIds]
-        );
+        const hwSubMap = new Map();
+        if (hwIds.length > 0) {
+            const [subRows] = await pool.query(
+                `SELECT id AS submission_id, homework_id, response_text, files, status,
+                        marks_obtained, teacher_feedback, submitted_at, graded_at
+                 FROM homework_submissions
+                 WHERE tenant_id = ? AND student_id = ? AND homework_id IN (?) AND deleted_at IS NULL`,
+                [tid, sid, hwIds]
+            );
+            subRows.forEach(s => hwSubMap.set(Number(s.homework_id), s));
+        }
 
-        const subMap = new Map(subRows.map(s => [Number(s.homework_id), s]));
+        const asgSubMap = new Map();
+        if (asgIds.length > 0) {
+            const [asgRowsSub] = await pool.query(
+                `SELECT id AS submission_id, assignment_id, response_text, files, status,
+                        marks_obtained, teacher_feedback, submitted_at, graded_at
+                 FROM assignment_submissions
+                 WHERE tenant_id = ? AND student_id = ? AND assignment_id IN (?) AND deleted_at IS NULL`,
+                [tid, sid, asgIds]
+            );
+            asgRowsSub.forEach(s => asgSubMap.set(Number(s.assignment_id), s));
+        }
+
+        const examMarksMap = new Map();
+        if (examIds.length > 0) {
+            const [examRowsSub] = await pool.query(
+                `SELECT id AS submission_id, exam_id, status, marks_obtained, remarks AS teacher_feedback,
+                        created_at AS submitted_at, updated_at AS graded_at
+                 FROM exam_marks
+                 WHERE tenant_id = ? AND student_id = ? AND exam_id IN (?) AND deleted_at IS NULL`,
+                [tid, sid, examIds]
+            );
+            examRowsSub.forEach(s => examMarksMap.set(Number(s.exam_id), s));
+        }
 
         const parseFiles = (files) => {
             if (Array.isArray(files)) return files;
@@ -660,8 +729,19 @@ class TeacherStudentService {
             return [];
         };
 
-        return matchedHws.map(hw => {
-            const sub = subMap.get(Number(hw.id));
+        // Sort by due date DESC
+        matchedAssessments.sort((a, b) => {
+            const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
+            const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
+            return dateB - dateA;
+        });
+
+        return matchedAssessments.map(hw => {
+            let sub = null;
+            if (hw.assignment_type === 'assignment') sub = asgSubMap.get(Number(hw.id));
+            else if (hw.assignment_type === 'exam') sub = examMarksMap.get(Number(hw.id));
+            else sub = hwSubMap.get(Number(hw.id));
+
             const isLate = Boolean(hw.due_date && sub?.submitted_at && new Date(sub.submitted_at) > new Date(hw.due_date));
             const isOverdue = Boolean(!sub && hw.due_date && new Date() > new Date(hw.due_date));
 
@@ -678,7 +758,7 @@ class TeacherStudentService {
             const matchingBatchNames = bIds.filter(id => batchNameMap[id]).map(id => batchNameMap[id]);
 
             return {
-                id: String(hw.id),
+                id: `${hw.id_prefix || ''}${hw.id}`,
                 title: hw.title,
                 description: hw.description || '',
                 assignmentType: hw.assignment_type || 'assignment',
@@ -693,7 +773,7 @@ class TeacherStudentService {
                 isOverdue,
                 submission: sub ? {
                     submissionId: String(sub.submission_id),
-                    status: sub.status === 'graded' ? 'Graded' : 'Submitted',
+                    status: String(sub.status).toLowerCase() === 'graded' ? 'Graded' : 'Submitted',
                     responseText: sub.response_text || '',
                     files: parseFiles(sub.files),
                     marksObtained: sub.marks_obtained !== null && sub.marks_obtained !== undefined ? Number(sub.marks_obtained) : null,

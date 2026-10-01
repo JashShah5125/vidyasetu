@@ -31,11 +31,113 @@ import {
   Search,
   Users,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Repeat,
+  CalendarDays,
+  RefreshCw
 } from 'lucide-react';
 import type { ExamItem } from '../../types';
 import { assignmentApi } from '../../services/assignmentApi';
 import type { HomeworkItem, HomeworkScoping } from '../../services/assignmentApi';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const formatPreviewDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+};
+
+const getRecurrenceSummaryText = (
+  recurrenceType: 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_day' | 'custom' = 'weekly',
+  repeatDays: string[] = [],
+  repeatEndType: 'count' | 'date' = 'count',
+  repeatCount: number = 4,
+  repeatEndDate: string = '',
+  totalSessions: number = 4,
+  repeatInterval: number = 1
+) => {
+  let freqText = 'Every week';
+  if (recurrenceType === 'biweekly') freqText = 'Every 2 weeks';
+  else if (recurrenceType === 'monthly_date') freqText = 'Every month on same date';
+  else if (recurrenceType === 'monthly_day') freqText = 'Every month on same day';
+  else if (recurrenceType === 'custom') freqText = `Every ${repeatInterval} week${repeatInterval > 1 ? 's' : ''}`;
+
+  if (repeatDays.length && (recurrenceType === 'weekly' || recurrenceType === 'biweekly' || recurrenceType === 'custom')) {
+    freqText += ` on ${repeatDays.join(', ')}`;
+  }
+
+  const endText = repeatEndType === 'date' && repeatEndDate
+    ? `until ${formatPreviewDate(repeatEndDate)} (${totalSessions} sessions)`
+    : `(${totalSessions} sessions)`;
+
+  return `${freqText} ${endText}`;
+};
+
+function generateRecurringExamDates(
+  startDateStr: string,
+  recurrenceType: 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_day' | 'custom' = 'weekly',
+  repeatDays: string[] = [],
+  repeatEndType: 'count' | 'date' = 'count',
+  repeatCount: number = 4,
+  repeatEndDate: string = '',
+  repeatInterval: number = 1
+): string[] {
+  if (!startDateStr || startDateStr === 'Not Set') return [];
+  const start = new Date(startDateStr);
+  if (isNaN(start.getTime())) return [startDateStr];
+
+  const dates: string[] = [startDateStr];
+  const maxOccurrences = repeatEndType === 'count' ? Math.min(Math.max(repeatCount || 1, 1), 52) : 52;
+  const endDate = repeatEndType === 'date' && repeatEndDate ? new Date(repeatEndDate) : null;
+
+  let current = new Date(start);
+
+  if (recurrenceType === 'weekly' || recurrenceType === 'biweekly') {
+    const stepWeeks = recurrenceType === 'biweekly' ? 2 : (repeatInterval || 1);
+    while (dates.length < maxOccurrences) {
+      current.setDate(current.getDate() + 7 * stepWeeks);
+      if (endDate && current > endDate) break;
+      dates.push(current.toISOString().split('T')[0]);
+    }
+  } else if (recurrenceType === 'monthly_date') {
+    const targetDayOfMonth = start.getDate();
+    while (dates.length < maxOccurrences) {
+      current.setMonth(current.getMonth() + (repeatInterval || 1));
+      current.setDate(targetDayOfMonth);
+      if (endDate && current > endDate) break;
+      dates.push(current.toISOString().split('T')[0]);
+    }
+  } else if (recurrenceType === 'monthly_day') {
+    const dayOfWeek = start.getDay();
+    const nthWeek = Math.floor((start.getDate() - 1) / 7);
+    while (dates.length < maxOccurrences) {
+      current.setMonth(current.getMonth() + (repeatInterval || 1), 1);
+      let firstMatch = 1;
+      while (new Date(current.getFullYear(), current.getMonth(), firstMatch).getDay() !== dayOfWeek) {
+        firstMatch++;
+      }
+      const targetDate = firstMatch + nthWeek * 7;
+      current.setDate(targetDate);
+      if (endDate && current > endDate) break;
+      dates.push(current.toISOString().split('T')[0]);
+    }
+  } else if (recurrenceType === 'custom') {
+    const stepWeeks = Math.max(1, repeatInterval || 1);
+    while (dates.length < maxOccurrences) {
+      current.setDate(current.getDate() + 7 * stepWeeks);
+      if (endDate && current > endDate) break;
+      dates.push(current.toISOString().split('T')[0]);
+    }
+  }
+
+  return dates;
+}
 
 
 interface HomeworkFormState {
@@ -191,10 +293,75 @@ export const TeacherAssignments: React.FC = () => {
     }
   }, [addToast]);
 
+  const loadExams = useCallback(async () => {
+    try {
+      const data = await assignmentApi.getHomeworks({ assignmentType: 'exam' });
+      const examItems: ExamItem[] = data.map(hw => {
+        // Extra exam metadata stored as JSON in description
+        let meta: Record<string, any> = {};
+        try { meta = JSON.parse(hw.description || '{}'); } catch { /* plain text */ }
+        const hwStatus = hw.status;
+        return {
+          id: hw.id,
+          name: hw.title,
+          type: meta.examType || 'Unit Test',
+          subject: hw.subjectName || '',
+          batch: (hw.batchNames && hw.batchNames.length > 0) ? hw.batchNames.join(', ') : '',
+          examDate: hw.dueDate || '',
+          startTime: meta.startTime || '',
+          duration: meta.duration || '',
+          totalMarks: hw.maxMarks ?? meta.totalMarks ?? 100,
+          passingMarks: meta.passingMarks ?? 40,
+          status: hwStatus === 'Published' ? 'Scheduled' : hwStatus === 'Closed' ? 'Completed' : hwStatus as ExamItem['status'],
+          average: hw.classAveragePercentage ? `${hw.classAveragePercentage}%` : '',
+          isRecurring: meta.isRecurring || false,
+          recurrenceType: meta.recurrenceType,
+          repeatDays: meta.repeatDays,
+          repeatCount: meta.repeatCount,
+          repeatEndType: meta.repeatEndType,
+          repeatEndDate: meta.repeatEndDate,
+          repeatInterval: meta.repeatInterval,
+          recurrenceSummary: meta.recurrenceSummary,
+          recurringGroupId: meta.recurringGroupId,
+          recurringInstanceIndex: meta.recurringInstanceIndex,
+          submittedCount: hw.submittedCount ?? 0,
+          gradedSubmissionsCount: hw.gradedSubmissionsCount ?? 0,
+          classAveragePercentage: hw.classAveragePercentage ?? null,
+          totalCount: hw.totalCount ?? 0,
+          // keep backend IDs for updates
+          _hwId: hw.id,
+          _batchIds: hw.batchIds,
+          _batchNames: hw.batchNames || [],
+          _branchId: hw.branchId,
+          _academicYearId: hw.academicYearId,
+          _subjectId: hw.subjectId,
+        } as ExamItem & Record<string, any>;
+      });
+      setExams(examItems);
+    } catch (err: any) {
+      // silently fail — exams tab just shows empty
+    }
+  }, [addToast, setExams]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadHomeworks(), loadExams()]);
+  }, [loadHomeworks, loadExams]);
+
+  const draftsCount = useMemo(() => {
+    if (activePrimaryTab === 'homework') {
+      return homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'homework').length;
+    }
+    if (activePrimaryTab === 'assignment') {
+      return homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'assignment').length;
+    }
+    return exams.filter(e => e.status === 'Draft').length;
+  }, [activePrimaryTab, homeworks, exams]);
+
   useEffect(() => {
     loadScoping();
     loadHomeworks();
-  }, [loadScoping, loadHomeworks]);
+    loadExams();
+  }, [loadScoping, loadHomeworks, loadExams]);
 
   useEffect(() => {
     if (showHwForm || showExamForm) {
@@ -215,7 +382,7 @@ export const TeacherAssignments: React.FC = () => {
       const itemType = (item.assignmentType || 'assignment').toLowerCase();
       if (activePrimaryTab === 'homework' && itemType !== 'homework') return false;
       if (activePrimaryTab === 'assignment' && itemType !== 'assignment') return false;
-      if (activePrimaryTab === 'exams' && itemType !== 'exam') return false;
+      if (activePrimaryTab === 'exams') return false; // exams come from context, not homeworks
 
       if (filterType !== 'All' && item.assignmentType !== filterType) return false;
       if (filterBranch !== 'All' && !isBranchAdmin && item.branchName !== filterBranch) return false;
@@ -234,7 +401,57 @@ export const TeacherAssignments: React.FC = () => {
     });
   }, [homeworks, activePrimaryTab, activeSubTab, filterType, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery, isBranchAdmin]);
 
-  const currentData = filteredHomeworks;
+  // Convert ExamItem → HomeworkItem shape for the shared table when on the Exams tab
+  const filteredExamsAsHomework = useMemo((): HomeworkItem[] => {
+    if (activePrimaryTab !== 'exams') return [];
+    return exams
+      .filter(ex => {
+        if (activeSubTab === 'active' && ex.status === 'Draft') return false;
+        if (activeSubTab === 'drafts' && ex.status !== 'Draft') return false;
+        if (filterStatus !== 'All' && ex.status !== filterStatus) return false;
+        if (filterBatch !== 'All' && ex.batch !== filterBatch) return false;
+        if (filterSubject !== 'All' && ex.subject !== filterSubject) return false;
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          if (!ex.name.toLowerCase().includes(q) &&
+              !ex.subject.toLowerCase().includes(q) &&
+              !ex.batch.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      })
+      .map(ex => ({
+        id: ex.id,
+        branchId: '',
+        branchName: '',
+        academicYearId: '',
+        academicYearName: '',
+        subjectId: '',
+        subjectName: ex.subject || '—',
+        subjectCode: '',
+        title: ex.name,
+        description: '',
+        assignmentType: 'exam',
+        batchIds: ex._batchIds || [],
+        batchNames: (ex._batchNames && ex._batchNames.length > 0) ? ex._batchNames : (ex.batch ? [ex.batch] : ['—']),
+        files: [],
+        dueDate: ex.examDate || '—',
+        dueDateTime: ex.examDate || '',
+        maxMarks: ex.totalMarks ?? null,
+        status: (ex.status === 'Scheduled' ? 'Published' : ex.status === 'Completed' ? 'Closed' : ex.status) as HomeworkItem['status'],
+        publishedAt: null,
+        closedAt: null,
+        submittedCount: ex.submittedCount ?? 0,
+        gradedSubmissionsCount: ex.gradedSubmissionsCount ?? 0,
+        classAveragePercentage: ex.classAveragePercentage ?? null,
+        totalCount: ex.totalCount ?? 0,
+        createdBy: '',
+        updatedAt: null,
+        // carry exam-specific fields for the detail panel
+        _examItem: ex,
+      } as HomeworkItem & { _examItem: typeof ex }));
+  }, [exams, activePrimaryTab, activeSubTab, filterBatch, filterSubject, filterStatus, searchQuery]);
+
+  const currentData = activePrimaryTab === 'exams' ? filteredExamsAsHomework : filteredHomeworks;
   const totalPages = Math.ceil(currentData.length / itemsPerPage);
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -243,16 +460,12 @@ export const TeacherAssignments: React.FC = () => {
 
   const openCreateForm = (type?: string) => {
     const selectedType = type || (activePrimaryTab === 'homework' ? 'homework' : 'assignment');
-    const bId = scoping?.branches?.[0] ? Number(scoping.branches[0].id) : (isBranchAdmin && activeBranchId ? Number(activeBranchId) : 0);
-    const ayId = scoping?.academicYears?.[0] ? Number(scoping.academicYears[0].id) : 0;
-    const sId = scoping?.subjects?.[0] ? Number(scoping.subjects[0].id) : 0;
-
     setHwForm({
       ...EMPTY_HW_FORM,
       assignmentType: selectedType,
-      branchId: bId,
-      academicYearId: ayId,
-      subjectId: sId,
+      branchId: 0,
+      academicYearId: 0,
+      subjectId: 0,
       dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
     });
     setNewFiles([]);
@@ -281,9 +494,18 @@ export const TeacherAssignments: React.FC = () => {
   // ─── Direct Assigned Batches for Teacher ───
   const assignedTeacherBatches = useMemo(() => {
     if (!scoping?.batches) return [];
-    if (hwForm.branchId === 0) return scoping.batches;
-    return scoping.batches.filter(b => !b.branchId || Number(b.branchId) === hwForm.branchId);
-  }, [scoping?.batches, hwForm.branchId]);
+    return scoping.batches.filter(b => {
+      // Filter by branch if selected
+      if (hwForm.branchId && hwForm.branchId !== 0) {
+        if (b.branchId && Number(b.branchId) !== hwForm.branchId) return false;
+      }
+      // Filter by academic year if selected
+      if (hwForm.academicYearId && hwForm.academicYearId !== 0) {
+        if (b.academicYearId && Number(b.academicYearId) !== hwForm.academicYearId) return false;
+      }
+      return true;
+    });
+  }, [scoping?.batches, hwForm.branchId, hwForm.academicYearId]);
 
   const subjectOptions = useMemo(() => {
     return scoping?.subjects || [];
@@ -293,19 +515,29 @@ export const TeacherAssignments: React.FC = () => {
     const numId = Number(batchId);
     setHwForm(prev => {
       const exists = prev.batchIds.includes(numId);
-      return {
-        ...prev,
-        batchIds: exists ? prev.batchIds.filter(x => x !== numId) : [...prev.batchIds, numId]
-      };
+      const newBatchIds = exists ? prev.batchIds.filter(x => x !== numId) : [...prev.batchIds, numId];
+      // Auto-sync academicYearId from the first selected batch if not already set
+      let academicYearId = prev.academicYearId;
+      if (!academicYearId || academicYearId === 0) {
+        const firstBatchId = newBatchIds[0];
+        const batch = scoping?.batches?.find(b => Number(b.id) === firstBatchId);
+        if (batch?.academicYearId) academicYearId = Number(batch.academicYearId);
+      }
+      return { ...prev, batchIds: newBatchIds, academicYearId };
     });
   };
 
   const selectAllAssignedBatches = () => {
     const allIds = assignedTeacherBatches.map(b => Number(b.id));
-    setHwForm(prev => ({
-      ...prev,
-      batchIds: Array.from(new Set([...prev.batchIds, ...allIds]))
-    }));
+    setHwForm(prev => {
+      const newBatchIds = Array.from(new Set([...prev.batchIds, ...allIds]));
+      let academicYearId = prev.academicYearId;
+      if ((!academicYearId || academicYearId === 0) && newBatchIds.length > 0) {
+        const batch = scoping?.batches?.find(b => Number(b.id) === newBatchIds[0]);
+        if (batch?.academicYearId) academicYearId = Number(batch.academicYearId);
+      }
+      return { ...prev, batchIds: newBatchIds, academicYearId };
+    });
   };
 
   const deselectAllBatches = () => {
@@ -313,11 +545,11 @@ export const TeacherAssignments: React.FC = () => {
   };
 
   const changeBranch = (branchId: number) => {
-    setHwForm(prev => ({ ...prev, branchId }));
+    setHwForm(prev => ({ ...prev, branchId, batchIds: [], academicYearId: 0 }));
   };
 
   const changeAcademicYear = (academicYearId: number) => {
-    setHwForm(prev => ({ ...prev, academicYearId }));
+    setHwForm(prev => ({ ...prev, academicYearId, batchIds: [] }));
   };
 
   const submitHomeworkForm = async (mode: 'draft' | 'publish') => {
@@ -325,39 +557,58 @@ export const TeacherAssignments: React.FC = () => {
       addToast('Title, at least one target batch, and due date are required.', 'error');
       return;
     }
-    if (!hwForm.subjectId || !hwForm.branchId || !hwForm.academicYearId) {
-      addToast('Please choose a subject, branch, and academic year.', 'error');
+    if (!hwForm.subjectId) {
+      addToast('Please select a subject.', 'error');
+      return;
+    }
+    // Auto-derive academicYearId and branchId from selected batches if not set
+    let resolvedAcademicYearId = hwForm.academicYearId;
+    let resolvedBranchId = hwForm.branchId;
+    if ((!resolvedAcademicYearId || resolvedAcademicYearId === 0) && hwForm.batchIds.length > 0) {
+      const batch = scoping?.batches?.find(b => Number(b.id) === hwForm.batchIds[0]);
+      if (batch?.academicYearId) resolvedAcademicYearId = Number(batch.academicYearId);
+    }
+    if ((!resolvedBranchId || resolvedBranchId === 0) && scoping?.branches?.[0]) {
+      resolvedBranchId = Number(scoping.branches[0].id);
+    }
+    if (!resolvedBranchId || !resolvedAcademicYearId) {
+      addToast('Could not determine branch or academic year. Please select them manually.', 'error');
       return;
     }
 
     setActionBusy(true);
     try {
-      const payload = {
+      const payload: HomeworkPayload = {
         title: hwForm.title.trim(),
         description: hwForm.description,
-        branchId: hwForm.branchId,
-        academicYearId: hwForm.academicYearId,
+        branchId: resolvedBranchId,
+        academicYearId: resolvedAcademicYearId,
         subjectId: hwForm.subjectId,
         assignmentType: hwForm.assignmentType,
         batchIds: hwForm.batchIds,
         dueDate: hwForm.dueDate,
         maxMarks: hwForm.maxMarks ? Number(hwForm.maxMarks) : null,
-        existingFiles: hwForm.existingFiles
+        existingFiles: hwForm.existingFiles,
+        status: mode === 'draft' ? 'draft' : 'published'
       };
 
       let id = hwForm.id;
       if (id) {
         await assignmentApi.updateHomework(id, payload, newFiles);
-        addToast(`Homework "${payload.title}" updated.`, 'success');
+        if (mode === 'draft') {
+          addToast(`"${payload.title}" updated.`, 'success');
+        }
       } else {
         const res = await assignmentApi.createHomework(payload, newFiles);
         id = res.id;
-        addToast(`Homework "${payload.title}" saved as draft.`, 'success');
+        if (mode === 'draft') {
+          addToast(`"${payload.title}" saved as draft.`, 'success');
+        }
       }
 
       if (mode === 'publish' && id) {
         await assignmentApi.publishHomework(id);
-        addToast(`Homework "${payload.title}" published!`, 'success');
+        addToast(`"${payload.title}" published successfully!`, 'success');
         sendNotification({
           id: `N-${Date.now()}`,
           title: `Assignment: ${payload.title}`,
@@ -374,7 +625,7 @@ export const TeacherAssignments: React.FC = () => {
       }
 
       setShowHwForm(false);
-      await loadHomeworks();
+      await refreshAll();
     } catch (err: any) {
       addToast(err.message || 'Failed to save homework.', 'error');
     } finally {
@@ -388,7 +639,7 @@ export const TeacherAssignments: React.FC = () => {
       await assignmentApi.closeHomework(item.id);
       addToast(`Assignment "${item.title}" closed successfully.`, 'info');
       setShowHwDetail(null);
-      await loadHomeworks();
+      await refreshAll();
     } catch (err: any) {
       addToast(err.message || 'Failed to close assignment.', 'error');
     } finally {
@@ -397,15 +648,17 @@ export const TeacherAssignments: React.FC = () => {
   };
 
   const handleDeleteAssign = async (item: HomeworkItem) => {
-    if (!window.confirm(`Delete assignment "${item.title}"? ${item.status === 'Published' ? 'Published assignments must be closed first.' : ''}`)) return;
+    const isExam = item.assignmentType === 'exam' || Boolean((item as any)._examItem);
+    const label = isExam ? 'exam' : item.assignmentType === 'homework' ? 'homework' : 'assignment';
+    if (!window.confirm(`Delete ${label} "${item.title}"? ${item.status === 'Published' ? 'Published items must be closed first.' : ''}`)) return;
     setActionBusy(true);
     try {
       await assignmentApi.deleteHomework(item.id);
-      addToast(`Assignment "${item.title}" deleted successfully.`, 'success');
+      addToast(`${label.charAt(0).toUpperCase() + label.slice(1)} "${item.title}" deleted successfully.`, 'success');
       setShowHwDetail(null);
-      await loadHomeworks();
+      await refreshAll();
     } catch (err: any) {
-      addToast(err.message || 'Failed to delete assignment.', 'error');
+      addToast(err.message || `Failed to delete ${label}.`, 'error');
     } finally {
       setActionBusy(false);
     }
@@ -472,7 +725,7 @@ export const TeacherAssignments: React.FC = () => {
         ? { ...prev, submissionStatus: 'Graded', marksObtained: marksNum, feedback: input.feedback }
         : prev
       );
-      await loadHomeworks();
+      await refreshAll();
     } catch (err: any) {
       addToast(err.message || 'Failed to save grade.', 'error');
     } finally {
@@ -519,79 +772,454 @@ export const TeacherAssignments: React.FC = () => {
     setShowHwDetail(item);
   };
 
-  // ─── Exam (mock) actions ──────────────────────────────────────────────────
-  const handleSaveExamDraft = () => {
+  // ─── Exam persistence actions ──────────────────────────────────────────────
+  const resolveExamPayload = (
+    form: Partial<ExamItem>,
+    examDateStr: string,
+    titleStr: string,
+    groupId?: string,
+    instanceIdx?: number,
+    totalInstances?: number
+  ) => {
+    let targetBatchIds: number[] = [];
+    let batchObj = scoping?.batches?.find(b => b.name === form.batch || String(b.id) === String(form.batch));
+    if (batchObj) {
+      targetBatchIds = [Number(batchObj.id)];
+    } else if ((form as any)._batchIds && (form as any)._batchIds.length > 0) {
+      targetBatchIds = (form as any)._batchIds.map(Number);
+      batchObj = scoping?.batches?.find(b => targetBatchIds.includes(Number(b.id)));
+    }
+
+    const subjectObj = scoping?.subjects?.find(s => s.name === form.subject || String(s.id) === String(form.subject));
+    let resolvedSubjectId = subjectObj ? Number(subjectObj.id) : Number((form as any)._subjectId || 0);
+    if (!resolvedSubjectId && scoping?.subjects?.[0]) {
+      resolvedSubjectId = Number(scoping.subjects[0].id);
+    }
+
+    const resolvedBranchId = Number(
+      batchObj?.branchId || (form as any)._branchId || scoping?.branches?.[0]?.id || 1
+    );
+    const resolvedAcademicYearId = Number(
+      batchObj?.academicYearId || (form as any)._academicYearId || scoping?.academicYears?.[0]?.id || 1
+    );
+
+    const recurrenceSummary = form.isRecurring
+      ? getRecurrenceSummaryText(
+          form.recurrenceType || 'weekly',
+          form.repeatDays || [],
+          form.repeatEndType || 'count',
+          form.repeatCount || 4,
+          form.repeatEndDate || '',
+          totalInstances || (form.repeatCount || 4),
+          form.repeatInterval || 1
+        )
+      : undefined;
+
+    const meta = {
+      examType: form.type || 'Unit Test',
+      passingMarks: form.passingMarks !== undefined ? Number(form.passingMarks) : 40,
+      totalMarks: form.totalMarks !== undefined ? Number(form.totalMarks) : 100,
+      startTime: form.startTime || '',
+      duration: form.duration || '',
+      isRecurring: Boolean(form.isRecurring),
+      recurrenceType: form.recurrenceType,
+      repeatDays: form.repeatDays,
+      repeatCount: form.repeatCount,
+      repeatEndType: form.repeatEndType,
+      repeatEndDate: form.repeatEndDate,
+      repeatInterval: form.repeatInterval,
+      recurrenceSummary,
+      recurringGroupId: groupId,
+      recurringInstanceIndex: instanceIdx
+    };
+
+    return {
+      payload: {
+        title: titleStr.trim(),
+        description: JSON.stringify(meta),
+        branchId: resolvedBranchId,
+        academicYearId: resolvedAcademicYearId,
+        subjectId: resolvedSubjectId,
+        assignmentType: 'exam',
+        batchIds: targetBatchIds,
+        dueDate: examDateStr || new Date().toISOString().slice(0, 10),
+        maxMarks: form.totalMarks !== undefined ? Number(form.totalMarks) : 100,
+        existingFiles: []
+      },
+      recurrenceSummary
+    };
+  };
+
+  const handleSaveExamDraft = async () => {
     if (!examForm.name || !examForm.batch) {
       addToast('Test title and Target Batch are required.', 'error');
       return;
     }
-    const newId = examForm.id || `EX-${Date.now()}`;
-    const newExam: ExamItem = {
-      ...(examForm as ExamItem),
-      type: examForm.type || 'Unit Test',
-      id: newId,
-      status: 'Draft',
-      examDate: examForm.examDate || 'Not Set',
-      totalMarks: examForm.totalMarks || 100,
-      passingMarks: examForm.passingMarks || 40,
-      average: ''
-    };
-    if (examForm.id) {
-      setExams(prev => prev.map(e => e.id === newId ? newExam : e));
-      addToast(`Exam "${newExam.name}" updated in drafts.`, 'success');
-    } else {
-      setExams(prev => [newExam, ...prev]);
-      addToast(`Exam "${newExam.name}" saved as draft.`, 'success');
+    const batchObj = scoping?.batches?.find(b => b.name === examForm.batch || String(b.id) === String(examForm.batch)) ||
+      ((examForm as any)._batchIds?.length ? scoping?.batches?.find(b => (examForm as any)._batchIds.includes(Number(b.id))) : null);
+    if (!batchObj && !(examForm as any)._batchIds?.length) {
+      addToast('Please select a valid target batch.', 'error');
+      return;
     }
-    setShowExamForm(false);
+
+    setActionBusy(true);
+    try {
+      const isEditing = Boolean(examForm.id && !String(examForm.id).startsWith('EX-'));
+      const examDate = examForm.examDate && examForm.examDate !== 'Not Set' ? examForm.examDate : new Date().toISOString().slice(0, 10);
+      const { payload } = resolveExamPayload(
+        examForm,
+        examDate,
+        examForm.name || 'Untitled Test'
+      );
+      payload.status = 'draft';
+
+      if (isEditing && examForm.id) {
+        await assignmentApi.updateHomework(String(examForm.id), payload);
+        addToast(`Exam "${payload.title}" updated in drafts.`, 'success');
+      } else {
+        await assignmentApi.createHomework(payload);
+        addToast(`Exam "${payload.title}" saved as draft.`, 'success');
+      }
+
+      setShowExamForm(false);
+      await refreshAll();
+    } catch (err: any) {
+      addToast(err.message || 'Failed to save exam draft.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
   };
 
-  const handleScheduleExam = () => {
-    if (!examForm.name || !examForm.batch || !examForm.examDate) {
+  const handleScheduleExam = async () => {
+    if (!examForm.name || !examForm.batch || !examForm.examDate || examForm.examDate === 'Not Set') {
       addToast('Please fill in Test Name, Target Batch, and Exam Date.', 'error');
       return;
     }
-    const isEditing = Boolean(examForm.id);
-    const newId = examForm.id || `EX-${Date.now()}`;
-    const newExam: ExamItem = {
-      ...(examForm as ExamItem),
-      type: examForm.type || 'Unit Test',
-      id: newId,
-      status: 'Scheduled',
-      totalMarks: examForm.totalMarks || 100,
-      passingMarks: examForm.passingMarks || 40,
-      average: ''
-    };
-    if (isEditing) {
-      setExams(prev => prev.map(e => e.id === newId ? newExam : e));
-      addToast(`Exam "${newExam.name}" updated successfully!`, 'success');
-    } else {
-      setExams(prev => [newExam, ...prev]);
-      addToast(`Exam "${newExam.name}" scheduled for ${newExam.batch}!`, 'success');
+
+    const batchObj = scoping?.batches?.find(b => b.name === examForm.batch || String(b.id) === String(examForm.batch)) ||
+      ((examForm as any)._batchIds?.length ? scoping?.batches?.find(b => (examForm as any)._batchIds.includes(Number(b.id))) : null);
+    if (!batchObj && !(examForm as any)._batchIds?.length) {
+      addToast('Please select a valid target batch.', 'error');
+      return;
     }
-    sendNotification({
-      id: `N-${Date.now()}`,
-      title: `Upcoming Exam: ${newExam.name}`,
-      message: `An exam has been scheduled on ${newExam.examDate} for ${newExam.batch}.`,
-      category: 'Examination',
-      sender: currentUser?.name || 'Teacher',
-      senderRole: 'Teacher',
-      createdAt: new Date().toISOString(),
-      direction: 'Outgoing',
-      status: 'Unread',
-      recipients: [{ type: 'Batch', id: newExam.batch, name: newExam.batch }]
-    });
-    setShowExamForm(false);
-    setActiveSubTab('active');
+
+    setActionBusy(true);
+    try {
+      const isEditing = Boolean(examForm.id && !String(examForm.id).startsWith('EX-'));
+      const groupId = `REC-EX-${Date.now()}`;
+
+      const recurrenceDates = examForm.isRecurring
+        ? generateRecurringExamDates(
+            examForm.examDate,
+            examForm.recurrenceType || 'weekly',
+            examForm.repeatDays || [],
+            examForm.repeatEndType || 'count',
+            examForm.repeatCount || 4,
+            examForm.repeatEndDate || '',
+            examForm.repeatInterval || 1
+          )
+        : [examForm.examDate];
+
+      let recurrenceSummaryText: string | undefined;
+
+      if (isEditing && examForm.id) {
+        const { payload, recurrenceSummary } = resolveExamPayload(
+          examForm,
+          examForm.examDate,
+          examForm.name || 'Untitled Test'
+        );
+        payload.status = 'scheduled';
+        recurrenceSummaryText = recurrenceSummary;
+        await assignmentApi.updateHomework(String(examForm.id), payload);
+        await assignmentApi.publishHomework(String(examForm.id));
+        addToast(`Exam "${payload.title}" updated and scheduled successfully!`, 'success');
+      } else {
+        for (let idx = 0; idx < recurrenceDates.length; idx++) {
+          const dateStr = recurrenceDates[idx];
+          const itemNumber = idx + 1;
+          const examTitle = recurrenceDates.length > 1
+            ? `${examForm.name} (Session #${itemNumber})`
+            : (examForm.name || 'Untitled Test');
+
+          const { payload, recurrenceSummary } = resolveExamPayload(
+            examForm,
+            dateStr,
+            examTitle,
+            groupId,
+            itemNumber,
+            recurrenceDates.length
+          );
+          payload.status = 'scheduled';
+          if (idx === 0) recurrenceSummaryText = recurrenceSummary;
+
+          const res = await assignmentApi.createHomework(payload);
+          if (res?.id) {
+            await assignmentApi.publishHomework(res.id);
+          }
+        }
+
+        if (recurrenceDates.length > 1) {
+          addToast(`Scheduled ${recurrenceDates.length} recurring test sessions for ${examForm.batch}!`, 'success');
+        } else {
+          addToast(`Exam "${examForm.name}" scheduled for ${examForm.batch}!`, 'success');
+        }
+      }
+
+      sendNotification({
+        id: `N-${Date.now()}`,
+        title: `Upcoming Exam: ${examForm.name}`,
+        message: examForm.isRecurring
+          ? `A recurring test series (${recurrenceSummaryText || ''}) has been scheduled starting on ${examForm.examDate} for ${examForm.batch}.`
+          : `An exam has been scheduled on ${examForm.examDate} for ${examForm.batch}.`,
+        category: 'Examination',
+        sender: currentUser?.name || 'Teacher',
+        senderRole: 'Teacher',
+        createdAt: new Date().toISOString(),
+        direction: 'Outgoing',
+        status: 'Unread',
+        recipients: [{ type: 'Batch', id: examForm.batch || '', name: examForm.batch || '' }]
+      });
+
+      setShowExamForm(false);
+      await refreshAll();
+      setActiveSubTab('active');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to schedule exam.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
   };
 
-  const handleCancelExam = (id: string) => {
+  const handleCancelExam = async (id: string) => {
     const item = exams.find(e => e.id === id);
-    setExams(prev => prev.map(e => e.id === id ? { ...e, status: 'Cancelled' } : e));
-    setShowExamDetails(null);
-    addToast(`Exam "${item?.name || ''}" cancelled.`, 'info');
+    if (!window.confirm(`Are you sure you want to cancel exam "${item?.name || ''}"?`)) return;
+    setActionBusy(true);
+    try {
+      if (id && !String(id).startsWith('EX-')) {
+        await assignmentApi.closeHomework(id);
+      }
+      setExams(prev => prev.map(e => e.id === id ? { ...e, status: 'Cancelled' } : e));
+      setShowExamDetails(null);
+      await refreshAll();
+      addToast(`Exam "${item?.name || ''}" cancelled.`, 'info');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to cancel exam.', 'error');
+    } finally {
+      setActionBusy(false);
+    }
   };
 
+
+  // ─── Full page: Exam detail (view only) ────────────────────────────────────
+  if (showExamDetails) {
+    const ex = showExamDetails;
+    return (
+      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
+        {/* Top nav */}
+        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowExamDetails(null)}
+              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl font-display font-bold text-slate-900">{ex.name}</h2>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(ex.status)}`}>
+                  {ex.status}
+                </span>
+                {ex.isRecurring && (
+                  <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                    Recurring
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">{ex.subject || '—'} · {ex.batch || 'No batch'} · {ex.examDate}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {(ex.status === 'Scheduled' || ex.status === 'Completed') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExamDetails(null);
+                  const hwShape = filteredExamsAsHomework.find(h => h.id === ex.id) || ({
+                    id: ex.id,
+                    title: ex.name,
+                    status: (ex.status === 'Scheduled' ? 'Published' : ex.status === 'Completed' ? 'Closed' : ex.status) as HomeworkItem['status'],
+                    maxMarks: ex.totalMarks,
+                    batchNames: ex._batchNames && ex._batchNames.length > 0 ? ex._batchNames : (ex.batch ? [ex.batch] : ['—']),
+                    subjectName: ex.subject || '—',
+                    dueDate: ex.examDate || '—',
+                    assignmentType: 'exam',
+                  } as HomeworkItem);
+                  openEvaluate(hwShape);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+              >
+                <ClipboardCheck size={15} /> Grade Exam
+              </button>
+            )}
+            {(ex.status === 'Scheduled' || ex.status === 'Draft') && (
+              <button
+                type="button"
+                onClick={() => handleCancelExam(ex.id)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-semibold hover:bg-red-100 transition-colors cursor-pointer"
+              >
+                <XCircle size={15} /> Cancel Exam
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setExamForm({ ...ex }); setShowExamDetails(null); setShowExamForm(true); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+            >
+              <Edit3 size={15} /> Edit Exam
+            </button>
+          </div>
+        </div>
+
+        {/* Detail body */}
+        <div className="px-6 md:px-10 py-8 space-y-6">
+
+          {/* ── Exam Meta grid ── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <BookOpen size={16} className="text-blue-600" />
+              <h3 className="font-bold text-sm text-slate-700">Exam Details</h3>
+            </div>
+            <div className="p-6">
+              <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-5">
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Exam Type</dt>
+                  <dd>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-purple-50 text-purple-700 border-purple-200">
+                      {ex.type || '—'}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Subject</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{ex.subject || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Target Batch</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{ex.batch || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Exam Date</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{ex.examDate || '—'}</dd>
+                </div>
+                {ex.startTime && (
+                  <div>
+                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Start Time</dt>
+                    <dd className="text-sm font-semibold text-slate-800">{ex.startTime}</dd>
+                  </div>
+                )}
+                {ex.duration && (
+                  <div>
+                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Duration</dt>
+                    <dd className="text-sm font-semibold text-slate-800">{ex.duration}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Total Marks</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{ex.totalMarks ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Passing Marks</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{ex.passingMarks ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Class Average</dt>
+                  <dd className="text-sm font-semibold text-slate-800">{ex.average || '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Status</dt>
+                  <dd>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(ex.status)}`}>
+                      {ex.status}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+
+          {/* ── Recurrence Info ── */}
+          {ex.isRecurring && (
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+                <Repeat size={16} className="text-blue-600" />
+                <h3 className="font-bold text-sm text-slate-700">Repeat Schedule</h3>
+                <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">Active</span>
+              </div>
+              <div className="p-6">
+                <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-5">
+                  <div>
+                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Frequency</dt>
+                    <dd className="text-sm font-semibold text-slate-800 capitalize">
+                      {ex.recurrenceType === 'weekly' ? 'Every Week'
+                        : ex.recurrenceType === 'biweekly' ? 'Bi-Weekly'
+                        : ex.recurrenceType === 'monthly_date' ? 'Monthly (Same Date)'
+                        : ex.recurrenceType === 'monthly_day' ? 'Monthly (Same Weekday)'
+                        : ex.recurrenceType === 'custom' ? `Every ${ex.repeatInterval || 1} Weeks`
+                        : ex.recurrenceType || '—'}
+                    </dd>
+                  </div>
+                  {ex.repeatDays && ex.repeatDays.length > 0 && (
+                    <div>
+                      <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Repeat Day</dt>
+                      <dd className="text-sm font-semibold text-slate-800">{ex.repeatDays.join(', ')}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">End Condition</dt>
+                    <dd className="text-sm font-semibold text-slate-800">
+                      {ex.repeatEndType === 'date'
+                        ? `Until ${ex.repeatEndDate || '—'}`
+                        : `${ex.repeatCount || '—'} Sessions Total`}
+                    </dd>
+                  </div>
+                  {ex.recurringGroupId && (
+                    <div>
+                      <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Session</dt>
+                      <dd className="text-sm font-semibold text-slate-800">#{ex.recurringInstanceIndex ?? 1}</dd>
+                    </div>
+                  )}
+                </dl>
+                {ex.recurrenceSummary && (
+                  <p className="mt-4 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+                    {ex.recurrenceSummary}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="flex items-center justify-between py-2">
+            <button
+              type="button"
+              onClick={() => setShowExamDetails(null)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={15} /> Back to List
+            </button>
+            <button
+              type="button"
+              onClick={() => { setExamForm({ ...ex }); setShowExamDetails(null); setShowExamForm(true); }}
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors cursor-pointer"
+            >
+              <Edit3 size={15} /> Edit Exam
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Full page: Assignment detail (view only) ───────────────────────────────
   if (showHwDetail) {
@@ -1055,7 +1683,9 @@ export const TeacherAssignments: React.FC = () => {
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-display font-bold text-slate-900">Evaluate: {item.title}</h2>
+                <h2 className="text-xl font-display font-bold text-slate-900">
+                  {item.assignmentType === 'exam' ? `Grade Exam: ${item.title}` : `Evaluate: ${item.title}`}
+                </h2>
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(item.status)}`}>
                   {item.status}
                 </span>
@@ -1310,7 +1940,7 @@ export const TeacherAssignments: React.FC = () => {
                   };
                 });
                 setEvalInputs(initial);
-                await loadHomeworks();
+                await refreshAll();
               }
               if (result.errorCount > 0) {
                 addToast(`${result.errorCount} row(s) had errors: ${result.errors.slice(0, 3).join(' | ')}`, 'warning');
@@ -1730,11 +2360,12 @@ export const TeacherAssignments: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <Button type="button" variant="secondary" onClick={() => setShowExamForm(false)} className="cursor-pointer">
+            <Button type="button" variant="secondary" onClick={() => setShowExamForm(false)} className="cursor-pointer" disabled={actionBusy}>
               Cancel
             </Button>
-            <Button type="button" variant="outline" onClick={handleSaveExamDraft} className="cursor-pointer">
-              <Check className="w-4 h-4 mr-1.5" /> Save Draft
+            <Button type="button" variant="outline" onClick={handleSaveExamDraft} className="cursor-pointer" disabled={actionBusy}>
+              {actionBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Check className="w-4 h-4 mr-1.5" />}
+              Save Draft
             </Button>
             <Button
               type="button"
@@ -1742,8 +2373,9 @@ export const TeacherAssignments: React.FC = () => {
               style={{ backgroundColor: '#2563eb', color: 'white' }}
               className="cursor-pointer font-semibold shadow-sm px-5"
               onClick={handleScheduleExam}
+              disabled={actionBusy}
             >
-              <Send className="w-4 h-4 mr-1.5" />
+              {actionBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Send className="w-4 h-4 mr-1.5" />}
               {examForm.id ? 'Save & Update Exam' : 'Schedule Exam'}
             </Button>
           </div>
@@ -1790,13 +2422,19 @@ export const TeacherAssignments: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Subject</label>
-                  <Input
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Subject <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                     value={examForm.subject || ''}
                     onChange={e => setExamForm({ ...examForm, subject: e.target.value })}
-                    placeholder="e.g. Chemistry"
-                    className="w-full"
-                  />
+                  >
+                    <option value="">Select a subject...</option>
+                    {subjectOptions.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -1863,6 +2501,254 @@ export const TeacherAssignments: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Section 3: Test Recurrence & Automated Repeat Schedule */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white to-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Repeat size={17} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-slate-800">Test Recurrence & Repeat Schedule</h3>
+                    {examForm.isRecurring && (
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                        Repeat Enabled
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Automatically repeat this test on the same day every week, same date every month, or custom intervals
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <label className="relative inline-flex items-center gap-2.5 cursor-pointer select-none">
+                <span className="text-xs font-bold text-slate-700">Repeat Test</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(examForm.isRecurring)}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    const initialExamDate = examForm.examDate || new Date().toISOString().split('T')[0];
+                    const dateObj = new Date(initialExamDate);
+                    const dayIndex = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
+                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    setExamForm({
+                      ...examForm,
+                      isRecurring: checked,
+                      recurrenceType: examForm.recurrenceType || 'weekly',
+                      repeatDays: examForm.repeatDays?.length ? examForm.repeatDays : [dayNames[dayIndex]],
+                      repeatCount: examForm.repeatCount || 4,
+                      repeatEndType: examForm.repeatEndType || 'count',
+                      repeatInterval: examForm.repeatInterval || 1
+                    });
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner relative"></div>
+                <span className={`text-xs font-bold ${examForm.isRecurring ? 'text-blue-600' : 'text-slate-400'}`}>
+                  {examForm.isRecurring ? 'ON' : 'OFF'}
+                </span>
+              </label>
+            </div>
+
+            {examForm.isRecurring && (() => {
+              const previewDates = generateRecurringExamDates(
+                examForm.examDate || '',
+                examForm.recurrenceType || 'weekly',
+                examForm.repeatDays || [],
+                examForm.repeatEndType || 'count',
+                examForm.repeatCount || 4,
+                examForm.repeatEndDate || '',
+                examForm.repeatInterval || 1
+              );
+
+              return (
+                <div className="p-6 space-y-6 animate-fade-in bg-slate-50/40">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Recurrence Frequency Type */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                          Repeat Frequency <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium shadow-2xs"
+                          value={examForm.recurrenceType || 'weekly'}
+                          onChange={e => setExamForm({ ...examForm, recurrenceType: e.target.value as any })}
+                        >
+                          <option value="weekly">Every Week (Same day every week)</option>
+                          <option value="biweekly">Bi-Weekly (Every 2 weeks on same day)</option>
+                          <option value="monthly_date">Every Month (Same Date every month, e.g. 15th)</option>
+                          <option value="monthly_day">Every Month (Same Weekday, e.g. 2nd Monday)</option>
+                          <option value="custom">Custom Interval (Every N weeks)</option>
+                        </select>
+                        <span className="text-[11px] text-slate-400 block mt-1">
+                          {examForm.recurrenceType === 'weekly' && 'Repeats every week on the specified day.'}
+                          {examForm.recurrenceType === 'biweekly' && 'Repeats every 2 weeks on the specified day.'}
+                          {examForm.recurrenceType === 'monthly_date' && `Repeats on day ${examForm.examDate ? (new Date(examForm.examDate).getDate() || '—') : '—'} of every month.`}
+                          {examForm.recurrenceType === 'monthly_day' && 'Repeats on the same weekday position each month.'}
+                          {examForm.recurrenceType === 'custom' && 'Repeats at custom weekly intervals.'}
+                        </span>
+                      </div>
+
+                      {/* Custom interval multiplier if chosen */}
+                      {examForm.recurrenceType === 'custom' && (
+                        <div className="p-3 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                            Repeat Every
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={1}
+                              max={12}
+                              value={examForm.repeatInterval || 1}
+                              onChange={e => setExamForm({ ...examForm, repeatInterval: Math.max(1, parseInt(e.target.value) || 1) })}
+                              className="w-24 font-bold text-center"
+                            />
+                            <span className="text-sm font-semibold text-slate-600">Weeks</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* End Condition - Segmented Inline Pill Control */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                        End Repetition
+                      </label>
+                      <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setExamForm({ ...examForm, repeatEndType: 'count' })}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            (examForm.repeatEndType || 'count') === 'count'
+                              ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
+                        >
+                          <span>Repeat Count</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExamForm({ ...examForm, repeatEndType: 'date' })}
+                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            examForm.repeatEndType === 'date'
+                              ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
+                        >
+                          <span>Until End Date</span>
+                        </button>
+                      </div>
+
+                      {/* Unified dynamic input for selected segment */}
+                      <div className="mt-2.5">
+                        {(examForm.repeatEndType || 'count') === 'count' ? (
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={2}
+                                max={24}
+                                value={examForm.repeatCount || 4}
+                                onChange={e => setExamForm({ ...examForm, repeatCount: Math.min(24, Math.max(2, parseInt(e.target.value) || 2)) })}
+                                className="w-24 font-bold text-center"
+                              />
+                              <span className="text-xs font-semibold text-slate-600">Total test sessions</span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 block mt-1">Schedules this test a total of {examForm.repeatCount || 4} times.</span>
+                          </div>
+                        ) : (
+                          <div>
+                            <Input
+                              type="date"
+                              value={examForm.repeatEndDate || ''}
+                              onChange={e => setExamForm({ ...examForm, repeatEndDate: e.target.value })}
+                              className="w-full"
+                            />
+                            <span className="text-[11px] text-slate-400 block mt-1">No test will be scheduled after this cutoff date.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Day selector for weekly & biweekly */}
+                  {(examForm.recurrenceType === 'weekly' || examForm.recurrenceType === 'biweekly' || examForm.recurrenceType === 'custom') && (
+                    <div className="pt-3 border-t border-slate-200/60">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">
+                        Test Day of the Week
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
+                          const isSelected = (examForm.repeatDays || []).includes(day);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => {
+                                setExamForm({
+                                  ...examForm,
+                                  repeatDays: [day]
+                                });
+                              }}
+                              className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Occurrence Preview */}
+                  <div className="p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-blue-50/80 border border-blue-200/80 rounded-xl space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                        <Calendar size={14} className="text-blue-600" />
+                        Generated Test Schedule Preview ({previewDates.length} sessions)
+                      </div>
+                      <span className="text-[11px] font-semibold text-blue-700 font-mono">
+                        {getRecurrenceSummaryText(
+                          examForm.recurrenceType || 'weekly',
+                          examForm.repeatDays || [],
+                          examForm.repeatEndType || 'count',
+                          examForm.repeatCount || 4,
+                          examForm.repeatEndDate || '',
+                          previewDates.length,
+                          examForm.repeatInterval || 1
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1.5">
+                      {previewDates.map((dateStr, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-xs font-mono font-bold text-slate-800 shadow-2xs"
+                        >
+                          <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                            {idx + 1}
+                          </span>
+                          {formatPreviewDate(dateStr)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Footer action bar */}
@@ -1965,13 +2851,7 @@ export const TeacherAssignments: React.FC = () => {
             : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
             }`}
         >
-          Drafts ({
-            activePrimaryTab === 'homework'
-              ? homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'homework').length
-              : activePrimaryTab === 'assignment'
-              ? homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'assignment').length
-              : homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'exam').length
-          })
+          Drafts ({draftsCount})
         </button>
       </div>
 
@@ -2074,7 +2954,10 @@ export const TeacherAssignments: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              (paginatedData as HomeworkItem[]).map((assign) => (
+              (paginatedData as (HomeworkItem & { _examItem?: ExamItem })[]).map((assign) => {
+                const examItem = assign._examItem;
+                const displayStatus = examItem ? examItem.status : assign.status;
+                return (
                 <tr key={assign.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-4 py-3 text-left">
                     <div className="font-semibold text-slate-900 text-sm truncate max-w-[240px]" title={assign.title}>
@@ -2084,6 +2967,11 @@ export const TeacherAssignments: React.FC = () => {
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider ${getTypeBadgeColor(assign.assignmentType)}`}>
                         {typeLabel(assign.assignmentType)}
                       </span>
+                      {examItem?.isRecurring && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider bg-blue-50 text-blue-700 border-blue-200">
+                          Recurring
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[140px]" title={assign.subjectName}>
@@ -2097,33 +2985,42 @@ export const TeacherAssignments: React.FC = () => {
                   </td>
                   {activeSubTab === 'active' && (
                     <td className="px-4 py-3 text-center text-slate-600 whitespace-nowrap">
-                      {assign.status === 'Draft' ? '—' : (
-                        <span className={`font-bold font-mono text-xs ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                          {assign.submittedCount}
-                        </span>
-                      )} / {assign.totalCount > 0 ? assign.totalCount : '—'}
+                      {examItem ? (
+                        <span className="text-slate-400 text-xs">—</span>
+                      ) : (
+                        <>
+                          {assign.status === 'Draft' ? '—' : (
+                            <span className={`font-bold font-mono text-xs ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                              {assign.submittedCount}
+                            </span>
+                          )} / {assign.totalCount > 0 ? assign.totalCount : '—'}
+                        </>
+                      )}
                     </td>
                   )}
                   <td className="px-4 py-3 text-center whitespace-nowrap">
-                    <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(assign.status)}`}>
-                      {assign.status}
+                    <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(displayStatus)}`}>
+                      {displayStatus}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
-                        onClick={() => openDetail(assign)}
+                        onClick={() => {
+                          if (examItem) { setShowExamDetails(examItem); }
+                          else { openDetail(assign); }
+                        }}
                         title="View Details"
                         className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
                       </button>
-                      {(assign.status === 'Published' || assign.status === 'Closed') && (
+                      {(assign.status === 'Published' || assign.status === 'Closed' || (examItem && (examItem.status === 'Scheduled' || examItem.status === 'Completed'))) && (
                         <button
                           type="button"
                           onClick={() => openEvaluate(assign)}
-                          title="Evaluate Submissions"
+                          title={examItem ? "Grade Exam" : "Evaluate Submissions"}
                           className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-200 transition-colors cursor-pointer"
                         >
                           <ClipboardCheck className="w-3.5 h-3.5" />
@@ -2131,18 +3028,35 @@ export const TeacherAssignments: React.FC = () => {
                       )}
                       <button
                         type="button"
-                        onClick={() => openEditForm(assign)}
-                        title={activePrimaryTab === 'exams' ? 'Edit Exam' : activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'}
+                        onClick={() => {
+                          if (examItem) {
+                            setExamForm(examItem);
+                            setShowExamForm(true);
+                          } else {
+                            openEditForm(assign);
+                          }
+                        }}
+                        title={examItem ? 'Edit Exam' : activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'}
                         className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      {assign.status === 'Published' && (
+                      {!examItem && assign.status === 'Published' && (
                         <button
                           type="button"
                           onClick={() => handleCloseAssign(assign)}
                           title="Close"
                           className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {examItem && (examItem.status === 'Scheduled' || examItem.status === 'Draft') && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelExam(examItem.id)}
+                          title="Cancel Exam"
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                         </button>
@@ -2160,7 +3074,8 @@ export const TeacherAssignments: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </Table>
         )}
@@ -2175,41 +3090,6 @@ export const TeacherAssignments: React.FC = () => {
           />
         )}
       </div>
-
-      {/* Exam Details Modal */}
-      {showExamDetails && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowExamDetails(null)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-900">{showExamDetails.name}</h3>
-              <button onClick={() => setShowExamDetails(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
-                <XCircle size={22} />
-              </button>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="font-medium">{showExamDetails.type}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Subject</span><span className="font-medium">{showExamDetails.subject}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Target Batch</span><span className="font-medium">{showExamDetails.batch}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Exam Date</span><span className="font-medium">{showExamDetails.examDate} {showExamDetails.startTime || ''}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Marks</span><span className="font-medium">{showExamDetails.totalMarks} (Pass: {showExamDetails.passingMarks})</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-medium">{showExamDetails.status}</span></div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              {showExamDetails.status === 'Scheduled' && (
-                <Button variant="secondary" className="cursor-pointer" onClick={() => handleCancelExam(showExamDetails.id)}>
-                  Cancel Exam
-                </Button>
-              )}
-              <Button
-                className="bg-blue-600 text-white cursor-pointer"
-                onClick={() => { setExamForm({ ...showExamDetails }); setShowExamDetails(null); setShowExamForm(true); }}
-              >
-                Edit Exam
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

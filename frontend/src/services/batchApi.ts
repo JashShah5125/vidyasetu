@@ -48,6 +48,27 @@ export interface AcademicYear {
   status: string;
 }
 
+export interface BatchStudent {
+  id: string;
+  studentCode: string;
+  fullName: string;
+  email: string;
+  mobile: string;
+  gender: string;
+  status: string;
+  enrollmentId: string;
+  rollNo: string;
+  enrollmentStatus: string;
+  enrolledAt: string;
+  guardianName: string;
+  guardianMobile: string;
+  guardianRelation: string;
+  feeStatus: string;
+  netAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+}
+
 export const BATCH_STATUS_OPTIONS: BatchStatus[] = ['Active', 'Inactive'];
 
 export const batchApi = {
@@ -68,6 +89,11 @@ export const batchApi = {
 
   get: async (id: string) => {
     const { data } = await api.get(`/admin/batches/${id}`);
+    return data;
+  },
+
+  getStudents: async (id: string) => {
+    const { data } = await api.get(`/admin/batches/${id}/students`);
     return data;
   },
 
