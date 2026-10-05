@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -255,6 +256,9 @@ export const TeacherAssignments: React.FC = () => {
     submittedAt: string | null;
     gradedAt: string | null;
   }
+  const [searchParams, setSearchParams] = useSearchParams();
+  const evaluateParam = searchParams.get('evaluate') || searchParams.get('evaluateId');
+
   const [showEvaluate, setShowEvaluate] = useState<HomeworkItem | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterStudents, setRosterStudents] = useState<RosterStudent[]>([]);
@@ -267,6 +271,17 @@ export const TeacherAssignments: React.FC = () => {
   const [evalCurrentPage, setEvalCurrentPage] = useState<number>(1);
   const evalItemsPerPage = 10;
   const [isEvalImportModalOpen, setIsEvalImportModalOpen] = useState<boolean>(false);
+
+  const closeEvaluate = useCallback(() => {
+    setShowEvaluate(null);
+    setSelectedStudent(null);
+    if (searchParams.get('evaluate') || searchParams.get('evaluateId')) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('evaluate');
+      nextParams.delete('evaluateId');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [showExamForm, setShowExamForm] = useState<boolean>(false);
   const [examForm, setExamForm] = useState<Partial<ExamItem>>({});
@@ -666,6 +681,12 @@ export const TeacherAssignments: React.FC = () => {
 
   const openEvaluate = async (item: HomeworkItem) => {
     setShowEvaluate(item);
+    const currentParam = searchParams.get('evaluate') || searchParams.get('evaluateId');
+    if (currentParam !== item.id) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('evaluate', item.id);
+      setSearchParams(nextParams, { replace: true });
+    }
     setSelectedStudent(null);
     setEvalCurrentPage(1);
     setRosterStudents([]);
@@ -691,6 +712,35 @@ export const TeacherAssignments: React.FC = () => {
       setRosterLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!evaluateParam) return;
+    if (showEvaluate && showEvaluate.id === evaluateParam) return;
+
+    let isCancelled = false;
+    const fetchAndOpen = async () => {
+      try {
+        const item = await assignmentApi.getHomework(evaluateParam);
+        if (item && !isCancelled) {
+          const type = (item.assignmentType || '').toLowerCase();
+          if (type === 'exam') {
+            setActivePrimaryTab('exams');
+          } else if (type === 'assignment') {
+            setActivePrimaryTab('assignment');
+          } else {
+            setActivePrimaryTab('homework');
+          }
+          await openEvaluate(item);
+        }
+      } catch (err: any) {
+        console.error('Failed to load assessment for evaluate:', err);
+      }
+    };
+    fetchAndOpen();
+    return () => {
+      isCancelled = true;
+    };
+  }, [evaluateParam]);
 
   const handleEvalGrade = async (student: RosterStudent) => {
     if (!showEvaluate) return;
@@ -1676,7 +1726,7 @@ export const TeacherAssignments: React.FC = () => {
         <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setShowEvaluate(null)}
+              onClick={closeEvaluate}
               className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
             >
               <ArrowLeft size={18} />
@@ -1710,7 +1760,7 @@ export const TeacherAssignments: React.FC = () => {
             >
               <Download size={14} /> Export CSV
             </Button>
-            <Button variant="secondary" className="cursor-pointer" onClick={() => setShowEvaluate(null)}>
+            <Button variant="secondary" className="cursor-pointer" onClick={closeEvaluate}>
               <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to List
             </Button>
           </div>
@@ -1905,7 +1955,7 @@ export const TeacherAssignments: React.FC = () => {
 
           {/* Footer */}
           <div className="flex items-center justify-between py-2">
-            <Button variant="secondary" className="cursor-pointer" onClick={() => setShowEvaluate(null)}>
+            <Button variant="secondary" className="cursor-pointer" onClick={closeEvaluate}>
               <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to List
             </Button>
           </div>

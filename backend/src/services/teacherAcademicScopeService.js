@@ -303,8 +303,10 @@ class TeacherAcademicScopeService {
 
         const { batchIds: allowedBatchIds, subjectIds: allowedSubjectIds } = await this.getTeacherAllocations(tid, teacherUserId);
 
+        const isCreator = Number(homework.created_by) === Number(teacherUserId);
+
         // 1. Batch Intersection Check
-        const hasBatchIntersection = hwBatchIds.some(bid => allowedBatchIds.includes(bid));
+        const hasBatchIntersection = isCreator || hwBatchIds.some(bid => allowedBatchIds.includes(bid));
         if (!hasBatchIntersection) {
             const err = new Error('Access denied. This assessment is not assigned to any of your allocated batches.');
             err.statusCode = 403;
@@ -313,7 +315,7 @@ class TeacherAcademicScopeService {
         }
 
         // 2. Subject Check
-        if (homework.subject_id && !allowedSubjectIds.includes(Number(homework.subject_id))) {
+        if (!isCreator && homework.subject_id && !allowedSubjectIds.includes(Number(homework.subject_id))) {
             const err = new Error(`Access denied. You are not assigned to teach the subject '${homework.subject_name || homework.subject_id}' of this assessment.`);
             err.statusCode = 403;
             err.code = 'ER_HOMEWORK_SUBJECT_UNAUTHORIZED';

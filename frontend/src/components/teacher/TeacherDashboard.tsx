@@ -17,7 +17,14 @@ import {
   Send, 
   MessageSquare, 
   User, 
-  Loader2
+  Loader2,
+  Award,
+  Search,
+  X,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  Edit3
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -33,6 +40,7 @@ import type { TeacherScheduleOptions, TeacherScheduleLecture } from '../../servi
 import { doubtApi } from '../../services/doubtApi';
 import type { DoubtItem } from '../../services/doubtApi';
 import { teacherHomeworkApi } from '../../services/teacherHomeworkApi';
+import type { HomeworkItem } from '../../services/assignmentApi';
 
 const SimpleWorkloadTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -88,13 +96,17 @@ export const TeacherDashboard: React.FC = () => {
   const [classAverageScore, setClassAverageScore] = useState<string>('—');
 
   // UI / Tab & Modal States
-  const [scheduleTab, setScheduleTab] = useState<'today' | 'weekly'>('today');
+  const [scheduleTab, setScheduleTab] = useState<'today' | 'weekly' | 'grade_tests'>('today');
   const [doubtFilter, setDoubtFilter] = useState<'All' | 'Pending' | 'Resolved'>('All');
   const [showAnswerModal, setShowAnswerModal] = useState(false);
   const [activeDoubtId, setActiveDoubtId] = useState<number | null>(null);
   const [responseText, setResponseText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
+
+  // Assessment Grading States (Tests, Homeworks, Assignments)
+  const [teacherAssessments, setTeacherAssessments] = useState<HomeworkItem[]>([]);
+  const [assessmentTypeFilter, setAssessmentTypeFilter] = useState<'all' | 'exam' | 'homework' | 'assignment'>('all');
 
   // 1. Fetch Teacher Scoped Options on Mount
   const loadOptions = useCallback(async () => {
@@ -175,7 +187,7 @@ export const TeacherDashboard: React.FC = () => {
       const batchFilterParam = filterBatch !== 'All' ? filterBatch : undefined;
       const branchFilterParam = filterBranch !== 'All' ? filterBranch : undefined;
 
-      const [todayRes, weekRes, doubtsRes, homeworksRes] = await Promise.allSettled([
+      const [todayRes, weekRes, doubtsRes, homeworksRes, assessmentsRes] = await Promise.allSettled([
         teacherScheduleApi.getToday(undefined, { batchId: batchFilterParam, branchId: branchFilterParam }),
         teacherScheduleApi.getWeek(undefined, undefined, { batchId: batchFilterParam, branchId: branchFilterParam }),
         doubtApi.getTeacherDoubts({ batchId: batchFilterParam }),
@@ -183,6 +195,12 @@ export const TeacherDashboard: React.FC = () => {
           limit: 20,
           batchId: batchFilterParam, 
           branchId: branchFilterParam 
+        }),
+        teacherHomeworkApi.getHomeworks({
+          assignmentType: 'all',
+          limit: 100,
+          batchId: batchFilterParam,
+          branchId: branchFilterParam
         })
       ]);
 
@@ -198,7 +216,21 @@ export const TeacherDashboard: React.FC = () => {
         setDoubts(doubtsRes.value || []);
       }
 
-      if (homeworksRes.status === 'fulfilled' && homeworksRes.value?.data) {
+      if (assessmentsRes.status === 'fulfilled' && assessmentsRes.value?.data) {
+        const items = assessmentsRes.value.data || [];
+        setTeacherAssessments(items);
+        const withGraded = items.filter((h: any) => 
+          Number(h.gradedSubmissionsCount) > 0 && 
+          h.classAveragePercentage !== null && 
+          h.classAveragePercentage !== undefined
+        );
+        if (withGraded.length > 0) {
+          const avg = withGraded.reduce((acc: number, cur: any) => acc + Number(cur.classAveragePercentage), 0) / withGraded.length;
+          setClassAverageScore(`${avg.toFixed(1)}%`);
+        } else {
+          setClassAverageScore('—');
+        }
+      } else if (homeworksRes.status === 'fulfilled' && homeworksRes.value?.data) {
         const hws = homeworksRes.value.data;
         const withGraded = hws.filter((h: any) => 
           Number(h.gradedSubmissionsCount) > 0 && 
@@ -376,6 +408,34 @@ export const TeacherDashboard: React.FC = () => {
     } finally {
       setIsSubmittingReply(false);
     }
+  };
+
+  // Assessment Grading Handlers & Memos (Tests, Homeworks, Assignments)
+  const assessmentCounts = useMemo(() => {
+    let exams = 0;
+    let homeworks = 0;
+    let assignments = 0;
+    teacherAssessments.forEach(a => {
+      const type = (a.assignmentType || '').toLowerCase();
+      if (type === 'exam') exams++;
+      else if (type === 'homework') homeworks++;
+      else if (type === 'assignment') assignments++;
+    });
+    return {
+      all: teacherAssessments.length,
+      exam: exams,
+      homework: homeworks,
+      assignment: assignments
+    };
+  }, [teacherAssessments]);
+
+  const filteredAssessments = useMemo(() => {
+    if (assessmentTypeFilter === 'all') return teacherAssessments;
+    return teacherAssessments.filter(a => (a.assignmentType || '').toLowerCase() === assessmentTypeFilter);
+  }, [teacherAssessments, assessmentTypeFilter]);
+
+  const handleGradeRedirect = (assessment: HomeworkItem) => {
+    navigate(`/assignments?evaluate=${encodeURIComponent(assessment.id)}`);
   };
 
   // Full Screen Quick Reply View
@@ -826,6 +886,19 @@ export const TeacherDashboard: React.FC = () => {
               >
                 Weekly Schedule
               </button>
+              <button 
+                onClick={() => setScheduleTab('grade_tests')}
+                className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
+                  scheduleTab === 'grade_tests' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span>Grade Work</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold transition-colors ${
+                  scheduleTab === 'grade_tests' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {teacherAssessments.length}
+                </span>
+              </button>
             </div>
             
             <div className="p-5 bg-white flex-1 overflow-y-auto pr-1.5 space-y-4">
@@ -920,7 +993,7 @@ export const TeacherDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : scheduleTab === 'weekly' ? (
                 /* WEEKLY SCHEDULE TAB */
                 <div className="space-y-4">
                   {(() => {
@@ -993,11 +1066,185 @@ export const TeacherDashboard: React.FC = () => {
                     );
                   })()}
                 </div>
+              ) : (
+                /* GRADE WORK TAB (Tests, Homework, Assignments) */
+                <div className="space-y-3.5">
+                  {/* Assessment Type Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setAssessmentTypeFilter('all')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        assessmentTypeFilter === 'all'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All ({assessmentCounts.all})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssessmentTypeFilter('exam')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        assessmentTypeFilter === 'exam'
+                          ? 'bg-purple-700 text-white shadow-xs'
+                          : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200/60'
+                      }`}
+                    >
+                      Tests ({assessmentCounts.exam})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssessmentTypeFilter('homework')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        assessmentTypeFilter === 'homework'
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/60'
+                      }`}
+                    >
+                      Homework ({assessmentCounts.homework})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssessmentTypeFilter('assignment')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        assessmentTypeFilter === 'assignment'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/60'
+                      }`}
+                    >
+                      Assignments ({assessmentCounts.assignment})
+                    </button>
+                  </div>
+
+                  {filteredAssessments.length > 0 ? (
+                    filteredAssessments.map((item) => {
+                      const total = item.totalCount || 0;
+                      const graded = item.gradedSubmissionsCount || 0;
+                      const pending = Math.max(0, total - graded);
+                      const isAllGraded = total > 0 && graded >= total;
+                      const pct = total > 0 ? Math.round((graded / total) * 100) : 0;
+                      const aType = (item.assignmentType || '').toLowerCase();
+                      const typeLabel = aType === 'exam' ? 'Test / Exam' : aType === 'homework' ? 'Homework' : 'Assignment';
+                      const typeBadgeClass = aType === 'exam' 
+                        ? 'bg-purple-100 text-purple-800 border-purple-200' 
+                        : aType === 'homework' 
+                        ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                        : 'bg-blue-100 text-blue-800 border-blue-200';
+
+                      return (
+                        <div 
+                          key={item.id} 
+                          className="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-300 transition-all shadow-sm space-y-3 group"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border ${typeBadgeClass}`}>
+                                  {typeLabel}
+                                </span>
+                                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 border border-slate-300/60">
+                                  {item.subjectName || 'Subject'}
+                                </span>
+                                <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                  <Calendar size={12} className="text-slate-400" />
+                                  {item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date TBA'}
+                                </span>
+                              </div>
+                              <h4 
+                                onClick={() => handleGradeRedirect(item)}
+                                className="text-base font-bold text-slate-900 mt-1.5 leading-snug group-hover:text-blue-600 transition-colors cursor-pointer"
+                              >
+                                {item.title}
+                              </h4>
+                              <p className="text-xs text-slate-600 font-medium mt-1 flex items-center gap-1">
+                                <span className="text-slate-400 font-normal">Batches:</span> 
+                                <span className="font-semibold text-slate-800">{item.batchNames?.join(', ') || 'Assigned Batches'}</span>
+                              </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <Award size={13} className="text-amber-600" />
+                                Max: {item.maxMarks || 100}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Progress and status */}
+                          <div className="bg-white p-3 rounded-lg border border-slate-200/90 space-y-1.5">
+                            <div className="flex items-center justify-between text-xs font-medium">
+                              <span className="text-slate-600">Evaluation Progress</span>
+                              <span className="font-bold text-slate-900">
+                                {graded} / {total} graded ({pct}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-500 ${isAllGraded ? 'bg-emerald-500' : 'bg-blue-600'}`} 
+                                style={{ width: `${pct}%` }} 
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                              <span className="font-medium text-slate-600">
+                                {isAllGraded ? (
+                                  <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                                    <CheckCircle size={11} /> All students graded
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-600 font-semibold">
+                                    {pending} pending evaluation
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-slate-400">
+                                Class Avg: <span className="font-semibold text-slate-700">{item.classAveragePercentage ? `${Number(item.classAveragePercentage).toFixed(1)}%` : '—'}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {item.status === 'Closed' ? 'Closed' : 'Active'}
+                            </span>
+                            <Button
+                              variant={isAllGraded ? "secondary" : "primary"}
+                              size="sm"
+                              className="text-xs flex items-center gap-1.5 font-semibold cursor-pointer shadow-xs"
+                              onClick={() => handleGradeRedirect(item)}
+                            >
+                              <Edit3 size={13} />
+                              {isAllGraded ? 'Review / Edit Grades' : 'Grade Students'}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-20 text-center flex flex-col items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
+                        <GraduationCap size={26} />
+                      </div>
+                      <div className="text-slate-700 font-bold text-base">No {assessmentTypeFilter === 'all' ? 'assessments' : assessmentTypeFilter} found.</div>
+                      <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                        Tests, homeworks, or assignments assigned to your batches will appear here for student grading.
+                      </p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="mt-4 text-xs cursor-pointer"
+                        onClick={() => navigate('/assignments')}
+                      >
+                        Go to Assessments
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </Card>
         </div>
       </div>
+
     </div>
   );
 };

@@ -177,22 +177,24 @@ class TeacherHomeworkService {
 
         const { batchIds: allowedBatchIds, subjectIds: allowedSubjectIds } = await teacherAcademicScopeService.getTeacherAllocations(tid, uid);
 
+        const reqType = String(params.assignmentType || params.type || 'all').toLowerCase().trim();
+        const rows = [];
+
         if (allowedBatchIds.length === 0 || allowedSubjectIds.length === 0) {
-            return {
-                data: [],
-                pagination: { total: 0, page: Number(params.page || 1), limit: Number(params.limit || 20), totalPages: 1 }
-            };
+            if (reqType !== 'exam') {
+                return {
+                    data: [],
+                    pagination: { total: 0, page: Number(params.page || 1), limit: Number(params.limit || 20), totalPages: 1 }
+                };
+            }
         }
 
         const page = Math.max(1, parseInt(params.page, 10) || 1);
         const limit = params.limit ? Math.max(1, Math.min(1000, parseInt(params.limit, 10))) : 1000;
         const offset = (page - 1) * limit;
 
-        const reqType = String(params.assignmentType || 'all').toLowerCase().trim();
-        const rows = [];
-
         // 1. Fetch from homeworks
-        if (reqType === 'all' || reqType === 'homework') {
+        if ((reqType === 'all' || reqType === 'homework') && allowedBatchIds.length > 0 && allowedSubjectIds.length > 0) {
             const hwBatchOrConditions = allowedBatchIds.map(() => `JSON_CONTAINS(h.batch_ids, CAST(? AS JSON))`).join(' OR ');
             const [hwRows] = await pool.query(
                 `SELECT h.id, h.tenant_id, h.branch_id, h.academic_year_id, h.subject_id,
@@ -218,7 +220,7 @@ class TeacherHomeworkService {
         }
 
         // 2. Fetch from assignments
-        if (reqType === 'all' || reqType === 'assignment') {
+        if ((reqType === 'all' || reqType === 'assignment') && allowedBatchIds.length > 0 && allowedSubjectIds.length > 0) {
             const asgBatchOrConditions = allowedBatchIds.map(() => `JSON_CONTAINS(COALESCE(a.batch_ids, JSON_ARRAY(a.batch_id)), CAST(? AS JSON))`).join(' OR ');
             const [asgRows] = await pool.query(
                 `SELECT a.id, a.tenant_id, a.branch_id, a.academic_year_id, a.subject_id,
@@ -246,6 +248,18 @@ class TeacherHomeworkService {
 
         // 3. Fetch from exams
         if (reqType === 'all' || reqType === 'exam') {
+            const hasAllocations = allowedBatchIds.length > 0 && allowedSubjectIds.length > 0;
+            const examWhere = hasAllocations
+                ? `WHERE e.tenant_id = ? AND e.deleted_at IS NULL
+                   AND (
+                     (EXISTS (SELECT 1 FROM exam_batch_assignments eba WHERE eba.exam_id = e.id AND eba.batch_id IN (?)) AND e.subject_id IN (?))
+                     OR e.created_by = ?
+                   )`
+                : `WHERE e.tenant_id = ? AND e.deleted_at IS NULL AND e.created_by = ?`;
+            const examParams = hasAllocations
+                ? [tid, allowedBatchIds, allowedSubjectIds, uid]
+                : [tid, uid];
+
             const [examRows] = await pool.query(
                 `SELECT e.id, e.tenant_id, e.branch_id, e.academic_year_id, e.subject_id,
                         e.name AS title, e.description, 'exam' AS assignment_type,
@@ -262,10 +276,8 @@ class TeacherHomeworkService {
                  LEFT JOIN subjects s ON s.id = e.subject_id AND s.deleted_at IS NULL
                  LEFT JOIN academic_years ay ON ay.id = e.academic_year_id AND ay.deleted_at IS NULL
                  LEFT JOIN branches br ON br.id = e.branch_id AND br.deleted_at IS NULL
-                 WHERE e.tenant_id = ? AND e.deleted_at IS NULL
-                   AND EXISTS (SELECT 1 FROM exam_batch_assignments eba WHERE eba.exam_id = e.id AND eba.batch_id IN (?))
-                   AND e.subject_id IN (?)`,
-                [tid, allowedBatchIds, allowedSubjectIds]
+                 ${examWhere}`,
+                examParams
             );
             rows.push(...examRows);
         }
@@ -873,7 +885,11 @@ class TeacherHomeworkService {
         const { homework, homeworkBatchIds, allowedBatchIds } = await teacherAcademicScopeService.validateHomeworkAccess(tid, uid, homeworkId);
 
         // Filter target batches to only those allocated to this teacher
-        const activeBatchIds = homeworkBatchIds.filter(bid => allowedBatchIds.includes(bid));
+        const isCreator = Number(homework.created_by) === uid;
+        let activeBatchIds = homeworkBatchIds.filter(bid => allowedBatchIds.includes(bid));
+        if (activeBatchIds.length === 0 && isCreator) {
+            activeBatchIds = homeworkBatchIds;
+        }
 
         if (activeBatchIds.length === 0) {
             return {
@@ -1047,7 +1063,11 @@ class TeacherHomeworkService {
             throw err;
         }
 
-        const activeBatchIds = homeworkBatchIds.filter(bid => allowedBatchIds.includes(bid));
+        const isCreator = Number(homework.created_by) === uid;
+        let activeBatchIds = homeworkBatchIds.filter(bid => allowedBatchIds.includes(bid));
+        if (activeBatchIds.length === 0 && isCreator) {
+            activeBatchIds = homeworkBatchIds;
+        }
 
         // Fetch verified enrolled students in these batches
         const [enrolledStudents] = await pool.query(
