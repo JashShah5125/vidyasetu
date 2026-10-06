@@ -166,6 +166,141 @@ class TeacherScheduleController {
             });
         }
     }
+
+    /**
+     * GET /api/teacher/schedule/history
+     */
+    async getHistory(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const { batchId, startDate, endDate, status } = req.query;
+
+            const history = await teacherScheduleService.getHistory(tenantId, teacherUserId, {
+                batchId,
+                startDate,
+                endDate,
+                status
+            });
+            return res.status(200).json({
+                status: 'success',
+                data: history
+            });
+        } catch (error) {
+            console.error('[TeacherScheduleController.getHistory] error:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: error.message || 'Failed to fetch attendance history.'
+            });
+        }
+    }
+
+    /**
+     * GET /api/teacher/schedule/batch-summary
+     */
+    async getBatchSummary(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+
+            const summary = await teacherScheduleService.getBatchTurnoutSummary(tenantId, teacherUserId);
+            return res.status(200).json({
+                status: 'success',
+                data: summary
+            });
+        } catch (error) {
+            console.error('[TeacherScheduleController.getBatchSummary] error:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: error.message || 'Failed to fetch batch turnout summary.'
+            });
+        }
+    }
+
+    /**
+     * GET /api/teacher/schedule/low-attendance
+     */
+    async getLowAttendance(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const { threshold } = req.query;
+
+            const alerts = await teacherScheduleService.getLowAttendanceAlerts(tenantId, teacherUserId, threshold ? Number(threshold) : 75);
+            return res.status(200).json({
+                status: 'success',
+                data: alerts
+            });
+        } catch (error) {
+            console.error('[TeacherScheduleController.getLowAttendance] error:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: error.message || 'Failed to fetch low attendance alerts.'
+            });
+        }
+    }
+
+    /**
+     * GET /api/teacher/schedule/availability
+     */
+    async getAvailability(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const availability = await teacherScheduleService.getTeacherAvailability(tenantId, teacherUserId);
+            return res.status(200).json({ status: 'success', data: availability });
+        } catch (error) {
+            console.error('[TeacherScheduleController.getAvailability] error:', error);
+            return res.status(500).json({ status: 'error', message: error.message || 'Failed to fetch availability.' });
+        }
+    }
+
+    /**
+     * POST /api/teacher/schedule/availability/weekly
+     */
+    async saveWeeklyAvailability(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const { weeklySlots } = req.body;
+            const updated = await teacherScheduleService.saveWeeklyAvailability(tenantId, teacherUserId, weeklySlots);
+            return res.status(200).json({ status: 'success', message: 'Weekly availability updated successfully', data: updated });
+        } catch (error) {
+            console.error('[TeacherScheduleController.saveWeeklyAvailability] error:', error);
+            return res.status(500).json({ status: 'error', message: error.message || 'Failed to save weekly availability.' });
+        }
+    }
+
+    /**
+     * POST /api/teacher/schedule/availability/exception
+     */
+    async addUnavailableException(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const exception = await teacherScheduleService.addUnavailableDateException(tenantId, teacherUserId, req.body);
+            return res.status(201).json({ status: 'success', message: 'Unavailable date block added', data: exception });
+        } catch (error) {
+            console.error('[TeacherScheduleController.addUnavailableException] error:', error);
+            return res.status(500).json({ status: 'error', message: error.message || 'Failed to add unavailable block.' });
+        }
+    }
+
+    /**
+     * DELETE /api/teacher/schedule/availability/:id
+     */
+    async deleteAvailabilitySlot(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const { id } = req.params;
+            await teacherScheduleService.deleteAvailabilitySlot(tenantId, teacherUserId, id);
+            return res.status(200).json({ status: 'success', message: 'Slot deleted successfully' });
+        } catch (error) {
+            console.error('[TeacherScheduleController.deleteAvailabilitySlot] error:', error);
+            return res.status(500).json({ status: 'error', message: error.message || 'Failed to delete slot.' });
+        }
+    }
 }
 
 module.exports = new TeacherScheduleController();

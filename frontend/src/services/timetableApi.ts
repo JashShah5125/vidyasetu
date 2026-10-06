@@ -16,6 +16,17 @@ export interface TimetableOptions {
   teacherAllocations?: Array<{ id: number; branch_id: number; academic_year_id: number; batch_id: number; teacher_user_id: number }>;
   levelSubjects?: Array<{ id: number; level_id: number; subject_id: number }>;
   teacherSubjects?: Array<{ id: number; teacher_user_id: number; subject_id: number }>;
+  teacherAvailabilities?: Array<{
+    id: number | string;
+    branch_id?: number | null;
+    teacher_user_id: number;
+    day_of_week?: number | null;
+    specific_date?: string | null;
+    start_time: string;
+    end_time: string;
+    is_available: number | boolean;
+    reason?: string | null;
+  }>;
 }
 
 export interface ConflictResult {

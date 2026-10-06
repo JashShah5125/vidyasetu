@@ -18,7 +18,25 @@ export const LectureAttendance: React.FC = () => {
   const { lectureId } = useParams<{ lectureId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addToast } = useApp();
+  const { addToast, currentUser } = useApp();
+  const isTeacher = currentUser?.role?.toLowerCase() === 'teacher' || Boolean(currentUser?.roles?.some((r: string) => r.toLowerCase() === 'teacher'));
+
+  const navState = location.state as {
+    lecture?: AttendanceLecture;
+    date?: string;
+    branch?: string;
+    batch?: string;
+    course?: string;
+  } | null;
+
+  useEffect(() => {
+    if (isTeacher && lectureId) {
+      navigate('/attendance', {
+        replace: true,
+        state: { lectureId, activeLecture: navState?.lecture }
+      });
+    }
+  }, [isTeacher, lectureId, navigate, navState]);
 
   // Student Roster States
   const [rosterRows, setRosterRows] = useState<AttendanceRosterRow[]>([]);
@@ -29,14 +47,6 @@ export const LectureAttendance: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-
-  const navState = location.state as {
-    lecture?: AttendanceLecture;
-    date?: string;
-    branch?: string;
-    batch?: string;
-    course?: string;
-  } | null;
 
   // 1. Fetch Students Roster for Lecture
   const fetchRoster = async () => {

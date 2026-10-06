@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const academicEventModel = require('../models/academicEventModel');
 
 /**
  * Teacher Schedule Service
@@ -204,7 +205,9 @@ class TeacherScheduleService {
                 l.is_modified_from_default,
                 l.attendance_taken,
                 l.attendance_submitted_at,
-                l.attendance_locked_at
+                l.attendance_locked_at,
+                sa.status AS staff_attendance_status,
+                sa.lecture_ids AS staff_attendance_lecture_ids
             FROM lectures l
             LEFT JOIN branches br ON l.branch_id = br.id
             LEFT JOIN academic_years ay ON l.academic_year_id = ay.id
@@ -215,6 +218,8 @@ class TeacherScheduleService {
             LEFT JOIN subjects s ON l.subject_id = s.id
             LEFT JOIN users u ON l.teacher_user_id = u.id
             LEFT JOIN classrooms cr ON l.classroom_id = cr.id
+            LEFT JOIN staff_profiles sp ON sp.user_id = l.teacher_user_id AND sp.tenant_id = l.tenant_id AND sp.deleted_at IS NULL
+            LEFT JOIN staff_attendance sa ON sa.staff_id = sp.id AND sa.date = l.lecture_date
             WHERE l.tenant_id = ?
               AND l.teacher_user_id = ?
               AND l.lecture_date = ?
@@ -246,8 +251,34 @@ class TeacherScheduleService {
             else if (rawType.includes('PROXY') || rawType.includes('SUB')) cardType = 'SUBSTITUTION';
             else if (rawType.includes('ACTIVITY') || rawType.includes('EVENT')) cardType = 'ACTIVITY';
 
+            const lectureId = Number(r.id);
+            let staffLectureIds = [];
+            if (r.staff_attendance_lecture_ids) {
+                try {
+                    staffLectureIds = typeof r.staff_attendance_lecture_ids === 'string'
+                        ? JSON.parse(r.staff_attendance_lecture_ids)
+                        : r.staff_attendance_lecture_ids;
+                } catch (_) {
+                    staffLectureIds = [];
+                }
+            }
+
+            const lectureAttendanceTaken = Boolean(r.attendance_taken || r.attendance_submitted_at);
+            let isTeacherPresent = false;
+            if (r.staff_attendance_status === 0) {
+                isTeacherPresent = false;
+            } else if (Array.isArray(staffLectureIds) && staffLectureIds.length > 0) {
+                isTeacherPresent = staffLectureIds.includes(lectureId) || lectureAttendanceTaken;
+            } else if (r.staff_attendance_status === 1) {
+                isTeacherPresent = true;
+            } else {
+                isTeacherPresent = lectureAttendanceTaken;
+            }
+
             return {
                 id: r.id,
+                date: r.lecture_date,
+                lectureDate: r.lecture_date,
                 startTime: r.start_time,
                 endTime: r.end_time,
                 type: cardType,
@@ -290,14 +321,17 @@ class TeacherScheduleService {
                 status: r.status || 'SCHEDULED',
                 attendance: {
                     required: true,
-                    taken: Boolean(r.attendance_taken || r.attendance_submitted_at),
+                    taken: lectureAttendanceTaken,
                     submittedAt: r.attendance_submitted_at,
                     lockedAt: r.attendance_locked_at
                 },
                 lessonPlan: {
                     available: true,
                     lessonPlanId: null
-                }
+                },
+                attendanceTaken: lectureAttendanceTaken,
+                isTeacherPresent: Boolean(isTeacherPresent),
+                teacherAttendanceStatus: isTeacherPresent ? 'PRESENT' : (r.staff_attendance_status === 0 ? 'ABSENT' : 'NOT_MARKED')
             };
         });
 
@@ -361,7 +395,11 @@ class TeacherScheduleService {
                 l.activity_type,
                 l.slot_label,
                 l.status,
-                l.attendance_taken
+                l.attendance_taken,
+                l.attendance_submitted_at,
+                l.attendance_locked_at,
+                sa.status AS staff_attendance_status,
+                sa.lecture_ids AS staff_attendance_lecture_ids
             FROM lectures l
             LEFT JOIN branches br ON l.branch_id = br.id
             LEFT JOIN batches b ON l.batch_id = b.id
@@ -371,6 +409,8 @@ class TeacherScheduleService {
             LEFT JOIN subjects s ON l.subject_id = s.id
             LEFT JOIN users u ON l.teacher_user_id = u.id
             LEFT JOIN classrooms cr ON l.classroom_id = cr.id
+            LEFT JOIN staff_profiles sp ON sp.user_id = l.teacher_user_id AND sp.tenant_id = l.tenant_id AND sp.deleted_at IS NULL
+            LEFT JOIN staff_attendance sa ON sa.staff_id = sp.id AND sa.date = l.lecture_date
             WHERE l.tenant_id = ?
               AND l.teacher_user_id = ?
               AND l.lecture_date >= ?
@@ -416,6 +456,30 @@ class TeacherScheduleService {
             else if (rawType.includes('PROXY') || rawType.includes('SUB')) cardType = 'SUBSTITUTION';
             else if (rawType.includes('ACTIVITY') || rawType.includes('EVENT')) cardType = 'ACTIVITY';
 
+            const lectureId = Number(r.id);
+            let staffLectureIds = [];
+            if (r.staff_attendance_lecture_ids) {
+                try {
+                    staffLectureIds = typeof r.staff_attendance_lecture_ids === 'string'
+                        ? JSON.parse(r.staff_attendance_lecture_ids)
+                        : r.staff_attendance_lecture_ids;
+                } catch (_) {
+                    staffLectureIds = [];
+                }
+            }
+
+            const lectureAttendanceTaken = Boolean(r.attendance_taken || r.attendance_submitted_at);
+            let isTeacherPresent = false;
+            if (r.staff_attendance_status === 0) {
+                isTeacherPresent = false;
+            } else if (Array.isArray(staffLectureIds) && staffLectureIds.length > 0) {
+                isTeacherPresent = staffLectureIds.includes(lectureId) || lectureAttendanceTaken;
+            } else if (r.staff_attendance_status === 1) {
+                isTeacherPresent = true;
+            } else {
+                isTeacherPresent = lectureAttendanceTaken;
+            }
+
             const d = new Date(r.lecture_date);
             const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
 
@@ -455,7 +519,15 @@ class TeacherScheduleService {
                     code: r.branch_code
                 },
                 status: r.status || 'SCHEDULED',
-                attendanceTaken: Boolean(r.attendance_taken)
+                attendance: {
+                    required: true,
+                    taken: lectureAttendanceTaken,
+                    submittedAt: r.attendance_submitted_at,
+                    lockedAt: r.attendance_locked_at
+                },
+                attendanceTaken: lectureAttendanceTaken,
+                isTeacherPresent: Boolean(isTeacherPresent),
+                teacherAttendanceStatus: isTeacherPresent ? 'PRESENT' : (r.staff_attendance_status === 0 ? 'ABSENT' : 'NOT_MARKED')
             };
         });
 
@@ -483,35 +555,11 @@ class TeacherScheduleService {
      * ACADEMIC EVENTS API
      */
     async getAcademicEvents(tenantId, branchId, academicYearId) {
-        return [
-            {
-                id: 'EVT-101',
-                title: 'Term 1 Mid-Term Assessment Week',
-                type: 'EXAM',
-                startDate: '2026-09-21',
-                endDate: '2026-09-26',
-                description: 'Mid-term practicals and theory evaluations for Foundation & Senior Batches.',
-                venue: 'All Branches'
-            },
-            {
-                id: 'EVT-102',
-                title: 'Gandhi Jayanti (Holiday)',
-                type: 'HOLIDAY',
-                startDate: '2026-10-02',
-                endDate: '2026-10-02',
-                description: 'National holiday. No lectures scheduled.',
-                venue: 'All Branches'
-            },
-            {
-                id: 'EVT-103',
-                title: 'Parent-Teacher Interaction Meet (PTM)',
-                type: 'MEETING',
-                startDate: '2026-10-10',
-                endDate: '2026-10-10',
-                description: 'Bi-monthly academic review with guardians and faculty members.',
-                venue: 'Main Auditorium / Online'
-            }
-        ];
+        const events = await academicEventModel.getEvents(tenantId, {
+            branchId,
+            academicYearId
+        });
+        return events;
     }
 
     /**
@@ -549,6 +597,410 @@ class TeacherScheduleService {
             reason: r.reason || '',
             updatedAt: r.updated_at
         }));
+    }
+
+    /**
+     * HISTORICAL ATTENDANCE: Full history of past lectures for teacher with attendance metrics
+     */
+    async getHistory(tenantId, teacherUserId, filters = {}) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        let query = `
+            SELECT 
+                l.id,
+                l.tenant_id,
+                l.branch_id,
+                br.name AS branch_name,
+                br.code AS branch_code,
+                l.batch_id,
+                b.name AS batch_name,
+                b.code AS batch_code,
+                b.level_id,
+                lvl.name AS level_name,
+                p.id AS program_id,
+                p.name AS program_name,
+                c.id AS course_id,
+                c.name AS course_name,
+                l.subject_id,
+                s.name AS subject_name,
+                s.code AS subject_code,
+                l.teacher_user_id,
+                u.name AS teacher_name,
+                l.classroom_id,
+                cr.name AS room_name,
+                cr.room_number,
+                DATE_FORMAT(l.lecture_date, '%Y-%m-%d') AS lecture_date,
+                TIME_FORMAT(l.start_time, '%H:%i') AS start_time,
+                TIME_FORMAT(l.end_time, '%H:%i') AS end_time,
+                l.topic,
+                l.lecture_type,
+                l.activity_type,
+                l.slot_label,
+                l.status,
+                l.attendance_taken,
+                l.attendance_submitted_at,
+                COUNT(DISTINCT se.student_id) AS total_enrolled,
+                COUNT(DISTINCT ar.student_id) AS total_marked,
+                COUNT(DISTINCT CASE WHEN ar.status = 1 THEN ar.student_id END) AS present_count,
+                COUNT(DISTINCT CASE WHEN ar.status = 2 THEN ar.student_id END) AS late_count,
+                COUNT(DISTINCT CASE WHEN ar.status = 0 THEN ar.student_id END) AS absent_count
+            FROM lectures l
+            LEFT JOIN branches br ON l.branch_id = br.id
+            LEFT JOIN batches b ON l.batch_id = b.id
+            LEFT JOIN levels lvl ON b.level_id = lvl.id
+            LEFT JOIN programs p ON lvl.program_id = p.id
+            LEFT JOIN courses c ON p.course_id = c.id
+            LEFT JOIN subjects s ON l.subject_id = s.id
+            LEFT JOIN users u ON l.teacher_user_id = u.id
+            LEFT JOIN classrooms cr ON l.classroom_id = cr.id
+            LEFT JOIN student_enrollments se ON se.batch_id = l.batch_id AND se.status = 'active' AND se.deleted_at IS NULL
+            LEFT JOIN attendance_records ar ON ar.lecture_id = l.id
+            WHERE l.tenant_id = ?
+              AND l.teacher_user_id = ?
+              AND l.deleted_at IS NULL
+              AND l.status != 'CANCELLED'
+              AND l.lecture_date IS NOT NULL
+        `;
+        const params = [tid, uid];
+
+        if (filters.batchId && filters.batchId !== 'all' && filters.batchId !== 'All') {
+            query += ` AND l.batch_id = ?`;
+            params.push(Number(filters.batchId));
+        }
+
+        if (filters.startDate) {
+            query += ` AND l.lecture_date >= ?`;
+            params.push(filters.startDate);
+        }
+
+        if (filters.endDate) {
+            query += ` AND l.lecture_date <= ?`;
+            params.push(filters.endDate);
+        }
+
+        if (filters.status === 'submitted') {
+            query += ` AND (l.attendance_taken = 1 OR l.attendance_submitted_at IS NOT NULL)`;
+        } else if (filters.status === 'pending') {
+            query += ` AND (l.attendance_taken = 0 AND l.attendance_submitted_at IS NULL)`;
+        }
+
+        query += ` GROUP BY l.id ORDER BY l.lecture_date DESC, l.start_time DESC LIMIT 200`;
+
+        const [rows] = await pool.query(query, params);
+
+        const lectures = rows.map(r => {
+            const enrolled = Number(r.total_enrolled) || 0;
+            const marked = Number(r.total_marked) || 0;
+            const present = Number(r.present_count) || 0;
+            const late = Number(r.late_count) || 0;
+            const absent = Number(r.absent_count) || 0;
+            const isSubmitted = Boolean(r.attendance_taken || r.attendance_submitted_at);
+            const effectiveDenom = enrolled > 0 ? enrolled : marked;
+            const turnoutRate = effectiveDenom > 0 ? Math.round(((present + late) / effectiveDenom) * 100) : 0;
+
+            return {
+                id: r.id,
+                date: r.lecture_date || '',
+                lectureDate: r.lecture_date || '',
+                startTime: r.start_time || '',
+                endTime: r.end_time || '',
+                batch: {
+                    id: r.batch_id,
+                    name: r.batch_name || `Batch #${r.batch_id}`,
+                    code: r.batch_code
+                },
+                level: {
+                    id: r.level_id,
+                    name: r.level_name || 'Class'
+                },
+                subject: {
+                    id: r.subject_id,
+                    name: r.subject_name || 'Subject',
+                    code: r.subject_code
+                },
+                classroom: {
+                    id: r.classroom_id,
+                    name: r.room_name || `Room ${r.room_number || ''}`,
+                    roomNumber: r.room_number
+                },
+                branch: {
+                    id: r.branch_id,
+                    name: r.branch_name || '',
+                    code: r.branch_code
+                },
+                topic: r.topic || '',
+                status: r.status,
+                attendanceTaken: isSubmitted,
+                attendance: {
+                    taken: isSubmitted,
+                    submittedAt: r.attendance_submitted_at
+                },
+                totalEnrolled: enrolled,
+                totalMarked: marked,
+                presentCount: present,
+                lateCount: late,
+                absentCount: absent,
+                turnoutRate
+            };
+        });
+
+        // Summary KPI
+        const totalLectures = lectures.length;
+        const submittedLectures = lectures.filter(l => l.attendanceTaken).length;
+        const pendingLectures = totalLectures - submittedLectures;
+        const submittedList = lectures.filter(l => l.attendanceTaken && (l.totalEnrolled > 0 || l.totalMarked > 0));
+        const avgTurnout = submittedList.length > 0 
+            ? Math.round(submittedList.reduce((acc, l) => acc + l.turnoutRate, 0) / submittedList.length)
+            : 0;
+        const totalPresentStudents = lectures.reduce((acc, l) => acc + l.presentCount, 0);
+
+        return {
+            totalLectures,
+            submittedLectures,
+            pendingLectures,
+            avgTurnout,
+            totalPresentStudents,
+            lectures
+        };
+    }
+
+    /**
+     * BATCH TURNOUT SUMMARY: Aggregate attendance turnouts by batch
+     */
+    async getBatchTurnoutSummary(tenantId, teacherUserId) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        const [rows] = await pool.query(
+            `SELECT 
+                b.id AS batch_id,
+                b.name AS batch_name,
+                b.code AS batch_code,
+                COUNT(DISTINCT l.id) AS total_lectures,
+                COUNT(DISTINCT CASE WHEN l.attendance_taken = 1 OR l.attendance_submitted_at IS NOT NULL THEN l.id END) AS conducted_lectures,
+                COUNT(DISTINCT se.student_id) AS enrolled_students,
+                COUNT(DISTINCT CASE WHEN ar.status = 1 THEN ar.id END) AS total_present_marks,
+                COUNT(DISTINCT CASE WHEN ar.status = 2 THEN ar.id END) AS total_late_marks,
+                COUNT(DISTINCT CASE WHEN ar.status = 0 THEN ar.id END) AS total_absent_marks
+             FROM lectures l
+             JOIN batches b ON l.batch_id = b.id
+             LEFT JOIN student_enrollments se ON se.batch_id = b.id AND se.status = 'active' AND se.deleted_at IS NULL
+             LEFT JOIN attendance_records ar ON ar.lecture_id = l.id
+             WHERE l.tenant_id = ?
+               AND l.teacher_user_id = ?
+               AND l.deleted_at IS NULL
+               AND l.status != 'CANCELLED'
+             GROUP BY b.id, b.name, b.code
+             ORDER BY b.name ASC`,
+            [tid, uid]
+        );
+
+        return rows.map(r => {
+            const totalMarks = Number(r.total_present_marks) + Number(r.total_late_marks) + Number(r.total_absent_marks);
+            const presentTotal = Number(r.total_present_marks) + Number(r.total_late_marks);
+            const turnoutRate = totalMarks > 0 ? Math.round((presentTotal / totalMarks) * 100) : 0;
+
+            return {
+                batchId: r.batch_id,
+                batchName: r.batch_name,
+                batchCode: r.batch_code,
+                totalLectures: Number(r.total_lectures) || 0,
+                conductedLectures: Number(r.conducted_lectures) || 0,
+                enrolledStudents: Number(r.enrolled_students) || 0,
+                turnoutRate
+            };
+        });
+    }
+
+    /**
+     * LOW ATTENDANCE ALERTS: Students in teacher's batches with attendance below threshold (default 75%)
+     */
+    async getLowAttendanceAlerts(tenantId, teacherUserId, threshold = 75) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        const [rows] = await pool.query(
+            `SELECT 
+                s.id AS student_id,
+                s.full_name,
+                s.student_code,
+                s.mobile,
+                b.id AS batch_id,
+                b.name AS batch_name,
+                COUNT(DISTINCT l.id) AS total_lectures,
+                COUNT(DISTINCT CASE WHEN ar.status IN (1, 2) THEN l.id END) AS attended_lectures,
+                ROUND(100 * COUNT(DISTINCT CASE WHEN ar.status IN (1, 2) THEN l.id END) / NULLIF(COUNT(DISTINCT l.id), 0), 1) AS attendance_pct
+             FROM student_enrollments se
+             JOIN students s ON s.id = se.student_id AND s.deleted_at IS NULL
+             JOIN batches b ON se.batch_id = b.id
+             JOIN lectures l ON l.batch_id = b.id AND l.tenant_id = ? AND l.teacher_user_id = ? AND (l.attendance_taken = 1 OR l.attendance_submitted_at IS NOT NULL) AND l.deleted_at IS NULL
+             LEFT JOIN attendance_records ar ON ar.lecture_id = l.id AND ar.student_id = s.id
+             WHERE se.tenant_id = ? AND se.status = 'active' AND se.deleted_at IS NULL
+             GROUP BY s.id, s.full_name, s.student_code, s.mobile, b.id, b.name
+             HAVING total_lectures >= 1 AND attendance_pct < ?
+             ORDER BY attendance_pct ASC`,
+            [tid, uid, tid, Number(threshold)]
+        );
+
+        return rows.map(r => ({
+            studentId: r.student_id,
+            fullName: r.full_name,
+            studentCode: r.student_code,
+            mobile: r.mobile,
+            batchId: r.batch_id,
+            batchName: r.batch_name,
+            totalLectures: Number(r.total_lectures) || 0,
+            attendedLectures: Number(r.attended_lectures) || 0,
+            attendancePct: Number(r.attendance_pct) || 0
+        }));
+    }
+
+    /**
+     * TEACHER AVAILABILITY: Get weekly standard schedule and specific date exceptions
+     */
+    async getTeacherAvailability(tenantId, teacherUserId) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        const [rows] = await pool.query(
+            `SELECT id, branch_id, teacher_user_id, day_of_week,
+                    DATE_FORMAT(specific_date, '%Y-%m-%d') AS specific_date,
+                    TIME_FORMAT(start_time, '%H:%i') AS start_time,
+                    TIME_FORMAT(end_time, '%H:%i') AS end_time,
+                    is_available, reason, created_at
+             FROM teacher_availability
+             WHERE tenant_id = ? AND teacher_user_id = ? AND deleted_at IS NULL
+             ORDER BY day_of_week ASC, start_time ASC`,
+            [tid, uid]
+        );
+
+        const weeklyRows = rows.filter(r => !r.specific_date);
+        const exceptions = rows.filter(r => Boolean(r.specific_date));
+
+        // Default 7 days template (Mon-Sat 09:00-17:00, Sun off) if no weekly rows saved yet
+        const DAYS = [
+            { dayOfWeek: 1, dayName: 'Monday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+            { dayOfWeek: 2, dayName: 'Tuesday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+            { dayOfWeek: 3, dayName: 'Wednesday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+            { dayOfWeek: 4, dayName: 'Thursday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+            { dayOfWeek: 5, dayName: 'Friday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+            { dayOfWeek: 6, dayName: 'Saturday', isAvailable: true, startTime: '09:00', endTime: '14:00' },
+            { dayOfWeek: 7, dayName: 'Sunday', isAvailable: false, startTime: '09:00', endTime: '17:00' }
+        ];
+
+        const weekly = DAYS.map(d => {
+            const existing = weeklyRows.find(w => Number(w.day_of_week) === d.dayOfWeek);
+            if (existing) {
+                return {
+                    id: existing.id,
+                    dayOfWeek: d.dayOfWeek,
+                    dayName: d.dayName,
+                    isAvailable: Boolean(existing.is_available),
+                    startTime: existing.start_time || '09:00',
+                    endTime: existing.end_time || '17:00'
+                };
+            }
+            return d;
+        });
+
+        return {
+            weekly,
+            exceptions: exceptions.map(e => ({
+                id: e.id,
+                specificDate: e.specific_date,
+                startTime: e.start_time,
+                endTime: e.end_time,
+                isAvailable: Boolean(e.is_available),
+                reason: e.reason || 'Personal Leave',
+                createdAt: e.created_at
+            }))
+        };
+    }
+
+    /**
+     * TEACHER AVAILABILITY: Save/replace standard recurring weekly hours
+     */
+    async saveWeeklyAvailability(tenantId, teacherUserId, weeklySlots) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        // Delete existing weekly recurring slots (where specific_date IS NULL)
+        await pool.query(
+            `DELETE FROM teacher_availability
+             WHERE tenant_id = ? AND teacher_user_id = ? AND specific_date IS NULL`,
+            [tid, uid]
+        );
+
+        if (Array.isArray(weeklySlots) && weeklySlots.length > 0) {
+            for (const slot of weeklySlots) {
+                const dayOfWeek = Number(slot.dayOfWeek);
+                const startTime = slot.startTime ? slot.startTime.slice(0, 5) : '09:00';
+                const endTime = slot.endTime ? slot.endTime.slice(0, 5) : '17:00';
+                const isAvailable = slot.isAvailable ? 1 : 0;
+
+                await pool.query(
+                    `INSERT INTO teacher_availability 
+                     (tenant_id, teacher_user_id, day_of_week, start_time, end_time, is_available, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [tid, uid, dayOfWeek, startTime, endTime, isAvailable, uid]
+                );
+            }
+        }
+
+        return this.getTeacherAvailability(tid, uid);
+    }
+
+    /**
+     * TEACHER AVAILABILITY: Add specific unavailable date block / exception
+     */
+    async addUnavailableDateException(tenantId, teacherUserId, payload) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+        const { specificDate, startTime = '00:00', endTime = '23:59', reason = 'Leave / Unavailable', branchId = null } = payload;
+
+        if (!specificDate) {
+            throw new Error('specificDate is required');
+        }
+
+        const dateObj = new Date(specificDate);
+        // getDay: 0 is Sun, 1 is Mon... convert to 1=Mon..7=Sun
+        const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay();
+
+        const sTime = startTime.length === 5 ? `${startTime}:00` : startTime;
+        const eTime = endTime.length === 5 ? `${endTime}:00` : endTime;
+
+        const [res] = await pool.query(
+            `INSERT INTO teacher_availability
+             (tenant_id, branch_id, teacher_user_id, day_of_week, specific_date, start_time, end_time, is_available, reason, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+            [tid, branchId ? Number(branchId) : null, uid, dayOfWeek, specificDate, sTime, eTime, reason, uid]
+        );
+
+        return {
+            id: res.insertId,
+            specificDate,
+            startTime: sTime.slice(0, 5),
+            endTime: eTime.slice(0, 5),
+            isAvailable: false,
+            reason
+        };
+    }
+
+    /**
+     * TEACHER AVAILABILITY: Delete availability slot / exception
+     */
+    async deleteAvailabilitySlot(tenantId, teacherUserId, slotId) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        await pool.query(
+            `DELETE FROM teacher_availability
+             WHERE id = ? AND tenant_id = ? AND teacher_user_id = ?`,
+            [Number(slotId), tid, uid]
+        );
+
+        return { success: true };
     }
 }
 

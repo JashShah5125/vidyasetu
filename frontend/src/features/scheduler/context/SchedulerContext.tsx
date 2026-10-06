@@ -236,7 +236,7 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Failed to cancel lecture on API:', err);
     }
 
-    setLectures(prev => prev.map(l => l.id === id ? { ...l, status: 'CANCELLED' } : l));
+    setLectures(prev => prev.map(l => String(l.id) === String(id) ? { ...l, status: 'CANCELLED' } : l));
   };
 
   // Publish lectures

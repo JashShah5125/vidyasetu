@@ -41,6 +41,7 @@ const bundleRoutes = require('./routes/bundleRoutes');
 const feeRoutes = require('./routes/feeRoutes');
 const classroomRoutes = require('./routes/classroomRoutes');
 const instituteRoutes = require('./routes/instituteRoutes');
+const academicEventRoutes = require('./routes/academicEventRoutes');
 const staffRoutes = require('./routes/staffRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
@@ -126,6 +127,8 @@ app.use('/api/institute/support', supportRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/admin/roles', roleRoutes);
 app.use('/api/institute', instituteRoutes);
+app.use('/api/academic-events', academicEventRoutes);
+app.use('/api/institute/academic-events', academicEventRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

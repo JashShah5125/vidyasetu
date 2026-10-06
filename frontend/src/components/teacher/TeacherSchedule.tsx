@@ -2,12 +2,13 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { Select } from '../ui/Select';
+import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
 import {
   Calendar as CalendarIcon, MapPin, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Download, MessageSquare, AlertCircle, RefreshCw,
-  Layers, Award, CheckCircle, Eye
+  Layers, Award, CheckCircle, Eye, Trash2, Plus, Info, Save, ShieldAlert, Check, X
 } from 'lucide-react';
 import { TimetableGrid } from '../../features/scheduler/components/TimetableGrid';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
@@ -16,7 +17,9 @@ import {
   type TeacherScheduleLecture,
   type TeacherScheduleOptions,
   type AcademicEvent,
-  type ScheduleChangeItem
+  type ScheduleChangeItem,
+  type WeeklyAvailabilityDay,
+  type UnavailableDateException
 } from '../../services/teacherScheduleApi';
 import { lectureRequestApi } from '../../services/lectureRequestApi';
 import { RequestChangeModal } from './RequestChangeModal';
@@ -65,10 +68,23 @@ const timeToMinutes = (timeStr: string): number => {
   return h * 60 + m;
 };
 
+const formatDisplayTime = (timeStr?: string | null): string => {
+  if (!timeStr) return '--:--';
+  const clean = timeStr.slice(0, 5);
+  const parts = clean.split(':');
+  if (parts.length < 2) return timeStr;
+  let h = parseInt(parts[0], 10);
+  const m = parts[1];
+  if (isNaN(h)) return timeStr;
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${period}`;
+};
+
 const formatHourLabel = (hour: number): string => {
   const period = hour >= 12 && hour < 24 ? 'PM' : 'AM';
   const displayH = hour % 12 === 0 ? 12 : hour % 12;
-  return `${String(displayH).padStart(2, '0')}:00 ${period}`;
+  return `${displayH}:00 ${period}`;
 };
 
 export const TeacherSchedule: React.FC = () => {
@@ -76,7 +92,99 @@ export const TeacherSchedule: React.FC = () => {
   const navigate = useNavigate();
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'events' | 'changes'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'events' | 'changes' | 'availability'>('today');
+
+  // Availability State
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [savingWeekly, setSavingWeekly] = useState(false);
+  const [addingException, setAddingException] = useState(false);
+  const [weeklyAvailability, setWeeklyAvailability] = useState<WeeklyAvailabilityDay[]>([
+    { dayOfWeek: 1, dayName: 'Monday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+    { dayOfWeek: 2, dayName: 'Tuesday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+    { dayOfWeek: 3, dayName: 'Wednesday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+    { dayOfWeek: 4, dayName: 'Thursday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+    { dayOfWeek: 5, dayName: 'Friday', isAvailable: true, startTime: '09:00', endTime: '17:00' },
+    { dayOfWeek: 6, dayName: 'Saturday', isAvailable: true, startTime: '09:00', endTime: '14:00' },
+    { dayOfWeek: 7, dayName: 'Sunday', isAvailable: false, startTime: '09:00', endTime: '17:00' }
+  ]);
+  const [dateExceptions, setDateExceptions] = useState<UnavailableDateException[]>([]);
+
+  // New Exception Form State
+  const [newExcDate, setNewExcDate] = useState(() => formatLocalDate(new Date()));
+  const [newExcStartTime, setNewExcStartTime] = useState('09:00');
+  const [newExcEndTime, setNewExcEndTime] = useState('18:00');
+  const [newExcAllDay, setNewExcAllDay] = useState(false);
+  const [newExcReason, setNewExcReason] = useState('Personal Leave');
+
+  const fetchAvailability = useCallback(async () => {
+    setAvailabilityLoading(true);
+    try {
+      const res = await teacherScheduleApi.getAvailability();
+      if (res?.weekly?.length) {
+        setWeeklyAvailability(res.weekly);
+      }
+      if (res?.exceptions) {
+        setDateExceptions(res.exceptions);
+      }
+    } catch (err) {
+      console.error('Failed to load teacher availability:', err);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'availability') {
+      fetchAvailability();
+    }
+  }, [activeTab, fetchAvailability]);
+
+  const handleSaveWeeklyHours = async () => {
+    setSavingWeekly(true);
+    try {
+      const res = await teacherScheduleApi.saveWeeklyAvailability(weeklyAvailability);
+      if (res?.weekly) setWeeklyAvailability(res.weekly);
+      addToast('Weekly teaching hours updated successfully!', 'success');
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to save weekly hours.', 'error');
+    } finally {
+      setSavingWeekly(false);
+    }
+  };
+
+  const handleAddException = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExcDate) {
+      addToast('Please select a date', 'error');
+      return;
+    }
+    setAddingException(true);
+    try {
+      await teacherScheduleApi.addUnavailableException({
+        specificDate: newExcDate,
+        startTime: newExcAllDay ? '00:00' : newExcStartTime,
+        endTime: newExcAllDay ? '23:59' : newExcEndTime,
+        reason: newExcReason || 'Unavailable'
+      });
+      addToast('Unavailable date block added successfully!', 'success');
+      fetchAvailability();
+      setNewExcReason('Personal Leave');
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to add date exception', 'error');
+    } finally {
+      setAddingException(false);
+    }
+  };
+
+  const handleDeleteException = async (id: number | string) => {
+    try {
+      await teacherScheduleApi.deleteAvailability(id);
+      addToast('Unavailable block removed', 'success');
+      setDateExceptions(prev => prev.filter(e => e.id !== id));
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to remove slot', 'error');
+    }
+  };
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -493,6 +601,21 @@ export const TeacherSchedule: React.FC = () => {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('availability')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors ${
+              activeTab === 'availability'
+                ? 'border-blue-600 text-blue-700 bg-blue-50/40'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            <CalendarIcon className="w-4 h-4 text-emerald-600" /> MY AVAILABILITY
+            {dateExceptions.length > 0 && (
+              <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5">
+                {dateExceptions.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {activeTab === 'week' && (
@@ -615,164 +738,173 @@ export const TeacherSchedule: React.FC = () => {
                 </div>
 
                 {/* Timeline Rail Container */}
-                <div className="overflow-x-auto pb-3 pt-1">
-                  <div className="min-w-[950px] relative">
-                    {/* 1. Time Axis Header Row */}
-                    <div className="relative h-7 border-b border-slate-200 flex items-center select-none">
-                      {timelineBounds.hours.map(hour => {
-                        const percent = ((hour * 60 - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
-                        return (
+                <div className="overflow-x-auto pb-4 pt-1">
+                  <div
+                    className="px-10"
+                    style={{ minWidth: `${Math.max(1260, (timelineBounds.hours.length - 1) * 140 + 80)}px` }}
+                  >
+                    <div className="relative">
+                      {/* 1. Time Axis Header Row */}
+                      <div className="relative h-8 border-b border-slate-200/90 flex items-center select-none">
+                        {timelineBounds.hours.map(hour => {
+                          const percent = ((hour * 60 - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
+                          return (
+                            <div
+                              key={hour}
+                              className="absolute -translate-x-1/2 flex flex-col items-center select-none z-10"
+                              style={{ left: `${percent}%` }}
+                            >
+                              <span className="text-[11px] font-bold text-slate-700 whitespace-nowrap bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                                {formatHourLabel(hour)}
+                              </span>
+                              <span className="w-0.5 h-2 bg-slate-300 mt-0.5" />
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* 2. Timeline Grid & Flight Path Lane */}
+                      <div className="relative min-h-[170px] my-3 rounded-2xl bg-gradient-to-b from-slate-50/90 to-slate-100/60 border border-slate-200/90 p-3 pt-4 overflow-hidden shadow-inner">
+                        {/* Background Vertical Hour Grid Lines */}
+                        {timelineBounds.hours.map(hour => {
+                          const percent = ((hour * 60 - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
+                          return (
+                            <div
+                              key={`grid-${hour}`}
+                              className="absolute top-0 bottom-0 border-r border-slate-200/60 pointer-events-none"
+                              style={{ left: `${percent}%` }}
+                            />
+                          );
+                        })}
+
+                        {/* Real-time "NOW" Vertical Indicator Line */}
+                        {isDateToday && nowMinutes >= timelineBounds.startMin && nowMinutes <= timelineBounds.endMin && (
                           <div
-                            key={hour}
-                            className="absolute text-[11px] font-bold text-slate-500 -translate-x-1/2 flex flex-col items-center"
-                            style={{ left: `${percent}%` }}
-                          >
-                            <span>{formatHourLabel(hour)}</span>
-                            <span className="w-0.5 h-1.5 bg-slate-300 mt-0.5" />
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* 2. Timeline Grid & Flight Path Lane */}
-                    <div className="relative min-h-[165px] my-3 rounded-2xl bg-gradient-to-b from-slate-50/90 to-slate-100/60 border border-slate-200/90 p-3 pt-4 overflow-hidden shadow-inner">
-                      {/* Background Vertical Hour Grid Lines */}
-                      {timelineBounds.hours.map(hour => {
-                        const percent = ((hour * 60 - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
-                        return (
-                          <div
-                            key={`grid-${hour}`}
-                            className="absolute top-0 bottom-0 border-r border-slate-200/60 pointer-events-none"
-                            style={{ left: `${percent}%` }}
-                          />
-                        );
-                      })}
-
-                      {/* Real-time "NOW" Vertical Indicator Line */}
-                      {isDateToday && nowMinutes >= timelineBounds.startMin && nowMinutes <= timelineBounds.endMin && (
-                        <div
-                          className="absolute top-0 bottom-0 z-20 pointer-events-none flex flex-col items-center"
-                          style={{
-                            left: `${((nowMinutes - timelineBounds.startMin) / timelineBounds.totalDuration) * 100}%`
-                          }}
-                        >
-                          <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full shadow-md mt-1 tracking-wider uppercase ring-2 ring-white">
-                            NOW
-                          </span>
-                          <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500 to-rose-600 shadow-sm mt-0.5" />
-                        </div>
-                      )}
-
-                      {/* Free Period Gaps (Empty spaces between classes) */}
-                      {sortedTodayLectures.map((lec, idx) => {
-                        if (idx === sortedTodayLectures.length - 1) return null;
-                        const nextLec = sortedTodayLectures[idx + 1];
-                        const gapStart = timeToMinutes(lec.endTime);
-                        const gapEnd = timeToMinutes(nextLec.startTime);
-                        const gapDuration = gapEnd - gapStart;
-
-                        if (gapDuration < 20) return null;
-
-                        const leftPct = ((gapStart - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
-                        const widthPct = (gapDuration / timelineBounds.totalDuration) * 100;
-
-                        return (
-                          <div
-                            key={`gap-${idx}`}
-                            className="absolute top-3 bottom-3 rounded-xl border border-dashed border-slate-300 bg-white/60 backdrop-blur-2xs flex items-center justify-center text-center p-2 transition-all hover:bg-white/80 shadow-2xs"
-                            style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                          >
-                            <span className="text-[10px] font-extrabold text-slate-400 tracking-tight select-none">
-                              Free Gap • {gapDuration}m
-                            </span>
-                          </div>
-                        );
-                      })}
-
-                      {/* Class Blocks */}
-                      {sortedTodayLectures.map(lecture => {
-                        const state = getLectureLiveState(lecture);
-                        const sMin = timeToMinutes(lecture.startTime);
-                        const eMin = timeToMinutes(lecture.endTime);
-                        const duration = eMin - sMin;
-
-                        const leftPct = ((sMin - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
-                        const widthPct = (duration / timelineBounds.totalDuration) * 100;
-                        const isSub = lecture.type === 'SUBSTITUTION';
-                        const isLab = lecture.type === 'LAB';
-
-                        return (
-                          <div
-                            key={lecture.id}
-                            onClick={() => setSelectedGridLecture(lecture)}
-                            className={`absolute top-2.5 bottom-2.5 rounded-xl p-3 flex flex-col justify-between cursor-pointer transition-colors z-10 select-none shadow-xs hover:border-slate-300 ${
-                              state === 'COMPLETED'
-                                ? 'bg-slate-50/95 border border-slate-200/90 text-slate-700'
-                                : state === 'LIVE'
-                                ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/70 border-2 border-emerald-500 text-emerald-950 shadow-emerald-500/15'
-                                : state === 'UP_NEXT'
-                                ? 'bg-gradient-to-br from-blue-50 to-blue-100/70 border-2 border-blue-500 text-blue-950 shadow-blue-500/15'
-                                : isSub
-                                ? 'bg-gradient-to-br from-amber-50 to-amber-100/70 border-2 border-amber-400 text-amber-950'
-                                : isLab
-                                ? 'bg-gradient-to-br from-blue-50/80 to-white border border-blue-200 text-slate-800'
-                                : 'bg-white border border-slate-200/90 text-slate-800'
-                            }`}
+                            className="absolute top-0 bottom-0 z-20 pointer-events-none flex flex-col items-center"
                             style={{
-                              left: `${leftPct}%`,
-                              width: `${Math.max(10, widthPct)}%`,
-                              minWidth: '155px'
+                              left: `${((nowMinutes - timelineBounds.startMin) / timelineBounds.totalDuration) * 100}%`
                             }}
                           >
-                            {/* Top Metric Header: Status Pill & Dot */}
-                            <div className="flex items-center justify-between gap-1">
-                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                                state === 'LIVE'
-                                  ? 'bg-emerald-600 text-white shadow-2xs'
-                                  : state === 'UP_NEXT'
-                                  ? 'bg-blue-600 text-white shadow-2xs'
-                                  : state === 'COMPLETED'
-                                  ? 'bg-slate-200 text-slate-700'
-                                  : isSub
-                                  ? 'bg-amber-200 text-amber-900'
-                                  : 'bg-slate-200/80 text-slate-700'
-                              }`}>
-                                {state === 'LIVE' ? 'LIVE NOW' : state === 'UP_NEXT' ? 'UP NEXT' : state === 'COMPLETED' ? 'COMPLETED' : isSub ? 'PROXY' : 'LATER'}
-                              </span>
-
-                              {isSub && (
-                                <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300">
-                                  Sub
-                                </span>
-                              )}
-                            </div>
-
-                            {/* 4 Core Metrics: Subject, Batch, Room, Timing */}
-                            <div className="my-1">
-                              {/* 1. Subject */}
-                              <div className="font-extrabold text-xs sm:text-sm text-slate-900 truncate leading-snug" title={lecture.subject.name}>
-                                {lecture.subject.name}
-                              </div>
-                              {/* 2. Batch */}
-                              <div className="text-[11px] font-bold text-blue-700 truncate leading-tight mt-0.5" title={lecture.batch.name}>
-                                {lecture.batch.name}
-                              </div>
-                              {/* 3. Room */}
-                              <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5" title={lecture.classroom.name}>
-                                <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                <span className="truncate">{lecture.classroom.name}</span>
-                              </div>
-                            </div>
-
-                            {/* 4. Timing */}
-                            <div className="text-[10px] font-bold text-slate-600 border-t border-slate-200/60 pt-1 flex items-center justify-between">
-                              <span>{lecture.startTime} – {lecture.endTime}</span>
-                              {state === 'COMPLETED' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                              {state === 'LIVE' && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
-                            </div>
+                            <span className="bg-rose-600 text-white font-black text-[9px] px-2 py-0.5 rounded-full shadow-md mt-1 tracking-wider uppercase ring-2 ring-white">
+                              NOW
+                            </span>
+                            <div className="w-0.5 flex-1 bg-gradient-to-b from-rose-500 to-rose-600 shadow-sm mt-0.5" />
                           </div>
-                        );
-                      })}
+                        )}
+
+                        {/* Free Period Gaps (Empty spaces between classes) */}
+                        {sortedTodayLectures.map((lec, idx) => {
+                          if (idx === sortedTodayLectures.length - 1) return null;
+                          const nextLec = sortedTodayLectures[idx + 1];
+                          const gapStart = timeToMinutes(lec.endTime);
+                          const gapEnd = timeToMinutes(nextLec.startTime);
+                          const gapDuration = gapEnd - gapStart;
+
+                          if (gapDuration < 20) return null;
+
+                          const leftPct = ((gapStart - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
+                          const widthPct = (gapDuration / timelineBounds.totalDuration) * 100;
+
+                          return (
+                            <div
+                              key={`gap-${idx}`}
+                              className="absolute top-3 bottom-3 rounded-xl border border-dashed border-slate-300 bg-white/60 backdrop-blur-2xs flex items-center justify-center text-center p-2 transition-all hover:bg-white/80 shadow-2xs"
+                              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                            >
+                              <span className="text-[10px] font-extrabold text-slate-400 tracking-tight select-none">
+                                Free Gap • {gapDuration}m
+                              </span>
+                            </div>
+                          );
+                        })}
+
+                        {/* Class Blocks */}
+                        {sortedTodayLectures.map(lecture => {
+                          const state = getLectureLiveState(lecture);
+                          const sMin = timeToMinutes(lecture.startTime);
+                          const eMin = timeToMinutes(lecture.endTime);
+                          const duration = eMin - sMin;
+
+                          const leftPct = ((sMin - timelineBounds.startMin) / timelineBounds.totalDuration) * 100;
+                          const widthPct = (duration / timelineBounds.totalDuration) * 100;
+                          const isSub = lecture.type === 'SUBSTITUTION';
+                          const isLab = lecture.type === 'LAB';
+
+                          return (
+                            <div
+                              key={lecture.id}
+                              onClick={() => setSelectedGridLecture(lecture)}
+                              className={`absolute top-2.5 bottom-2.5 rounded-xl p-3 flex flex-col justify-between cursor-pointer transition-colors z-10 select-none shadow-xs hover:border-slate-300 ${
+                                state === 'COMPLETED'
+                                  ? 'bg-slate-50/95 border border-slate-200/90 text-slate-700'
+                                  : state === 'LIVE'
+                                  ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/70 border-2 border-emerald-500 text-emerald-950 shadow-emerald-500/15'
+                                  : state === 'UP_NEXT'
+                                  ? 'bg-gradient-to-br from-blue-50 to-blue-100/70 border-2 border-blue-500 text-blue-950 shadow-blue-500/15'
+                                  : isSub
+                                  ? 'bg-gradient-to-br from-amber-50 to-amber-100/70 border-2 border-amber-400 text-amber-950'
+                                  : isLab
+                                  ? 'bg-gradient-to-br from-blue-50/80 to-white border border-blue-200 text-slate-800'
+                                  : 'bg-white border border-slate-200/90 text-slate-800'
+                              }`}
+                              style={{
+                                left: `${leftPct}%`,
+                                width: `${widthPct}%`
+                              }}
+                            >
+                              {/* Top Metric Header: Status Pill & Dot */}
+                              <div className="flex items-center justify-between gap-1">
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                  state === 'LIVE'
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : state === 'UP_NEXT'
+                                    ? 'bg-blue-600 text-white shadow-2xs'
+                                    : state === 'COMPLETED'
+                                    ? 'bg-slate-200 text-slate-700'
+                                    : isSub
+                                    ? 'bg-amber-200 text-amber-900'
+                                    : 'bg-slate-200/80 text-slate-700'
+                                }`}>
+                                  {state === 'LIVE' ? 'LIVE NOW' : state === 'UP_NEXT' ? 'UP NEXT' : state === 'COMPLETED' ? 'COMPLETED' : isSub ? 'PROXY' : 'LATER'}
+                                </span>
+
+                                {isSub && (
+                                  <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300">
+                                    Sub
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* 4 Core Metrics: Subject, Batch, Room, Timing */}
+                              <div className="my-1">
+                                {/* 1. Subject */}
+                                <div className="font-extrabold text-xs sm:text-sm text-slate-900 truncate leading-snug" title={lecture.subject.name}>
+                                  {lecture.subject.name}
+                                </div>
+                                {/* 2. Batch */}
+                                <div className="text-[11px] font-bold text-blue-700 truncate leading-tight mt-0.5" title={lecture.batch.name}>
+                                  {lecture.batch.name}
+                                </div>
+                                {/* 3. Room */}
+                                <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5" title={lecture.classroom.name}>
+                                  <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                  <span className="truncate">{lecture.classroom.name}</span>
+                                </div>
+                              </div>
+
+                              {/* 4. Timing */}
+                              <div className="text-[10px] sm:text-[10.5px] font-bold text-slate-800 bg-slate-100/90 px-2 py-1 rounded-md border border-slate-200/80 mt-1 flex items-center justify-between gap-1.5 w-full min-w-0 overflow-hidden">
+                                <span className="flex items-center gap-1.5 whitespace-nowrap min-w-0 truncate">
+                                  <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                                  <span className="truncate">{formatDisplayTime(lecture.startTime)} – {formatDisplayTime(lecture.endTime)}</span>
+                                </span>
+                                {state === 'COMPLETED' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                {state === 'LIVE' && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1072,6 +1204,231 @@ export const TeacherSchedule: React.FC = () => {
         </div>
       )}
 
+      {/* ── 5. TAB 5: MY AVAILABILITY & WORKING HOURS ── */}
+      {activeTab === 'availability' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header Info Banner */}
+          <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white rounded-2xl border border-blue-100 p-5 shadow-2xs">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+                <CalendarIcon className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    Faculty Availability & Working Hours
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Set your standard recurring teaching hours and mark specific unavailable dates or leave exceptions.
+                  When Institute or Branch Administrators schedule lectures, the timetable engine checks your availability in real time and alerts them of any scheduling conflicts.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* LEFT COLUMN: Weekly Recurring Schedule (7 cols) */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-extrabold text-sm sm:text-base text-slate-900">Weekly Standard Hours</h4>
+                  <p className="text-xs text-slate-500 font-medium">Recurring teaching hours applied across your weekly timetable</p>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSaveWeeklyHours}
+                  disabled={savingWeekly}
+                  className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
+                >
+                  <Save className="w-3.5 h-3.5 mr-1.5" /> {savingWeekly ? 'Saving...' : 'Save Hours'}
+                </Button>
+              </div>
+
+              {availabilityLoading ? (
+                <div className="py-12 flex justify-center items-center text-slate-400">
+                  <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {weeklyAvailability.map((slot, idx) => (
+                    <div key={slot.dayOfWeek} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 p-2 rounded-xl transition-colors">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...weeklyAvailability];
+                            updated[idx] = { ...updated[idx], isAvailable: !updated[idx].isAvailable };
+                            setWeeklyAvailability(updated);
+                          }}
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                            slot.isAvailable ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
+                          }`}
+                        >
+                          <span className="w-4 h-4 rounded-full bg-white shadow-xs" />
+                        </button>
+                        <span className="text-xs font-bold text-slate-800 w-24">
+                          {slot.dayName}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          slot.isAvailable ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {slot.isAvailable ? 'Available' : 'Day Off'}
+                        </span>
+                      </div>
+
+                      {slot.isAvailable ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={slot.startTime}
+                            onChange={(e) => {
+                              const updated = [...weeklyAvailability];
+                              updated[idx] = { ...updated[idx], startTime: e.target.value };
+                              setWeeklyAvailability(updated);
+                            }}
+                            className="text-xs font-semibold px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-slate-400 font-bold">to</span>
+                          <input
+                            type="time"
+                            value={slot.endTime}
+                            onChange={(e) => {
+                              const updated = [...weeklyAvailability];
+                              updated[idx] = { ...updated[idx], endTime: e.target.value };
+                              setWeeklyAvailability(updated);
+                            }}
+                            className="text-xs font-semibold px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No lectures can be scheduled</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT COLUMN: Specific Unavailable Date Blocks / Leaves (5 cols) */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Form Card to Block Out a Date */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
+                <div className="border-b border-slate-100 pb-2.5">
+                  <h4 className="font-extrabold text-sm sm:text-base text-slate-900">Mark Unavailable Slot</h4>
+                  <p className="text-xs text-slate-500 font-medium">Add one-off leave or specific blocked hours</p>
+                </div>
+
+                <form onSubmit={handleAddException} className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1">Date</label>
+                    <Input
+                      type="date"
+                      value={newExcDate}
+                      onChange={(e) => setNewExcDate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-0.5">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={newExcAllDay}
+                        onChange={(e) => setNewExcAllDay(e.target.checked)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>All Day Unavailable</span>
+                    </label>
+                  </div>
+
+                  {!newExcAllDay && (
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-slate-600 font-bold mb-1">Start Time</label>
+                        <Input
+                          type="time"
+                          value={newExcStartTime}
+                          onChange={(e) => setNewExcStartTime(e.target.value)}
+                          required={!newExcAllDay}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-600 font-bold mb-1">End Time</label>
+                        <Input
+                          type="time"
+                          value={newExcEndTime}
+                          onChange={(e) => setNewExcEndTime(e.target.value)}
+                          required={!newExcAllDay}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-slate-600 font-bold mb-1">Reason (Optional)</label>
+                    <Input
+                      placeholder="e.g. Personal Leave, Medical Appointment, Seminar"
+                      value={newExcReason}
+                      onChange={(e) => setNewExcReason(e.target.value)}
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={addingException}
+                    className="w-full text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs mt-1"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" /> {addingException ? 'Saving...' : 'Add Unavailable Slot'}
+                  </Button>
+                </form>
+              </div>
+
+              {/* Active Exceptions List */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-700">Upcoming Unavailable Blocks</h4>
+                  <span className="text-xs text-slate-400 font-semibold">{dateExceptions.length} active</span>
+                </div>
+
+                {dateExceptions.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-4 text-center">
+                    No specific date blocks active. You are scheduled according to your weekly hours.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto pr-1">
+                    {dateExceptions.map((exc) => (
+                      <div key={exc.id} className="py-2.5 flex items-center justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-slate-900">{exc.specificDate}</span>
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-200">
+                              {exc.startTime === '00:00' && exc.endTime === '23:59' ? 'All Day' : `${exc.startTime} – ${exc.endTime}`}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 truncate max-w-[200px]">{exc.reason}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteException(exc.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Remove Block"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 8. TEACHER REQUEST DETAIL MODAL ── */}
       {selectedRequestDetail && (
         <Modal
@@ -1189,7 +1546,7 @@ export const TeacherSchedule: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                 <span className="text-slate-400 block font-semibold">Time</span>
-                <span className="font-bold text-slate-800">{selectedGridLecture.startTime} - {selectedGridLecture.endTime}</span>
+                <span className="font-bold text-slate-800">{formatDisplayTime(selectedGridLecture.startTime)} – {formatDisplayTime(selectedGridLecture.endTime)}</span>
               </div>
               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                 <span className="text-slate-400 block font-semibold">Batch</span>
@@ -1223,11 +1580,24 @@ export const TeacherSchedule: React.FC = () => {
                 variant="primary"
                 size="sm"
                 onClick={() => {
-                  navigate(`/attendance/lecture/${selectedGridLecture.id}`);
+                  const lec = selectedGridLecture;
+                  setSelectedGridLecture(null);
+                  navigate('/attendance', {
+                    state: {
+                      activeLecture: {
+                        ...lec,
+                        date: lec.date || (lec as any).lectureDate,
+                        lectureDate: (lec as any).lectureDate || lec.date
+                      },
+                      branch: lec.branch?.name,
+                      batch: lec.batch?.name,
+                      date: lec.date || (lec as any).lectureDate
+                    }
+                  });
                 }}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer"
               >
-                <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Roll Call Attendance
+                <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Mark Attendance
               </Button>
             </div>
           </div>

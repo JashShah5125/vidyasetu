@@ -7,6 +7,7 @@ import {
   BookOpen,
   GraduationCap,
   Calendar,
+  CalendarDays,
   CheckSquare,
   DollarSign,
   MessageSquare,
@@ -135,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
                 groupLabel: 'Templates',
                 groupIcon: MailOpen,
                 links: [
+                  { name: 'All Templates', label: 'All Templates', path: '/templates', icon: MailOpen },
                   { name: 'SMS Templates', label: 'SMS Templates', path: '/sms-templates', icon: Smartphone },
                   { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail },
                   { name: 'WhatsApp Templates', label: 'WhatsApp Templates', path: '/whatsapp-templates', icon: MessageCircle }
@@ -203,6 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
+              { name: 'Academic Calendar', label: 'Academic Calendar', path: '/academic-calendar', icon: CalendarDays },
               { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen }
             ]
           },
@@ -257,6 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
+              { name: 'Academic Calendar', label: 'Academic Calendar', path: '/academic-calendar', icon: CalendarDays },
               { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen }
             ]
           },

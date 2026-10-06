@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -28,6 +29,17 @@ import { teacherHomeworkApi } from '../../services/teacherHomeworkApi';
 
 export const TeacherDoubts: React.FC = () => {
   const { addToast } = useApp();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Get requested doubt ID from navigation state or URL query parameter
+  const requestedDoubtId = useMemo(() => {
+    const fromState = (location.state as any)?.doubtId || (location.state as any)?.selectedDoubtId;
+    if (fromState) return Number(fromState);
+    const fromQuery = searchParams.get('doubtId') || searchParams.get('id');
+    if (fromQuery) return Number(fromQuery);
+    return null;
+  }, [location.state, searchParams]);
 
   // Data states
   const [doubts, setDoubts] = useState<DoubtItem[]>([]);
@@ -68,7 +80,7 @@ export const TeacherDoubts: React.FC = () => {
       }
       setDoubts(data);
 
-      const targetId = retainSelectedId || selectedDoubt?.id || (data.length > 0 ? data[0].id : null);
+      const targetId = retainSelectedId || requestedDoubtId || selectedDoubt?.id || (data.length > 0 ? data[0].id : null);
       if (targetId) {
         loadDoubtThread(targetId);
       } else {
@@ -100,6 +112,31 @@ export const TeacherDoubts: React.FC = () => {
     loadDoubts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When a specific doubt is requested from navigation or query params, load and focus it
+  useEffect(() => {
+    if (requestedDoubtId) {
+      setStatusFilter('All');
+      setBatchFilter('All');
+      setSubjectFilter('All');
+      setSearchTerm('');
+      loadDoubtThread(requestedDoubtId);
+      setTimeout(() => {
+        const input = document.querySelector('input[placeholder*="Write explanation"], textarea[placeholder*="Write explanation"]') as HTMLElement;
+        if (input) input.focus();
+      }, 400);
+    }
+  }, [requestedDoubtId]);
+
+  // Scroll selected doubt item into view in the left list
+  useEffect(() => {
+    if (selectedDoubt?.id) {
+      const el = document.getElementById(`doubt-item-${selectedDoubt.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [selectedDoubt?.id]);
 
   // Scroll chat to bottom when thread updates
   useEffect(() => {
@@ -330,6 +367,7 @@ export const TeacherDoubts: React.FC = () => {
                 return (
                   <div
                     key={doubt.id}
+                    id={`doubt-item-${doubt.id}`}
                     onClick={() => loadDoubtThread(doubt.id)}
                     className={`p-3.5 cursor-pointer transition-all hover:bg-indigo-50/50 ${
                       isSelected ? 'bg-indigo-50/80 border-l-4 border-indigo-600 pl-2.5' : ''

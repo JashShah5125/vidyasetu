@@ -563,7 +563,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
       await attendanceApi.saveStaffLectureAttendance(lecture.id, present);
       addToast(
         present 
-          ? `Teacher marked Present for ${lecture.subject_name || 'lecture'} (recorded in lecture_ids JSON).` 
+          ? `Teacher marked Present for ${lecture.subject_name || 'lecture'}.` 
           : `Teacher marked Not Present for ${lecture.subject_name || 'lecture'}.`, 
         'success'
       );

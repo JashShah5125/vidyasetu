@@ -22,6 +22,7 @@ import { CourseSetup } from './pages/CourseSetup';
 import { CourseDetail } from './pages/CourseDetail';
 import { CourseCurriculumView } from './pages/CourseCurriculumView';
 import { BatchSetup } from './pages/BatchSetup';
+import { AcademicCalendarPage } from './pages/AcademicCalendarPage';
 import { SubjectSetup } from './pages/SubjectSetup';
 import { SubjectDetail } from './pages/SubjectDetail';
 import { ClassroomSetup } from './pages/ClassroomSetup';
@@ -68,6 +69,7 @@ import { CommunicationCenter } from './pages/saas/CommunicationCenter';
 import { EmailTemplates } from './pages/saas/EmailTemplates';
 import { SmsTemplates } from './pages/saas/SmsTemplates';
 import { WhatsAppTemplates } from './pages/saas/WhatsAppTemplates';
+import { MessagingTemplates } from './pages/saas/MessagingTemplates';
 import { BillingRevenue } from './pages/saas/BillingRevenue';
 import { InvoiceFormPage } from './pages/saas/InvoiceFormPage';
 import { InvoiceDetailsPage } from './pages/saas/InvoiceDetailsPage';
@@ -320,9 +322,10 @@ const ContentRouter = () => {
       <Route path="/finance" element={<BranchFinancePage />} />
 
 
-      <Route path="/support" element={isSaasAdminUser ? <SupportTickets /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/support" element={<SupportTickets />} />
       <Route path="/saas/leads" element={isSaasAdminUser ? <Leads /> : <Navigate to="/dashboard" replace />} />
       <Route path="/communication" element={isSaasAdminUser ? <CommunicationCenter /> : <Navigate to="/dashboard" replace />} />
+      <Route path="/templates" element={isSaasAdminUser ? <MessagingTemplates /> : <Navigate to="/dashboard" replace />} />
       <Route path="/email-templates" element={isSaasAdminUser ? <EmailTemplates /> : <Navigate to="/dashboard" replace />} />
       <Route path="/sms-templates" element={isSaasAdminUser ? <SmsTemplates /> : <Navigate to="/dashboard" replace />} />
       <Route path="/whatsapp-templates" element={isSaasAdminUser ? <WhatsAppTemplates /> : <Navigate to="/dashboard" replace />} />
@@ -356,6 +359,7 @@ const ContentRouter = () => {
       <Route path="/admissions" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/students" element={isTeacher ? <TeacherStudents /> : <Students />} />
       <Route path="/admin/timetable" element={<LectureScheduler />} />
+      <Route path="/academic-calendar" element={<AcademicCalendarPage />} />
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={isTeacher ? <TeacherSchedule /> : <Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />

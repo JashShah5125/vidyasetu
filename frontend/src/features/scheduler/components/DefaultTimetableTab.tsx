@@ -297,7 +297,8 @@ export const DefaultTimetableTab: React.FC<DefaultTimetableTabProps> = ({
             }
           }}
           onDelete={(id) => {
-            setLocalLectures(prev => prev.filter(l => l.id !== id));
+            setLocalLectures(prev => prev.filter(l => String(l.id) !== String(id)));
+            addToast('Slot deleted from default timetable.', 'success');
           }}
         />
       )}

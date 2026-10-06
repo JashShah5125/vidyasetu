@@ -26,6 +26,7 @@ export interface HomeworkItem {
   classAveragePercentage?: number | null;
   totalCount: number;
   createdBy: string;
+  createdAt?: string | null;
   updatedAt: string | null;
 }
 

@@ -151,6 +151,19 @@ const timetableModel = {
             [tenantId]
         );
 
+        // 10. Teacher Availabilities (Available hours & unavailable blocks)
+        const [teacherAvailabilities] = await pool.query(
+            `SELECT id, branch_id, teacher_user_id, day_of_week, 
+                    DATE_FORMAT(specific_date, '%Y-%m-%d') AS specific_date,
+                    TIME_FORMAT(start_time, '%H:%i') AS start_time,
+                    TIME_FORMAT(end_time, '%H:%i') AS end_time,
+                    is_available, reason
+             FROM teacher_availability
+             WHERE tenant_id = ? AND deleted_at IS NULL
+             ORDER BY day_of_week ASC, start_time ASC`,
+            [tenantId]
+        );
+
         return {
             branches,
             academicYears,
@@ -163,7 +176,8 @@ const timetableModel = {
             classrooms,
             teacherAllocations,
             levelSubjects,
-            teacherSubjects
+            teacherSubjects,
+            teacherAvailabilities
         };
     },
 
@@ -233,6 +247,19 @@ const timetableModel = {
             [tenantId]
         );
 
+        // 10. Teacher Availabilities
+        const [teacherAvailabilities] = await pool.query(
+            `SELECT id, branch_id, teacher_user_id, day_of_week, 
+                    DATE_FORMAT(specific_date, '%Y-%m-%d') AS specific_date,
+                    TIME_FORMAT(start_time, '%H:%i') AS start_time,
+                    TIME_FORMAT(end_time, '%H:%i') AS end_time,
+                    is_available, reason
+             FROM teacher_availability
+             WHERE tenant_id = ? AND (branch_id = ? OR branch_id IS NULL) AND deleted_at IS NULL
+             ORDER BY day_of_week ASC, start_time ASC`,
+            [tenantId, branchId]
+        );
+
         return {
             branch,
             academicYears,
@@ -245,7 +272,8 @@ const timetableModel = {
             levels,
             teacherAllocations,
             levelSubjects,
-            teacherSubjects
+            teacherSubjects,
+            teacherAvailabilities
         };
     },
 

@@ -1,9 +1,9 @@
 import type { Lecture } from '../types/scheduler';
 
 export interface Conflict {
-  type: 'TEACHER' | 'ROOM' | 'BATCH';
+  type: 'TEACHER' | 'ROOM' | 'BATCH' | 'TEACHER_UNAVAILABLE';
   lectureId?: string;
-  conflictingLectureId: string;
+  conflictingLectureId?: string;
   severity: 'BLOCKING' | 'WARNING';
   message: string;
 }
@@ -26,12 +26,117 @@ export const checkTimeOverlap = (start1: string, end1: string, start2: string, e
   return s1 < e2 && e1 > s2;
 };
 
+export const getTeacherAvailabilityStatus = (
+  teacherId: string | number,
+  date: string,
+  startTime: string,
+  endTime: string,
+  teacherAvailabilities?: Array<any>
+): { isAvailable: boolean; reason?: string } => {
+  if (!teacherId || !date || !startTime || !endTime || !teacherAvailabilities?.length) {
+    return { isAvailable: true };
+  }
+
+  const teacherSlots = teacherAvailabilities.filter(s => String(s.teacher_user_id) === String(teacherId));
+  if (teacherSlots.length === 0) return { isAvailable: true };
+
+  // 1. Date specific exception
+  const dateExc = teacherSlots.find(s => s.specific_date === date && (!s.is_available || s.is_available === 0));
+  if (dateExc) {
+    if (checkTimeOverlap(startTime, endTime, dateExc.start_time, dateExc.end_time)) {
+      return { 
+        isAvailable: false, 
+        reason: dateExc.reason ? `Unavailable (${dateExc.reason})` : `Unavailable (${dateExc.start_time}–${dateExc.end_time})` 
+      };
+    }
+  }
+
+  // 2. Weekly recurring
+  const dObj = new Date(date);
+  const dayOfWeek = dObj.getDay() === 0 ? 7 : dObj.getDay();
+  const recurring = teacherSlots.find(s => !s.specific_date && Number(s.day_of_week) === dayOfWeek);
+  if (recurring) {
+    if (!recurring.is_available || recurring.is_available === 0) {
+      return { isAvailable: false, reason: 'Day Off' };
+    }
+    const propS = timeToMinutes(startTime);
+    const propE = timeToMinutes(endTime);
+    const availS = timeToMinutes(recurring.start_time);
+    const availE = timeToMinutes(recurring.end_time);
+    if (propS < availS || propE > availE) {
+      return { isAvailable: false, reason: `Available hours: ${recurring.start_time}–${recurring.end_time}` };
+    }
+  }
+
+  return { isAvailable: true };
+};
+
 export const detectConflicts = (
   proposedLecture: Omit<Lecture, 'id' | 'publishStatus' | 'status' | 'createdAt' | 'updatedAt'> & { id?: string },
-  existingLectures: Lecture[]
+  existingLectures: Lecture[],
+  teacherAvailabilities?: Array<any>
 ): Conflict[] => {
   const conflicts: Conflict[] = [];
 
+  // ── A. TEACHER AVAILABILITY CHECK ──
+  if (
+    proposedLecture.activityType !== 'Break' &&
+    proposedLecture.teacherId &&
+    proposedLecture.date &&
+    proposedLecture.startTime &&
+    proposedLecture.endTime &&
+    teacherAvailabilities &&
+    teacherAvailabilities.length > 0
+  ) {
+    const teacherSlots = teacherAvailabilities.filter(s => String(s.teacher_user_id) === String(proposedLecture.teacherId));
+
+    // 1. Specific Date Exception (Leave / marked unavailable)
+    const dateExc = teacherSlots.find(s => s.specific_date === proposedLecture.date && (!s.is_available || s.is_available === 0));
+    if (dateExc) {
+      const hasOverlap = checkTimeOverlap(proposedLecture.startTime, proposedLecture.endTime, dateExc.start_time, dateExc.end_time);
+      if (hasOverlap) {
+        conflicts.push({
+          type: 'TEACHER_UNAVAILABLE',
+          conflictingLectureId: `unavail-${dateExc.id}`,
+          severity: 'WARNING',
+          message: `Teacher has marked themselves UNAVAILABLE on this date (${dateExc.start_time} – ${dateExc.end_time})${dateExc.reason ? ` — Reason: ${dateExc.reason}` : ''}.`
+        });
+      }
+    }
+
+    // 2. Weekly Recurring Working Hours
+    const dObj = new Date(proposedLecture.date);
+    const dayOfWeek = dObj.getDay() === 0 ? 7 : dObj.getDay();
+    const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dayName = dayNames[dayOfWeek] || 'this day';
+
+    const recurring = teacherSlots.find(s => !s.specific_date && Number(s.day_of_week) === dayOfWeek);
+    if (recurring) {
+      if (!recurring.is_available || recurring.is_available === 0) {
+        conflicts.push({
+          type: 'TEACHER_UNAVAILABLE',
+          conflictingLectureId: `unavail-day-${recurring.id}`,
+          severity: 'WARNING',
+          message: `Teacher has marked themselves UNAVAILABLE on ${dayName}s (Day Off / Not Working).`
+        });
+      } else {
+        const propS = timeToMinutes(proposedLecture.startTime);
+        const propE = timeToMinutes(proposedLecture.endTime);
+        const availS = timeToMinutes(recurring.start_time);
+        const availE = timeToMinutes(recurring.end_time);
+        if (propS < availS || propE > availE) {
+          conflicts.push({
+            type: 'TEACHER_UNAVAILABLE',
+            conflictingLectureId: `unavail-hours-${recurring.id}`,
+            severity: 'WARNING',
+            message: `Teacher is only available between ${recurring.start_time} – ${recurring.end_time} on ${dayName}s.`
+          });
+        }
+      }
+    }
+  }
+
+  // ── B. DOUBLE-BOOKING & OVERLAP CONFLICTS ──
   for (const existing of existingLectures) {
     // Ignore cancelled lectures
     if (existing.status === 'CANCELLED') continue;
@@ -52,7 +157,6 @@ export const detectConflicts = (
 
     if (hasOverlap) {
       // 1. Teacher Conflict
-      // (Assume teacher is uniquely identified across branches if they teach at multiple)
       if (
         proposedLecture.activityType !== 'Break' &&
         existing.activityType !== 'Break' &&
@@ -65,7 +169,7 @@ export const detectConflicts = (
           lectureId: proposedLecture.id,
           conflictingLectureId: existing.id,
           severity: 'BLOCKING',
-          message: `Teacher is already scheduled during this time (${existing.startTime}-${existing.endTime}).`
+          message: `Teacher is already scheduled for another lecture during this time (${existing.startTime}-${existing.endTime}).`
         });
       }
 

@@ -1,19 +1,25 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
+import { Pagination } from '../ui/Pagination';
 import {
   Calendar as CalendarIcon, MapPin, Search, CheckCircle2,
   XCircle, Clock, ChevronLeft, ChevronRight, AlertCircle,
   FileText, Users, UserCheck, AlertTriangle,
   RotateCcw, Save, Layers, Phone, BookOpen,
-  Download, Upload, FileSpreadsheet, FileUp, HelpCircle
+  Download, Upload, FileSpreadsheet, FileUp, HelpCircle,
+  RefreshCw, TrendingUp, Filter, Check, Eye
 } from 'lucide-react';
 import {
   teacherScheduleApi,
-  type TeacherScheduleLecture
+  type TeacherScheduleLecture,
+  type TeacherAttendanceHistoryItem,
+  type TeacherAttendanceHistoryResponse,
+  type BatchTurnoutSummaryItem,
+  type LowAttendanceAlertItem
 } from '../../services/teacherScheduleApi';
 import {
   attendanceApi,
@@ -21,26 +27,35 @@ import {
   type AttendanceRecord
 } from '../../services/attendanceApi';
 
-const parseLocalDate = (dateStr: string): Date => {
-  if (dateStr.includes('T')) {
-    dateStr = dateStr.split('T')[0];
+const parseLocalDate = (dateStr?: string | null): Date => {
+  if (!dateStr || typeof dateStr !== 'string') {
+    return new Date();
   }
-  const parts = dateStr.split('-');
+  let cleanStr = dateStr.trim();
+  if (cleanStr.includes('T')) {
+    cleanStr = cleanStr.split('T')[0];
+  }
+  const parts = cleanStr.split('-');
   if (parts.length === 3) {
     const [year, month, day] = parts.map(Number);
-    return new Date(year, month - 1, day);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return new Date(year, month - 1, day);
+    }
   }
-  return new Date(dateStr);
+  const fallback = new Date(cleanStr);
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
 };
 
-const formatLocalDate = (d: Date): string => {
+const formatLocalDate = (d?: Date | null): string => {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
 
-const formatDisplayDate = (d: Date): string => {
+const formatDisplayDate = (d?: Date | null): string => {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return 'N/A';
   return d.toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'short',
@@ -76,16 +91,26 @@ const calculateDuration = (startTime?: string | null, endTime?: string | null): 
 export const TeacherAttendance: React.FC = () => {
   const { addToast } = useApp();
   const location = useLocation();
-  const navState = location.state as { activeLecture?: any; branch?: string; course?: string; batch?: string; date?: string } | null;
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const navState = location.state as {
+    activeLecture?: any;
+    lecture?: any;
+    lectureId?: string | number;
+    branch?: string;
+    course?: string;
+    batch?: string;
+    date?: string;
+  } | null;
 
   // Active Sub-Tab
   const [activeTab, setActiveTab] = useState<'lectures' | 'history' | 'summary' | 'low_attendance'>('lectures');
 
   // Date Navigation State
+  const initialTargetDate = navState?.date || navState?.activeLecture?.date || navState?.activeLecture?.lectureDate || (navState as any)?.lecture?.date || (navState as any)?.lecture?.lectureDate;
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    if (navState?.date || navState?.activeLecture?.date) {
-      const dStr = navState.date || navState.activeLecture?.date;
-      return parseLocalDate(dStr!);
+    if (initialTargetDate) {
+      return parseLocalDate(initialTargetDate);
     }
     return new Date();
   });
@@ -136,6 +161,129 @@ export const TeacherAttendance: React.FC = () => {
     return { total, submitted, pending, turnoutRate };
   }, [lectures]);
 
+  // Attendance History Tab State
+  const [historyData, setHistoryData] = useState<TeacherAttendanceHistoryResponse | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyBatchFilter, setHistoryBatchFilter] = useState('all');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'submitted' | 'pending'>('all');
+
+  // Batch Summary State
+  const [batchSummaries, setBatchSummaries] = useState<BatchTurnoutSummaryItem[]>([]);
+  const [loadingBatchSummaries, setLoadingBatchSummaries] = useState(false);
+
+  // Low Attendance State
+  const [lowAttendanceAlerts, setLowAttendanceAlerts] = useState<LowAttendanceAlertItem[]>([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+
+  const fetchAttendanceHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await teacherScheduleApi.getHistory({
+        batchId: historyBatchFilter !== 'all' ? historyBatchFilter : undefined,
+        status: historyStatusFilter !== 'all' ? historyStatusFilter : undefined
+      });
+      setHistoryData(res);
+    } catch (err: any) {
+      console.error('Failed to load attendance history:', err);
+      addToast('Failed to load attendance history.', 'error');
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [historyBatchFilter, historyStatusFilter, addToast]);
+
+  const fetchBatchSummaries = useCallback(async () => {
+    setLoadingBatchSummaries(true);
+    try {
+      const res = await teacherScheduleApi.getBatchTurnoutSummary();
+      setBatchSummaries(res || []);
+    } catch (err: any) {
+      console.error('Failed to load batch summaries:', err);
+    } finally {
+      setLoadingBatchSummaries(false);
+    }
+  }, []);
+
+  const fetchLowAttendanceAlerts = useCallback(async () => {
+    setLoadingAlerts(true);
+    try {
+      const res = await teacherScheduleApi.getLowAttendanceAlerts();
+      setLowAttendanceAlerts(res || []);
+    } catch (err: any) {
+      console.error('Failed to load low attendance alerts:', err);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchAttendanceHistory();
+    } else if (activeTab === 'summary') {
+      fetchBatchSummaries();
+    } else if (activeTab === 'low_attendance') {
+      fetchLowAttendanceAlerts();
+    }
+  }, [activeTab, fetchAttendanceHistory, fetchBatchSummaries, fetchLowAttendanceAlerts]);
+
+  // Unique batches for history filter
+  const availableBatches = useMemo(() => {
+    const map = new Map<string | number, string>();
+    lectures.forEach(l => {
+      if (l.batch?.id && l.batch?.name) map.set(l.batch.id, l.batch.name);
+    });
+    if (historyData?.lectures) {
+      historyData.lectures.forEach(l => {
+        if (l.batch?.id && l.batch?.name) map.set(l.batch.id, l.batch.name);
+      });
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [lectures, historyData]);
+
+  // Filtered history lectures
+  const filteredHistoryLectures = useMemo(() => {
+    if (!historyData?.lectures) return [];
+    return historyData.lectures.filter((item) => {
+      if (historySearch.trim()) {
+        const q = historySearch.toLowerCase();
+        const mBatch = item.batch?.name?.toLowerCase().includes(q) || item.batch?.code?.toLowerCase().includes(q);
+        const mSubject = item.subject?.name?.toLowerCase().includes(q);
+        const mRoom = item.classroom?.name?.toLowerCase().includes(q);
+        const mTopic = item.topic?.toLowerCase().includes(q);
+        if (!mBatch && !mSubject && !mRoom && !mTopic) return false;
+      }
+      return true;
+    });
+  }, [historyData, historySearch]);
+
+  // Attendance History Pagination State
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch, historyBatchFilter, historyStatusFilter]);
+
+  const totalHistoryItems = filteredHistoryLectures.length;
+  const totalHistoryPages = Math.ceil(totalHistoryItems / historyPageSize) || 1;
+
+  const paginatedHistoryLectures = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return filteredHistoryLectures.slice(start, start + historyPageSize);
+  }, [filteredHistoryLectures, historyPage, historyPageSize]);
+
+  // Low Attendance Alerts Pagination State
+  const [alertsPage, setAlertsPage] = useState(1);
+  const [alertsPageSize, setAlertsPageSize] = useState(10);
+
+  const totalAlertsItems = lowAttendanceAlerts.length;
+  const totalAlertsPages = Math.ceil(totalAlertsItems / alertsPageSize) || 1;
+
+  const paginatedAlerts = useMemo(() => {
+    const start = (alertsPage - 1) * alertsPageSize;
+    return lowAttendanceAlerts.slice(start, start + alertsPageSize);
+  }, [lowAttendanceAlerts, alertsPage, alertsPageSize]);
+
   // Bulk Upload Modal State
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -155,7 +303,7 @@ export const TeacherAttendance: React.FC = () => {
         const link = document.createElement('a');
         link.href = url;
         const cleanBatchName = (activeLecture.batch?.name || `batch_${activeLecture.batch?.id || 'lecture'}`).replace(/[^a-zA-Z0-9_-]/g, '_');
-        link.setAttribute('download', `attendance_template_${cleanBatchName}_${activeLecture.lectureDate || dateStr}.csv`);
+        link.setAttribute('download', `attendance_template_${cleanBatchName}_${activeLecture.lectureDate || activeLecture.date || dateStr}.csv`);
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -181,7 +329,7 @@ export const TeacherAttendance: React.FC = () => {
           const link = document.createElement('a');
           link.href = url;
           const cleanBatchName = (activeLecture.batch?.name || `batch_${activeLecture.batch?.id || 'lecture'}`).replace(/[^a-zA-Z0-9_-]/g, '_');
-          link.setAttribute('download', `attendance_template_${cleanBatchName}_${activeLecture.lectureDate || dateStr}.csv`);
+          link.setAttribute('download', `attendance_template_${cleanBatchName}_${activeLecture.lectureDate || activeLecture.date || dateStr}.csv`);
           document.body.appendChild(link);
           link.click();
           link.remove();
@@ -339,11 +487,72 @@ export const TeacherAttendance: React.FC = () => {
           remarks: r.remarks || ''
         };
       });
+      // Optimistically update today's lectures list
+      const nowIso = new Date().toISOString();
+      const presentCount = recordsToSave.filter(r => r.status === 1).length;
+      const lateCount = recordsToSave.filter(r => r.status === 2).length;
+      const absentCount = recordsToSave.filter(r => r.status === 0).length;
+      const totalMarked = recordsToSave.length;
+      const turnoutRate = totalMarked > 0 ? Math.round(((presentCount + lateCount) / totalMarked) * 100) : 0;
+      const wasAlreadyTaken = Boolean(activeLecture.attendanceTaken || activeLecture.attendance?.taken);
+
+      setLectures((prev) =>
+        prev.map((l) => {
+          if (String(l.id) === String(activeLecture.id)) {
+            return {
+              ...l,
+              attendanceTaken: true,
+              attendance: {
+                ...l.attendance,
+                required: l.attendance?.required ?? true,
+                taken: true,
+                submittedAt: nowIso
+              }
+            };
+          }
+          return l;
+        })
+      );
+
+      // Optimistically update attendance history list
+      setHistoryData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          submittedLectures: (prev.submittedLectures || 0) + (wasAlreadyTaken ? 0 : 1),
+          pendingLectures: Math.max(0, (prev.pendingLectures || 0) - (wasAlreadyTaken ? 0 : 1)),
+          lectures: prev.lectures.map((item) => {
+            if (String(item.id) === String(activeLecture.id)) {
+              return {
+                ...item,
+                attendanceTaken: true,
+                attendance: {
+                  ...item.attendance,
+                  taken: true,
+                  submittedAt: nowIso
+                },
+                turnoutRate,
+                presentCount,
+                lateCount,
+                absentCount,
+                totalMarked
+              };
+            }
+            return item;
+          })
+        };
+      });
+
       setRosterMarks(updated);
       setHasUnsavedChanges(false);
       setIsBulkModalOpen(false);
       addToast('Attendance records uploaded and saved directly to the database!', 'success');
+      
+      // Refresh all views from server
       fetchTodayLectures();
+      fetchAttendanceHistory();
+      fetchBatchSummaries();
+      fetchLowAttendanceAlerts();
     } catch (err: any) {
       console.error('Failed to save bulk attendance:', err);
       addToast(err.response?.data?.message || 'Failed to save bulk attendance to database.', 'error');
@@ -356,12 +565,21 @@ export const TeacherAttendance: React.FC = () => {
   // ATTENDANCE ROSTER LOGIC
   // ---------------------------------------------------------------------------
 
-  const handleOpenRoster = async (lecture: TeacherScheduleLecture) => {
-    if (isFutureDate) {
+  const lastHandledNavKeyRef = useRef<string | null>(null);
+
+  const handleOpenRoster = useCallback(async (lectureOrId: TeacherScheduleLecture | number | string) => {
+    let lecture: TeacherScheduleLecture | null = typeof lectureOrId === 'object' && lectureOrId !== null ? lectureOrId : null;
+    const lectureId: string | number = lecture ? lecture.id : (lectureOrId as string | number);
+
+    const lectureDateStr = (lecture as any)?.lectureDate || (lecture as any)?.date || dateStr;
+    if (lectureDateStr > todayStr) {
       addToast('Cannot mark attendance for upcoming future dates.', 'error');
       return;
     }
-    setActiveLecture(lecture);
+
+    if (lecture) {
+      setActiveLecture(lecture);
+    }
     setRosterRows([]);
     setRosterMarks({});
     setRosterSearch('');
@@ -370,8 +588,49 @@ export const TeacherAttendance: React.FC = () => {
     setLoadingRoster(true);
 
     try {
-      const rows = await attendanceApi.getRoster(lecture.id);
+      const rows = await attendanceApi.getRoster(lectureId);
       setRosterRows(rows);
+
+      if (!lecture && rows.length > 0) {
+        const first = rows[0] as any;
+        lecture = {
+          id: lectureId,
+          startTime: first.start_time || '09:00',
+          endTime: first.end_time || '10:30',
+          type: 'LECTURE',
+          lectureType: first.lecture_type || 'REGULAR',
+          activityType: first.activity_type || 'THEORY',
+          slotLabel: first.slot_label,
+          subject: {
+            id: first.subject_id,
+            name: first.subject_name || 'Subject'
+          },
+          batch: {
+            id: first.batch_id,
+            name: first.batch_name || `Batch #${first.batch_id}`
+          },
+          level: {
+            id: first.level_id || 0,
+            name: first.level_name || 'Class'
+          },
+          classroom: {
+            id: first.classroom_id || 0,
+            name: first.room_name || first.classroom_name || 'Room TBA'
+          },
+          branch: {
+            id: first.branch_id || 0,
+            name: first.branch_name || ''
+          },
+          status: 'SCHEDULED',
+          attendance: {
+            required: true,
+            taken: Boolean(first.attendance_taken || first.attendance_submitted_at)
+          },
+          date: first.lecture_date,
+          lectureDate: first.lecture_date
+        } as any;
+        setActiveLecture(lecture);
+      }
 
       // Pre-fill initial marks from backend records
       const initial: { [studentId: number]: { status: 0 | 1 | 2; remarks?: string } } = {};
@@ -390,13 +649,44 @@ export const TeacherAttendance: React.FC = () => {
     } finally {
       setLoadingRoster(false);
     }
-  };
+  }, [dateStr, todayStr, addToast]);
+
+  // Auto-open roster if navigated with activeLecture, lecture, or lectureId
+  useEffect(() => {
+    // Avoid re-processing the exact same navigation key
+    if (lastHandledNavKeyRef.current === location.key) {
+      return;
+    }
+
+    const targetLecture = navState?.activeLecture || (navState as any)?.lecture;
+    if (targetLecture && targetLecture.id) {
+      lastHandledNavKeyRef.current = location.key;
+      const targetDateStr = targetLecture.date || targetLecture.lectureDate;
+      if (targetDateStr) {
+        setSelectedDate(parseLocalDate(targetDateStr));
+      }
+      handleOpenRoster(targetLecture);
+      // Clean up navigation state in history so closing the roster never re-opens it
+      navigate(location.pathname + location.search, { replace: true, state: null });
+      return;
+    }
+
+    const queryLecId = searchParams.get('lectureId') || navState?.lectureId;
+    if (queryLecId && !activeLecture) {
+      const match = lectures.find(l => String(l.id) === String(queryLecId));
+      if (match) {
+        lastHandledNavKeyRef.current = location.key;
+        handleOpenRoster(match);
+      } else if (!loadingLectures) {
+        lastHandledNavKeyRef.current = location.key;
+        handleOpenRoster(queryLecId);
+      }
+    }
+  }, [location.key, navState, searchParams, lectures, loadingLectures, activeLecture, handleOpenRoster, navigate, location.pathname, location.search]);
 
   const handleCloseRoster = () => {
     if (hasUnsavedChanges) {
-      if (!window.confirm('You have unsaved attendance changes. Are you sure you want to discard them?')) {
-        return;
-      }
+      addToast('Unsaved attendance changes were discarded.', 'warning');
     }
     setActiveLecture(null);
     setRosterRows([]);
@@ -446,9 +736,7 @@ export const TeacherAttendance: React.FC = () => {
     const markedCount = Object.keys(rosterMarks).length;
     if (markedCount < totalStudents) {
       const unmarkedDiff = totalStudents - markedCount;
-      if (!window.confirm(`${unmarkedDiff} students have not been explicitly marked. Unmarked students will be recorded as Absent (0). Do you wish to continue?`)) {
-        return;
-      }
+      addToast(`${unmarkedDiff} unmarked student${unmarkedDiff > 1 ? 's' : ''} recorded as Absent (0).`, 'info');
     }
 
     setIsSaving(true);
@@ -466,11 +754,73 @@ export const TeacherAttendance: React.FC = () => {
       await attendanceApi.saveAttendance(activeLecture.id, records);
       await attendanceApi.submitAttendance(activeLecture.id, records);
 
+      // 1. Optimistically update today's lectures list
+      const nowIso = new Date().toISOString();
+      const presentCount = records.filter(r => r.status === 1).length;
+      const lateCount = records.filter(r => r.status === 2).length;
+      const absentCount = records.filter(r => r.status === 0).length;
+      const totalMarked = records.length;
+      const effectiveDenom = totalMarked;
+      const turnoutRate = effectiveDenom > 0 ? Math.round(((presentCount + lateCount) / effectiveDenom) * 100) : 0;
+      const wasAlreadyTaken = Boolean(activeLecture.attendanceTaken || activeLecture.attendance?.taken);
+
+      setLectures((prev) =>
+        prev.map((l) => {
+          if (String(l.id) === String(activeLecture.id)) {
+            return {
+              ...l,
+              attendanceTaken: true,
+              attendance: {
+                ...l.attendance,
+                required: l.attendance?.required ?? true,
+                taken: true,
+                submittedAt: nowIso
+              }
+            };
+          }
+          return l;
+        })
+      );
+
+      // 2. Optimistically update attendance history list
+      setHistoryData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          submittedLectures: (prev.submittedLectures || 0) + (wasAlreadyTaken ? 0 : 1),
+          pendingLectures: Math.max(0, (prev.pendingLectures || 0) - (wasAlreadyTaken ? 0 : 1)),
+          lectures: prev.lectures.map((item) => {
+            if (String(item.id) === String(activeLecture.id)) {
+              return {
+                ...item,
+                attendanceTaken: true,
+                attendance: {
+                  ...item.attendance,
+                  taken: true,
+                  submittedAt: nowIso
+                },
+                turnoutRate,
+                presentCount,
+                lateCount,
+                absentCount,
+                totalMarked
+              };
+            }
+            return item;
+          })
+        };
+      });
+
       addToast('Attendance submitted and saved successfully!', 'success');
       setHasUnsavedChanges(false);
       setActiveLecture(null);
-      // Refresh lectures to update status badge
+      navigate(location.pathname, { replace: true, state: null });
+
+      // 3. Refresh all views from server
       fetchTodayLectures();
+      fetchAttendanceHistory();
+      fetchBatchSummaries();
+      fetchLowAttendanceAlerts();
     } catch (err: any) {
       console.error('Failed to save attendance:', err);
       addToast(err.response?.data?.message || 'Failed to save attendance. Please try again.', 'error');
@@ -1393,41 +1743,542 @@ export const TeacherAttendance: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {filteredHistoryLectures.length > 0 && (
+              <Pagination
+                currentPage={historyPage}
+                totalPages={totalHistoryPages}
+                totalItems={totalHistoryItems}
+                pageSize={historyPageSize}
+                onPageChange={setHistoryPage}
+                onPageSizeChange={setHistoryPageSize}
+              />
+            )}
           </Card>
         </div>
       )}
 
-      {/* TAB 2: HISTORY TAB */}
+      {/* TAB 2: ATTENDANCE HISTORY */}
       {activeTab === 'history' && (
-        <Card className="p-8 text-center border border-slate-200 rounded-2xl">
-          <FileText className="mx-auto text-slate-300 mb-3" size={40} />
-          <h3 className="font-bold text-slate-800 text-lg">Lecture Attendance History</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            Review past verified attendance registers across all your assigned batches and academic sessions.
-          </p>
-        </Card>
+        <div className="space-y-6">
+          {/* History KPI Summary Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-5 border border-slate-200 bg-white shadow-2xs rounded-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Lectures</span>
+                <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <BookOpen size={18} />
+                </span>
+              </div>
+              <div className="text-2xl font-black text-slate-900 mt-2">
+                {historyData?.totalLectures ?? '—'}
+              </div>
+              <div className="text-xs text-slate-400 font-medium mt-1">Conducted across all batches</div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 bg-white shadow-2xs rounded-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Submitted</span>
+                <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <CheckCircle2 size={18} />
+                </span>
+              </div>
+              <div className="text-2xl font-black text-emerald-700 mt-2">
+                {historyData?.submittedLectures ?? '—'}
+              </div>
+              <div className="text-xs text-slate-400 font-medium mt-1">Verified attendance registers</div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 bg-white shadow-2xs rounded-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending Attendance</span>
+                <span className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <AlertCircle size={18} />
+                </span>
+              </div>
+              <div className="text-2xl font-black text-amber-600 mt-2">
+                {historyData?.pendingLectures ?? '—'}
+              </div>
+              <div className="text-xs text-slate-400 font-medium mt-1">Awaiting attendance marking</div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 bg-white shadow-2xs rounded-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avg Turnout</span>
+                <span className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <TrendingUp size={18} />
+                </span>
+              </div>
+              <div className="text-2xl font-black text-indigo-700 mt-2">
+                {historyData ? `${historyData.avgTurnout}%` : '—'}
+              </div>
+              <div className="text-xs text-slate-400 font-medium mt-1">Class presence percentage</div>
+            </Card>
+          </div>
+
+          {/* Filter Bar */}
+          <Card className="p-4 border border-slate-200 bg-white shadow-2xs rounded-2xl space-y-3">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search history by batch, subject, room, or topic..."
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Batch Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={historyBatchFilter}
+                  onChange={(e) => setHistoryBatchFilter(e.target.value)}
+                  className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                >
+                  <option value="all">All Batches</option>
+                  {availableBatches.map((b) => (
+                    <option key={b.id} value={String(b.id)}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={fetchAttendanceHistory}
+                  className="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 cursor-pointer rounded-xl"
+                  title="Refresh history"
+                >
+                  <RefreshCw size={15} className={loadingHistory ? 'animate-spin' : ''} />
+                </Button>
+              </div>
+            </div>
+
+            {/* Status Pills Filter */}
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+              <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center gap-1">
+                <Filter size={12} /> Status:
+              </span>
+              {[
+                { id: 'all', label: 'All Records', count: historyData?.totalLectures },
+                { id: 'submitted', label: 'Submitted', count: historyData?.submittedLectures },
+                { id: 'pending', label: 'Pending', count: historyData?.pendingLectures }
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => setHistoryStatusFilter(pill.id as any)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    historyStatusFilter === pill.id
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80'
+                  }`}
+                >
+                  <span>{pill.label}</span>
+                  {pill.count !== undefined && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      historyStatusFilter === pill.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {pill.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* History Records Table */}
+          <Card className="border border-slate-200 rounded-2xl shadow-2xs bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="px-5 py-3.5">Date & Slot</th>
+                    <th className="px-4 py-3.5">Batch Details</th>
+                    <th className="px-4 py-3.5">Subject & Classroom</th>
+                    <th className="px-4 py-3.5 text-center">Turnout Rate</th>
+                    <th className="px-4 py-3.5 text-center">Status</th>
+                    <th className="px-5 py-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {loadingHistory ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-20 text-center text-slate-500">
+                        <div className="animate-spin inline-block w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mb-3" />
+                        <div className="font-semibold text-slate-700">Loading attendance history...</div>
+                      </td>
+                    </tr>
+                  ) : filteredHistoryLectures.length > 0 ? (
+                    paginatedHistoryLectures.map((item) => {
+                      const isSubmitted = item.attendanceTaken;
+                      const rawDate = item.date || item.lectureDate;
+                      const dateObj = rawDate ? parseLocalDate(rawDate) : null;
+                      const turnoutPct = item.turnoutRate ?? 0;
+                      const isHighTurnout = turnoutPct >= 75;
+                      const isMidTurnout = turnoutPct >= 50 && turnoutPct < 75;
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Date & Slot */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="font-bold text-slate-900 text-sm">
+                              {dateObj ? formatDisplayDate(dateObj) : 'No Date Set'}
+                            </div>
+                            <div className="text-xs font-semibold text-slate-400 mt-0.5 flex items-center gap-1">
+                              <Clock size={11} />
+                              {formatTime(item.startTime)} – {formatTime(item.endTime)}
+                            </div>
+                          </td>
+
+                          {/* Batch Details */}
+                          <td className="px-4 py-4">
+                            <div className="font-bold text-blue-700 text-sm leading-snug">
+                              {item.batch?.name || `Batch #${item.id}`}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-0.5 font-medium">
+                              {item.level?.name || 'Classroom Batch'} {item.batch?.code && `• ${item.batch.code}`}
+                            </div>
+                          </td>
+
+                          {/* Subject & Classroom */}
+                          <td className="px-4 py-4">
+                            <div className="font-bold text-slate-800 text-sm">
+                              {item.subject?.name || 'Subject'}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                              <MapPin size={11} className="text-slate-400" />
+                              {item.classroom?.name || 'Room TBA'}
+                              {item.topic && (
+                                <span className="text-slate-400 ml-1 truncate max-w-[150px]" title={item.topic}>
+                                  • {item.topic}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Turnout Rate */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {isSubmitted ? (
+                              <div className="inline-flex flex-col items-center">
+                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${
+                                  isHighTurnout
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : isMidTurnout
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}>
+                                  {turnoutPct}% Turnout
+                                </span>
+                                <span className="text-[11px] font-semibold text-slate-400 mt-1">
+                                  {item.presentCount + item.lateCount} / {item.totalEnrolled || item.totalMarked} Present
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs font-semibold text-slate-400 italic">
+                                Not recorded
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-4 py-4 text-center whitespace-nowrap">
+                            {isSubmitted ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 size={12} /> Submitted
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                                <AlertCircle size={12} /> Pending
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Action Button */}
+                          <td className="px-5 py-4 text-right whitespace-nowrap">
+                            <Button
+                              variant={isSubmitted ? "secondary" : "primary"}
+                              size="sm"
+                              onClick={() => handleOpenRoster(item as any)}
+                              className={`text-xs font-bold py-1.5 px-3 cursor-pointer inline-flex items-center gap-1.5 shadow-2xs ${
+                                isSubmitted ? 'hover:bg-slate-100 text-blue-700' : ''
+                              }`}
+                            >
+                              <Eye size={13} />
+                              {isSubmitted ? 'View / Edit Roster' : 'Mark Attendance'}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-20 text-center text-slate-400">
+                        <FileText className="mx-auto text-slate-300 mb-3" size={36} />
+                        <div className="font-semibold text-slate-700 text-base">No attendance history records found</div>
+                        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                          {historySearch || historyBatchFilter !== 'all' || historyStatusFilter !== 'all'
+                            ? 'Try clearing your filters or search query.'
+                            : 'Submitted lecture attendance registers will be archived and listed here.'}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {filteredHistoryLectures.length > 0 && (
+              <Pagination
+                currentPage={historyPage}
+                totalPages={totalHistoryPages}
+                totalItems={totalHistoryItems}
+                pageSize={historyPageSize}
+                onPageChange={setHistoryPage}
+                onPageSizeChange={setHistoryPageSize}
+              />
+            )}
+          </Card>
+        </div>
       )}
 
       {/* TAB 3: BATCH TURNOUT SUMMARY */}
       {activeTab === 'summary' && (
-        <Card className="p-8 text-center border border-slate-200 rounded-2xl">
-          <Layers className="mx-auto text-slate-300 mb-3" size={40} />
-          <h3 className="font-bold text-slate-800 text-lg">Batch Turnout & Attendance Averages</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            Aggregated statistics and turnout performance percentages for your assigned batches.
-          </p>
-        </Card>
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Batch Turnout Performance</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Aggregated student turnout metrics across your assigned batches</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={fetchBatchSummaries}
+              className="text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} className={loadingBatchSummaries ? 'animate-spin' : ''} /> Refresh
+            </Button>
+          </div>
+
+          {loadingBatchSummaries ? (
+            <div className="py-24 text-center">
+              <div className="animate-spin inline-block w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mb-3" />
+              <div className="font-semibold text-slate-600">Calculating batch attendance metrics...</div>
+            </div>
+          ) : batchSummaries.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {batchSummaries.map((b) => {
+                const rate = b.turnoutRate;
+                const isGood = rate >= 75;
+                const isMid = rate >= 50 && rate < 75;
+
+                return (
+                  <Card key={b.batchId} className="p-5 border border-slate-200 rounded-2xl bg-white shadow-2xs hover:border-blue-200 transition-all flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-base leading-snug">{b.batchName}</h3>
+                          <span className="text-xs font-mono font-semibold text-slate-400 mt-0.5 inline-block">
+                            {b.batchCode || `BATCH-${b.batchId}`}
+                          </span>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-black border ${
+                          isGood
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : isMid
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                          {rate}%
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="w-full bg-slate-100 rounded-full h-2 mt-4 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isGood ? 'bg-emerald-500' : isMid ? 'bg-amber-500' : 'bg-rose-500'
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
+                        />
+                      </div>
+
+                      {/* Stats grid */}
+                      <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-100 text-xs">
+                        <div>
+                          <div className="text-slate-400 font-medium">Conducted Classes</div>
+                          <div className="font-bold text-slate-800 text-sm mt-0.5">{b.conductedLectures} / {b.totalLectures}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400 font-medium">Active Students</div>
+                          <div className="font-bold text-slate-800 text-sm mt-0.5">{b.enrolledStudents} students</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-3 border-t border-slate-100">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full text-xs font-semibold cursor-pointer hover:bg-slate-100 text-blue-700"
+                        onClick={() => {
+                          setHistoryBatchFilter(String(b.batchId));
+                          setActiveTab('history');
+                        }}
+                      >
+                        View Batch History →
+                      </Button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="p-12 text-center border border-slate-200 rounded-2xl bg-white">
+              <Layers className="mx-auto text-slate-300 mb-3" size={40} />
+              <h3 className="font-bold text-slate-800 text-base">No Batch Summaries Available</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Batch attendance averages will appear as you take student attendance for your classes.
+              </p>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* TAB 4: LOW ATTENDANCE ALERTS */}
       {activeTab === 'low_attendance' && (
-        <Card className="p-8 text-center border border-slate-200 rounded-2xl">
-          <AlertTriangle className="mx-auto text-amber-400 mb-3" size={40} />
-          <h3 className="font-bold text-slate-800 text-lg">Low Attendance Defaulter Alerts</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            Students in your assigned batches with attendance rates below 75% for parent follow-up.
-          </p>
-        </Card>
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <AlertTriangle className="text-amber-500" size={20} />
+                Low Attendance Defaulters (&lt; 75%)
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Students below minimum academic attendance requiring teacher follow-up</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={fetchLowAttendanceAlerts}
+              className="text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} className={loadingAlerts ? 'animate-spin' : ''} /> Refresh
+            </Button>
+          </div>
+
+          {loadingAlerts ? (
+            <div className="py-24 text-center">
+              <div className="animate-spin inline-block w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mb-3" />
+              <div className="font-semibold text-slate-600">Scanning attendance defaulters...</div>
+            </div>
+          ) : lowAttendanceAlerts.length > 0 ? (
+            <Card className="border border-slate-200 rounded-2xl shadow-2xs bg-white overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <th className="px-5 py-3.5">Student</th>
+                      <th className="px-4 py-3.5">Roll Code</th>
+                      <th className="px-4 py-3.5">Batch</th>
+                      <th className="px-4 py-3.5">Contact</th>
+                      <th className="px-4 py-3.5 text-center">Attendance %</th>
+                      <th className="px-5 py-3.5 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {paginatedAlerts.map((st) => {
+                      const isCritical = st.attendancePct < 50;
+                      const initials = st.fullName
+                        ? st.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                        : 'ST';
+
+                      return (
+                        <tr key={st.studentId} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-rose-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                                {initials}
+                              </div>
+                              <div className="font-bold text-slate-900 leading-snug">
+                                {st.fullName}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <span className="font-mono text-xs font-semibold px-2 py-1 bg-slate-100 rounded text-slate-700 border border-slate-200/60">
+                              {st.studentCode}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <span className="text-xs font-bold text-blue-700">
+                              {st.batchName}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            {st.mobile ? (
+                              <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                                <Phone size={12} className="text-slate-400" /> {st.mobile}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-4 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black border ${
+                              isCritical
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {st.attendancePct.toFixed(1)}% ({st.attendedLectures}/{st.totalLectures})
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                              isCritical ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {isCritical ? 'Critical Defaulter' : 'Warning Alert'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              {lowAttendanceAlerts.length > 0 && (
+                <Pagination
+                  currentPage={alertsPage}
+                  totalPages={totalAlertsPages}
+                  totalItems={totalAlertsItems}
+                  pageSize={alertsPageSize}
+                  onPageChange={setAlertsPage}
+                  onPageSizeChange={setAlertsPageSize}
+                />
+              )}
+            </Card>
+          ) : (
+            <Card className="p-12 text-center border border-slate-200 rounded-2xl bg-white">
+              <CheckCircle2 className="mx-auto text-emerald-500 mb-3" size={40} />
+              <h3 className="font-bold text-slate-800 text-base">No Defaulters Found</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Great job! All students in your assigned batches currently have attendance rates of 75% or higher.
+              </p>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

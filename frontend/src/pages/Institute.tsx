@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -11,6 +11,7 @@ import {
 import { formatDate, getTenantStatusLabel } from '../types';
 import type { InstituteProfile, UpdateInstituteProfilePayload } from '../services/instituteApi';
 import { getInstituteProfile, updateInstituteProfile } from '../services/instituteApi';
+import { AcademicCalendarManager } from '../components/institute/AcademicCalendarManager';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ProgressBar: React.FC<{ value: number; max: number; label: string; limitText: string }> = ({ value, max, label, limitText }) => {
@@ -71,8 +72,16 @@ export const Institute: React.FC = () => {
   const mySub = profile?.subscription;
   const myPlan = profile?.plan;
 
+  const [searchParams] = useSearchParams();
   // ── State ──
-  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'billing' | 'limits' | 'features'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'branding' | 'billing' | 'limits' | 'features' | 'calendar'>('profile');
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'calendar' || tabParam === 'events') {
+      setActiveTab('calendar');
+    }
+  }, [searchParams]);
   
   // Profile State
   const [emails, setEmails] = useState<{address: string, isDefault: boolean}[]>([
@@ -205,14 +214,13 @@ export const Institute: React.FC = () => {
           </div>
           <div className="flex items-center gap-3 select-none flex-shrink-0">
             {(() => {
-              const s = myTenant.status;
-              const label = getTenantStatusLabel(s);
+              const label = getTenantStatusLabel(myTenant.status);
               let badgeColors = 'bg-slate-50 text-slate-700 border border-slate-200';
-              if (s === 1 || s === '1' || label === 'Active') {
+              if (label === 'Active') {
                 badgeColors = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-              } else if (s === 0 || s === '0' || label === 'Inactive') {
+              } else if (label === 'Inactive') {
                 badgeColors = 'bg-red-50 text-red-700 border border-red-200';
-              } else if (s === 2 || s === '2' || label === 'Draft') {
+              } else if (label === 'Draft') {
                 badgeColors = 'bg-amber-50 text-amber-700 border border-amber-200';
               }
               return (
@@ -237,6 +245,7 @@ export const Institute: React.FC = () => {
             { id: 'billing', label: 'Plan & Billing' },
             { id: 'limits', label: 'Resource Quotas' },
             { id: 'features', label: 'Features & Support' },
+            { id: 'calendar', label: 'Academic Calendar & Events' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -266,14 +275,13 @@ export const Institute: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-1">Managed by SaaS Super Admin.</p>
                   </div>
                   {(() => {
-                    const s = myTenant.status;
-                    const label = getTenantStatusLabel(s);
+                    const label = getTenantStatusLabel(myTenant.status);
                     let badgeColors = 'bg-slate-50 text-slate-700 border border-slate-200';
-                    if (s === 1 || s === '1' || label === 'Active') {
+                    if (label === 'Active') {
                       badgeColors = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-                    } else if (s === 0 || s === '0' || label === 'Inactive') {
+                    } else if (label === 'Inactive') {
                       badgeColors = 'bg-red-50 text-red-700 border border-red-200';
-                    } else if (s === 2 || s === '2' || label === 'Draft') {
+                    } else if (label === 'Draft') {
                       badgeColors = 'bg-amber-50 text-amber-700 border border-amber-200';
                     }
                     return (
@@ -809,6 +817,12 @@ export const Institute: React.FC = () => {
                   </div>
                 </div>
               </Card>
+            </div>
+          )}
+
+          {activeTab === 'calendar' && (
+            <div className="pt-2 animate-fade-in">
+              <AcademicCalendarManager embedded />
             </div>
           )}
 

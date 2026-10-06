@@ -7,6 +7,7 @@ import { useApp } from '../../../context/AppContext';
 import { useScheduler } from '../context/SchedulerContext';
 import type { Lecture, LectureType } from '../types/scheduler';
 import { detectConflicts } from '../utils/schedulerUtils';
+import { AlertTriangle } from 'lucide-react';
 import courseHierarchy from '../../../data/courseHierarchy.json';
 import teachersList from '../../../data/teachers.json';
 
@@ -63,7 +64,7 @@ interface LectureFormModalProps {
 export const LectureFormModal: React.FC<LectureFormModalProps> = ({
   isOpen, onClose, branchId, batchId, existingLecture, initialDate, isTemplate = false, onSave, onDelete
 }) => {
-  const { branches } = useApp();
+  const { branches, addToast } = useApp();
   const { rooms, lectures, options, addLectures, updateLecture, cancelLecture } = useScheduler();
 
   const branchName = branches.find(b => String(b.id) === String(branchId) || b.code === branchId || b.name === branchId)?.name || branchId;
@@ -83,9 +84,13 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
     slotLabel: ''
   });
 
-  const [conflicts, setConflicts] = useState<{ message: string; severity: string }[]>([]);
+  const [conflicts, setConflicts] = useState<{ message: string; severity: string; type?: string }[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
+    setShowDeleteConfirm(false);
+    setIsDeleting(false);
     if (existingLecture) {
       setFormData({
         academicYearId: String(existingLecture.academicYearId || '1'),
@@ -124,12 +129,12 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
         batchId,
         branchId,
         id: String(existingLecture?.id || '')
-      }, lectures);
-      setConflicts(detected.map(c => ({ message: c.message, severity: c.severity })));
+      }, lectures, options?.teacherAvailabilities);
+      setConflicts(detected.map(c => ({ message: c.message, severity: c.severity, type: c.type })));
     } else {
       setConflicts([]);
     }
-  }, [formData, batchId, branchId, existingLecture, lectures]);
+  }, [formData, batchId, branchId, existingLecture, lectures, options?.teacherAvailabilities]);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -173,8 +178,13 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
 
   // 2. Available teachers: Filtered to teachers allocated to this batch for the selected subject
   const availableTeachers = useMemo(() => {
+    const formatTeacherOpt = (t: any) => {
+      const label = t.full_name || t.name || `Teacher #${t.id}`;
+      return { value: String(t.id), label };
+    };
+
     if (!options?.teachers || options.teachers.length === 0) {
-      return teachersList.map(t => ({ value: String(t.id), label: t.name }));
+      return teachersList.map(t => formatTeacherOpt(t));
     }
 
     const selectedSubjectId = options.subjects?.find(
@@ -204,21 +214,12 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
 
         if (otherSubjectTeachers.length > 0) {
           return [
-            ...exactMatchTeachers.map(t => ({
-              value: String(t.id),
-              label: `${t.full_name || t.name} (Assigned to Batch)`
-            })),
-            ...otherSubjectTeachers.map(t => ({
-              value: String(t.id),
-              label: `${t.full_name || t.name} (Other Faculty)`
-            }))
+            ...exactMatchTeachers.map(t => formatTeacherOpt(t)),
+            ...otherSubjectTeachers.map(t => formatTeacherOpt(t))
           ];
         }
 
-        return exactMatchTeachers.map(t => ({
-          value: String(t.id),
-          label: t.full_name || t.name || `Teacher #${t.id}`
-        }));
+        return exactMatchTeachers.map(t => formatTeacherOpt(t));
       }
     }
 
@@ -226,10 +227,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
     if (batchTeacherIds.length > 0) {
       const batchTeachers = options.teachers.filter(t => batchTeacherIds.includes(Number(t.id)));
       if (batchTeachers.length > 0) {
-        return batchTeachers.map(t => ({
-          value: String(t.id),
-          label: t.full_name || t.name || `Teacher #${t.id}`
-        }));
+        return batchTeachers.map(t => formatTeacherOpt(t));
       }
     }
 
@@ -237,19 +235,13 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
     if (selectedSubjectId !== undefined && subjectTeacherIds.length > 0) {
       const subjectTeachers = options.teachers.filter(t => subjectTeacherIds.includes(Number(t.id)));
       if (subjectTeachers.length > 0) {
-        return subjectTeachers.map(t => ({
-          value: String(t.id),
-          label: t.full_name || t.name || `Teacher #${t.id}`
-        }));
+        return subjectTeachers.map(t => formatTeacherOpt(t));
       }
     }
 
     // Fallback: All teachers
-    return options.teachers.map(t => ({
-      value: String(t.id),
-      label: t.full_name || t.name || `Teacher #${t.id}`
-    }));
-  }, [options, resolvedBatchId, formData.subjectId]);
+    return options.teachers.map(t => formatTeacherOpt(t));
+  }, [options, resolvedBatchId, formData.subjectId, teachersList]);
 
   // Available classrooms from backend options or scheduler rooms
   const availableRooms = useMemo(() => {
@@ -308,7 +300,8 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
   const isBlocking = conflicts.some(c => c.severity === 'BLOCKING');
 
   return (
-    <Modal
+    <>
+      <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isTemplate ? (existingLecture ? 'Edit Default Slot' : 'Add Default Slot') : (existingLecture ? 'Edit Lecture' : 'Schedule New Lecture')}
@@ -407,11 +400,16 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
 
         {/* Conflicts Banner */}
         {conflicts.length > 0 && (
-          <div className={`p-4 rounded-xl border ${isBlocking ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-            <h4 className="font-bold text-xs uppercase tracking-wider mb-1">
-              {isBlocking ? 'Scheduling Conflict Detected' : 'Schedule Notice'}
-            </h4>
-            <ul className="text-xs space-y-1 list-disc list-inside">
+          <div className={`p-4 rounded-xl border ${
+            isBlocking ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-900 shadow-2xs'
+          }`}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <AlertTriangle className={`w-4 h-4 shrink-0 ${isBlocking ? 'text-red-600' : 'text-amber-600'}`} />
+              <h4 className="font-bold text-xs uppercase tracking-wider">
+                {isBlocking ? 'Scheduling Conflict Detected' : 'Schedule Notice / Teacher Availability Alert'}
+              </h4>
+            </div>
+            <ul className="text-xs space-y-1 list-disc list-inside font-medium">
               {conflicts.map((c, i) => (
                 <li key={i}>{c.message}</li>
               ))}
@@ -427,16 +425,7 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
                 type="button"
                 variant="danger"
                 size="sm"
-                onClick={() => {
-                  if (confirm('Are you sure you want to delete this lecture slot?')) {
-                    if (onDelete && existingLecture.id) {
-                      onDelete(String(existingLecture.id));
-                    } else if (existingLecture.id) {
-                      cancelLecture(existingLecture.id, 'Deleted by user');
-                    }
-                    onClose();
-                  }
-                }}
+                onClick={() => setShowDeleteConfirm(true)}
               >
                 Delete Slot
               </Button>
@@ -453,5 +442,69 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
         </div>
       </form>
     </Modal>
+
+    {/* Custom Delete Confirmation Modal */}
+    {showDeleteConfirm && (
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => !isDeleting && setShowDeleteConfirm(false)}
+        title="Confirm Delete Slot"
+        size="sm"
+      >
+        <div className="p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-red-100 text-red-600 rounded-xl shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-slate-900">
+                Delete this lecture slot?
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete this lecture slot? It will be cancelled and removed from the active timetable.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={isDeleting}
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={isDeleting}
+              onClick={async () => {
+                setIsDeleting(true);
+                try {
+                  if (onDelete && existingLecture?.id) {
+                    await onDelete(String(existingLecture.id));
+                  } else if (existingLecture?.id) {
+                    await cancelLecture(existingLecture.id, 'Deleted by user');
+                    addToast('Lecture slot deleted successfully.', 'success');
+                  }
+                  setShowDeleteConfirm(false);
+                  onClose();
+                } catch (err: any) {
+                  addToast(err?.message || 'Failed to delete lecture slot.', 'error');
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? 'Deleting...' : 'Yes, Delete Slot'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    )}
+  </>
   );
 };

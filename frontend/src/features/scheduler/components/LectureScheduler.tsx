@@ -856,12 +856,13 @@ export const LectureScheduler = () => {
               }
             }
           }}
-          onDelete={(id) => {
+          onDelete={async (id) => {
             if (editorContext) {
-              setLocalLectures(prev => prev.filter(l => l.id !== id));
+              setLocalLectures(prev => prev.filter(l => String(l.id) !== String(id)));
+              addToast('Lecture slot deleted successfully.', 'success');
             } else {
-              cancelLecture(id);
-              addToast('Lecture slot cancelled and removed.', 'info');
+              await cancelLecture(id, 'Deleted by user');
+              addToast('Lecture slot deleted successfully.', 'success');
               setIsFormOpen(false);
             }
           }}

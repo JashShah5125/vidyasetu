@@ -2,10 +2,11 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-interface ModalProps {
+export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  description?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
@@ -15,6 +16,7 @@ export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   title,
+  description,
   children,
   footer,
   size = 'md'
@@ -49,9 +51,16 @@ export const Modal: React.FC<ModalProps> = ({
           
           {/* Header */}
           <div className="flex items-center justify-between p-5 border-b border-slate-100 rounded-t-2xl flex-shrink-0">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {title}
-            </h3>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">
+                {title}
+              </h3>
+              {description && (
+                <p className="text-sm text-slate-500 mt-0.5">
+                  {description}
+                </p>
+              )}
+            </div>
             <button
               className="p-1 ml-auto bg-transparent border-0 text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-50 outline-none focus:outline-none"
               onClick={onClose}
