@@ -598,7 +598,8 @@ const getUserRoleCodes = async (userId) => {
 };
 
 const getUserPermissions = async (userId) => {
-    // Check if user is SaaS Super Admin
+    // Check if user is SaaS Super Admin or Teacher
+    let isTeacherUser = false;
     try {
         const [userRows] = await pool.query(
             'SELECT id, tenant_id, user_type FROM users WHERE id = ?',
@@ -610,9 +611,12 @@ const getUserPermissions = async (userId) => {
                 const [allPerms] = await pool.query('SELECT code FROM permissions WHERE deleted_at IS NULL');
                 return allPerms.map(p => p.code);
             }
+            if (u.user_type === 'teacher') {
+                isTeacherUser = true;
+            }
         }
     } catch (e) {
-        console.error('Error checking SaaS Admin in getUserPermissions:', e);
+        console.error('Error checking user type in getUserPermissions:', e);
     }
 
     // Flat RBAC: effective permissions = union of the user's role permissions
@@ -631,6 +635,27 @@ const getUserPermissions = async (userId) => {
         [userId, userId]
     );
     const permissionCodes = rows.map(row => row.code);
+
+    // Guaranteed core permissions for teachers across all institutes
+    if (isTeacherUser || permissionCodes.includes('timetable.view')) {
+        const TEACHER_CORE_PERMISSIONS = [
+            'assignment.view',
+            'assignment.create',
+            'assignment.update',
+            'assignment.delete',
+            'assignment.grade',
+            'assignment.submit',
+            'student.view',
+            'attendance.view',
+            'attendance.mark',
+            'timetable.view'
+        ];
+        for (const perm of TEACHER_CORE_PERMISSIONS) {
+            if (!permissionCodes.includes(perm)) {
+                permissionCodes.push(perm);
+            }
+        }
+    }
 
     const [revokedRows] = await pool.query(
         `SELECT p.code

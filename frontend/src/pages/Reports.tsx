@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
@@ -18,8 +18,11 @@ import {
 } from 'lucide-react';
 import { INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useLocation } from 'react-router-dom';
-import { getVouchers } from '../utils/expenseService';
-import type { Voucher } from '../utils/expenseService';
+import api from '../services/api';
+import { otherExpenseApi, type OtherExpenseRecord } from '../services/otherExpenseApi';
+import { otherIncomeApi, type OtherIncomeRecord } from '../services/otherIncomeApi';
+import { staffSalaryApi, type SalaryStatusSummary } from '../services/staffSalaryApi';
+import { RefreshCw, Loader2 } from 'lucide-react';
 
 interface PeriodData {
   admissions: string;
@@ -296,8 +299,15 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   );
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [activeStatsTab, setActiveStatsTab] = useState<'courses' | 'programs' | 'subjects'>('courses');
-  const [vouchers, setVouchers] = useState<Voucher[]>(() => getVouchers());
   const [reportTab, setReportTab] = useState<'p&l' | 'academic'>(currentUser?.role === 'finance' ? 'p&l' : 'academic');
+
+  // ── Live MySQL Database States ──
+  const [dbExpenses, setDbExpenses] = useState<OtherExpenseRecord[]>([]);
+  const [dbIncomes, setDbIncomes] = useState<OtherIncomeRecord[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [salarySummary, setSalarySummary] = useState<SalaryStatusSummary | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // SaaS Tenants list and pagination
   const [saasCurrentPage, setSaasCurrentPage] = useState(1);
@@ -329,6 +339,141 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
     setSaasCurrentPage(1);
   }, [selectedTenant, timePeriod]);
 
+  // Resolve numerical branch ID
+  const selectedBranchId = useMemo(() => {
+    if (selectedBranch === 'All') return undefined;
+    const match = branches.find(b => b.name === selectedBranch);
+    return match?.id;
+  }, [selectedBranch, branches]);
+
+  // Fetch live reports data directly from MySQL backend
+  const fetchReportData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const branchParam = selectedBranchId ? { branchId: selectedBranchId } : {};
+      const now = new Date();
+      const [expensesRes, incomesRes, analyticsRes, salaryRes] = await Promise.allSettled([
+        otherExpenseApi.getOtherExpenses({ limit: 500, branchId: selectedBranchId }),
+        otherIncomeApi.getOtherIncomes({ limit: 500, branchId: selectedBranchId }),
+        api.get('/branch/finance/analytics', { params: branchParam }),
+        staffSalaryApi.getSalaryStatus({ month: now.getMonth() + 1, year: now.getFullYear() }).catch(() => null)
+      ]);
+
+      if (expensesRes.status === 'fulfilled' && expensesRes.value?.records) {
+        setDbExpenses(expensesRes.value.records);
+      }
+      if (incomesRes.status === 'fulfilled' && incomesRes.value?.records) {
+        setDbIncomes(incomesRes.value.records);
+      }
+      if (analyticsRes.status === 'fulfilled' && analyticsRes.value?.data?.data) {
+        setAnalyticsData(analyticsRes.value.data.data);
+      }
+      if (salaryRes.status === 'fulfilled' && salaryRes.value?.summary) {
+        setSalarySummary(salaryRes.value.summary);
+      }
+    } catch (err) {
+      console.error('Failed to load live report metrics from MySQL:', err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [selectedBranchId]);
+
+  useEffect(() => {
+    fetchReportData();
+  }, [fetchReportData, location.pathname]);
+
+  // ----------------------------------------------------
+  // DYNAMIC P&L STATISTICS FROM LIVE DATABASE
+  // ----------------------------------------------------
+  const isDateInPeriod = useCallback((dateStr?: string | Date) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+
+    if (timePeriod === 'day') {
+      return d.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+    }
+    if (timePeriod === 'week') {
+      const startOfWeek = new Date(now);
+      const day = startOfWeek.getDay();
+      const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+      startOfWeek.setDate(diff);
+      startOfWeek.setHours(0, 0, 0, 0);
+      return d >= startOfWeek && d <= now;
+    }
+    if (timePeriod === 'month') {
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }
+    if (timePeriod === 'year') {
+      return d.getFullYear() === now.getFullYear();
+    }
+    return true;
+  }, [timePeriod]);
+
+  const filteredExpenses = useMemo(() => {
+    return dbExpenses.filter(e => isDateInPeriod(e.expense_date));
+  }, [dbExpenses, isDateInPeriod]);
+
+  const filteredIncomes = useMemo(() => {
+    return dbIncomes.filter(i => isDateInPeriod(i.income_date));
+  }, [dbIncomes, isDateInPeriod]);
+
+  const isBranchSelected = selectedBranch !== 'All';
+
+  // Live Student Fee Collections from MySQL
+  const studentFeeIncome = useMemo(() => {
+    if (!analyticsData) return 0;
+    if (timePeriod === 'day') {
+      return Number(isBranchSelected ? analyticsData.periodFees?.today_branch : analyticsData.periodFees?.today_inst) || 0;
+    }
+    if (timePeriod === 'week') {
+      return Number(isBranchSelected ? analyticsData.periodFees?.week_branch : analyticsData.periodFees?.week_inst) || 0;
+    }
+    if (timePeriod === 'month') {
+      return Number(isBranchSelected ? analyticsData.periodFees?.month_branch : analyticsData.periodFees?.month_inst) || 0;
+    }
+    // 'year'
+    return Number(isBranchSelected ? analyticsData.branch?.totalCollected : analyticsData.institute?.totalCollected) || 0;
+  }, [analyticsData, timePeriod, isBranchSelected]);
+
+  // Live Manual Receipts / Other Incomes from MySQL
+  const manualReceiptIncome = useMemo(() => {
+    return filteredIncomes.reduce((acc, i) => acc + Number(i.amount || 0), 0);
+  }, [filteredIncomes]);
+
+  const totalIncome = studentFeeIncome + manualReceiptIncome;
+
+  // Live Operating Expenses grouped dynamically from MySQL
+  const expensesByCategory = useMemo(() => {
+    const breakdown: Record<string, number> = {};
+
+    filteredExpenses.forEach(e => {
+      const cat = e.category || 'Other';
+      breakdown[cat] = (breakdown[cat] || 0) + Number(e.amount || 0);
+    });
+
+    if (salarySummary?.paidAmount && (timePeriod === 'month' || timePeriod === 'year')) {
+      breakdown['Salaries'] = (breakdown['Salaries'] || 0) + Number(salarySummary.paidAmount);
+    }
+
+    if (Object.keys(breakdown).length === 0) {
+      breakdown['General Operations'] = 0;
+    }
+
+    return breakdown;
+  }, [filteredExpenses, salarySummary, timePeriod]);
+
+  const totalExpensePnL = useMemo(() => {
+    return Object.values(expensesByCategory).reduce((acc, val) => acc + val, 0);
+  }, [expensesByCategory]);
+
+  const netSurplus = totalIncome - totalExpensePnL;
+  const netMarginPct = totalIncome > 0 ? ((netSurplus / totalIncome) * 100).toFixed(1) : '0.0';
+
+  const instituteName = analyticsData?.institute?.name || currentUser?.tenantName || (currentUser as any)?.institute || 'Institute Master';
+
   const handleExportSaasTenants = () => {
     const headers = ['Tenant Code', 'Institute Name', 'Plan Tier', 'Branch Utilization', 'Storage Load', 'Active Users', 'Billing Status'];
     const rows = saasTenants.map(t => [
@@ -355,95 +500,26 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
     const rows = [
       ['1. Revenue / Operating Inflows', 'HEADER', ''],
       ['Student Tuition Fees Collections', 'Revenue', studentFeeIncome],
-      ['Manual Receipts & Donations', 'Revenue', manualReceiptIncome],
+      ['Manual Receipts & Other Incomes', 'Revenue', manualReceiptIncome],
       ['Total Revenue (A)', 'TOTAL', totalIncome],
       ['2. Operating Expenses / Outflows', 'HEADER', ''],
       ...Object.entries(expensesByCategory).map(([cat, amt]) => [
         `${cat} Expenditures`, 'Expense', amt
       ]),
       ['Total Expenses (B)', 'TOTAL', totalExpensePnL],
-      ['Net Surplus', 'SUMMARY', netSurplus]
+      ['Net Surplus (Profit)', 'SUMMARY', netSurplus],
+      ['Profit Margin (%)', 'PERCENTAGE', `${netMarginPct}%`]
     ];
 
     const csvContent = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', `profit_and_loss_${timePeriod}.csv`);
+    link.setAttribute('download', `${instituteName.toLowerCase().replace(/\s+/g, '_')}_pnl_${timePeriod}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
-
-  useEffect(() => {
-    setVouchers(getVouchers());
-  }, [location.pathname]);
-
-  // ----------------------------------------------------
-  // DYNAMIC P&L STATISTICS CALCULATIONS
-  // ----------------------------------------------------
-  const filteredVouchersForPnL = useMemo(() => {
-    return vouchers.filter(v => {
-      const today = '2026-08-11';
-      if (timePeriod === 'day') {
-        return v.date === today;
-      } else if (timePeriod === 'week') {
-        return v.date >= '2026-08-05' && v.date <= today;
-      } else if (timePeriod === 'month') {
-        return v.date.startsWith('2026-08');
-      } else if (timePeriod === 'year') {
-        return v.date.startsWith('2026');
-      }
-      return true;
-    });
-  }, [vouchers, timePeriod]);
-
-  const filteredStudents = useMemo(() => {
-    return students.filter(s => selectedBranch === 'All' || s.branch === selectedBranch);
-  }, [students, selectedBranch]);
-
-  const studentFeeIncome = useMemo(() => {
-    const totalPaid = filteredStudents.reduce((acc, s) => acc + s.feePlan.paid, 0);
-    if (timePeriod === 'day') return Math.round(totalPaid * 0.01);
-    if (timePeriod === 'week') return Math.round(totalPaid * 0.15);
-    if (timePeriod === 'month') return Math.round(totalPaid * 0.40);
-    return totalPaid;
-  }, [filteredStudents, timePeriod]);
-
-  const manualReceiptIncome = useMemo(() => {
-    return filteredVouchersForPnL
-      .filter(v => v.direction === 'Credit')
-      .reduce((acc, v) => acc + v.amount, 0);
-  }, [filteredVouchersForPnL]);
-
-  const totalIncome = studentFeeIncome + manualReceiptIncome;
-
-  const expensesByCategory = useMemo(() => {
-    const breakdown: Record<string, number> = {
-      'Salaries': 0,
-      'Electricity': 0,
-      'Maintenance': 0,
-      'Stationery': 0,
-      'Transport': 0,
-      'Other': 0
-    };
-    
-    filteredVouchersForPnL.forEach(v => {
-      if (v.direction === 'Debit') {
-        const cat = v.category in breakdown ? v.category : 'Other';
-        breakdown[cat] += v.amount;
-      }
-    });
-    
-    return breakdown;
-  }, [filteredVouchersForPnL]);
-
-  const totalExpensePnL = useMemo(() => {
-    return Object.values(expensesByCategory).reduce((acc, val) => acc + val, 0);
-  }, [expensesByCategory]);
-
-  const netSurplus = totalIncome - totalExpensePnL;
-  const netMarginPct = totalIncome > 0 ? ((netSurplus / totalIncome) * 100).toFixed(1) : '0.0';
 
   const activeMetricsSet = mode === 'saas'
     ? (tenantMetrics[selectedTenant] || tenantMetrics.All)
@@ -553,7 +629,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             />
           </div>
 
-          {/* Tenant/Branch Filter */}
+          {/* Tenant/Branch Filter & Refresh */}
           {mode === 'saas' ? (
             <div className="flex items-center gap-2">
               <span className="text-slate-500 flex items-center gap-1"><Filter size={14} /> Tenant:</span>
@@ -583,6 +659,17 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
               </div>
             )
           )}
+
+          <button
+            type="button"
+            onClick={fetchReportData}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 h-8 px-2.5 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition-all shadow-2xs cursor-pointer active:scale-95"
+            title="Refresh metrics from database"
+          >
+            <RefreshCw size={13} className={`text-slate-500 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+            <span>{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
+          </button>
         </div>
       </div>
 
@@ -727,7 +814,9 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             <div className="bg-slate-800 text-white px-6 py-4 flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-base tracking-wide uppercase font-mono">Profit &amp; Loss Statement</h3>
-                <p className="text-[10px] text-slate-300 mt-0.5">Apex IIT Academy &bull; Period: {timePeriod.toUpperCase()}</p>
+                <p className="text-[10px] text-slate-300 mt-0.5">
+                  {instituteName} &bull; Period: {timePeriod.toUpperCase()} &bull; Scope: {selectedBranch === 'All' ? 'All Branches' : selectedBranch}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <button 
@@ -752,15 +841,15 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                   </tr>
                   <tr className="border-b border-slate-100 hover:bg-slate-50/50">
                     <td className="px-8 py-3 text-sm text-slate-600 font-medium">Student Tuition Fees Collections</td>
-                    <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">₹{studentFeeIncome.toLocaleString()}</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">₹{studentFeeIncome.toLocaleString('en-IN')}</td>
                   </tr>
                   <tr className="border-b border-slate-100 hover:bg-slate-50/50">
-                    <td className="px-8 py-3 text-sm text-slate-600 font-medium">Manual Receipts &amp; Donations</td>
-                    <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">₹{manualReceiptIncome.toLocaleString()}</td>
+                    <td className="px-8 py-3 text-sm text-slate-600 font-medium">Manual Receipts &amp; Other Incomes</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-slate-900">₹{manualReceiptIncome.toLocaleString('en-IN')}</td>
                   </tr>
                   <tr className="bg-emerald-50/40 border-b border-slate-200 font-bold">
                     <td className="px-6 py-3 text-sm text-emerald-800">Total Revenue (A)</td>
-                    <td className="px-6 py-3 text-right font-mono font-bold text-emerald-700">₹{totalIncome.toLocaleString()}</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-emerald-700">₹{totalIncome.toLocaleString('en-IN')}</td>
                   </tr>
 
                   {/* Expenses Header */}
@@ -771,18 +860,20 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                   {Object.entries(expensesByCategory).map(([cat, amt]) => (
                     <tr key={cat} className="border-b border-slate-100 hover:bg-slate-50/50">
                       <td className="px-8 py-3 text-sm text-slate-600 font-medium">{cat} Expenditures</td>
-                      <td className="px-6 py-3 text-right font-mono font-semibold text-slate-700">₹{amt.toLocaleString()}</td>
+                      <td className="px-6 py-3 text-right font-mono font-semibold text-slate-700">₹{amt.toLocaleString('en-IN')}</td>
                     </tr>
                   ))}
                   <tr className="bg-rose-50/40 border-b border-slate-200 font-bold">
                     <td className="px-6 py-3 text-sm text-rose-800">Total Expenses (B)</td>
-                    <td className="px-6 py-3 text-right font-mono font-bold text-rose-700">₹{totalExpensePnL.toLocaleString()}</td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-rose-700">₹{totalExpensePnL.toLocaleString('en-IN')}</td>
                   </tr>
 
                   {/* Summary row */}
                   <tr className="bg-slate-800 text-white font-bold text-base">
-                    <td className="px-6 py-4 rounded-bl-xl">Net Surplus</td>
-                    <td className="px-6 py-4 text-right font-mono rounded-br-xl">₹{netSurplus.toLocaleString()}</td>
+                    <td className="px-6 py-4 rounded-bl-xl">Net Operating Surplus</td>
+                    <td className={`px-6 py-4 text-right font-mono rounded-br-xl ${netSurplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      ₹{netSurplus.toLocaleString('en-IN')}
+                    </td>
                   </tr>
                 </tbody>
               </table>

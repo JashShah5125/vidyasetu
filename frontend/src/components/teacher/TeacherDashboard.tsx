@@ -29,7 +29,9 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  XCircle
+  XCircle,
+  Users,
+  TrendingUp
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -41,7 +43,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import { teacherScheduleApi } from '../../services/teacherScheduleApi';
-import type { TeacherScheduleOptions, TeacherScheduleLecture } from '../../services/teacherScheduleApi';
+import type { TeacherScheduleOptions, TeacherScheduleLecture, BatchTurnoutSummaryItem } from '../../services/teacherScheduleApi';
 import { doubtApi } from '../../services/doubtApi';
 import type { DoubtItem } from '../../services/doubtApi';
 import { teacherHomeworkApi } from '../../services/teacherHomeworkApi';
@@ -132,6 +134,10 @@ export const TeacherDashboard: React.FC = () => {
   const [teacherAssessments, setTeacherAssessments] = useState<HomeworkItem[]>([]);
   const [assessmentTypeFilter, setAssessmentTypeFilter] = useState<'all' | 'exam' | 'homework' | 'assignment'>('all');
   const [showAllAssessments, setShowAllAssessments] = useState(false);
+
+  // Batch Turnout Summary States
+  const [batchSummaries, setBatchSummaries] = useState<BatchTurnoutSummaryItem[]>([]);
+  const [selectedTurnoutBatchId, setSelectedTurnoutBatchId] = useState<string>('all');
 
   // 1. Fetch Teacher Scoped Options on Mount
   const loadOptions = useCallback(async () => {
@@ -271,7 +277,7 @@ export const TeacherDashboard: React.FC = () => {
       const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
       const monthEnd = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-      const [todayRes, weekRes, monthRes, doubtsRes, homeworksRes, assessmentsRes] = await Promise.allSettled([
+      const [todayRes, weekRes, monthRes, doubtsRes, homeworksRes, assessmentsRes, batchSummaryRes] = await Promise.allSettled([
         teacherScheduleApi.getToday(undefined, { batchId: batchFilterParam, branchId: branchFilterParam }),
         teacherScheduleApi.getWeek(undefined, undefined, { batchId: batchFilterParam, branchId: branchFilterParam }),
         teacherScheduleApi.getWeek(monthStart, monthEnd, { batchId: batchFilterParam, branchId: branchFilterParam }),
@@ -286,7 +292,8 @@ export const TeacherDashboard: React.FC = () => {
           limit: 100,
           batchId: batchFilterParam,
           branchId: branchFilterParam
-        })
+        }),
+        teacherScheduleApi.getBatchTurnoutSummary()
       ]);
 
       if (todayRes.status === 'fulfilled' && todayRes.value) {
@@ -303,6 +310,10 @@ export const TeacherDashboard: React.FC = () => {
 
       if (doubtsRes.status === 'fulfilled' && doubtsRes.value) {
         setDoubts(doubtsRes.value || []);
+      }
+
+      if (batchSummaryRes.status === 'fulfilled' && batchSummaryRes.value) {
+        setBatchSummaries(batchSummaryRes.value || []);
       }
 
       if (assessmentsRes.status === 'fulfilled' && assessmentsRes.value?.data) {
@@ -591,6 +602,69 @@ export const TeacherDashboard: React.FC = () => {
       data: weeklyHoursData,
     };
   }, [datePreset, dailyHoursData, weeklyHoursData, monthlyHoursData, totalWeeklyHours, totalWeeklyLectures, avgDailyHours, todayLectures.length]);
+
+  // Merge batch summaries with options.batches to ensure all assigned batches are selectable
+  const mergedBatchSummaries = useMemo<BatchTurnoutSummaryItem[]>(() => {
+    const summaryMap = new Map<number, BatchTurnoutSummaryItem>();
+    batchSummaries.forEach(b => summaryMap.set(b.batchId, b));
+
+    if (options?.batches) {
+      options.batches.forEach(b => {
+        if (!summaryMap.has(b.id)) {
+          summaryMap.set(b.id, {
+            batchId: b.id,
+            batchName: b.name,
+            batchCode: b.code || `BATCH-${b.id}`,
+            totalLectures: 0,
+            conductedLectures: 0,
+            enrolledStudents: 0,
+            turnoutRate: 0
+          });
+        }
+      });
+    }
+
+    return Array.from(summaryMap.values());
+  }, [batchSummaries, options.batches]);
+
+  const selectedBatchSummary = useMemo(() => {
+    if (selectedTurnoutBatchId === 'all') return null;
+    return mergedBatchSummaries.find(b => String(b.batchId) === String(selectedTurnoutBatchId)) || null;
+  }, [mergedBatchSummaries, selectedTurnoutBatchId]);
+
+  const aggregateTurnoutSummary = useMemo(() => {
+    if (mergedBatchSummaries.length === 0) {
+      return {
+        avgRate: 0,
+        totalConducted: 0,
+        totalLectures: 0,
+        totalStudents: 0,
+        batchesCount: 0
+      };
+    }
+    const totalLectures = mergedBatchSummaries.reduce((acc, b) => acc + (b.totalLectures || 0), 0);
+    const totalConducted = mergedBatchSummaries.reduce((acc, b) => acc + (b.conductedLectures || 0), 0);
+    const totalStudents = mergedBatchSummaries.reduce((acc, b) => acc + (b.enrolledStudents || 0), 0);
+    const conductedWithRates = mergedBatchSummaries.filter(b => b.conductedLectures > 0);
+    const avgRate = conductedWithRates.length > 0
+      ? Math.round(conductedWithRates.reduce((acc, b) => acc + b.turnoutRate, 0) / conductedWithRates.length)
+      : Math.round(mergedBatchSummaries.reduce((acc, b) => acc + b.turnoutRate, 0) / mergedBatchSummaries.length);
+
+    return {
+      avgRate,
+      totalConducted,
+      totalLectures,
+      totalStudents,
+      batchesCount: mergedBatchSummaries.length
+    };
+  }, [mergedBatchSummaries]);
+
+  // Sync global batch filter with card batch selector if global filter is changed
+  useEffect(() => {
+    if (filterBatch !== 'All') {
+      setSelectedTurnoutBatchId(String(filterBatch));
+    }
+  }, [filterBatch]);
 
   const displayedDoubts = useMemo(() => {
     if (showAllDoubts) return filteredDoubts;
@@ -1154,54 +1228,253 @@ export const TeacherDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* ── TEACHING HOURS DELIVERED (DYNAMIC GRAPH: DAILY / WEEKLY / MONTHLY) ── */}
-      <Card className="p-5 shadow-sm border border-slate-200/90">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+      {/* ── TEACHING HOURS & BATCH TURNOUT PERFORMANCE (2-COLUMN GRID) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Hours Worked Card (Shortened width to fit side-by-side) */}
+        <Card className="p-5 shadow-sm border border-slate-200/90 flex flex-col justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Clock size={18} className="text-blue-600" />
-              {currentWorkloadView.title}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {currentWorkloadView.subtitle}
-            </p>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-100">
-              {currentWorkloadView.primaryBadge}
-            </span>
-            <span className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-200">
-              {currentWorkloadView.secondaryBadge}
-            </span>
-          </div>
-        </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 truncate">
+                  <Clock size={18} className="text-blue-600 shrink-0" />
+                  <span className="truncate">{currentWorkloadView.title}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                  {currentWorkloadView.subtitle}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-100">
+                  {currentWorkloadView.primaryBadge}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-200">
+                  {currentWorkloadView.secondaryBadge}
+                </span>
+              </div>
+            </div>
 
-        <div className="w-full h-52 mt-4 select-none [&_*]:outline-none [&_*]:focus:outline-none">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              key={datePreset}
-              data={currentWorkloadView.data}
-              margin={{ top: 12, right: 12, left: -20, bottom: 0 }}
+            <div className="w-full h-52 mt-4 select-none [&_*]:outline-none [&_*]:focus:outline-none">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  key={datePreset}
+                  data={currentWorkloadView.data}
+                  margin={{ top: 12, right: 12, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.6} />
+                  <XAxis
+                    dataKey="day"
+                    tickLine={false}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    unit="h"
+                  />
+                  <Tooltip content={<SimpleWorkloadTooltip />} cursor={{ fill: '#f1f5f9', opacity: 0.6 }} />
+                  <Bar dataKey="hours" name="Hours Worked" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </Card>
+
+        {/* Batch Turnout Summary Card */}
+        <Card className="p-5 shadow-sm border border-slate-200/90 flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 truncate">
+                  <Users size={18} className="text-indigo-600 shrink-0" />
+                  <span>Batch Turnout Summary</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                  Student turnout & attendance rate
+                </p>
+              </div>
+
+              {/* Batch Dropdown Selector */}
+              <div className="relative min-w-[200px] max-w-full">
+                <select
+                  value={selectedTurnoutBatchId}
+                  onChange={(e) => setSelectedTurnoutBatchId(e.target.value)}
+                  className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-8 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all shadow-2xs truncate"
+                >
+                  <option value="all">All Batches</option>
+                  {mergedBatchSummaries.map((b) => (
+                    <option key={b.batchId} value={String(b.batchId)}>
+                      {b.batchName}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {loadingData ? (
+              <div className="h-52 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Loader2 className="animate-spin text-indigo-600" size={24} />
+                <span className="text-xs font-medium">Loading batch turnout metrics...</span>
+              </div>
+            ) : mergedBatchSummaries.length === 0 ? (
+              <div className="h-52 flex flex-col items-center justify-center text-slate-400 text-center px-4">
+                <Users size={28} className="text-slate-300 mb-2" />
+                <p className="text-xs font-semibold text-slate-600">No batches assigned yet</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Turnout metrics will appear once batches are scheduled</p>
+              </div>
+            ) : selectedBatchSummary ? (
+              // Specific Batch View
+              <div className="mt-4 space-y-3.5">
+                {/* Batch Name & Turnout badge */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-slate-900 truncate">
+                      {selectedBatchSummary.batchName}
+                    </h4>
+                    <span className="text-[11px] font-mono font-semibold text-slate-400 mt-0.5 inline-block">
+                      {selectedBatchSummary.batchCode || `BATCH-${selectedBatchSummary.batchId}`}
+                    </span>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-black border shrink-0 ${
+                    selectedBatchSummary.turnoutRate >= 75
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : selectedBatchSummary.turnoutRate >= 50
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
+                    {selectedBatchSummary.turnoutRate}% Turnout
+                  </span>
+                </div>
+
+                {/* Turnout Progress Bar */}
+                <div>
+                  <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500 mb-1.5">
+                    <span>Attendance Rate</span>
+                    <span className={
+                      selectedBatchSummary.turnoutRate >= 75 ? 'text-emerald-700 font-bold' :
+                      selectedBatchSummary.turnoutRate >= 50 ? 'text-amber-700 font-bold' : 'text-rose-700 font-bold'
+                    }>
+                      {selectedBatchSummary.turnoutRate >= 75 ? 'Healthy Standing' :
+                       selectedBatchSummary.turnoutRate >= 50 ? 'Moderate Attendance' : 'Attention Needed'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/50">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        selectedBatchSummary.turnoutRate >= 75 ? 'bg-emerald-500' :
+                        selectedBatchSummary.turnoutRate >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, selectedBatchSummary.turnoutRate))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div className="text-[11px] text-slate-500 font-medium">Conducted Classes</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">
+                      {selectedBatchSummary.conductedLectures} <span className="text-xs font-medium text-slate-400">/ {selectedBatchSummary.totalLectures}</span>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div className="text-[11px] text-slate-500 font-medium">Active Students</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">
+                      {selectedBatchSummary.enrolledStudents} <span className="text-xs font-medium text-slate-400">students</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // All Batches Overview
+              <div className="mt-4 space-y-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Overall Batches Turnout
+                    </h4>
+                    <span className="text-[11px] text-slate-500 font-medium mt-0.5 inline-block">
+                      Aggregated across {aggregateTurnoutSummary.batchesCount} assigned {aggregateTurnoutSummary.batchesCount === 1 ? 'batch' : 'batches'}
+                    </span>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-black border shrink-0 ${
+                    aggregateTurnoutSummary.avgRate >= 75
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : aggregateTurnoutSummary.avgRate >= 50
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
+                    {aggregateTurnoutSummary.avgRate}% Avg Turnout
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div>
+                  <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500 mb-1.5">
+                    <span>Average Attendance Rate</span>
+                    <span className={
+                      aggregateTurnoutSummary.avgRate >= 75 ? 'text-emerald-700 font-bold' :
+                      aggregateTurnoutSummary.avgRate >= 50 ? 'text-amber-700 font-bold' : 'text-rose-700 font-bold'
+                    }>
+                      {aggregateTurnoutSummary.avgRate >= 75 ? 'Healthy Standing' :
+                       aggregateTurnoutSummary.avgRate >= 50 ? 'Moderate Attendance' : 'Attention Needed'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/50">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        aggregateTurnoutSummary.avgRate >= 75 ? 'bg-emerald-500' :
+                        aggregateTurnoutSummary.avgRate >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, aggregateTurnoutSummary.avgRate))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div className="text-[11px] text-slate-500 font-medium">Total Classes Done</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">
+                      {aggregateTurnoutSummary.totalConducted} <span className="text-xs font-medium text-slate-400">/ {aggregateTurnoutSummary.totalLectures}</span>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div className="text-[11px] text-slate-500 font-medium">Total Students</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-0.5">
+                      {aggregateTurnoutSummary.totalStudents} <span className="text-xs font-medium text-slate-400">enrolled</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer Action Button */}
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full text-xs font-semibold cursor-pointer hover:bg-slate-100 text-indigo-700 flex items-center justify-center gap-1.5"
+              onClick={() => {
+                if (selectedBatchSummary) {
+                  navigate(`/attendance?tab=history&batchId=${selectedBatchSummary.batchId}`, {
+                    state: { tab: 'history', batchId: String(selectedBatchSummary.batchId) }
+                  });
+                } else {
+                  navigate('/attendance?tab=summary', {
+                    state: { tab: 'summary' }
+                  });
+                }
+              }}
             >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.6} />
-              <XAxis
-                dataKey="day"
-                tickLine={false}
-                axisLine={{ stroke: '#cbd5e1' }}
-                tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                unit="h"
-              />
-              <Tooltip content={<SimpleWorkloadTooltip />} cursor={{ fill: '#f1f5f9', opacity: 0.6 }} />
-              <Bar dataKey="hours" name="Hours Worked" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={44} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
+              <span>{selectedBatchSummary ? `View ${selectedBatchSummary.batchName} History →` : 'View All Batch Summaries →'}</span>
+            </Button>
+          </div>
+        </Card>
+      </div>
 
       {/* Main Grid: Doubts Q&A Forum (Left) + Live Schedule (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

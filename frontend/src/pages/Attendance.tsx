@@ -101,7 +101,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   const [sheetLectures, setSheetLectures] = useState<AttendanceLecture[]>([]);
   const [loadingSheetLectures, setLoadingSheetLectures] = useState(false);
 
-  const numeric = (v: string) => (v && /^\d+$/.test(v) ? v : undefined);
+  const numeric = (v: string) => (v && /^\d+$/.test(v) ? Number(v) : undefined);
   const selectedBatchId = numeric(batch);
 
   const branchId = useMemo(() => {

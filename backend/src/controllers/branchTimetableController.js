@@ -348,6 +348,26 @@ const createLecture = async (req, res) => {
             roomId: resolvedRoomId
         };
 
+        // Block scheduling if teacher is unavailable or on leave
+        const conflicts = await conflictService.checkLectureConflicts(tenantId, {
+            ...lectureData,
+            lectureDate: lectureData.lecture_date || lectureData.lectureDate || lectureData.date,
+            startTime: lectureData.start_time || lectureData.startTime,
+            endTime: lectureData.end_time || lectureData.endTime,
+            teacherUserId: resolvedTeacherId,
+            classroomId: resolvedRoomId,
+            batchId: resolvedBatchId,
+            branchId: resolvedBranchId
+        });
+        const blocking = conflicts.find(c => c.type === 'teacher_unavailable' || c.severity === 'BLOCKING' || c.severity === 'danger');
+        if (blocking) {
+            return res.status(400).json({
+                status: 'error',
+                message: blocking.message || 'Cannot schedule lecture: Faculty is unavailable or on leave.',
+                conflicts
+            });
+        }
+
         const result = await timetableModel.createLecture(tenantId, lectureData, userId);
         res.status(201).json({ status: 'success', message: 'Lecture created successfully', data: result });
     } catch (error) {
@@ -412,6 +432,27 @@ const updateLecture = async (req, res) => {
             classroom_id: validatedRoom ? validatedRoom.id : (newRoomId ? (isNaN(Number(newRoomId)) ? null : Number(newRoomId)) : null),
             is_modified_from_default: 1
         };
+
+        // Block scheduling if teacher is unavailable or on leave
+        const conflicts = await conflictService.checkLectureConflicts(tenantId, {
+            ...lectureData,
+            lectureId: id,
+            lectureDate: lectureData.lecture_date || lectureData.lectureDate || lectureData.date,
+            startTime: lectureData.start_time || lectureData.startTime,
+            endTime: lectureData.end_time || lectureData.endTime,
+            teacherUserId: lectureData.teacher_user_id,
+            classroomId: lectureData.classroom_id,
+            batchId: lectureData.batch_id,
+            branchId: lectureData.branch_id
+        });
+        const blocking = conflicts.find(c => c.type === 'teacher_unavailable' || c.severity === 'BLOCKING' || c.severity === 'danger');
+        if (blocking) {
+            return res.status(400).json({
+                status: 'error',
+                message: blocking.message || 'Cannot update lecture: Faculty is unavailable or on leave.',
+                conflicts
+            });
+        }
 
         const result = await timetableModel.updateLecture(tenantId, id, lectureData, userId, branchId);
         res.status(200).json({ status: 'success', message: 'Lecture updated successfully', data: result });

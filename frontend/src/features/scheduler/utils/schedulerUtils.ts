@@ -98,7 +98,7 @@ export const detectConflicts = (
         conflicts.push({
           type: 'TEACHER_UNAVAILABLE',
           conflictingLectureId: `unavail-${dateExc.id}`,
-          severity: 'WARNING',
+          severity: 'BLOCKING',
           message: `Teacher has marked themselves UNAVAILABLE on this date (${dateExc.start_time} – ${dateExc.end_time})${dateExc.reason ? ` — Reason: ${dateExc.reason}` : ''}.`
         });
       }
@@ -116,7 +116,7 @@ export const detectConflicts = (
         conflicts.push({
           type: 'TEACHER_UNAVAILABLE',
           conflictingLectureId: `unavail-day-${recurring.id}`,
-          severity: 'WARNING',
+          severity: 'BLOCKING',
           message: `Teacher has marked themselves UNAVAILABLE on ${dayName}s (Day Off / Not Working).`
         });
       } else {
@@ -128,7 +128,7 @@ export const detectConflicts = (
           conflicts.push({
             type: 'TEACHER_UNAVAILABLE',
             conflictingLectureId: `unavail-hours-${recurring.id}`,
-            severity: 'WARNING',
+            severity: 'BLOCKING',
             message: `Teacher is only available between ${recurring.start_time} – ${recurring.end_time} on ${dayName}s.`
           });
         }

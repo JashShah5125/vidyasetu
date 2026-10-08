@@ -4,6 +4,8 @@ const staffController = require('../controllers/staffController');
 // Temporarily bypassed until Auth Integration is complete
 // router.use(requireAuth);
 
+router.get('/leave-requests', staffController.getAdminLeaveRequests);
+router.put('/leave-requests/:id/status', staffController.updateAdminLeaveStatus);
 router.post('/', staffController.createStaff);
 router.get('/', staffController.getStaffList);
 router.get('/:id', staffController.getStaffById);

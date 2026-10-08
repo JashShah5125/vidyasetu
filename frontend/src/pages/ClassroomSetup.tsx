@@ -80,7 +80,7 @@ export const ClassroomSetup: React.FC = () => {
     return () => { cancelled = true; };
   }, [contextBranches]);
 
-  const isBranchAdmin = currentUser?.role === 'branch-admin' || currentUser?.role === 'branch_admin';
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
   const accessibleBranches = useMemo(() => {
     if (isBranchAdmin && currentUser?.branch) {

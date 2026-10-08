@@ -8,7 +8,8 @@ import { Modal } from '../ui/Modal';
 import {
   Calendar as CalendarIcon, MapPin, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Download, MessageSquare, AlertCircle, RefreshCw,
-  Layers, Award, CheckCircle, Eye, Trash2, Plus, Info, Save, ShieldAlert, Check, X
+  Layers, Award, CheckCircle, Eye, Trash2, Plus, Info, Save, ShieldAlert, Check, X,
+  CalendarPlus, Send
 } from 'lucide-react';
 import { TimetableGrid } from '../../features/scheduler/components/TimetableGrid';
 import type { Lecture } from '../../features/scheduler/types/scheduler';
@@ -19,7 +20,8 @@ import {
   type AcademicEvent,
   type ScheduleChangeItem,
   type WeeklyAvailabilityDay,
-  type UnavailableDateException
+  type UnavailableDateException,
+  type TeacherLeaveRequestItem
 } from '../../services/teacherScheduleApi';
 import { lectureRequestApi } from '../../services/lectureRequestApi';
 import { RequestChangeModal } from './RequestChangeModal';
@@ -109,6 +111,25 @@ export const TeacherSchedule: React.FC = () => {
   ]);
   const [dateExceptions, setDateExceptions] = useState<UnavailableDateException[]>([]);
 
+  // Filter out system leave-generated blocks from manual blocked time slots list
+  const manualDateExceptions = useMemo(() => {
+    return dateExceptions.filter(exc => !exc.reason?.startsWith('[Leave:'));
+  }, [dateExceptions]);
+
+  // Leave Requests State
+  const [leaveRequests, setLeaveRequests] = useState<TeacherLeaveRequestItem[]>([]);
+  const [loadingLeaveRequests, setLoadingLeaveRequests] = useState(false);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [submittingLeave, setSubmittingLeave] = useState(false);
+  const [availabilityActionTab, setAvailabilityActionTab] = useState<'leave' | 'slot'>('leave');
+
+  // Leave Form State
+  const [leaveStartDate, setLeaveStartDate] = useState(() => formatLocalDate(new Date()));
+  const [leaveEndDate, setLeaveEndDate] = useState(() => formatLocalDate(new Date()));
+  const [leaveType, setLeaveType] = useState('Casual Leave');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveDayType, setLeaveDayType] = useState<'full' | 'first_half' | 'second_half'>('full');
+
   // New Exception Form State
   const [newExcDate, setNewExcDate] = useState(() => formatLocalDate(new Date()));
   const [newExcStartTime, setNewExcStartTime] = useState('09:00');
@@ -133,11 +154,75 @@ export const TeacherSchedule: React.FC = () => {
     }
   }, []);
 
+  const fetchLeaveRequests = useCallback(async () => {
+    setLoadingLeaveRequests(true);
+    try {
+      const res = await teacherScheduleApi.getLeaveRequests();
+      setLeaveRequests(res || []);
+    } catch (err) {
+      console.error('Failed to load leave requests:', err);
+    } finally {
+      setLoadingLeaveRequests(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'availability') {
       fetchAvailability();
+      fetchLeaveRequests();
     }
-  }, [activeTab, fetchAvailability]);
+  }, [activeTab, fetchAvailability, fetchLeaveRequests]);
+
+  const handleCreateLeaveRequest = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!leaveStartDate || !leaveEndDate) {
+      addToast('Please select start and end dates', 'error');
+      return;
+    }
+    if (leaveStartDate > leaveEndDate) {
+      addToast('Start date cannot be after end date', 'error');
+      return;
+    }
+    if (!leaveReason.trim()) {
+      addToast('Please provide a reason for the leave', 'error');
+      return;
+    }
+
+    setSubmittingLeave(true);
+    try {
+      const formattedReason = leaveDayType !== 'full'
+        ? `[${leaveDayType === 'first_half' ? 'First Half' : 'Second Half'}] ${leaveReason.trim()}`
+        : leaveReason.trim();
+
+      await teacherScheduleApi.createLeaveRequest({
+        startDate: leaveStartDate,
+        endDate: leaveEndDate,
+        leaveType,
+        reason: formattedReason
+      });
+
+      addToast('Leave request submitted successfully!', 'success');
+      setIsLeaveModalOpen(false);
+      setLeaveReason('');
+      fetchLeaveRequests();
+      fetchAvailability();
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to submit leave request', 'error');
+    } finally {
+      setSubmittingLeave(false);
+    }
+  };
+
+  const handleCancelLeaveRequest = async (id: number | string) => {
+    try {
+      await teacherScheduleApi.cancelLeaveRequest(id);
+      addToast('Leave request cancelled', 'success');
+      setLeaveRequests(prev => prev.filter(l => l.id !== id));
+      fetchAvailability();
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to cancel leave request', 'error');
+    }
+  };
 
   const handleSaveWeeklyHours = async () => {
     setSavingWeekly(true);
@@ -610,9 +695,9 @@ export const TeacherSchedule: React.FC = () => {
             }`}
           >
             <CalendarIcon className="w-4 h-4 text-emerald-600" /> MY AVAILABILITY
-            {dateExceptions.length > 0 && (
+            {manualDateExceptions.length > 0 && (
               <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ml-0.5">
-                {dateExceptions.length}
+                {manualDateExceptions.length}
               </span>
             )}
           </button>
@@ -701,7 +786,7 @@ export const TeacherSchedule: React.FC = () => {
                 {/* Flight Path Top Header Bar */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 rounded-xl border border-blue-100 shadow-2xs">
+                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shadow-2xs">
                       <Layers className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
@@ -1207,29 +1292,10 @@ export const TeacherSchedule: React.FC = () => {
       {/* ── 5. TAB 5: MY AVAILABILITY & WORKING HOURS ── */}
       {activeTab === 'availability' && (
         <div className="space-y-6 animate-fade-in">
-          {/* Header Info Banner */}
-          <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-white rounded-2xl border border-blue-100 p-5 shadow-2xs">
-            <div className="flex items-start gap-3.5">
-              <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
-                <CalendarIcon className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
-                    Faculty Availability & Working Hours
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Set your standard recurring teaching hours and mark specific unavailable dates or leave exceptions.
-                  When Institute or Branch Administrators schedule lectures, the timetable engine checks your availability in real time and alerts them of any scheduling conflicts.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* LEFT COLUMN: Weekly Recurring Schedule (7 cols) */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-5">
+          {/* TOP ROW: Weekly Standard Hours & Action Form side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            {/* CARD 1: Weekly Standard Hours */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 flex flex-col justify-between h-full space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
                   <h4 className="font-extrabold text-sm sm:text-base text-slate-900">Weekly Standard Hours</h4>
@@ -1240,21 +1306,21 @@ export const TeacherSchedule: React.FC = () => {
                   size="sm"
                   onClick={handleSaveWeeklyHours}
                   disabled={savingWeekly}
-                  className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs"
+                  className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5 mr-1.5" /> {savingWeekly ? 'Saving...' : 'Save Hours'}
                 </Button>
               </div>
 
               {availabilityLoading ? (
-                <div className="py-12 flex justify-center items-center text-slate-400">
+                <div className="py-12 flex-1 flex justify-center items-center text-slate-400">
                   <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 flex-1 flex flex-col justify-between">
                   {weeklyAvailability.map((slot, idx) => (
-                    <div key={slot.dayOfWeek} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 p-2 rounded-xl transition-colors">
-                      <div className="flex items-center gap-3">
+                    <div key={slot.dayOfWeek} className="py-2.5 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50/70 rounded-xl transition-colors">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <button
                           type="button"
                           onClick={() => {
@@ -1262,13 +1328,13 @@ export const TeacherSchedule: React.FC = () => {
                             updated[idx] = { ...updated[idx], isAvailable: !updated[idx].isAvailable };
                             setWeeklyAvailability(updated);
                           }}
-                          className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                          className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center shrink-0 cursor-pointer ${
                             slot.isAvailable ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
                           }`}
                         >
                           <span className="w-4 h-4 rounded-full bg-white shadow-xs" />
                         </button>
-                        <span className="text-xs font-bold text-slate-800 w-24">
+                        <span className="text-xs font-bold text-slate-800 w-20">
                           {slot.dayName}
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
@@ -1279,7 +1345,7 @@ export const TeacherSchedule: React.FC = () => {
                       </div>
 
                       {slot.isAvailable ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <input
                             type="time"
                             value={slot.startTime}
@@ -1311,110 +1377,315 @@ export const TeacherSchedule: React.FC = () => {
               )}
             </div>
 
-            {/* RIGHT COLUMN: Specific Unavailable Date Blocks / Leaves (5 cols) */}
-            <div className="lg:col-span-5 space-y-6">
-              {/* Form Card to Block Out a Date */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
-                <div className="border-b border-slate-100 pb-2.5">
-                  <h4 className="font-extrabold text-sm sm:text-base text-slate-900">Mark Unavailable Slot</h4>
-                  <p className="text-xs text-slate-500 font-medium">Add one-off leave or specific blocked hours</p>
-                </div>
+            {/* CARD 2: Leave Request & Unavailable Hours Form */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 flex flex-col justify-between h-full space-y-4">
+              {/* Segmented Control: Request Leave vs Block Hours */}
+              <div className="flex p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setAvailabilityActionTab('leave')}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    availabilityActionTab === 'leave'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
+                  Request Leave
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAvailabilityActionTab('slot')}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    availabilityActionTab === 'slot'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  Block Hours
+                </button>
+              </div>
 
-                <form onSubmit={handleAddException} className="space-y-3.5 text-xs">
-                  <div>
-                    <label className="block text-slate-600 font-bold mb-1">Date</label>
-                    <Input
-                      type="date"
-                      value={newExcDate}
-                      onChange={(e) => setNewExcDate(e.target.value)}
-                      required
-                    />
-                  </div>
+              {availabilityActionTab === 'leave' ? (
+                /* ── TAB 1: FORMAL LEAVE REQUEST ── */
+                <form onSubmit={handleCreateLeaveRequest} className="flex-1 flex flex-col justify-between text-xs space-y-3.5">
+                  <div className="space-y-3.5">
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Leave Type</label>
+                      <select
+                        value={leaveType}
+                        onChange={(e) => setLeaveType(e.target.value)}
+                        className="w-full h-9 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all cursor-pointer"
+                      >
+                        <option value="Casual Leave">Casual Leave</option>
+                        <option value="Sick Leave">Sick / Medical Leave</option>
+                        <option value="Personal Leave">Personal Leave</option>
+                        <option value="Earned Leave">Earned Leave</option>
+                        <option value="Emergency Leave">Emergency Leave</option>
+                        <option value="Academic Duty (OD)">Academic Duty / On Duty</option>
+                      </select>
+                    </div>
 
-                  <div className="flex items-center justify-between pt-0.5">
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={newExcAllDay}
-                        onChange={(e) => setNewExcAllDay(e.target.checked)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span>All Day Unavailable</span>
-                    </label>
-                  </div>
-
-                  {!newExcAllDay && (
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
-                        <label className="block text-slate-600 font-bold mb-1">Start Time</label>
+                        <label className="block text-slate-600 font-bold mb-1">Start Date</label>
                         <Input
-                          type="time"
-                          value={newExcStartTime}
-                          onChange={(e) => setNewExcStartTime(e.target.value)}
-                          required={!newExcAllDay}
+                          type="date"
+                          value={leaveStartDate}
+                          onChange={(e) => {
+                            setLeaveStartDate(e.target.value);
+                            if (e.target.value > leaveEndDate) {
+                              setLeaveEndDate(e.target.value);
+                            }
+                          }}
+                          required
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-600 font-bold mb-1">End Time</label>
+                        <label className="block text-slate-600 font-bold mb-1">End Date</label>
                         <Input
-                          type="time"
-                          value={newExcEndTime}
-                          onChange={(e) => setNewExcEndTime(e.target.value)}
-                          required={!newExcAllDay}
+                          type="date"
+                          value={leaveEndDate}
+                          min={leaveStartDate}
+                          onChange={(e) => setLeaveEndDate(e.target.value)}
+                          required
                         />
                       </div>
                     </div>
-                  )}
 
-                  <div>
-                    <label className="block text-slate-600 font-bold mb-1">Reason (Optional)</label>
-                    <Input
-                      placeholder="e.g. Personal Leave, Medical Appointment, Seminar"
-                      value={newExcReason}
-                      onChange={(e) => setNewExcReason(e.target.value)}
-                    />
+                    {/* Day Type (Full Day / Half Day) */}
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1.5">Duration Type</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'full', label: 'Full Day' },
+                          { id: 'first_half', label: 'First Half' },
+                          { id: 'second_half', label: 'Second Half' }
+                        ].map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => setLeaveDayType(d.id as any)}
+                            className={`py-1.5 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                              leaveDayType === d.id
+                                ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-2xs'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">Reason for Leave</label>
+                      <textarea
+                        rows={3}
+                        placeholder="State reason for absence (e.g. family event, medical, personal)..."
+                        value={leaveReason}
+                        onChange={(e) => setLeaveReason(e.target.value)}
+                        required
+                        className="w-full text-xs font-medium p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all resize-none"
+                      />
+                    </div>
                   </div>
 
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    disabled={addingException}
-                    className="w-full text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs mt-1"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> {addingException ? 'Saving...' : 'Add Unavailable Slot'}
-                  </Button>
+                  <div className="pt-2 mt-auto">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="sm"
+                      disabled={submittingLeave}
+                      className="w-full text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5 mr-1" /> {submittingLeave ? 'Submitting Leave...' : 'Submit Leave Request'}
+                    </Button>
+                  </div>
                 </form>
-              </div>
+              ) : (
+                /* ── TAB 2: ONE-OFF HOURLY BLOCKED SLOT ── */
+                <form onSubmit={handleAddException} className="flex-1 flex flex-col justify-between text-xs space-y-3.5">
+                  <div className="space-y-3.5">
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">Date</label>
+                      <Input
+                        type="date"
+                        value={newExcDate}
+                        onChange={(e) => setNewExcDate(e.target.value)}
+                        required
+                      />
+                    </div>
 
-              {/* Active Exceptions List */}
-              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-700">Upcoming Unavailable Blocks</h4>
-                  <span className="text-xs text-slate-400 font-semibold">{dateExceptions.length} active</span>
+                    <div className="flex items-center justify-between pt-0.5">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={newExcAllDay}
+                          onChange={(e) => setNewExcAllDay(e.target.checked)}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>All Day Leave</span>
+                      </label>
+                    </div>
+
+                    {!newExcAllDay && (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-slate-600 font-bold mb-1">Start Time</label>
+                          <Input
+                            type="time"
+                            value={newExcStartTime}
+                            onChange={(e) => setNewExcStartTime(e.target.value)}
+                            required={!newExcAllDay}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-600 font-bold mb-1">End Time</label>
+                          <Input
+                            type="time"
+                            value={newExcEndTime}
+                            onChange={(e) => setNewExcEndTime(e.target.value)}
+                            required={!newExcAllDay}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-slate-600 font-bold mb-1">Reason (Optional)</label>
+                      <Input
+                        placeholder="e.g. Personal Appointment, Seminar"
+                        value={newExcReason}
+                        onChange={(e) => setNewExcReason(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 mt-auto">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="sm"
+                      disabled={addingException}
+                      className="w-full text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" /> {addingException ? 'Saving...' : 'Add Blocked Slot'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+
+          {/* BOTTOM ROW: Full-Width Horizontal My Leave Requests & Blocked Slots */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="font-extrabold text-sm sm:text-base text-slate-900 uppercase tracking-wider">
+                  My Leave Requests &amp; Blocks
+                </h4>
+                <p className="text-xs text-slate-500 font-medium">History of your submitted leaves and custom date blocks</p>
+              </div>
+              <span className="text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200 px-3 py-1 rounded-full">
+                {leaveRequests.length} requests • {manualDateExceptions.length} blocks
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Column 1: Leave Requests Section */}
+              <div className="space-y-3">
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Leave Requests</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400">{leaveRequests.length} total</span>
                 </div>
 
-                {dateExceptions.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-4 text-center">
-                    No specific date blocks active. You are scheduled according to your weekly hours.
-                  </p>
+                {loadingLeaveRequests ? (
+                  <div className="py-8 text-center text-slate-400">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto text-blue-600" />
+                  </div>
+                ) : leaveRequests.length === 0 ? (
+                  <div className="p-6 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                    <p className="text-xs text-slate-400 italic">No leave requests submitted yet.</p>
+                  </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto pr-1">
-                    {dateExceptions.map((exc) => (
-                      <div key={exc.id} className="py-2.5 flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                    {leaveRequests.map((lr) => (
+                      <div key={lr.id} className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl flex items-start justify-between gap-3 transition-colors">
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-xs text-slate-900">
+                              {lr.startDate === lr.endDate ? lr.startDate : `${lr.startDate} → ${lr.endDate}`}
+                            </span>
+                            <span className="text-[10px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                              {lr.leaveType}
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                              lr.status === 'approved'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : lr.status === 'rejected'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {lr.status.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600">{lr.reason}</p>
+                        </div>
+
+                        {lr.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelLeaveRequest(lr.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Cancel Leave Request"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Column 2: Blocked Hours Exceptions Section */}
+              <div className="space-y-3 lg:border-l lg:border-slate-100 lg:pl-6">
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Upcoming Blocked Time Slots</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400">{manualDateExceptions.length} total</span>
+                </div>
+
+                {manualDateExceptions.length === 0 ? (
+                  <div className="p-6 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                    <p className="text-xs text-slate-400 italic">No hourly date blocks active.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                    {manualDateExceptions.map((exc) => (
+                      <div key={exc.id} className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 transition-colors">
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-xs text-slate-900">{exc.specificDate}</span>
-                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-200">
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-200">
                               {exc.startTime === '00:00' && exc.endTime === '23:59' ? 'All Day' : `${exc.startTime} – ${exc.endTime}`}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-500 truncate max-w-[200px]">{exc.reason}</p>
+                          {exc.reason && (
+                            <p className="text-xs text-slate-600">{exc.reason}</p>
+                          )}
                         </div>
                         <button
                           type="button"
                           onClick={() => handleDeleteException(exc.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
                           title="Remove Block"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1427,6 +1698,125 @@ export const TeacherSchedule: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── LEAVE APPLICATION MODAL ── */}
+      {isLeaveModalOpen && (
+        <Modal
+          isOpen={isLeaveModalOpen}
+          onClose={() => setIsLeaveModalOpen(false)}
+          title="Apply for Faculty Leave"
+          size="lg"
+        >
+          <form onSubmit={handleCreateLeaveRequest} className="space-y-4 text-xs">
+            <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-100 flex items-start gap-2.5">
+              <CalendarPlus className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+              <div className="text-[11px] text-blue-900 leading-relaxed">
+                Submitting a leave request automatically flags your schedule as unavailable in the timetable scheduling engine, preventing accidental lecture allocations.
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">Leave Type</label>
+              <select
+                value={leaveType}
+                onChange={(e) => setLeaveType(e.target.value)}
+                className="w-full h-9 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all cursor-pointer"
+              >
+                <option value="Casual Leave">Casual Leave</option>
+                <option value="Sick Leave">Sick / Medical Leave</option>
+                <option value="Personal Leave">Personal Leave</option>
+                <option value="Earned Leave">Earned Leave</option>
+                <option value="Emergency Leave">Emergency Leave</option>
+                <option value="Academic Duty (OD)">Academic Duty / On Duty</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-600 font-bold mb-1">Start Date</label>
+                <Input
+                  type="date"
+                  value={leaveStartDate}
+                  onChange={(e) => {
+                    setLeaveStartDate(e.target.value);
+                    if (e.target.value > leaveEndDate) {
+                      setLeaveEndDate(e.target.value);
+                    }
+                  }}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-slate-600 font-bold mb-1">End Date</label>
+                <Input
+                  type="date"
+                  value={leaveEndDate}
+                  min={leaveStartDate}
+                  onChange={(e) => setLeaveEndDate(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-bold mb-1.5">Duration Type</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'full', label: 'Full Day' },
+                  { id: 'first_half', label: 'First Half' },
+                  { id: 'second_half', label: 'Second Half' }
+                ].map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setLeaveDayType(d.id as any)}
+                    className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                      leaveDayType === d.id
+                        ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-2xs'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-bold mb-1">Reason for Leave</label>
+              <textarea
+                rows={3}
+                placeholder="Please describe reason for leave request..."
+                value={leaveReason}
+                onChange={(e) => setLeaveReason(e.target.value)}
+                required
+                className="w-full text-xs font-medium p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsLeaveModalOpen(false)}
+                className="text-xs cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={submittingLeave}
+                className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5 mr-1" /> {submittingLeave ? 'Submitting...' : 'Submit Leave Request'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* ── 8. TEACHER REQUEST DETAIL MODAL ── */}

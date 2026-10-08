@@ -86,17 +86,45 @@ const resolveTeacherAccessContext = async (tenantId, user) => {
         throw err;
     }
 
-    // 1. Teacher's assigned batches strictly from teacher_allocations
+    // 1. Teacher's assigned batches from teacher_allocations and scheduled lectures
     const [allocRows] = await pool.query(
         `SELECT DISTINCT ta.batch_id
          FROM teacher_allocations ta
-         WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL`,
-        [tid, uid]
+         WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL
+         UNION
+         SELECT DISTINCT l.batch_id
+         FROM lectures l
+         WHERE l.tenant_id = ? AND l.teacher_user_id = ? AND l.deleted_at IS NULL`,
+        [tid, uid, tid, uid]
     );
 
-    const assignedBatchIds = Array.from(new Set(
+    let assignedBatchIds = Array.from(new Set(
         allocRows.map(r => Number(r.batch_id)).filter(Boolean)
     ));
+
+    // Fallback for newly onboarded teachers without explicit batches yet: resolve by staff profile branch
+    if (assignedBatchIds.length === 0) {
+        const [staffRows] = await pool.query(
+            `SELECT branch_ids FROM staff_profiles WHERE tenant_id = ? AND user_id = ? AND deleted_at IS NULL`,
+            [tid, uid]
+        );
+        if (staffRows.length > 0 && staffRows[0].branch_ids) {
+            try {
+                const parsed = typeof staffRows[0].branch_ids === 'string'
+                    ? JSON.parse(staffRows[0].branch_ids)
+                    : staffRows[0].branch_ids;
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const [branchBatches] = await pool.query(
+                        `SELECT id FROM batches WHERE tenant_id = ? AND branch_id IN (?) AND deleted_at IS NULL`,
+                        [tid, parsed.map(Number)]
+                    );
+                    assignedBatchIds = branchBatches.map(b => b.id);
+                }
+            } catch (e) {
+                // ignore JSON parse error
+            }
+        }
+    }
 
     return {
         scope: 'TEACHER',

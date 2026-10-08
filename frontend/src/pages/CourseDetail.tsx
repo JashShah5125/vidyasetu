@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { courseApi } from '../services/courseApi';
@@ -11,7 +11,7 @@ import { Select } from '../components/ui/Select';
 import { Toggle } from '../components/ui/Toggle';
 import { Modal } from '../components/ui/Modal';
 import {
-  BookOpen, GraduationCap, Layers, Plus, Trash2, ShieldAlert, Loader2, ArrowRight, ArrowLeft, BookOpenCheck, Search, AlertTriangle
+  BookOpen, GraduationCap, Layers, Plus, Trash2, ShieldAlert, Loader2, ArrowRight, ArrowLeft, BookOpenCheck, AlertTriangle
 } from 'lucide-react';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 
@@ -118,7 +118,7 @@ export const CourseDetail: React.FC = () => {
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
   const [showMapSubjectModal, setShowMapSubjectModal] = useState(false);
   const [subjectSearch, setSubjectSearch] = useState('');
-  const [unmappingSubject, setUnmappingSubject] = useState<{ id: string; name: string; levelName: string; pi: number; li: number } | null>(null);
+  const [unmappingSubject, setUnmappingSubject] = useState<{ id: string | number; name: string; levelName: string; pi: number; li: number } | null>(null);
 
   const [formData, setFormData] = useState<CourseCreatePayload>({
     name: '',
@@ -129,14 +129,7 @@ export const CourseDetail: React.FC = () => {
     branches: []
   });
 
-  useEffect(() => {
-    if (!isNew && code) {
-      fetchCourse(code);
-    }
-    fetchGlobalSubjects();
-  }, [code, isNew]);
-
-  const fetchGlobalSubjects = async () => {
+  const fetchGlobalSubjects = useCallback(async () => {
     try {
       const res = await subjectApi.list({ limit: 100 });
       if (res?.status === 'success' && res.data) {
@@ -145,9 +138,9 @@ export const CourseDetail: React.FC = () => {
     } catch (e) {
       console.error('Failed to load global subjects:', e);
     }
-  };
+  }, []);
 
-  const fetchCourse = async (courseCode: string) => {
+  const fetchCourse = useCallback(async (courseCode: string) => {
     try {
       setIsLoading(true);
       const res = await courseApi.getByCode(courseCode);
@@ -167,7 +160,14 @@ export const CourseDetail: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [addToast, navigate]);
+
+  useEffect(() => {
+    if (!isNew && code) {
+      fetchCourse(code);
+    }
+    fetchGlobalSubjects();
+  }, [code, isNew, fetchCourse, fetchGlobalSubjects]);
 
   const validateStep = (tab: 'general' | 'programs' | 'levels' | 'subjects'): { isValid: boolean; error?: string } => {
     if (tab === 'general') {
@@ -199,6 +199,20 @@ export const CourseDetail: React.FC = () => {
         }
       }
     }
+    if (targetTab === 'levels' && !selectedProgramId && formData.programs && formData.programs.length > 0) {
+      const firstKey = formData.programs[0].id ?? formData.programs[0].code ?? 'p-0';
+      setSelectedProgramId(String(firstKey));
+    }
+    if (targetTab === 'subjects') {
+      const targetProg = formData.programs?.find((p, i) => String(p.id ?? p.code ?? `p-${i}`) === selectedProgramId) || formData.programs?.[0];
+      if (targetProg && (!selectedProgramId || selectedProgramId !== String(targetProg.id ?? targetProg.code ?? 'p-0'))) {
+        setSelectedProgramId(String(targetProg.id ?? targetProg.code ?? 'p-0'));
+      }
+      if (targetProg?.levels && targetProg.levels.length > 0 && !selectedLevelId) {
+        const firstLvl = targetProg.levels[0];
+        setSelectedLevelId(String(firstLvl.id ?? firstLvl.name ?? 'l-0'));
+      }
+    }
     setActiveTab(targetTab);
   };
 
@@ -208,6 +222,20 @@ export const CourseDetail: React.FC = () => {
       if (!res.isValid) {
         addToast(res.error || 'Please complete all required fields before proceeding.', 'error');
         return;
+      }
+    }
+    if (nextTab === 'levels' && !selectedProgramId && formData.programs && formData.programs.length > 0) {
+      const firstKey = formData.programs[0].id ?? formData.programs[0].code ?? 'p-0';
+      setSelectedProgramId(String(firstKey));
+    }
+    if (nextTab === 'subjects') {
+      const targetProg = formData.programs?.find((p, i) => String(p.id ?? p.code ?? `p-${i}`) === selectedProgramId) || formData.programs?.[0];
+      if (targetProg && (!selectedProgramId || selectedProgramId !== String(targetProg.id ?? targetProg.code ?? 'p-0'))) {
+        setSelectedProgramId(String(targetProg.id ?? targetProg.code ?? 'p-0'));
+      }
+      if (targetProg?.levels && targetProg.levels.length > 0 && !selectedLevelId) {
+        const firstLvl = targetProg.levels[0];
+        setSelectedLevelId(String(firstLvl.id ?? firstLvl.name ?? 'l-0'));
       }
     }
     setActiveTab(nextTab);
@@ -244,19 +272,19 @@ export const CourseDetail: React.FC = () => {
     }
   };
 
-  const handleNavigateToLevels = (programKey?: string) => {
-    if (programKey) {
-      setSelectedProgramId(programKey);
+  const handleNavigateToLevels = (programKey?: string | number) => {
+    if (programKey !== undefined) {
+      setSelectedProgramId(String(programKey));
     } else if (formData.programs && formData.programs.length > 0) {
-      const firstKey = formData.programs[0].id || formData.programs[0].code || 'p-0';
-      setSelectedProgramId(firstKey);
+      const firstKey = formData.programs[0].id ?? formData.programs[0].code ?? 'p-0';
+      setSelectedProgramId(String(firstKey));
     }
     setActiveTab('levels');
   };
 
-  const handleNavigateToSubjects = (levelKey: string, programKey: string) => {
-    setSelectedProgramId(programKey);
-    setSelectedLevelId(levelKey);
+  const handleNavigateToSubjects = (levelKey: string | number, programKey: string | number) => {
+    setSelectedProgramId(String(programKey));
+    setSelectedLevelId(String(levelKey));
     setActiveTab('subjects');
   };
 
@@ -351,8 +379,8 @@ export const CourseDetail: React.FC = () => {
             type="button"
             onClick={() => handleTabChange(tab.id as any)}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors cursor-pointer select-none ${activeTab === tab.id
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-600 text-blue-600 bg-blue-50/40'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
           >
             <tab.icon size={16} />
@@ -447,7 +475,7 @@ export const CourseDetail: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   {formData.programs.map((program, pi) => {
-                    const pKey = program.id || program.code || `p-${pi}`;
+                    const pKey = String(program.id ?? program.code ?? `p-${pi}`);
                     return (
                       <Card key={pKey} className="overflow-hidden">
                         <div className="p-5 space-y-4">
@@ -551,10 +579,10 @@ export const CourseDetail: React.FC = () => {
               );
             }
 
-            const targetIndex = formData.programs.findIndex((p, i) => (p.id || p.code || `p-${i}`) === selectedProgramId);
+            const targetIndex = formData.programs.findIndex((p, i) => String(p.id ?? p.code ?? `p-${i}`) === selectedProgramId);
             const pi = targetIndex >= 0 ? targetIndex : 0;
             const program = formData.programs[pi];
-            const pKey = program.id || program.code || `p-${pi}`;
+            const pKey = String(program.id ?? program.code ?? `p-${pi}`);
 
             return (
               <div className="space-y-6">
@@ -567,6 +595,31 @@ export const CourseDetail: React.FC = () => {
                     Configure academic levels (e.g. Class XI, Class XII, Foundation) and duration for this program.
                   </p>
                 </div>
+
+                {/* Program Selector if multiple programs exist */}
+                {formData.programs.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">Select Program:</span>
+                    {formData.programs.map((p, idx) => {
+                      const key = String(p.id ?? p.code ?? `p-${idx}`);
+                      const isSelected = key === pKey;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setSelectedProgramId(key)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer shrink-0 ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {p.name || `Program #${idx + 1}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <Card className="overflow-hidden">
                   <div className="p-5 space-y-4">
@@ -607,7 +660,7 @@ export const CourseDetail: React.FC = () => {
                         </div>
                       ) : (
                         program.levels.map((level, li) => {
-                          const lKey = level.id || level.name || `l-${li}`;
+                          const lKey = String(level.id ?? level.name ?? `l-${li}`);
                           return (
                             <LevelCard
                               key={lKey}
@@ -648,11 +701,11 @@ export const CourseDetail: React.FC = () => {
               );
             }
 
-            const programIndex = formData.programs.findIndex((p, i) => (p.id || p.code || `p-${i}`) === selectedProgramId);
+            const programIndex = formData.programs.findIndex((p, i) => String(p.id ?? p.code ?? `p-${i}`) === selectedProgramId);
             const pi = programIndex >= 0 ? programIndex : 0;
             const program = formData.programs[pi];
 
-            const levelIndex = (program?.levels || []).findIndex((l, i) => (l.id || l.name || `l-${i}`) === selectedLevelId);
+            const levelIndex = (program?.levels || []).findIndex((l, i) => String(l.id ?? l.name ?? `l-${i}`) === selectedLevelId);
             const li = levelIndex >= 0 ? levelIndex : 0;
             const level = program?.levels?.[li];
 
@@ -666,7 +719,7 @@ export const CourseDetail: React.FC = () => {
 
             const mappedSubjects = level.subjects || [];
 
-            const handleUnmapSubject = (sub: { id: string; name: string }) => {
+            const handleUnmapSubject = (sub: { id: string | number; name: string }) => {
               setUnmappingSubject({
                 id: sub.id,
                 name: sub.name,
@@ -696,6 +749,51 @@ export const CourseDetail: React.FC = () => {
 
             return (
               <div className="space-y-6">
+                {/* Program & Level Selectors */}
+                <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  {formData.programs.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500 uppercase shrink-0">Program:</span>
+                      <select
+                        value={selectedProgramId || String(program.id ?? program.code ?? `p-${pi}`)}
+                        onChange={(e) => {
+                          setSelectedProgramId(e.target.value);
+                          const nextProg = formData.programs?.find((p, i) => String(p.id ?? p.code ?? `p-${i}`) === e.target.value);
+                          if (nextProg?.levels && nextProg.levels.length > 0) {
+                            setSelectedLevelId(String(nextProg.levels[0].id ?? nextProg.levels[0].name ?? 'l-0'));
+                          } else {
+                            setSelectedLevelId(null);
+                          }
+                        }}
+                        className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        {formData.programs.map((p, idx) => (
+                          <option key={String(p.id ?? p.code ?? `p-${idx}`)} value={String(p.id ?? p.code ?? `p-${idx}`)}>
+                            {p.name || `Program #${idx + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {program.levels && program.levels.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500 uppercase shrink-0">Level:</span>
+                      <select
+                        value={selectedLevelId || String(level.id ?? level.name ?? `l-${li}`)}
+                        onChange={(e) => setSelectedLevelId(e.target.value)}
+                        className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        {program.levels.map((lvl, idx) => (
+                          <option key={String(lvl.id ?? lvl.name ?? `l-${idx}`)} value={String(lvl.id ?? lvl.name ?? `l-${idx}`)}>
+                            {lvl.name || `Level #${idx + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">

@@ -45,4 +45,13 @@ router.post('/availability/exception', requirePermission('timetable.view'), (req
 // 13. AVAILABILITY: Delete availability slot / exception
 router.delete('/availability/:id', requirePermission('timetable.view'), (req, res) => teacherScheduleController.deleteAvailabilitySlot(req, res));
 
+// 14. LEAVE REQUESTS: Get teacher's leave requests
+router.get('/leave-requests', requirePermission('timetable.view'), (req, res) => teacherScheduleController.getLeaveRequests(req, res));
+
+// 15. LEAVE REQUESTS: Submit a new leave request
+router.post('/leave-requests', requirePermission('timetable.view'), (req, res) => teacherScheduleController.createLeaveRequest(req, res));
+
+// 16. LEAVE REQUESTS: Cancel a leave request
+router.delete('/leave-requests/:id', requirePermission('timetable.view'), (req, res) => teacherScheduleController.cancelLeaveRequest(req, res));
+
 module.exports = router;

@@ -14,12 +14,16 @@ class TeacherScheduleService {
         const tid = Number(tenantId);
         const uid = Number(teacherUserId);
 
-        // 1. Get teacher's assigned batches strictly from teacher_allocations
+        // 1. Get teacher's assigned batches from teacher_allocations and scheduled lectures
         const [allocRows] = await pool.query(
             `SELECT DISTINCT ta.batch_id, ta.branch_id, ta.academic_year_id
              FROM teacher_allocations ta
-             WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL`,
-            [tid, uid]
+             WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL
+             UNION
+             SELECT DISTINCT l.batch_id, l.branch_id, l.academic_year_id
+             FROM lectures l
+             WHERE l.tenant_id = ? AND l.teacher_user_id = ? AND l.deleted_at IS NULL`,
+            [tid, uid, tid, uid]
         );
 
         const assignedBatchIds = Array.from(new Set(
@@ -77,6 +81,15 @@ class TeacherScheduleService {
                 [tid, assignedBatchIds]
             );
             batches = batchRows;
+        } else if (assignedBranchIds.length > 0) {
+            const [branchBatches] = await pool.query(
+                `SELECT id, branch_id, level_id, academic_year_id, name, code, start_time, end_time, classroom_id, capacity, status
+                 FROM batches
+                 WHERE tenant_id = ? AND branch_id IN (?) AND deleted_at IS NULL
+                 ORDER BY name ASC`,
+                [tid, assignedBranchIds]
+            );
+            batches = branchBatches;
         }
 
         const levelIds = Array.from(new Set(batches.map(b => b.level_id).filter(Boolean)));
@@ -876,7 +889,8 @@ class TeacherScheduleService {
         );
 
         const weeklyRows = rows.filter(r => !r.specific_date);
-        const exceptions = rows.filter(r => Boolean(r.specific_date));
+        // Filter out system leave-generated blocks so they don't duplicate formal Leave Requests in UI
+        const exceptions = rows.filter(r => Boolean(r.specific_date) && (!r.reason || !r.reason.startsWith('[Leave:')));
 
         // Default 7 days template (Mon-Sat 09:00-17:00, Sun off) if no weekly rows saved yet
         const DAYS = [
@@ -999,6 +1013,200 @@ class TeacherScheduleService {
              WHERE id = ? AND tenant_id = ? AND teacher_user_id = ?`,
             [Number(slotId), tid, uid]
         );
+
+        return { success: true };
+    }
+
+    /**
+     * TEACHER LEAVE REQUESTS: Get all leave requests for this teacher
+     */
+    async getTeacherLeaveRequests(tenantId, teacherUserId) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        const [rows] = await pool.query(
+            `SELECT lr.id, lr.tenant_id, lr.branch_id, lr.staff_id,
+                    DATE_FORMAT(lr.start_date, '%Y-%m-%d') AS start_date,
+                    DATE_FORMAT(lr.end_date, '%Y-%m-%d') AS end_date,
+                    lr.leave_type, lr.reason, lr.status, lr.created_at,
+                    b.name AS branch_name
+             FROM leave_requests lr
+             JOIN staff_profiles sp ON lr.staff_id = sp.id
+             LEFT JOIN branches b ON lr.branch_id = b.id
+             WHERE lr.tenant_id = ?
+               AND sp.user_id = ?
+               AND lr.deleted_at IS NULL
+             ORDER BY lr.created_at DESC`,
+            [tid, uid]
+        );
+
+        return rows.map(r => ({
+            id: r.id,
+            startDate: r.start_date,
+            endDate: r.end_date,
+            leaveType: r.leave_type,
+            reason: r.reason,
+            status: r.status,
+            branchName: r.branch_name,
+            createdAt: r.created_at
+        }));
+    }
+
+    /**
+     * TEACHER LEAVE REQUESTS: Submit a new leave request
+     */
+    async createTeacherLeaveRequest(tenantId, teacherUserId, payload) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+        const { startDate, endDate, leaveType = 'Casual Leave', reason = 'Personal Leave', branchId } = payload;
+
+        if (!startDate || !endDate) {
+            throw new Error('startDate and endDate are required');
+        }
+
+        // 1. Resolve staff_id from staff_profiles for this user
+        let [staffRows] = await pool.query(
+            `SELECT id, branch_ids FROM staff_profiles WHERE tenant_id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1`,
+            [tid, uid]
+        );
+
+        let staffId;
+        let resolvedBranchId = branchId ? Number(branchId) : null;
+
+        if (staffRows.length > 0) {
+            staffId = staffRows[0].id;
+            if (!resolvedBranchId && staffRows[0].branch_ids) {
+                try {
+                    const parsedBranches = JSON.parse(staffRows[0].branch_ids);
+                    if (Array.isArray(parsedBranches) && parsedBranches.length > 0) {
+                        resolvedBranchId = Number(parsedBranches[0]);
+                    }
+                } catch (e) {
+                    // Ignore parse error
+                }
+            }
+        } else {
+            // Auto-create staff_profile if absent so FK constraint succeeds
+            const [userRows] = await pool.query(
+                `SELECT id, name, email FROM users WHERE id = ? AND tenant_id = ?`,
+                [uid, tid]
+            );
+            const userName = userRows[0]?.name || 'Teacher';
+            const nameParts = userName.split(' ');
+            const firstName = nameParts[0] || 'Teacher';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            const [branchRows] = await pool.query(
+                `SELECT id FROM branches WHERE tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+                [tid]
+            );
+            resolvedBranchId = resolvedBranchId || (branchRows[0]?.id ? Number(branchRows[0].id) : 1);
+
+            const [newStaff] = await pool.query(
+                `INSERT INTO staff_profiles (tenant_id, branch_ids, user_id, employee_id, first_name, last_name, employee_type, designation, employment_type, employment_status, status)
+                 VALUES (?, ?, ?, ?, ?, ?, 'Teaching', 'Faculty', 'full_time', 'active', 'active')`,
+                [tid, JSON.stringify([resolvedBranchId]), uid, `EMP-${uid}`, firstName, lastName]
+            );
+            staffId = newStaff.insertId;
+        }
+
+        if (!resolvedBranchId) {
+            const [branchRows] = await pool.query(
+                `SELECT id FROM branches WHERE tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+                [tid]
+            );
+            resolvedBranchId = branchRows[0]?.id ? Number(branchRows[0].id) : 1;
+        }
+
+        // 2. Insert into leave_requests
+        const [insertRes] = await pool.query(
+            `INSERT INTO leave_requests (tenant_id, branch_id, staff_id, start_date, end_date, leave_type, reason, status, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            [tid, resolvedBranchId, staffId, startDate, endDate, leaveType, reason, uid]
+        );
+
+        const leaveRequestId = insertRes.insertId;
+
+        // 3. Automatically block the teacher's schedule in teacher_availability for the date range
+        try {
+            const [sy, sm, sd] = startDate.split('-').map(Number);
+            const [ey, em, ed] = endDate.split('-').map(Number);
+            const cur = new Date(sy, sm - 1, sd);
+            const end = new Date(ey, em - 1, ed);
+
+            while (cur <= end) {
+                const y = cur.getFullYear();
+                const m = String(cur.getMonth() + 1).padStart(2, '0');
+                const d = String(cur.getDate()).padStart(2, '0');
+                const dateStr = `${y}-${m}-${d}`;
+                const dayOfWeek = cur.getDay() === 0 ? 7 : cur.getDay();
+
+                await pool.query(
+                    `INSERT INTO teacher_availability (tenant_id, branch_id, teacher_user_id, day_of_week, specific_date, start_time, end_time, is_available, reason, created_by)
+                     VALUES (?, ?, ?, ?, ?, '00:00:00', '23:59:00', 0, ?, ?)
+                     ON DUPLICATE KEY UPDATE is_available = 0, reason = VALUES(reason)`,
+                    [tid, resolvedBranchId, uid, dayOfWeek, dateStr, `[Leave: ${leaveType}] ${reason}`, uid]
+                ).catch(err => {
+                    console.warn('[createTeacherLeaveRequest] Availability note:', err.message);
+                });
+
+                cur.setDate(cur.getDate() + 1);
+            }
+        } catch (dateErr) {
+            console.error('[createTeacherLeaveRequest] Date loop error:', dateErr);
+        }
+
+        return {
+            id: leaveRequestId,
+            startDate,
+            endDate,
+            leaveType,
+            reason,
+            status: 'pending',
+            createdAt: new Date()
+        };
+    }
+
+    /**
+     * TEACHER LEAVE REQUESTS: Cancel a leave request
+     */
+    async cancelTeacherLeaveRequest(tenantId, teacherUserId, leaveRequestId) {
+        const tid = Number(tenantId);
+        const uid = Number(teacherUserId);
+
+        const [rows] = await pool.query(
+            `SELECT lr.id,
+                    DATE_FORMAT(lr.start_date, '%Y-%m-%d') AS start_date,
+                    DATE_FORMAT(lr.end_date, '%Y-%m-%d') AS end_date,
+                    lr.leave_type, lr.reason
+             FROM leave_requests lr
+             JOIN staff_profiles sp ON lr.staff_id = sp.id
+             WHERE lr.id = ? AND lr.tenant_id = ? AND sp.user_id = ? AND lr.deleted_at IS NULL`,
+            [Number(leaveRequestId), tid, uid]
+        );
+
+        if (rows.length === 0) {
+            throw new Error('Leave request not found or unauthorized');
+        }
+
+        const leave = rows[0];
+
+        await pool.query(
+            `UPDATE leave_requests SET status = 'cancelled', deleted_at = NOW(), updated_by = ? WHERE id = ?`,
+            [uid, Number(leaveRequestId)]
+        );
+
+        if (leave.start_date && leave.end_date) {
+            await pool.query(
+                `DELETE FROM teacher_availability
+                 WHERE tenant_id = ?
+                   AND teacher_user_id = ?
+                   AND specific_date >= ?
+                   AND specific_date <= ?
+                   AND reason LIKE ?`,
+                [tid, uid, leave.start_date, leave.end_date, `%[Leave:%`]
+            ).catch(e => console.warn('[cancelTeacherLeaveRequest] Availability cleanup note:', e.message));
+        }
 
         return { success: true };
     }

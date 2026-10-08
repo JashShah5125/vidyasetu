@@ -17,7 +17,6 @@ import {
   Bell,
   Layers,
   Flag,
-  Smartphone,
   Server,
   CreditCard,
   FileText,
@@ -27,10 +26,8 @@ import {
   ChevronDown,
   Zap,
   DoorOpen,
-  Mail,
   Plug,
   MailOpen,
-  MessageCircle,
   TrendingUp,
   TrendingDown,
   PlusCircle,
@@ -99,10 +96,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     switch (role) {
       case 'saas-admin':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/saas/dashboard', icon: LayoutDashboard }] },
           {
             title: 'Tenant Management',
-            links: [{ name: 'Tenants Manager', label: 'Tenants', path: '/tenants', icon: Building2 }]
+            links: [{ name: 'Tenants Manager', label: 'Tenants', path: '/saas/tenants', icon: Building2 }]
           },
           {
             title: 'Sales & Acquisition',
@@ -111,263 +108,220 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Subscription Management',
             links: [
-              { name: 'Plan Master', label: 'Plans', path: '/plans', icon: CreditCard }
+              { name: 'Plan Master', label: 'Plans', path: '/saas/plans', icon: CreditCard }
             ]
           },
-          //{
-          //  title: 'Platform',
-          //links: [
-          //{ name: 'Feature Flags', label: 'Feature Flags', path: '/feature-flags', icon: CheckSquare }
-          // ]
-          //},
           {
             title: 'Operations',
             links: [
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket }
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/saas/support', icon: Ticket }
             ]
           },
           {
             title: 'Communication',
             links: [
-              { name: 'Communication Center', label: 'Communication Center', path: '/communication', icon: MessageSquare }
-            ],
-            groups: [
-              {
-                groupLabel: 'Templates',
-                groupIcon: MailOpen,
-                links: [
-                  { name: 'All Templates', label: 'All Templates', path: '/templates', icon: MailOpen },
-                  { name: 'SMS Templates', label: 'SMS Templates', path: '/sms-templates', icon: Smartphone },
-                  { name: 'Email Templates', label: 'Email Templates', path: '/email-templates', icon: Mail },
-                  { name: 'WhatsApp Templates', label: 'WhatsApp Templates', path: '/whatsapp-templates', icon: MessageCircle }
-                ]
-              }
+              { name: 'Communication Center', label: 'Communication Center', path: '/saas/communication', icon: MessageSquare },
+              { name: 'Templates', label: 'Templates', path: '/saas/templates', icon: MailOpen }
             ]
           },
           {
             title: 'Business',
             links: [
-              { name: 'Billing & Revenue', label: 'Billing & Revenue', path: '/billing', icon: DollarSign },
-              { name: 'Product Analytics', label: 'Product Analytics', path: '/analytics', icon: BarChart3 }
+              { name: 'Billing & Revenue', label: 'Billing & Revenue', path: '/saas/billing', icon: DollarSign },
+              { name: 'Product Analytics', label: 'Product Analytics', path: '/saas/analytics', icon: BarChart3 }
             ]
           },
           {
             title: 'System',
             links: [
-              { name: 'Users & Roles', label: 'Users & Roles', path: '/users-and-roles', icon: Users }
-            ],
-            groups: [
-              {
-                groupLabel: 'System Settings',
-                groupIcon: Settings,
-                links: [
-                  { name: 'SMS Configuration', label: 'SMS Configuration', path: '/system-settings/sms', icon: Smartphone },
-                  { name: 'Email Configuration', label: 'Email Configuration', path: '/system-settings/email', icon: Mail },
-                  { name: 'WhatsApp Configuration', label: 'WhatsApp Configuration', path: '/system-settings/whatsapp', icon: MessageCircle },
-                  { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList },
-                  { name: 'System Configuration', label: 'System Config', path: '/system-config', icon: Settings }
-                ]
-              }
+              { name: 'Users & Roles', label: 'Users & Roles', path: '/saas/users-and-roles', icon: Users },
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/saas/audit-logs', icon: ClipboardList },
+              { name: 'System Configuration', label: 'System Config', path: '/saas/system-config', icon: Settings }
             ]
           }
         ];
 
       case 'inst-admin':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard }] },
           {
             title: 'Core Academics',
             links: [
-              { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subjects', path: '/subjects', icon: BookOpen },
-              { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
-              { name: 'Classrooms', label: 'Classrooms', path: '/classrooms', icon: DoorOpen }
+              { name: 'Courses', label: 'Courses', path: '/admin/courses', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subjects', path: '/admin/subjects', icon: BookOpen },
+              { name: 'Batch Management', label: 'Batches', path: '/admin/batches', icon: Layers },
+              { name: 'Classrooms', label: 'Classrooms', path: '/admin/classrooms', icon: DoorOpen }
             ]
           },
           {
             title: 'ERP & Admissions',
             links: [
-              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/leads', icon: Users },
-              { name: 'Students Roster', label: 'Students Roster', path: '/students', icon: GraduationCap },
-              { name: 'Staff & Roles', label: 'Staff Directory', path: '/staff', icon: ShieldCheck }
+              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/admin/leads', icon: Users },
+              { name: 'Students Roster', label: 'Students Roster', path: '/admin/students', icon: GraduationCap },
+              { name: 'Staff & Roles', label: 'Staff Directory', path: '/admin/staff', icon: ShieldCheck }
             ]
           },
           {
             title: 'Finance Hub',
             links: [
-              { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users }
+              { name: 'Fees Master', label: 'Fee Structures', path: '/admin/fees-master', icon: DollarSign },
+              { name: 'Record Fee', label: 'Collect Payments', path: '/admin/fees', icon: DollarSign },
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/admin/finance/expenses/salaries', icon: Users }
             ]
           },
           {
             title: 'Classroom Operations',
             links: [
-              { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
+              { name: 'Mark Attendance', label: 'Attendance Roster', path: '/admin/attendance', icon: CheckSquare },
               { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
-              { name: 'Academic Calendar', label: 'Academic Calendar', path: '/academic-calendar', icon: CalendarDays },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen }
+              { name: 'Academic Calendar', label: 'Academic Calendar', path: '/admin/academic-calendar', icon: CalendarDays },
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/admin/assignments', icon: BookOpen }
             ]
           },
           {
             title: 'Reports & Auditing',
             links: [
-              { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
+              { name: 'Broadcast Notification', label: 'Broadcast', path: '/admin/notifications', icon: Bell },
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/admin/audit-logs', icon: ClipboardList }
             ]
           },
           {
             title: 'Organization Setup',
             links: [
-              { name: 'Institute Setup', label: 'Institute Profile', path: '/institute', icon: Settings },
-              { name: 'Branches Manager', label: 'Branches Setup', path: '/branches', icon: Building2 },
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
-              { name: 'Settings', label: 'Global Settings', path: '/settings', icon: Settings }
+              { name: 'Institute Setup', label: 'Institute Profile', path: '/admin/institute', icon: Settings },
+              { name: 'Branches Manager', label: 'Branches Setup', path: '/admin/branches', icon: Building2 },
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/admin/support', icon: Ticket },
+              { name: 'Settings', label: 'Global Settings', path: '/admin/settings', icon: Settings }
             ]
           }
         ];
 
       case 'branch-admin':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/branch/dashboard', icon: LayoutDashboard }] },
           {
             title: 'Core Academics',
             links: [
-              { name: 'Courses', label: 'Courses', path: '/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subjects', path: '/subjects', icon: BookOpen },
-              { name: 'Batch Management', label: 'Batches', path: '/batches', icon: Layers },
-              { name: 'Classrooms', label: 'Classrooms', path: '/classrooms', icon: DoorOpen }
+              { name: 'Courses', label: 'Courses', path: '/branch/courses', icon: BookOpen },
+              { name: 'Subject Management', label: 'Subjects', path: '/branch/subjects', icon: BookOpen },
+              { name: 'Batch Management', label: 'Batches', path: '/branch/batches', icon: Layers },
+              { name: 'Classrooms', label: 'Classrooms', path: '/branch/classrooms', icon: DoorOpen }
             ]
           },
           {
             title: 'ERP & Admissions',
             links: [
-              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/leads', icon: Users },
-              { name: 'Students Roster', label: 'Students Roster', path: '/students', icon: GraduationCap },
-              { name: 'Staff & Roles', label: 'Staff Directory', path: '/staff', icon: ShieldCheck }
+              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/branch/leads', icon: Users },
+              { name: 'Students Roster', label: 'Students Roster', path: '/branch/students', icon: GraduationCap },
+              { name: 'Staff & Roles', label: 'Staff Directory', path: '/branch/staff', icon: ShieldCheck }
             ]
           },
           {
             title: 'Finance Hub',
             links: [
-              { name: 'Fees Master', label: 'Fee Structures', path: '/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Collect Payments', path: '/fees', icon: DollarSign },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users }
+              { name: 'Fees Master', label: 'Fee Structures', path: '/branch/fees-master', icon: DollarSign },
+              { name: 'Record Fee', label: 'Collect Payments', path: '/branch/fees', icon: DollarSign },
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/branch/finance/expenses/salaries', icon: Users }
             ]
           },
           {
             title: 'Classroom Operations',
             links: [
-              { name: 'Mark Attendance', label: 'Attendance Roster', path: '/attendance', icon: CheckSquare },
-              { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
-              { name: 'Academic Calendar', label: 'Academic Calendar', path: '/academic-calendar', icon: CalendarDays },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen }
+              { name: 'Mark Attendance', label: 'Attendance Roster', path: '/branch/attendance', icon: CheckSquare },
+              { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/branch/timetable', icon: Calendar },
+              { name: 'Academic Calendar', label: 'Academic Calendar', path: '/branch/academic-calendar', icon: CalendarDays },
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/branch/assignments', icon: BookOpen }
             ]
           },
           {
             title: 'Reports & Auditing',
             links: [
-              { name: 'Broadcast Notification', label: 'Broadcast', path: '/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Audit Logs', path: '/audit-logs', icon: ClipboardList }
+              { name: 'Broadcast Notification', label: 'Broadcast', path: '/branch/notifications', icon: Bell },
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/branch/audit-logs', icon: ClipboardList }
             ]
           },
           {
             title: 'Organization Setup',
             links: [
-              { name: 'Institute Setup', label: 'Institute Profile', path: '/institute', icon: Settings },
-              { name: 'Branches Manager', label: 'Branches Setup', path: '/branches', icon: Building2 },
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/support', icon: Ticket },
-              { name: 'Settings', label: 'Global Settings', path: '/settings', icon: Settings }
+              { name: 'Institute Setup', label: 'Institute Profile', path: '/branch/institute', icon: Settings },
+              { name: 'Branches Manager', label: 'Branches Setup', path: '/branch/branches', icon: Building2 },
+              { name: 'Support Tickets', label: 'Support Tickets', path: '/branch/support', icon: Ticket },
+              { name: 'Settings', label: 'Global Settings', path: '/branch/settings', icon: Settings }
             ]
           }
         ];
 
       case 'counsellor':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/counsellor/dashboard', icon: LayoutDashboard }] },
           {
             title: 'CRM Pipeline',
             links: [
-              { name: 'Lead Pipeline', label: 'Lead Pipeline', path: '/leads', icon: Users },
-              { name: 'Fee Discussion', label: 'Fee Discussion', path: '/leads/fee', icon: DollarSign },
-              { name: 'Admission & Docs', label: 'Admission & Docs', path: '/leads/admission', icon: ClipboardList },
-              { name: 'Batch Allocation', label: 'Batch Allocation', path: '/leads/batch', icon: Layers },
-              { name: 'Payment & Activation', label: 'Payment & Activation', path: '/leads/payment', icon: Zap },
-              { name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }
+              { name: 'Lead Pipeline', label: 'Lead Pipeline', path: '/counsellor/leads', icon: Users },
+              { name: 'Fee Discussion', label: 'Fee Discussion', path: '/counsellor/leads/fee', icon: DollarSign },
+              { name: 'Admission & Docs', label: 'Admission & Docs', path: '/counsellor/leads/admission', icon: ClipboardList },
+              { name: 'Batch Allocation', label: 'Batch Allocation', path: '/counsellor/leads/batch', icon: Layers },
+              { name: 'Payment & Activation', label: 'Payment & Activation', path: '/counsellor/leads/payment', icon: Zap },
+              { name: 'Settings', label: 'Settings', path: '/counsellor/settings', icon: Settings }
             ]
           }
         ];
 
       case 'teacher':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/teacher/dashboard', icon: LayoutDashboard }] },
           {
             title: 'Classroom Operations',
             links: [
-              { name: 'My Schedule', label: 'Lecture Schedule', path: '/my-schedule', icon: Calendar },
-              { name: 'Mark Attendance', label: 'Attendance', path: '/attendance', icon: CheckSquare },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/assignments', icon: BookOpen },
-              { name: 'Students Roster', label: 'My Students', path: '/students', icon: GraduationCap }
+              { name: 'My Schedule', label: 'Lecture Schedule', path: '/teacher/schedule', icon: Calendar },
+              { name: 'Mark Attendance', label: 'Attendance', path: '/teacher/attendance', icon: CheckSquare },
+              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/teacher/assignments', icon: BookOpen },
+              { name: 'Students Roster', label: 'My Students', path: '/teacher/students', icon: GraduationCap }
             ]
           },
           {
             title: 'Communication',
             links: [
-              { name: 'Notifications', label: 'Notifications', path: '/teacher-notifications', icon: Bell, badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined },
-              { name: 'Doubt Chats', label: 'Doubts', path: '/doubts', icon: MessageSquare, badge: 1 }
+              { name: 'Notifications', label: 'Notifications', path: '/teacher/notifications', icon: Bell, badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined },
+              { name: 'Doubt Chats', label: 'Doubts', path: '/teacher/doubts', icon: MessageSquare, badge: 1 }
             ]
           },
           {
             title: 'Settings',
             links: [
-              { name: 'Settings', label: 'Settings', path: '/settings', icon: Settings }
+              { name: 'Settings', label: 'Settings', path: '/teacher/settings', icon: Settings }
             ]
           }
         ];
 
       case 'finance':
         return [
+          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/finance/dashboard', icon: LayoutDashboard }] },
           {
-            title: 'Branch Finance',
+            title: 'Accounting & Ledger',
             links: [
-              { name: 'Dashboard', label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }
-            ],
-            groups: [
-              {
-                groupLabel: 'Income',
-                groupIcon: TrendingUp,
-                links: [
-                  { name: 'Fee Collection', label: 'Fee Collection', path: '/fees', icon: DollarSign },
-                  { name: 'Other Income', label: 'Other Income', path: '/finance/income/other', icon: PlusCircle }
-                ]
-              },
-              {
-                groupLabel: 'Expenses',
-                groupIcon: TrendingDown,
-                links: [
-                  { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users },
-                  { name: 'Other Expenses', label: 'Other Expenses', path: '/finance/expenses/other', icon: FileText }
-                ]
-              },
-              {
-                groupLabel: 'Reports',
-                groupIcon: BarChart3,
-                links: [
-                  { name: 'Income Report', label: 'Income Report', path: '/finance/reports/income', icon: TrendingUp },
-                  { name: 'Expense Report', label: 'Expense Report', path: '/finance/reports/expense', icon: TrendingDown },
-                  { name: 'Fee Outstanding', label: 'Fee Outstanding', path: '/defaulters', icon: AlertTriangle },
-                  { name: 'Profit / Loss', label: 'Profit / Loss', path: '/finance/reports/profit-loss', icon: PieChart },
-                  { name: 'Cash Flow', label: 'Cash Flow', path: '/finance/reports/cash-flow', icon: ArrowRightLeft }
-                ]
-              },
-              {
-                groupLabel: 'Finance Settings',
-                groupIcon: Settings,
-                links: [
-                  { name: 'Expense Categories', label: 'Expense Categories', path: '/finance/settings/expense-categories', icon: Tag },
-                  { name: 'Payment Modes', label: 'Payment Modes', path: '/finance/settings/payment-modes', icon: CreditCard }
-                ]
-              }
+              { name: 'Ledger', label: 'Ledger', path: '/expense-ledger', icon: ClipboardList },
+              { name: 'Voucher', label: 'Voucher', path: '/expense-voucher', icon: FileText }
+            ]
+          },
+          {
+            title: 'Income',
+            links: [
+              { name: 'Fee Collection', label: 'Fee Collection', path: '/finance/fees', icon: DollarSign },
+              { name: 'Other Income', label: 'Other Income', path: '/finance/income/other', icon: TrendingUp }
+            ]
+          },
+          {
+            title: 'Expenses',
+            links: [
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/finance/expenses/salaries', icon: Users },
+              { name: 'Other Expenses', label: 'Other Expenses', path: '/finance/expenses/other', icon: TrendingDown }
+            ]
+          },
+          {
+            title: 'Reports',
+            links: [
+              { name: 'Financial Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
           }
         ];
@@ -626,7 +580,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
           <div className="p-3">
             <div
-              onClick={() => { navigate('/settings'); onClose(); }}
+              onClick={() => {
+                const roleSettingsMap: Record<string, string> = {
+                  'saas-admin': '/saas/system-config',
+                  'inst-admin': '/admin/settings',
+                  'branch-admin': '/branch/settings',
+                  'teacher': '/teacher/settings',
+                  'counsellor': '/counsellor/settings',
+                  'finance': '/settings',
+                };
+                navigate(roleSettingsMap[currentUser.role] || '/settings');
+                onClose();
+              }}
               className={`flex items-center gap-3 bg-slate-800/20 hover:bg-slate-800/50 rounded-xl border border-slate-800/40 cursor-pointer transition-all duration-150 overflow-hidden ${isCollapsed ? 'p-1.5 justify-center' : 'p-2'}`}
               title={isCollapsed ? `${currentUser.name} (${roleLabels[currentUser.role]})` : undefined}
             >

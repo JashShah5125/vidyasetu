@@ -85,7 +85,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
   initialLevelId
 }) => {
   const { currentUser } = useApp();
-  const isBranchAdmin = currentUser?.role === 'branch-admin' || currentUser?.role === 'branch_admin';
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('personal');

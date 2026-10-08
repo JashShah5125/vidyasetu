@@ -8,7 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
-import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Pencil, Trash2, Wallet, Plus, SlidersHorizontal, RotateCcw, X, Filter, Search, FileText, CheckCircle2, Calendar, CreditCard } from 'lucide-react';
+import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Pencil, Trash2, Wallet, Plus, SlidersHorizontal, RotateCcw, X, Filter, Search, FileText, CheckCircle2, Calendar, CreditCard, RefreshCw, Download, TrendingUp, Check, Sparkles } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { getStudents, getAcademicOptions, type StudentRosterItem, type AcademicOptions } from '../services/studentApi';
 import {
@@ -38,6 +38,60 @@ const COMPLIANCE_STATUS_OPTIONS = [
   { value: 'on_schedule', label: 'On Schedule' },
   { value: 'paid', label: 'Fully Paid' }
 ];
+
+const getInitials = (name?: string) => {
+  if (!name) return 'ST';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+};
+
+const getUnifiedStatus = (s: StudentRosterItem) => {
+  const isOverdue = (Number(s.fees_overdue) || 0) > 0;
+  const remaining = s.fees_remaining !== undefined ? Number(s.fees_remaining) : (Number(s.fees_outstanding) || 0);
+  const total = Number(s.total_fees) || 0;
+  const paid = Number(s.fees_paid) || 0;
+
+  if (total <= 0 && (!s.fee_status || s.fee_status.toLowerCase() === 'unassigned')) {
+    return {
+      label: 'Unassigned',
+      dotClass: 'bg-slate-400',
+      badgeClass: 'bg-slate-50 text-slate-600 border-slate-200/80',
+    };
+  }
+
+  if (s.fee_status === 'paid' || (total > 0 && remaining <= 0)) {
+    return {
+      label: 'Settled',
+      dotClass: 'bg-emerald-500',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+    };
+  }
+
+  if (isOverdue) {
+    return {
+      label: 'Overdue',
+      dotClass: 'bg-rose-500 animate-pulse',
+      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/80',
+    };
+  }
+
+  if (paid > 0 && remaining > 0) {
+    return {
+      label: 'In Progress',
+      dotClass: 'bg-amber-500',
+      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/80',
+    };
+  }
+
+  return {
+    label: 'On Schedule',
+    dotClass: 'bg-blue-500',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200/80',
+  };
+};
 
 const statusBadge = (status?: string, totalFees?: number) => {
   const norm = (status || '').toLowerCase().trim();
@@ -154,7 +208,7 @@ interface FeesProps {
 
 export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
   const { addToast, currentUser } = useApp();
-  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin' || currentUser?.role === 'finance' || currentUser?.userType === 'finance' || Boolean(currentUser?.branchId);
+  const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin' || currentUser?.role === 'finance' || (currentUser as any)?.userType === 'finance' || Boolean(currentUser?.branchId);
 
   // ── View routing ──
   const [view, setView] = useState<'register' | 'collect' | 'view_invoice' | 'edit_invoice'>('register');
@@ -592,97 +646,223 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
     defaulters: summaryStats.defaulterCount || roster.filter(r => (Number(r.fees_overdue) || 0) > 0).length
   }), [roster, summaryStats]);
 
+  const realizationRate = useMemo(() => {
+    if (!summary.expected || summary.expected <= 0) return 0;
+    return Math.min(100, Math.round((summary.collected / summary.expected) * 100));
+  }, [summary.expected, summary.collected]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Collect Payments</h2>
-          <p className="text-base text-slate-500 mt-2">
-            Track student fee plans, collected revenues, remaining balances, and overdue dues.
+    <div className="space-y-4 animate-fade-in pb-10">
+      {/* ── Executive Header & Top Actions ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-xl px-4 py-3 shadow-xs">
+        <div className="min-w-0 space-y-0.5">
+          <h1 className="text-xl font-display font-bold text-slate-900 tracking-tight leading-snug">
+            Fee Collection &amp; Receivables
+          </h1>
+          <p className="text-xs text-slate-500">
+            Real-time student billing roster, installment collections, payment plans, and overdue recovery.
           </p>
+        </div>
+
+        {/* Top Header Actions: Refresh & CSV */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => fetchRoster(page)}
+            disabled={rosterLoading}
+            className="group flex items-center gap-1.5 h-8 px-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-75"
+          >
+            <RefreshCw
+              size={13}
+              className={`transition-transform duration-500 text-slate-500 group-hover:rotate-180 group-hover:text-slate-700 ${
+                rosterLoading ? 'animate-spin text-blue-600' : ''
+              }`}
+            />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="group flex items-center gap-1.5 h-8 px-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-2xs active:scale-95"
+          >
+            <Download size={13} className="text-slate-500 group-hover:text-slate-700" />
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 
       {view === 'register' ? (
         <>
           {/* 4 Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-l-4 border-l-slate-700 shadow-sm">
-              <div className="p-4">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Expected Fees</div>
-                <div className="text-2xl font-bold text-slate-900 mt-1">{fmt(summary.expected)}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Contracted revenue for year</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* Card 1: Expected Revenue */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs relative overflow-hidden group hover:border-slate-300 transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Total Expected Fees
+                </span>
+                <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                  <Wallet size={15} />
+                </div>
               </div>
-            </Card>
-            <Card className="border-l-4 border-l-emerald-500 shadow-sm">
-              <div className="p-4">
-                <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">Total Collected Fees</div>
-                <div className="text-2xl font-bold text-emerald-600 mt-1">{fmt(summary.collected)}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Fees received to date</div>
+              <div className="text-2xl font-black font-mono text-slate-900 mt-2 tracking-tight">
+                {fmt(summary.expected)}
               </div>
-            </Card>
-            <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <div className="p-4">
-                <div className="text-xs font-bold uppercase tracking-wider text-blue-600">Total Remaining Balance</div>
-                <div className="text-2xl font-bold text-blue-700 mt-1">{fmt(summary.remaining)}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Unpaid course plan balance</div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100">
+                <span>Contracted revenue</span>
+                <span className="font-semibold text-slate-600 font-mono">{rosterTotal} students</span>
               </div>
-            </Card>
-            <Card className="border-l-4 border-l-rose-500 shadow-sm">
-              <div className="p-4">
-                <div className="text-xs font-bold uppercase tracking-wider text-rose-600">Total Overdue Amount</div>
-                <div className="text-2xl font-bold text-rose-600 mt-1">{fmt(summary.overdue)}</div>
-                <div className="text-[11px] text-rose-500 mt-0.5">{summary.defaulters} students with overdue dues</div>
+            </div>
+
+            {/* Card 2: Collected Revenue */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs relative overflow-hidden group hover:border-emerald-300 transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                  Total Collected Fees
+                </span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <TrendingUp size={15} />
+                </div>
               </div>
-            </Card>
+              <div className="text-2xl font-black font-mono text-emerald-600 mt-2 tracking-tight">
+                {fmt(summary.collected)}
+              </div>
+              <div className="space-y-1.5 mt-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">Realization Rate</span>
+                  <span className="font-bold text-emerald-700 font-mono">{realizationRate}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-emerald-100/70 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${realizationRate}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Remaining Balance */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs relative overflow-hidden group hover:border-blue-300 transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                  Remaining Balance
+                </span>
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <CreditCard size={15} />
+                </div>
+              </div>
+              <div className="text-2xl font-black font-mono text-blue-700 mt-2 tracking-tight">
+                {fmt(summary.remaining)}
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100">
+                <span>Unpaid course plan balance</span>
+                <span className="font-semibold text-blue-700 font-mono">Future dues</span>
+              </div>
+            </div>
+
+            {/* Card 4: Overdue Arrears */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs relative overflow-hidden group hover:border-rose-300 transition-all">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                  Total Overdue Amount
+                </span>
+                <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertCircle size={15} />
+                </div>
+              </div>
+              <div className="text-2xl font-black font-mono text-rose-600 mt-2 tracking-tight">
+                {fmt(summary.overdue)}
+              </div>
+              <div className="flex items-center justify-between text-[11px] mt-2 pt-2 border-t border-slate-100">
+                <span className="text-slate-400">Overdue recovery</span>
+                <span className={`font-bold font-mono px-1.5 py-0.5 rounded text-[10px] ${
+                  summary.defaulters > 0
+                    ? 'bg-rose-100 text-rose-700'
+                    : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {summary.defaulters} {summary.defaulters === 1 ? 'student' : 'students'} overdue
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Search, Filter, Sort Controls & Export CSV (Tenants Page Style) */}
-          <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 flex-1 w-full items-end">
-              <Input
-                label="Search"
-                placeholder="Search by Name, Roll No, Phone..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                wrapperClassName="sm:col-span-2"
-              />
-              <Select
-                label="Batch"
-                value={batch}
-                onChange={(e) => { setBatch(e.target.value); setPage(1); }}
-                options={[
-                  { value: 'All', label: 'All Batches' },
-                  ...availableBatches.map((b) => ({ value: b.id.toString(), label: b.name }))
-                ]}
-              />
-              <Select
-                label="Status"
-                value={feeStatus}
-                onChange={(e) => { setFeeStatus(e.target.value); setPage(1); }}
-                options={COMPLIANCE_STATUS_OPTIONS}
-              />
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <Button
-                variant="secondary"
-                onClick={() => setShowFilters(true)}
-                className="flex items-center gap-1.5"
-              >
-                <SlidersHorizontal size={15} />
-                More Filters
+          {/* Search, Filter & Drawer Trigger Controls */}
+          <div className="bg-white border border-slate-200/80 p-3.5 rounded-xl shadow-xs">
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+                {/* Search Input with inline icon */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search name, roll no, mobile..."
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                    className="w-full pl-9 pr-7 py-2 text-xs font-medium text-slate-900 bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 h-9"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => { setSearch(''); setPage(1); }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Batch Select */}
+                <div>
+                  <Select
+                    value={batch}
+                    onChange={(e) => { setBatch(e.target.value); setPage(1); }}
+                    className="h-9 text-xs"
+                    options={[
+                      { value: 'All', label: 'All Batches' },
+                      ...availableBatches.map((b) => ({ value: b.id.toString(), label: b.name }))
+                    ]}
+                  />
+                </div>
+
+                {/* Status Select */}
+                <div>
+                  <Select
+                    value={feeStatus}
+                    onChange={(e) => { setFeeStatus(e.target.value); setPage(1); }}
+                    className="h-9 text-xs"
+                    options={COMPLIANCE_STATUS_OPTIONS}
+                  />
+                </div>
+              </div>
+
+              {/* Filter Buttons */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(true)}
+                  className="group flex items-center gap-1.5 h-9 px-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer shadow-2xs active:scale-95"
+                >
+                  <SlidersHorizontal size={13} className="text-slate-500 group-hover:text-blue-600 transition-colors" />
+                  <span>More Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="ml-0.5 px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-full text-[10px] font-extrabold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
                 {activeFilterCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">
-                    {activeFilterCount}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="flex items-center gap-1 h-9 px-2.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Clear</span>
+                  </button>
                 )}
-              </Button>
-              <Button variant="secondary" onClick={resetAllFilters} className="text-slate-500 hover:text-slate-700">
-                Clear
-              </Button>
-              <Button variant="secondary" onClick={handleExportCSV}>
-                Export CSV
-              </Button>
+              </div>
             </div>
           </div>
 
@@ -848,25 +1028,37 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
           )}
 
           {/* Fee Register Card & Table */}
-          <Card className="p-0 overflow-hidden border border-slate-200 shadow-sm">
-            <CardHeader className="p-5 sm:p-6 pb-4 mb-0 border-b border-slate-100 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Platform Student Fee Registry</CardTitle>
-                <p className="text-xs text-slate-500 mt-1">
-                  Showing {roster.length} of {rosterTotal} enrolled students
-                </p>
+          <div className="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden">
+            <div className="p-4 sm:p-5 pb-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 shadow-2xs">
+                  <CreditCard size={15} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                      Student Fee Registry
+                    </h2>
+                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                      {rosterTotal} Enrolled
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Showing {roster.length} student records on page {page} of {totalPages}
+                  </p>
+                </div>
               </div>
               {activeFilterCount > 0 && (
-                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-                  {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active
+                <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200/80 w-fit">
+                  {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} applied
                 </span>
               )}
-            </CardHeader>
+            </div>
             <Table
               dense
               borderless
               minWidth="1050px"
-              colWidths={['22%', '11%', '12%', '11%', '12%', '10%', '11%', '11%']}
+              colWidths={['25%', '11%', '11%', '11%', '11%', '11%', '11%', '9%']}
               headers={[
                 { label: 'Student & Batch', align: 'left' },
                 { label: 'Net Fee', align: 'right' },
@@ -881,8 +1073,8 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
               {rosterLoading && roster.length === 0 ? (
                 <tr>
                   <td colSpan={8}>
-                    <div className="flex items-center justify-center py-12 text-slate-400 text-sm font-medium">
-                      <Loader2 size={20} className="animate-spin mr-2.5 text-blue-600" /> Loading fee register...
+                    <div className="flex items-center justify-center py-14 text-slate-400 text-sm font-medium">
+                      <Loader2 size={20} className="animate-spin mr-2.5 text-blue-600" /> Loading student fee registry...
                     </div>
                   </td>
                 </tr>
@@ -907,89 +1099,93 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                 roster.map((s, idx) => {
                   const isOverdue = (Number(s.fees_overdue) || 0) > 0;
                   const remaining = s.fees_remaining !== undefined ? s.fees_remaining : (s.fees_outstanding || 0);
-                  const st = statusBadge(s.fee_status, s.total_fees);
-                  const flag = getCalculationFlag(s);
+                  const st = getUnifiedStatus(s);
 
                   return (
                     <tr 
                       key={s.id || idx} 
                       onClick={() => openCollect(s)}
-                      className="hover:bg-slate-50 cursor-pointer transition-colors"
+                      className="hover:bg-slate-50/80 cursor-pointer transition-colors border-b border-slate-100 last:border-b-0"
                     >
-                      {/* 1. Student Name & Batch */}
-                      <td className="px-3.5 py-2.5 text-left">
-                        <div className="text-sm font-semibold text-slate-900 leading-snug truncate max-w-[220px]" title={s.full_name}>
-                          {s.full_name}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-0.5 truncate max-w-[220px]" title={s.batch_name || 'No Batch Assigned'}>
-                          {s.batch_name || 'No Batch'}
+                      {/* 1. Student Name & Batch with Initials Avatar */}
+                      <td className="px-4 py-3 text-left">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200/80 shadow-2xs">
+                            {getInitials(s.full_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-slate-900 leading-snug truncate max-w-[210px]" title={s.full_name}>
+                              {s.full_name}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5 truncate max-w-[210px]">
+                              {s.student_code && (
+                                <span className="font-mono text-[11px] text-slate-400 font-medium">#{s.student_code}</span>
+                              )}
+                              {s.student_code && s.batch_name && <span className="text-slate-300">•</span>}
+                              <span className="truncate">{s.batch_name || 'No Batch'}</span>
+                            </div>
+                          </div>
                         </div>
                       </td>
 
                       {/* 2. Net Fee */}
-                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-3 text-right text-xs sm:text-sm font-bold font-mono text-slate-800 tabular-nums whitespace-nowrap">
                         {fmt(s.total_fees || 0)}
                       </td>
 
                       {/* 3. Expected Due Till Today */}
-                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-3 text-right text-xs sm:text-sm font-medium font-mono text-slate-600 tabular-nums whitespace-nowrap">
                         {fmt(s.expected_due_till_date || 0)}
                       </td>
 
                       {/* 4. Paid Amount */}
-                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-3 text-right text-xs sm:text-sm font-bold font-mono text-emerald-600 tabular-nums whitespace-nowrap">
                         {fmt(s.fees_paid || 0)}
                       </td>
 
                       {/* 5. Remaining Balance */}
-                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-3 text-right text-xs sm:text-sm font-semibold font-mono text-slate-700 tabular-nums whitespace-nowrap">
                         {fmt(remaining)}
                       </td>
 
                       {/* 6. Overdue */}
-                      <td className="px-2.5 py-2.5 text-right text-xs sm:text-sm tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-3 text-right text-xs sm:text-sm tabular-nums whitespace-nowrap">
                         {isOverdue ? (
-                          <span className="inline-block text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
+                          <span className="inline-block text-rose-700 font-bold font-mono bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs shadow-2xs">
                             {fmt(s.fees_overdue || 0)}
                           </span>
                         ) : (
-                          <span className="text-slate-400 font-normal text-xs sm:text-sm">₹0</span>
+                          <span className="text-slate-400 font-normal font-mono text-xs">₹0</span>
                         )}
                       </td>
 
-                      {/* 7. Backend Status & Dynamic Calculation Flag */}
-                      <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>
-                            {st.label}
-                          </span>
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${flag.badgeClass}`}>
-                            {flag.flag === 'overdue' && <AlertCircle size={9} />}
-                            {flag.label}
-                          </span>
-                        </div>
+                      {/* 7. Status Pill */}
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${st.badgeClass}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${st.dotClass}`} />
+                          {st.label}
+                        </span>
                       </td>
 
                       {/* 8. Action */}
-                      <td className="px-2.5 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 py-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {isOverdue ? (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            className="font-semibold h-7 px-2.5 text-xs shadow-xs"
+                          <button
+                            type="button"
                             onClick={() => openCollect(s)}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer shadow-2xs active:scale-95"
                           >
-                            Collect <ArrowRight size={12} className="ml-1" />
-                          </Button>
+                            <span>Collect</span>
+                            <ArrowRight size={11} className="stroke-[2.5]" />
+                          </button>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold h-7 px-2.5 text-xs"
+                          <button
+                            type="button"
                             onClick={() => openCollect(s)}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer shadow-2xs active:scale-95"
                           >
-                            View
-                          </Button>
+                            <span>View</span>
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -1004,15 +1200,23 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
               pageSize={limit}
               onPageChange={handlePageChange}
             />
-          </Card>
+          </div>
         </>
       ) : view === 'collect' ? (
         /* ── COLLECT VIEW ── */
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={backToRegister} className="flex items-center gap-1.5 font-bold">
-              <ArrowLeft size={15} /> Back to Student Register
-            </Button>
+        <div className="space-y-4 animate-fade-in pb-10">
+          <div className="flex items-center justify-between bg-white border border-slate-200/80 rounded-xl px-4 py-3 shadow-xs">
+            <button
+              type="button"
+              onClick={backToRegister}
+              className="group flex items-center gap-1.5 h-8 px-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-2xs active:scale-95"
+            >
+              <ArrowLeft size={13} className="text-slate-500 group-hover:text-slate-800 transition-colors" />
+              <span>Back to Student Register</span>
+            </button>
+            <span className="text-xs font-semibold text-slate-500">
+              Student Ledger Console
+            </span>
           </div>
 
           {ledgerLoading ? (
@@ -1054,7 +1258,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                     ? Number(ledger.fees_overdue)
                     : (() => {
                         const now = new Date();
-                        const startDate = new Date(fa?.created_at || (ledger as any)?.created_at || now);
+                        const startDate = new Date((fa as any)?.created_at || (ledger as any)?.created_at || now);
                         let expected = downPayment;
                         for (let i = 1; i <= installmentCount; i++) {
                           const dueDate = new Date(startDate);

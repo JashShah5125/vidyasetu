@@ -1,27 +1,113 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { getVouchers, saveVoucher } from '../utils/expenseService';
 import type { Voucher } from '../utils/expenseService';
-import { Search, Download, Printer, Filter, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Upload } from 'lucide-react';
+import { otherExpenseApi } from '../services/otherExpenseApi';
+import { otherIncomeApi } from '../services/otherIncomeApi';
+import { Search, Download, Filter, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Upload, RefreshCw, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Pagination } from '../components/ui/Pagination';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
 import { formatDate } from '../utils/dateFormatter';
+
+export interface LedgerVoucher extends Voucher {
+  rawId?: number | string;
+  sourceType?: 'expense' | 'income';
+}
 
 export const ExpenseLedger: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser } = useApp();
-  const [vouchers, setVouchers] = useState<Voucher[]>(() => getVouchers());
+  const { currentUser, branches, addToast } = useApp();
+  const [vouchers, setVouchers] = useState<LedgerVoucher[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [deleteConfirmVoucher, setDeleteConfirmVoucher] = useState<LedgerVoucher | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Fetch strictly from MySQL database (both expenses & other income)
+  const loadLedger = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const branchId = currentUser?.branchId || (currentUser as any)?.branch_id || (branches.find(b => b.name === currentUser?.branch)?.id) || undefined;
+      const [expensesRes, incomesRes] = await Promise.allSettled([
+        otherExpenseApi.getOtherExpenses({ limit: 200, branchId }),
+        otherIncomeApi.getOtherIncomes({ limit: 200, branchId })
+      ]);
+
+      const items: LedgerVoucher[] = [];
+
+      if (expensesRes.status === 'fulfilled' && expensesRes.value?.records) {
+        expensesRes.value.records.forEach((e) => {
+          const methodMap: Record<string, string> = {
+            bank_transfer: 'Bank Transfer',
+            upi: 'UPI',
+            cash: 'Cash',
+            cheque: 'Cheque'
+          };
+          items.push({
+            id: e.expense_record_number || `OEX-${e.id}`,
+            date: e.expense_date ? String(e.expense_date).slice(0, 10) : '',
+            type: 'Expense',
+            category: (e.category || 'Maintenance') as any,
+            description: e.title || e.description || 'Expense Entry',
+            amount: Number(e.amount || 0),
+            paymentMethod: (methodMap[e.payment_mode] || 'Bank Transfer') as any,
+            paidTo: e.payee || 'Vendor / Staff',
+            referenceNo: e.reference_number || `REF-${e.id}`,
+            status: e.status === 2 ? 'Paid' : 'Pending',
+            direction: 'Debit',
+            branch: e.branch_name || currentUser?.branch || 'Mumbai West',
+            rawId: e.id,
+            sourceType: 'expense'
+          });
+        });
+      }
+
+      if (incomesRes.status === 'fulfilled' && incomesRes.value?.records) {
+        incomesRes.value.records.forEach((i) => {
+          const methodMap: Record<string, string> = {
+            bank_transfer: 'Bank Transfer',
+            upi: 'UPI',
+            cash: 'Cash',
+            cheque: 'Cheque'
+          };
+          items.push({
+            id: i.income_record_number || `OIN-${i.id}`,
+            date: i.income_date ? String(i.income_date).slice(0, 10) : '',
+            type: 'Receipt',
+            category: 'Donations' as any,
+            description: i.title || i.description || 'Income Receipt',
+            amount: Number(i.amount || 0),
+            paymentMethod: (methodMap[i.payment_mode] || 'Bank Transfer') as any,
+            paidTo: 'Student / Donor',
+            referenceNo: i.reference_number || `REF-${i.id}`,
+            status: 'Paid',
+            direction: 'Credit',
+            branch: i.branch_name || currentUser?.branch || 'Mumbai West',
+            rawId: i.id,
+            sourceType: 'income'
+          });
+        });
+      }
+
+      items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setVouchers(items);
+    } catch (err) {
+      console.error('Failed to load ledger vouchers from MySQL database:', err);
+      addToast('Failed to load vouchers from MySQL database', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser, branches, addToast]);
 
   useEffect(() => {
-    setVouchers(getVouchers());
-  }, [location.pathname]);
+    loadLedger();
+  }, [loadLedger, location.pathname]);
 
   // Search & Filter state
   const [search, setSearch] = useState('');
@@ -37,9 +123,8 @@ export const ExpenseLedger: React.FC = () => {
   const itemsPerPage = 5;
 
   const branchScopedVouchers = useMemo(() => {
-    const userBranch = currentUser?.branch || 'Mumbai West';
-    return vouchers.filter(v => !v.branch || v.branch === userBranch);
-  }, [vouchers, currentUser]);
+    return vouchers;
+  }, [vouchers]);
 
   // Filter categories
   const categories = useMemo(() => {
@@ -82,7 +167,7 @@ export const ExpenseLedger: React.FC = () => {
     setCurrentPage(1);
   }, [search, startDate, endDate, category, paymentMethod, status]);
 
-  const totalPages = Math.ceil(filteredVouchers.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredVouchers.length / itemsPerPage) || 1;
   const paginatedVouchers = useMemo(() => {
     return filteredVouchers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   }, [filteredVouchers, currentPage]);
@@ -113,7 +198,7 @@ export const ExpenseLedger: React.FC = () => {
       'Description',
       'Amount',
       'Direction',
-      'Paid To / From',
+      'Paid To ',
       'Payment Method',
       'Ref No',
       'Status'
@@ -180,6 +265,39 @@ export const ExpenseLedger: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmVoucher) return;
+    setIsDeleting(true);
+    const voucherToDelete = deleteConfirmVoucher;
+    try {
+      const branchId = currentUser?.branchId || (currentUser as any)?.branch_id || (branches.find(b => b.name === currentUser?.branch)?.id) || undefined;
+      
+      if (voucherToDelete.sourceType === 'expense' && voucherToDelete.rawId) {
+        await otherExpenseApi.deleteOtherExpense(voucherToDelete.rawId, branchId);
+      } else if (voucherToDelete.sourceType === 'income' && voucherToDelete.rawId) {
+        await otherIncomeApi.deleteOtherIncome(voucherToDelete.rawId, branchId);
+      } else {
+        if (voucherToDelete.id.startsWith('OEX-') || voucherToDelete.direction === 'Debit') {
+          const numericId = voucherToDelete.rawId || voucherToDelete.id.replace('OEX-', '');
+          await otherExpenseApi.deleteOtherExpense(numericId, branchId);
+        } else {
+          const numericId = voucherToDelete.rawId || voucherToDelete.id.replace('OIN-', '');
+          await otherIncomeApi.deleteOtherIncome(numericId, branchId);
+        }
+      }
+
+      setVouchers(prev => prev.filter(v => v.id !== voucherToDelete.id));
+      setDeleteConfirmVoucher(null);
+      addToast(`Ledger record ${voucherToDelete.id} deleted successfully`, 'success');
+      loadLedger();
+    } catch (err: any) {
+      console.error('Failed to delete ledger voucher:', err);
+      addToast(err?.response?.data?.message || `Failed to delete ledger record ${voucherToDelete.id}`, 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in print:p-0">
       {/* Header section */}
@@ -192,12 +310,12 @@ export const ExpenseLedger: React.FC = () => {
             Browse and filter debit and credit vouchers. Export registers to spreadsheets.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <Button size="sm" variant="secondary" onClick={loadLedger} style={{ gap: '6px' }} disabled={isLoading}>
+            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} /> Refresh
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1 font-bold">
             <Upload size={14} /> Bulk Import
-          </Button>
-          <Button size="sm" variant="secondary" onClick={handlePrint} style={{ gap: '6px' }}>
-            <Printer size={15} /> Print Ledger
           </Button>
           <Button size="sm" variant="secondary" onClick={handleExportCSV} style={{ gap: '6px' }}>
             <Download size={15} /> Export CSV
@@ -273,106 +391,181 @@ export const ExpenseLedger: React.FC = () => {
           <CardTitle className="text-base font-semibold text-slate-800 print:text-xl print:font-bold">
             General Ledger Registry Logs
           </CardTitle>
-          <span className="text-xs font-mono font-bold text-slate-500 print:hidden">
-            Showing {filteredVouchers.length === 0 ? 0 : `${(currentPage - 1) * itemsPerPage + 1} - ${Math.min(currentPage * itemsPerPage, filteredVouchers.length)}`} of {filteredVouchers.length} vouchers
-          </span>
         </CardHeader>
 
-        <Table dense headers={['Date', 'Voucher ID', 'Category', 'Description', 'Paid To / From', 'Method', 'Debit (Outflow)', 'Credit (Inflow)', 'Status']}>
-          {paginatedVouchers.length === 0 ? (
+        <Table
+          dense
+          borderless
+          minWidth="1420px"
+          colWidths={['115px', '150px', '130px', '260px', '180px', '130px', '140px', '140px', '95px', '80px']}
+          headers={[
+            { label: 'Date', align: 'left', minWidth: '115px' },
+            { label: 'Voucher ID', align: 'left', minWidth: '150px' },
+            { label: 'Category', align: 'left', minWidth: '130px' },
+            { label: 'Description', align: 'left', minWidth: '260px' },
+            { label: 'Paid To', align: 'left', minWidth: '180px' },
+            { label: 'Method', align: 'left', minWidth: '130px' },
+            { label: 'Debit (Outflow)', align: 'right', minWidth: '140px', className: 'pr-4 pl-2' },
+            { label: 'Credit (Inflow)', align: 'right', minWidth: '140px', className: 'pr-4 pl-2' },
+            { label: 'Status', align: 'center', minWidth: '95px', className: 'px-3' },
+            { label: 'Action', align: 'center', minWidth: '80px' }
+          ]}
+        >
+          {isLoading ? (
             <tr>
-              <td colSpan={9} className="px-4 py-12 text-center text-slate-400 font-medium">
+              <td colSpan={10} className="px-4 py-16 text-center text-slate-500 font-medium">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Loader2 size={24} className="animate-spin text-blue-600" />
+                  <span className="text-xs font-semibold text-slate-600">Retrieving ledger vouchers from MySQL database...</span>
+                </div>
+              </td>
+            </tr>
+          ) : paginatedVouchers.length === 0 ? (
+            <tr>
+              <td colSpan={10} className="px-4 py-12 text-center text-slate-400 font-medium">
                 No matching voucher entries found in the ledger.
               </td>
             </tr>
           ) : (
             paginatedVouchers.map((v, idx) => (
-              <tr key={idx} className="hover:bg-slate-50 transition border-b border-slate-100 last:border-0">
-                <td className="px-3 py-2 text-xs font-semibold text-slate-600 font-mono whitespace-nowrap">{formatDate(v.date)}</td>
-                <td className="px-3 py-2 text-xs font-bold text-blue-600 font-mono tracking-tight">{v.id}</td>
-                <td className="px-3 py-2">
-                  <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wide bg-slate-100 text-slate-700 border border-slate-200">
+              <tr key={v.id || idx} className="hover:bg-slate-50/80 transition border-b border-slate-100 last:border-0">
+                <td className="px-3 py-2.5 text-xs font-semibold text-slate-600 font-mono whitespace-nowrap">{formatDate(v.date)}</td>
+                <td className="px-3 py-2.5 text-xs font-bold text-blue-600 font-mono tracking-tight whitespace-nowrap">{v.id}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap">
+                  <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                     {v.category}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-xs text-slate-700 font-medium">{v.description}</td>
-                <td className="px-3 py-2 text-xs font-semibold text-slate-600">{v.paidTo}</td>
-                <td className="px-3 py-2 text-xs font-medium text-slate-500 font-mono">{v.paymentMethod}</td>
-                <td className="px-3 py-2 text-xs font-bold text-red-600 font-mono">
-                  {v.direction === 'Debit' ? `₹${v.amount.toLocaleString()}` : '—'}
+                <td className="px-3 py-2.5 text-xs text-slate-700 font-medium whitespace-normal break-words" title={v.description}>
+                  {v.description}
                 </td>
-                <td className="px-3 py-2 text-xs font-bold text-emerald-600 font-mono">
-                  {v.direction === 'Credit' ? `₹${v.amount.toLocaleString()}` : '—'}
+                <td className="px-3 py-2.5 text-xs font-semibold text-slate-600 whitespace-normal break-words" title={v.paidTo}>
+                  {v.paidTo}
                 </td>
-                <td className="px-3 py-2">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                <td className="px-3 py-2.5 text-xs font-medium text-slate-500 font-mono whitespace-nowrap">{v.paymentMethod}</td>
+                <td className="px-4 py-2.5 text-xs font-bold text-red-600 font-mono text-right whitespace-nowrap">
+                  {v.direction === 'Debit' ? `₹${v.amount.toLocaleString('en-IN')}` : '—'}
+                </td>
+                <td className="px-4 py-2.5 text-xs font-bold text-emerald-600 font-mono text-right whitespace-nowrap">
+                  {v.direction === 'Credit' ? `₹${v.amount.toLocaleString('en-IN')}` : '—'}
+                </td>
+                <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
                     v.status === 'Paid' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
                   }`}>
                     {v.status}
                   </span>
+                </td>
+                <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmVoucher(v)}
+                    title={`Delete ${v.id}`}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200 inline-flex items-center justify-center group"
+                  >
+                    <Trash2 size={15} className="group-hover:scale-110 transition-transform text-slate-400 group-hover:text-rose-600" />
+                  </button>
                 </td>
               </tr>
             ))
           )}
         </Table>
 
-        {filteredVouchers.length > itemsPerPage && (
-          <div className="p-4 border-t border-slate-100 bg-white">
-            <Pagination 
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredVouchers.length}
-              pageSize={itemsPerPage}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
-
-        <div className="bg-slate-100/50 px-6 py-4 flex justify-end gap-6 text-sm font-semibold border-t border-slate-200">
+        {/* Total Outflow & Inflow Summary Bar */}
+        <div className="bg-slate-50/80 px-6 py-2.5 flex justify-end gap-6 text-xs font-semibold border-t border-slate-100">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span>Total Outflow: <strong className="text-red-700 font-mono text-base md:text-lg">₹{totalDebit.toLocaleString()}</strong></span>
+              <div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
+              <span className="text-slate-600">Total Outflow: <strong className="text-red-700 font-mono text-sm">₹{totalDebit.toLocaleString('en-IN')}</strong></span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-              <span>Total Inflow: <strong className="text-emerald-700 font-mono text-base md:text-lg">₹{totalCredit.toLocaleString()}</strong></span>
+              <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
+              <span className="text-slate-600">Total Inflow: <strong className="text-emerald-700 font-mono text-sm">₹{totalCredit.toLocaleString('en-IN')}</strong></span>
             </div>
           </div>
         </div>
+
+        {/* Standard Institute Admin Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages || 1}
+          totalItems={filteredVouchers.length}
+          pageSize={itemsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </Card>
 
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         title="Bulk Import Ledger Vouchers"
-        description="Select a CSV spreadsheet to import multiple ledger vouchers at once. Columns must match the template below exactly."
+        description="Select a CSV spreadsheet to import multiple ledger vouchers directly into the MySQL database. Columns must match the template below exactly."
         sampleHeaders={['Date', 'Type', 'Category', 'Description', 'Amount', 'PaymentMethod', 'PaidTo', 'ReferenceNo', 'Status', 'Direction', 'Branch']}
         sampleRows={[
           ['2026-08-15', 'Expense', 'Electricity', 'AirCon service bill', '4500', 'UPI', 'CoolAir Corp', 'UPI-98124', 'Paid', 'Debit', 'Mumbai West'],
           ['2026-08-16', 'Receipt', 'Fees', 'Lumpsum enrollment fees cash', '25000', 'Cash', 'Kunal Sen', 'CASH-991', 'Paid', 'Credit', 'Pune Camp']
         ]}
-        onImport={(importedRows) => {
-          const updated = [...vouchers];
-          importedRows.forEach((row) => {
-            const voucherData = {
-              date: row['Date'] || new Date().toISOString().split('T')[0],
-              type: (row['Type'] || 'Expense') as any,
-              category: (row['Category'] || 'Other') as any,
-              description: row['Description'] || 'Bulk imported transaction',
-              amount: parseFloat(row['Amount']) || 0,
-              paymentMethod: (row['PaymentMethod'] || 'UPI') as any,
-              paidTo: row['PaidTo'] || 'Vendor',
-              referenceNo: row['ReferenceNo'] || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
-              status: (row['Status'] || 'Paid') as any,
-              direction: (row['Direction'] || 'Debit') as any,
-              branch: row['Branch'] || 'Mumbai West'
+        onImport={async (importedRows) => {
+          try {
+            const branchId = Number(currentUser?.branchId || (currentUser as any)?.branch_id || (branches.find(b => b.name === currentUser?.branch)?.id) || 1);
+            const paymentModeMap: Record<string, string> = {
+              'Bank Transfer': 'bank_transfer',
+              'UPI': 'upi',
+              'Cash': 'cash',
+              'Cheque': 'cheque'
             };
-            const saved = saveVoucher(voucherData);
-            updated.push(saved);
-          });
-          setVouchers(updated);
+
+            for (const row of importedRows) {
+              const isCredit = (row['Direction'] === 'Credit' || row['Type'] === 'Receipt' || row['Type'] === 'Fee');
+              const amt = parseFloat(row['Amount']) || 0;
+              const dt = row['Date'] || new Date().toISOString().split('T')[0];
+              const mode = paymentModeMap[row['PaymentMethod']] || 'bank_transfer';
+              const refNo = row['ReferenceNo'] || undefined;
+
+              if (isCredit) {
+                await otherIncomeApi.createOtherIncome({
+                  branchId,
+                  title: row['Description'] || 'Bulk imported income',
+                  description: row['Description'] || 'Bulk imported income',
+                  amount: amt,
+                  incomeDate: dt,
+                  paymentMode: mode,
+                  referenceNumber: refNo
+                });
+              } else {
+                await otherExpenseApi.createOtherExpense({
+                  branchId,
+                  title: row['Description'] || 'Bulk imported expense',
+                  description: row['Description'] || 'Bulk imported expense',
+                  category: row['Category'] || 'Other Expenses',
+                  amount: amt,
+                  expenseDate: dt,
+                  status: row['Status'] === 'Paid' ? 2 : 0,
+                  paymentMode: mode,
+                  referenceNumber: refNo,
+                  payee: row['PaidTo'] || 'Vendor'
+                });
+              }
+            }
+            addToast('Bulk vouchers imported directly to MySQL database!', 'success');
+            loadLedger();
+          } catch (err: any) {
+            console.error('Bulk import error:', err);
+            addToast('Encountered an issue importing some vouchers to MySQL database', 'error');
+            loadLedger();
+          }
         }}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteConfirmVoucher)}
+        onClose={() => !isDeleting && setDeleteConfirmVoucher(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Ledger Record"
+        itemType="ledger record"
+        itemName={deleteConfirmVoucher?.id}
+        description="Deleting this ledger record will remove it from the accounting general ledger. This action cannot be undone."
+        isLoading={isDeleting}
       />
     </div>
   );

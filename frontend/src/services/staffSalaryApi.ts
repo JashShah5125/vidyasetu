@@ -133,9 +133,9 @@ export const staffSalaryApi = {
   },
 
   // Page 2: Get monthly salary status (PAID / PENDING) and summary totals
-  getSalaryStatus: async (params: {
-    month: number;
-    year: number;
+  getSalaryStatus: async (params?: {
+    month?: number;
+    year?: number;
     status?: string;
     employeeType?: string;
     search?: string;

@@ -40,6 +40,8 @@ export interface StudentFeeAssignment {
   paid_amount: number;
   balance_amount: number;
   status: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface StudentLedger {

@@ -301,6 +301,51 @@ class TeacherScheduleController {
             return res.status(500).json({ status: 'error', message: error.message || 'Failed to delete slot.' });
         }
     }
+
+    /**
+     * GET /api/teacher/schedule/leave-requests
+     */
+    async getLeaveRequests(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const leaves = await teacherScheduleService.getTeacherLeaveRequests(tenantId, teacherUserId);
+            return res.status(200).json({ status: 'success', data: leaves });
+        } catch (error) {
+            console.error('[TeacherScheduleController.getLeaveRequests] error:', error);
+            return res.status(500).json({ status: 'error', message: error.message || 'Failed to fetch leave requests.' });
+        }
+    }
+
+    /**
+     * POST /api/teacher/schedule/leave-requests
+     */
+    async createLeaveRequest(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const result = await teacherScheduleService.createTeacherLeaveRequest(tenantId, teacherUserId, req.body);
+            return res.status(201).json({ status: 'success', data: result, message: 'Leave request submitted successfully.' });
+        } catch (error) {
+            console.error('[TeacherScheduleController.createLeaveRequest] error:', error);
+            return res.status(400).json({ status: 'error', message: error.message || 'Failed to submit leave request.' });
+        }
+    }
+
+    /**
+     * DELETE /api/teacher/schedule/leave-requests/:id
+     */
+    async cancelLeaveRequest(req, res) {
+        try {
+            const tenantId = req.user.tenant_id || req.user.tenantId;
+            const teacherUserId = req.user.userId || req.user.id;
+            const result = await teacherScheduleService.cancelTeacherLeaveRequest(tenantId, teacherUserId, req.params.id);
+            return res.status(200).json({ status: 'success', data: result, message: 'Leave request cancelled successfully.' });
+        } catch (error) {
+            console.error('[TeacherScheduleController.cancelLeaveRequest] error:', error);
+            return res.status(400).json({ status: 'error', message: error.message || 'Failed to cancel leave request.' });
+        }
+    }
 }
 
 module.exports = new TeacherScheduleController();

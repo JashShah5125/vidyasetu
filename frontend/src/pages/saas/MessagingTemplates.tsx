@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -39,6 +40,8 @@ import {
 import { smsTemplateService } from '../../services/smsTemplateService';
 import { emailTemplateService } from '../../services/emailTemplateService';
 import { whatsappTemplateService } from '../../services/whatsappTemplateService';
+import { systemConfigurationService } from '../../services/systemConfigurationService';
+import { Pagination } from '../../components/ui/Pagination';
 
 // Types
 export type ChannelType = 'sms' | 'email' | 'whatsapp';
@@ -53,9 +56,11 @@ export interface VariableDef {
 
 export interface UnifiedTemplate {
   id: string | number;
+  dbId?: number;
   channel: ChannelType;
   name: string;
   key: string;
+  category?: string;
   description: string;
   subject?: string;
   body: string;
@@ -97,22 +102,22 @@ export interface DeliveryLog {
   details?: string;
 }
 
-// Initial Channels Data (Vidya Setu Cloud Routing)
-const INITIAL_CHANNELS: Record<ChannelType, ChannelConfig> = {
+// Default fallback channel configurations (hydrated directly from MySQL system_configurations)
+const DEFAULT_CHANNELS: Record<ChannelType, ChannelConfig> = {
   sms: {
     id: 'sms',
     name: 'SMS',
     status: 'DISABLED',
     testStatus: 'SKIPPED',
-    summary: 'GENERIC · High-speed Transactional DLT Route · budget 1,000 chars (6 segments)',
-    lastTested: '1/10/2026, 6:02:16 pm — No endpoint URL configured',
+    summary: 'SMS Gateway',
+    lastTested: 'No test recorded',
     endpoint: '-',
     apiKey: '',
-    sender: 'VIDSETU',
-    required: ['base_url', 'api_key'],
-    provider: 'Generic HTTP (any gateway)',
-    label: 'Vidya Setu Transactional SMS Gateway',
-    providerOptionsJson: '{\n  "route": "transactional",\n  "dlt_entity_id": "1101482910000028471"\n}',
+    sender: '',
+    required: ['api_key'],
+    provider: 'Twilio',
+    label: 'Twilio (SMS)',
+    providerOptionsJson: '{}',
     enabledForSending: false
   },
   email: {
@@ -120,15 +125,15 @@ const INITIAL_CHANNELS: Record<ChannelType, ChannelConfig> = {
     name: 'EMAIL',
     status: 'DISABLED',
     testStatus: 'SKIPPED',
-    summary: 'GENERIC · SES / SendGrid Outbound Email · budget no practical limit',
-    lastTested: '1/10/2026, 5:45:00 pm — No endpoint URL configured',
+    summary: 'SMTP Server · EMAIL Gateway',
+    lastTested: 'No test recorded',
     endpoint: '-',
     apiKey: '',
-    sender: 'notifications@vidyasetu.com',
-    required: ['base_url', 'api_key'],
-    provider: 'Generic HTTP (any gateway)',
-    label: 'Vidya Setu Institutional Mailer',
-    providerOptionsJson: '{\n  "from_name": "Vidya Setu Platform",\n  "reply_to": "support@vidyasetu.com"\n}',
+    sender: '',
+    required: ['smtp_host', 'smtp_port'],
+    provider: 'SMTP Server',
+    label: 'SMTP Server (EMAIL)',
+    providerOptionsJson: '{}',
     enabledForSending: false
   },
   whatsapp: {
@@ -136,460 +141,70 @@ const INITIAL_CHANNELS: Record<ChannelType, ChannelConfig> = {
     name: 'WHATSAPP',
     status: 'DISABLED',
     testStatus: 'SKIPPED',
-    summary: 'GENERIC · Meta WhatsApp Business API · budget 4,096 chars',
-    lastTested: '1/10/2026, 5:46:12 pm — No endpoint URL configured',
+    summary: 'Meta Cloud API · WHATSAPP Gateway',
+    lastTested: 'No test recorded',
     endpoint: '-',
     apiKey: '',
-    sender: '919876500000',
-    required: ['base_url', 'api_key'],
-    provider: 'Generic HTTP (any gateway)',
-    label: 'Vidya Setu WhatsApp Business Cloud',
-    providerOptionsJson: '{\n  "waba_id": "104928172940182",\n  "phone_number_id": "10928374619283"\n}',
+    sender: '',
+    required: ['auth_token'],
+    provider: 'Meta Cloud API',
+    label: 'Meta Cloud API (WHATSAPP)',
+    providerOptionsJson: '{}',
     enabledForSending: false
   }
 };
 
-// Seeded Initial Templates (100% Vidya Setu Educational System)
-const INITIAL_TEMPLATES: UnifiedTemplate[] = [
-  // SMS TEMPLATES
-  {
-    id: 'sms-1',
-    channel: 'sms',
-    name: 'Student Admission Confirmed',
-    key: 'admission.confirmed',
-    description: 'Triggered upon successful enrollment of a student in an institute.',
-    body: 'Vidya Setu: Admission confirmed for {{student.name}} in {{class.name}} at {{institute.name}}. Roll No: {{student.roll_no}}. Portal: {{portal.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav Sharma' },
-      { key: 'class.name', label: 'Class / Grade', type: 'text', example: 'Class 10 - Batch A' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Delhi Public Academy' },
-      { key: 'student.roll_no', label: 'Roll Number', type: 'text', example: 'DPA-2026-104' },
-      { key: 'portal.url', label: 'Portal URL', type: 'url', example: 'https://vidyasetu.com/login' }
-    ]
-  },
-  {
-    id: 'sms-2',
-    channel: 'sms',
-    name: 'Student Absent Alert',
-    key: 'attendance.absent_alert',
-    description: 'Sent immediately to parents when student is marked absent in roll call.',
-    body: 'Vidya Setu Alert: {{student.name}} was marked absent today ({{attendance.date}}) for {{batch.name}} at {{institute.name}}. Inquiries: {{institute.phone}}.',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Rohan Verma' },
-      { key: 'attendance.date', label: 'Date', type: 'date', example: '06 Oct 2026' },
-      { key: 'batch.name', label: 'Batch Name', type: 'text', example: 'Morning Batch' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Vidya Mandir Institute' },
-      { key: 'institute.phone', label: 'Contact Phone', type: 'text', example: '+91 98200 11223' }
-    ]
-  },
-  {
-    id: 'sms-3',
-    channel: 'sms',
-    name: 'Fee Installment Due Reminder',
-    key: 'fee.due_reminder',
-    description: 'Sent 3 days prior to term or monthly installment fee due date.',
-    body: 'Dear {{parent.name}}, fee installment of ₹{{fee.amount}} for {{student.name}} at {{institute.name}} is due on {{fee.due_date}}. Pay online: {{fee.payment_link}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'parent.name', label: 'Parent Name', type: 'text', example: 'Mr. Rajesh Verma' },
-      { key: 'fee.amount', label: 'Fee Amount', type: 'number', example: '12,500' },
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Rohan Verma' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Vidya Mandir Institute' },
-      { key: 'fee.due_date', label: 'Due Date', type: 'date', example: '15 Oct 2026' },
-      { key: 'fee.payment_link', label: 'Payment Link', type: 'url', example: 'https://pay.vidyasetu.com/inv_8492' }
-    ]
-  },
-  {
-    id: 'sms-4',
-    channel: 'sms',
-    name: 'Fee Payment Received',
-    key: 'fee.payment_receipt',
-    description: 'Confirmation receipt sent when fee payment is recorded online or at reception.',
-    body: 'Vidya Setu: Payment of ₹{{fee.amount}} for {{student.name}} (Receipt: {{fee.receipt_no}}) received by {{institute.name}}. Download receipt: {{receipt.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'fee.amount', label: 'Amount Paid', type: 'number', example: '12,500' },
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Rohan Verma' },
-      { key: 'fee.receipt_no', label: 'Receipt No', type: 'text', example: 'REC-2026-9041' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Vidya Mandir Institute' },
-      { key: 'receipt.url', label: 'Receipt Download', type: 'url', example: 'https://vidyasetu.com/rec/9041' }
-    ]
-  },
-  {
-    id: 'sms-5',
-    channel: 'sms',
-    name: 'Exam Timetable Published',
-    key: 'exam.timetable_published',
-    description: 'Notice sent to parents and students when examination schedule is finalized.',
-    body: 'Vidya Setu: Date sheet for {{exam.title}} has been published for {{class.name}}. Exams begin on {{exam.start_date}}. Check timetable: {{portal.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'exam.title', label: 'Exam Title', type: 'text', example: 'Term 1 Midterm Exam' },
-      { key: 'class.name', label: 'Class', type: 'text', example: 'Class 10' },
-      { key: 'exam.start_date', label: 'Start Date', type: 'date', example: '20 Oct 2026' },
-      { key: 'portal.url', label: 'Portal Link', type: 'url', example: 'https://vidyasetu.com/exams' }
-    ]
-  },
-  {
-    id: 'sms-6',
-    channel: 'sms',
-    name: 'Exam Results Released',
-    key: 'exam.results_published',
-    description: 'Scorecard summary notification sent when teacher finalizes marks.',
-    body: 'Vidya Setu: Results for {{exam.title}} are now available. {{student.name}} scored {{result.percentage}}% (Rank: {{result.rank}}). Report card: {{result.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'exam.title', label: 'Exam Title', type: 'text', example: 'Term 1 Midterm Exam' },
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav Sharma' },
-      { key: 'result.percentage', label: 'Score %', type: 'number', example: '92.4' },
-      { key: 'result.rank', label: 'Class Rank', type: 'text', example: '2nd' },
-      { key: 'result.url', label: 'Report Link', type: 'url', example: 'https://vidyasetu.com/marks/aarav' }
-    ]
-  },
-  {
-    id: 'sms-7',
-    channel: 'sms',
-    name: 'Lecture Rescheduled Notice',
-    key: 'schedule.lecture_rescheduled',
-    description: 'Timetable shift alert sent to students in the affected batch.',
-    body: 'Schedule update: {{subject.name}} lecture for {{batch.name}} on {{lecture.date}} is rescheduled to {{lecture.time}} with {{teacher.name}} in {{room.name}}.',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'subject.name', label: 'Subject', type: 'text', example: 'Mathematics' },
-      { key: 'batch.name', label: 'Batch', type: 'text', example: 'Class 10 Morning' },
-      { key: 'lecture.date', label: 'Date', type: 'date', example: 'Today' },
-      { key: 'lecture.time', label: 'New Time', type: 'text', example: '03:30 PM' },
-      { key: 'teacher.name', label: 'Faculty', type: 'text', example: 'Prof. Anjali Saxena' },
-      { key: 'room.name', label: 'Room', type: 'text', example: 'Room 302' }
-    ]
-  },
-  {
-    id: 'sms-8',
-    channel: 'sms',
-    name: 'Homework Assignment Posted',
-    key: 'homework.assigned',
-    description: 'Alert sent when teacher assigns new coursework or problems.',
-    body: 'New homework posted for {{subject.name}}: \'{{homework.title}}\'. Due date: {{homework.due_date}}. Access details on Vidya Setu portal: {{portal.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'subject.name', label: 'Subject', type: 'text', example: 'Physics' },
-      { key: 'homework.title', label: 'Topic Title', type: 'text', example: 'Newton\'s Laws Assignment 3' },
-      { key: 'homework.due_date', label: 'Due Date', type: 'date', example: '08 Oct 2026' },
-      { key: 'portal.url', label: 'Portal Link', type: 'url', example: 'https://vidyasetu.com/homework' }
-    ]
-  },
-  {
-    id: 'sms-9',
-    channel: 'sms',
-    name: 'Faculty Attendance Marked',
-    key: 'faculty.attendance_marked',
-    description: 'Dispatched when teacher logs attendance and hours worked for daily lectures.',
-    body: 'Vidya Setu: Attendance for {{teacher.name}} marked {{attendance.status}} for {{lecture.count}} scheduled lectures on {{attendance.date}}. Hours logged: {{hours.worked}}h.',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'teacher.name', label: 'Teacher Name', type: 'text', example: 'Dr. Ramesh Gupta' },
-      { key: 'attendance.status', label: 'Status', type: 'text', example: 'Present' },
-      { key: 'lecture.count', label: 'Lectures Count', type: 'number', example: '3' },
-      { key: 'attendance.date', label: 'Date', type: 'date', example: '06 Oct 2026' },
-      { key: 'hours.worked', label: 'Hours', type: 'number', example: '4.5' }
-    ]
-  },
-  {
-    id: 'sms-10',
-    channel: 'sms',
-    name: 'Portal Login Security OTP',
-    key: 'auth.login_otp',
-    description: 'Multi-factor login verification passcode.',
-    body: 'Your Vidya Setu portal security OTP is {{auth.otp_code}}. Valid for 10 minutes. Do not share this OTP with anyone.',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'auth.otp_code', label: 'OTP Code', type: 'number', example: '724195' }
-    ]
-  },
-  {
-    id: 'sms-11',
-    channel: 'sms',
-    name: 'Institute Subscription Renewal',
-    key: 'saas.subscription_renewal',
-    description: 'SaaS billing notice sent to institute super administrators.',
-    body: 'Dear {{institute.name}} Admin, your Vidya Setu {{plan.name}} subscription expires on {{plan.expiry_date}}. Renew today to ensure uninterrupted access: {{billing.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Modern Public School' },
-      { key: 'plan.name', label: 'Plan Tier', type: 'text', example: 'Enterprise Annual' },
-      { key: 'plan.expiry_date', label: 'Expiry Date', type: 'date', example: '31 Oct 2026' },
-      { key: 'billing.url', label: 'Billing Portal', type: 'url', example: 'https://vidyasetu.com/billing' }
-    ]
-  },
-  {
-    id: 'sms-12',
-    channel: 'sms',
-    name: 'Student Doubt Answered',
-    key: 'doubt.answered',
-    description: 'Notification sent when faculty submits an answer to student query.',
-    body: 'Hello {{student.name}}, your doubt on \'{{doubt.topic}}\' in {{subject.name}} has been answered by {{teacher.name}}. View explanation: {{doubt.url}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Sneha Patel' },
-      { key: 'doubt.topic', label: 'Topic / Query', type: 'text', example: 'Electromagnetic Induction Q4' },
-      { key: 'subject.name', label: 'Subject', type: 'text', example: 'Physics' },
-      { key: 'teacher.name', label: 'Teacher', type: 'text', example: 'Prof. Anjali Saxena' },
-      { key: 'doubt.url', label: 'Doubt URL', type: 'url', example: 'https://vidyasetu.com/doubts/104' }
-    ]
-  },
+const mapDbConfigToChannelConfig = (cfg: any, prevConfig: ChannelConfig): ChannelConfig => {
+  const cType = (cfg.channel_type || '').toLowerCase() as ChannelType;
+  const creds = cfg.credentials && typeof cfg.credentials === 'object' ? cfg.credentials : {};
+  const isEnabled = cfg.is_enabled === 1 || cfg.is_enabled === true;
 
-  // EMAIL TEMPLATES (100% Vidya Setu Platform)
-  {
-    id: 'email-1',
-    channel: 'email',
-    name: 'Student Admission Confirmation & Welcome',
-    key: 'admission.welcome_email',
-    description: 'Welcome email with student login credentials and institute guide.',
-    subject: 'Welcome to {{institute.name}} — Admission Confirmed for {{student.name}}',
-    body: 'Dear {{parent.name}}, we are delighted to confirm the admission of {{student.name}} into {{class.name}} at {{institute.name}}. Roll No: {{student.roll_no}}. Student Portal URL: {{portal.url}} with Username: {{student.username}}.',
-    htmlBody: `<h1 style="margin:0 0 12px;color:#1e3a8a;font-size:22px;line-height:1.3;">Welcome to {{institute.name}}</h1>
-<p style="margin:0;color:#334155;font-size:15px;line-height:1.6;">Dear <strong>{{parent.name}}</strong>,</p>
-<p style="margin:8px 0;color:#334155;font-size:15px;line-height:1.6;">We are pleased to confirm that admission for <strong>{{student.name}}</strong> in <strong>{{class.name}}</strong> has been finalized.</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;">
-  <tr style="background:#f8fafc;">
-    <td style="padding:10px 14px;color:#64748b;font-size:14px;font-weight:600;border-bottom:1px solid #e2e8f0;">Roll Number</td>
-    <td style="padding:10px 14px;color:#0f172a;font-size:14px;font-weight:bold;border-bottom:1px solid #e2e8f0;">{{student.roll_no}}</td>
-  </tr>
-  <tr>
-    <td style="padding:10px 14px;color:#64748b;font-size:14px;font-weight:600;border-bottom:1px solid #e2e8f0;">Class & Batch</td>
-    <td style="padding:10px 14px;color:#0f172a;font-size:14px;font-weight:bold;border-bottom:1px solid #e2e8f0;">{{class.name}}</td>
-  </tr>
-  <tr style="background:#f8fafc;">
-    <td style="padding:10px 14px;color:#64748b;font-size:14px;font-weight:600;">Student Portal Login</td>
-    <td style="padding:10px 14px;color:#2563eb;font-size:14px;font-weight:bold;">{{portal.url}}</td>
-  </tr>
-</table>
-<p style="margin:0;color:#334155;font-size:14px;line-height:1.6;">Please keep these credentials safe. For assistance, reach out to your institute administration desk.</p>`,
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'parent.name', label: 'Parent Name', type: 'text', example: 'Mr. Rajesh Sharma' },
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav Sharma' },
-      { key: 'class.name', label: 'Class / Grade', type: 'text', example: 'Class 10 - Science' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Delhi Public Academy' },
-      { key: 'student.roll_no', label: 'Roll Number', type: 'text', example: 'DPA-2026-104' },
-      { key: 'portal.url', label: 'Portal Link', type: 'url', example: 'https://vidyasetu.com/portal' }
-    ]
-  },
-  {
-    id: 'email-2',
-    channel: 'email',
-    name: 'Official Fee Payment Receipt',
-    key: 'billing.fee_receipt',
-    description: 'Itemized fee invoice receipt generated upon fee settlement.',
-    subject: 'Fee Receipt #{{receipt.number}} — {{institute.name}}',
-    body: 'Receipt for payment ₹{{fee.amount}} against Receipt #{{receipt.number}} for {{student.name}} in {{institute.name}}.',
-    htmlBody: `<h2 style="color:#1e3a8a;margin-bottom:8px;">Official Fee Receipt</h2>
-<p style="color:#334155;font-size:14px;">Thank you for your fee payment of <strong>₹{{fee.amount}}</strong> for <strong>{{student.name}}</strong> at <strong>{{institute.name}}</strong>.</p>
-<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:13px;">
-  <tr><td style="padding:6px 0;color:#64748b;">Receipt Number:</td><td style="font-weight:bold;color:#0f172a;">{{receipt.number}}</td></tr>
-  <tr><td style="padding:6px 0;color:#64748b;">Payment Date:</td><td style="font-weight:bold;color:#0f172a;">{{payment.date}}</td></tr>
-  <tr><td style="padding:6px 0;color:#64748b;">Payment Mode:</td><td style="font-weight:bold;color:#0f172a;">{{payment.mode}}</td></tr>
-</table>
-<p style="font-size:13px;color:#64748b;">This is a computer-generated tax receipt generated by Vidya Setu ERP.</p>`,
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'receipt.number', label: 'Receipt No', type: 'text', example: 'REC-2026-9041' },
-      { key: 'fee.amount', label: 'Amount Paid', type: 'number', example: '14,500' },
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Rohan Verma' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Vidya Mandir Institute' },
-      { key: 'payment.date', label: 'Payment Date', type: 'date', example: '06 Oct 2026' },
-      { key: 'payment.mode', label: 'Payment Mode', type: 'text', example: 'UPI / NetBanking' }
-    ]
-  },
-  {
-    id: 'email-3',
-    channel: 'email',
-    name: 'New Institute Onboarding Credentials',
-    key: 'saas.institute_onboarded',
-    description: 'Sent to institute owners when their Vidya Setu ERP instance is provisioned.',
-    subject: 'Welcome to Vidya Setu — {{institute.name}} Portal Active',
-    body: 'Congratulations! Your Vidya Setu instance for {{institute.name}} is live. Admin Login: {{admin.email}}, Tier: {{plan.name}}.',
-    htmlBody: `<h1 style="color:#1e3a8a;font-size:22px;">Welcome to Vidya Setu</h1>
-<p style="color:#334155;font-size:15px;">Hello <strong>{{admin.name}}</strong>,</p>
-<p style="color:#334155;font-size:14px;">Your cloud institutional portal for <strong>{{institute.name}}</strong> has been provisioned successfully under the <strong>{{plan.name}}</strong> subscription tier.</p>
-<p style="margin:20px 0;"><a href="{{login.url}}" style="background:#2563eb;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">Access Admin Dashboard</a></p>
-<p style="color:#64748b;font-size:13px;">Login Email: <strong>{{admin.email}}</strong></p>`,
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'admin.name', label: 'Admin Name', type: 'text', example: 'Principal Sharma' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Delhi Model School' },
-      { key: 'plan.name', label: 'Plan Tier', type: 'text', example: 'Pro Enterprise' },
-      { key: 'admin.email', label: 'Login Email', type: 'text', example: 'admin@delhischool.edu' },
-      { key: 'login.url', label: 'Login URL', type: 'url', example: 'https://vidyasetu.com/login' }
-    ]
-  },
-  {
-    id: 'email-4',
-    channel: 'email',
-    name: 'Password Reset Instructions',
-    key: 'auth.password_reset',
-    description: 'Password reset link sent to users who request recovery.',
-    subject: 'Reset Your Vidya Setu Account Password',
-    body: 'Hello {{user.name}}, click the following link to reset your Vidya Setu account password: {{reset.url}}. Valid for {{expiry.minutes}} minutes.',
-    htmlBody: `<h2 style="color:#1e3a8a;">Password Reset Request</h2>
-<p style="color:#334155;">Hello <strong>{{user.name}}</strong>,</p>
-<p style="color:#334155;">We received a request to reset your password on Vidya Setu. Click the button below to choose a new password:</p>
-<p style="margin:20px 0;"><a href="{{reset.url}}" style="background:#2563eb;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold;">Reset Password</a></p>
-<p style="color:#64748b;font-size:12px;">This link will expire in {{expiry.minutes}} minutes. If you did not request this, please ignore this email.</p>`,
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'user.name', label: 'User Name', type: 'text', example: 'Aarav Sharma' },
-      { key: 'reset.url', label: 'Reset Link', type: 'url', example: 'https://vidyasetu.com/reset?token=90812' },
-      { key: 'expiry.minutes', label: 'Expiry Duration', type: 'number', example: '15' }
-    ]
-  },
+  let endpoint = '-';
+  let apiKey = '';
+  let sender = cfg.sender_id || '';
 
-  // WHATSAPP TEMPLATES (100% Vidya Setu Platform)
-  {
-    id: 'whatsapp-1',
-    channel: 'whatsapp',
-    name: 'Daily Student Attendance Notification',
-    key: 'attendance.daily_update',
-    description: 'Automated WhatsApp update sent to parents after morning attendance.',
-    body: '🎓 *Vidya Setu Attendance Update*\nDear Parent, {{student.name}} has been marked *{{attendance.status}}* today ({{attendance.date}}) at {{institute.name}}.\nBatch: {{batch.name}}',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav Sharma' },
-      { key: 'attendance.status', label: 'Status', type: 'text', example: 'Present' },
-      { key: 'attendance.date', label: 'Date', type: 'date', example: '06 Oct 2026' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Delhi Public Academy' },
-      { key: 'batch.name', label: 'Batch Name', type: 'text', example: 'Class 10 - Section A' }
-    ],
-    buttons: [
-      { type: 'URL', text: 'View Attendance Roster', url: 'https://vidyasetu.com/attendance' }
-    ]
-  },
-  {
-    id: 'whatsapp-2',
-    channel: 'whatsapp',
-    name: 'Instant Fee Payment Reminder',
-    key: 'fee.reminder_whatsapp',
-    description: 'WhatsApp payment notification with 1-click payment link.',
-    body: '💳 *Vidya Setu Fee Alert*\nDear {{parent.name}}, the upcoming fee installment of *₹{{fee.amount}}* for {{student.name}} at {{institute.name}} is due on *{{fee.due_date}}*.\nPay easily online via the button below:',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'parent.name', label: 'Parent Name', type: 'text', example: 'Mr. Rajesh Sharma' },
-      { key: 'fee.amount', label: 'Fee Amount', type: 'number', example: '12,500' },
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav Sharma' },
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Delhi Public Academy' },
-      { key: 'fee.due_date', label: 'Due Date', type: 'date', example: '15 Oct 2026' }
-    ],
-    buttons: [
-      { type: 'URL', text: 'Pay Fees Online', url: 'https://pay.vidyasetu.com/quick' },
-      { type: 'PHONE', text: 'Call Accounts Desk', phone: '+919820011223' }
-    ]
-  },
-  {
-    id: 'whatsapp-3',
-    channel: 'whatsapp',
-    name: 'Emergency Institute Notice / Holiday',
-    key: 'notice.emergency_circular',
-    description: 'Urgent circular sent to all registered guardians and staff.',
-    body: '📢 *Vidya Setu Institute Circular*\n{{institute.name}} Notice: *{{notice.title}}*\n{{notice.summary}}\nEffective Date: *{{notice.date}}*',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'institute.name', label: 'Institute Name', type: 'text', example: 'Delhi Public Academy' },
-      { key: 'notice.title', label: 'Circular Title', type: 'text', example: 'Holiday Notice - Heavy Rainfall Warning' },
-      { key: 'notice.summary', label: 'Notice Summary', type: 'text', example: 'Classes suspended tomorrow as per government advisory. Online lectures active.' },
-      { key: 'notice.date', label: 'Date', type: 'date', example: '07 Oct 2026' }
-    ],
-    buttons: [
-      { type: 'URL', text: 'Read Circular', url: 'https://vidyasetu.com/notices' }
-    ]
-  },
-  {
-    id: 'whatsapp-4',
-    channel: 'whatsapp',
-    name: 'Student Doubt Resolved Notification',
-    key: 'doubt.resolved_whatsapp',
-    description: 'WhatsApp alert to student when faculty posts solution.',
-    body: '💡 *Vidya Setu Doubt Solver*\nHello {{student.name}}, your doubt on *{{doubt.topic}}* in {{subject.name}} has been answered by *{{teacher.name}}*.\nCheck the complete explanation on your portal.',
-    status: 'active',
-    version: 'v1',
-    variables: [
-      { key: 'student.name', label: 'Student Name', type: 'text', example: 'Sneha Patel' },
-      { key: 'doubt.topic', label: 'Doubt Query', type: 'text', example: 'Calculus Integration by Parts' },
-      { key: 'subject.name', label: 'Subject', type: 'text', example: 'Mathematics' },
-      { key: 'teacher.name', label: 'Teacher', type: 'text', example: 'Prof. Anjali Saxena' }
-    ],
-    buttons: [
-      { type: 'URL', text: 'View Solution', url: 'https://vidyasetu.com/doubts' }
-    ]
+  if (cType === 'sms') {
+    endpoint = creds.api_endpoint || '-';
+    apiKey = creds.auth_token || creds.account_sid || '';
+    if (!sender && creds.from_number) sender = creds.from_number;
+  } else if (cType === 'email') {
+    endpoint = creds.smtp_host ? `${creds.smtp_host}${creds.smtp_port ? `:${creds.smtp_port}` : ''}` : '-';
+    apiKey = creds.smtp_password || '';
+    if (!sender && creds.from_email) sender = creds.from_email;
+  } else if (cType === 'whatsapp') {
+    endpoint = creds.api_endpoint || '-';
+    apiKey = creds.auth_token || '';
+    if (!sender && creds.test_phone) sender = creds.test_phone;
   }
-];
 
-const INITIAL_DELIVERIES: DeliveryLog[] = [
-  {
-    id: 'del-101',
-    recipient: '+91 98201 12450',
-    channel: 'sms',
-    templateKey: 'attendance.absent_alert',
-    templateName: 'Student Absent Alert',
-    status: 'SENT',
-    providerMsgId: 'msg_8492018402',
-    timestamp: 'Today, 09:15 AM',
-    details: 'Provider response HTTP 200 OK - Dispatched via Transactional DLT Route'
-  },
-  {
-    id: 'del-102',
-    recipient: 'parent.sharma@gmail.com',
-    channel: 'email',
-    templateKey: 'admission.welcome_email',
-    templateName: 'Student Admission Confirmation & Welcome',
-    status: 'SENT',
-    providerMsgId: 'eml_9481029481',
-    timestamp: 'Today, 08:42 AM',
-    details: 'Delivered to SES mailer - Queued for recipient inbox'
-  },
-  {
-    id: 'del-103',
-    recipient: '+91 94120 44521',
-    channel: 'whatsapp',
-    templateKey: 'fee.reminder_whatsapp',
-    templateName: 'Instant Fee Payment Reminder',
-    status: 'SENT',
-    providerMsgId: 'wa_391058201948',
-    timestamp: 'Today, 08:30 AM',
-    details: 'Meta WhatsApp Cloud API msg_id 391058201948'
-  },
-  {
-    id: 'del-104',
-    recipient: '+91 91234 56789',
-    channel: 'sms',
-    templateKey: 'fee.due_reminder',
-    templateName: 'Fee Installment Due Reminder',
-    status: 'FAILED',
-    providerMsgId: 'err_gateway_unreachable',
-    timestamp: 'Yesterday, 04:12 PM',
-    details: 'HTTP 502 Bad Gateway - Endpoint timeout after 5000ms'
-  }
-];
+  return {
+    ...prevConfig,
+    id: cType,
+    name: cfg.channel_type,
+    status: isEnabled ? 'ENABLED' : 'DISABLED',
+    enabledForSending: isEnabled,
+    provider: cfg.provider_name || prevConfig.provider,
+    label: `${cfg.provider_name || 'Channel'} (${cfg.channel_type})`,
+    summary: `${cfg.provider_name || 'Gateway'} · ${cfg.channel_type} Gateway`,
+    endpoint,
+    apiKey,
+    sender,
+    providerOptionsJson: JSON.stringify(creds, null, 2)
+  };
+};
+
+// Templates are 100% loaded dynamically from MySQL tables
+
+
+const getTemplateCategory = (tpl: UnifiedTemplate) => {
+  const k = (tpl.key || '').toLowerCase();
+  if (k.startsWith('admission')) return 'Admission';
+  if (k.startsWith('attendance')) return 'Attendance';
+  if (k.startsWith('fee') || k.startsWith('payment') || k.startsWith('receipt') || k.startsWith('invoice')) return 'Fees & Finance';
+  if (k.startsWith('exam') || k.startsWith('grade') || k.startsWith('result') || k.startsWith('homework')) return 'Exams & Academics';
+  if (k.startsWith('lecture') || k.startsWith('schedule') || k.startsWith('timetable')) return 'Schedule & Timetable';
+  return 'General';
+};
 
 interface MessagingTemplatesProps {
   defaultTab?: TabType;
@@ -614,25 +229,45 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
     }
   }, [urlTab]);
 
-  // Channels state
-  const [channels, setChannels] = useState<Record<ChannelType, ChannelConfig>>(INITIAL_CHANNELS);
+  // Channels state - initialized with defaults, hydrated from MySQL system_configurations
+  const [channels, setChannels] = useState<Record<ChannelType, ChannelConfig>>(DEFAULT_CHANNELS);
   const [configuringChannelId, setConfiguringChannelId] = useState<ChannelType | null>(null);
   const [showApiKeyMap, setShowApiKeyMap] = useState<Record<string, boolean>>({});
 
-  // Templates state
-  const [templates, setTemplates] = useState<UnifiedTemplate[]>(INITIAL_TEMPLATES);
+  // Templates state - sourced directly from MySQL database
+  const [templates, setTemplates] = useState<UnifiedTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Deliveries state
-  const [deliveries, setDeliveries] = useState<DeliveryLog[]>(INITIAL_DELIVERIES);
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  // Pagination state for Templates
+  const [templatePage, setTemplatePage] = useState(1);
+  const [templatePageSize, setTemplatePageSize] = useState(5);
+
+  // Pagination state for Deliveries
+  const [deliveriesPage, setDeliveriesPage] = useState(1);
+  const [deliveriesPageSize, setDeliveriesPageSize] = useState(10);
+
+  // Reset page when tab, search, or filters change
+  useEffect(() => {
+    setTemplatePage(1);
+  }, [activeTab, searchQuery, statusFilter, categoryFilter]);
+
+  // Deliveries state - populated by test dispatches
+  const [deliveries, setDeliveries] = useState<DeliveryLog[]>([]);
 
   // Modals
   const [editingTemplate, setEditingTemplate] = useState<UnifiedTemplate | null>(null);
+  const [testingTemplate, setTestingTemplate] = useState<UnifiedTemplate | null>(null);
   const [isPreviewHidden, setIsPreviewHidden] = useState(false);
   const [isTestSendModalOpen, setIsTestSendModalOpen] = useState(false);
   const [testSendRecipient, setTestSendRecipient] = useState('');
   const [isTestingChannel, setIsTestingChannel] = useState<ChannelType | null>(null);
+  const [isDispatchingTest, setIsDispatchingTest] = useState(false);
 
   // Toast helper
   const showToast = (msg: string) => {
@@ -640,88 +275,133 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Fetch backend templates on load and augment (ignoring any legacy mock rows with 'aipta')
+  // Fetch real database templates & configurations on load (100% sourced from MySQL tables)
   useEffect(() => {
     const loadBackendData = async () => {
       try {
-        const [smsRes, emailRes, waRes] = await Promise.allSettled([
+        setIsLoadingTemplates(true);
+        const [smsRes, emailRes, waRes, sysConfigRes] = await Promise.allSettled([
           smsTemplateService.getTemplates({ limit: 100 }),
           emailTemplateService.getTemplates({ limit: 100 }),
-          whatsappTemplateService.getTemplates({ limit: 100 })
+          whatsappTemplateService.getTemplates({ limit: 100 }),
+          systemConfigurationService.getAll()
         ]);
 
-        const extraTemplates: UnifiedTemplate[] = [];
+        const dbTemplates: UnifiedTemplate[] = [];
 
-        if (smsRes.status === 'fulfilled' && smsRes.value?.data) {
-          smsRes.value.data.forEach((st: any) => {
-            const isAipta = (st.message_body || '').toLowerCase().includes('aipta') || (st.template_key || '').toLowerCase().includes('membership');
-            if (!isAipta && !INITIAL_TEMPLATES.some(t => t.key === st.template_key && t.channel === 'sms')) {
-              extraTemplates.push({
-                id: `backend-sms-${st.id}`,
-                channel: 'sms',
-                name: st.template_name || st.name || 'SMS Template',
-                key: st.template_key || `sms.${st.id}`,
-                description: st.category ? `Category: ${st.category}` : 'SMS message template',
-                body: st.message_body || '',
-                status: st.status === 'active' ? 'active' : 'inactive',
-                version: 'v1',
-                variables: [
-                  { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav' }
-                ]
-              });
+        // 1. SMS Templates from MySQL (sms_templates table: active & inactive)
+        const smsList = smsRes.status === 'fulfilled' && smsRes.value?.data ? smsRes.value.data : [];
+        smsList.forEach((st: any) => {
+          if (st.status !== 'deleted') {
+            dbTemplates.push({
+              id: `sms-${st.id}`,
+              dbId: st.id,
+              channel: 'sms',
+              name: st.template_name || st.name || st.template_key,
+              key: st.template_key,
+              category: st.category,
+              dltId: st.dlt_template_id,
+              description: st.category ? `Category: ${st.category}` : 'SMS message template',
+              body: st.message_body || '',
+              status: st.status === 'active' ? 'active' : 'inactive',
+              version: 'v1',
+              variables: (st.message_body || '').match(/{{[^}]+}}/g)?.map((tok: string) => {
+                const clean = tok.replace(/[{}]/g, '').trim();
+                return { key: clean, label: clean, type: 'text' as const, example: clean };
+              }) || [
+                { key: 'student_name', label: 'Student Name', type: 'text' as const, example: 'Aarav' }
+              ]
+            });
+          }
+        });
+
+        // 2. Email Templates from MySQL (email_templates table: active & inactive)
+        const emailList = emailRes.status === 'fulfilled' && emailRes.value?.data ? emailRes.value.data : [];
+        emailList.forEach((et: any) => {
+          if (et.status !== 'deleted' && !et.deleted_at) {
+            dbTemplates.push({
+              id: `email-${et.id}`,
+              dbId: et.id,
+              channel: 'email',
+              name: et.name || et.template_key,
+              key: et.template_key,
+              category: et.category,
+              description: et.description || `${et.category || 'System'} notification email`,
+              subject: et.subject || '',
+              body: et.text_body || (et.html_body ? et.html_body.replace(/<[^>]+>/g, ' ') : ''),
+              htmlBody: et.html_body || '',
+              status: String(et.status).toLowerCase() === 'active' ? 'active' : 'inactive',
+              version: 'v1',
+              variables: et.variables && typeof et.variables === 'object'
+                ? Object.entries(et.variables).map(([k, label]) => ({
+                    key: k,
+                    label: String(label),
+                    type: 'text' as const,
+                    example: String(label)
+                  }))
+                : (et.subject + ' ' + (et.text_body || '')).match(/{{[^}]+}}/g)?.map((tok: string) => {
+                    const clean = tok.replace(/[{}]/g, '').trim();
+                    return { key: clean, label: clean, type: 'text' as const, example: clean };
+                  }) || [
+                    { key: 'user_name', label: 'User Name', type: 'text' as const, example: 'Aarav Sharma' }
+                  ]
+            });
+          }
+        });
+
+        // 3. WhatsApp Templates from MySQL (whatsapp_templates table: active & inactive)
+        const waList = waRes.status === 'fulfilled' && waRes.value?.data ? waRes.value.data : [];
+        waList.forEach((wt: any) => {
+          if (wt.status !== 'deleted') {
+            let parsedButtons = [];
+            if (wt.buttons) {
+              parsedButtons = typeof wt.buttons === 'string' ? JSON.parse(wt.buttons) : wt.buttons;
             }
-          });
-        }
+            dbTemplates.push({
+              id: `wa-${wt.id}`,
+              dbId: wt.id,
+              channel: 'whatsapp',
+              name: wt.template_name || wt.name || wt.template_key,
+              key: wt.template_key,
+              category: wt.category,
+              dltId: wt.dlt_template_id,
+              description: wt.category ? `Category: ${wt.category}` : 'WhatsApp notification template',
+              body: wt.message_body || '',
+              status: wt.status === 'active' ? 'active' : 'inactive',
+              version: 'v1',
+              variables: (wt.message_body || '').match(/{{[^}]+}}/g)?.map((tok: string) => {
+                const clean = tok.replace(/[{}]/g, '').trim();
+                return { key: clean, label: clean, type: 'text' as const, example: clean };
+              }) || [
+                { key: 'student_name', label: 'Student Name', type: 'text' as const, example: 'Aarav' }
+              ],
+              buttons: parsedButtons
+            });
+          }
+        });
 
-        if (emailRes.status === 'fulfilled' && emailRes.value?.data) {
-          emailRes.value.data.forEach((et: any) => {
-            const isAipta = (et.subject || '').toLowerCase().includes('aipta') || (et.template_key || '').toLowerCase().includes('membership');
-            if (!isAipta && !INITIAL_TEMPLATES.some(t => t.key === et.template_key && t.channel === 'email')) {
-              extraTemplates.push({
-                id: `backend-email-${et.id}`,
-                channel: 'email',
-                name: et.name || 'Email Template',
-                key: et.template_key || `email.${et.id}`,
-                description: et.description || 'Email notification template',
-                subject: et.subject || '',
-                body: et.text_body || '',
-                htmlBody: et.html_body || '',
-                status: et.status?.toLowerCase() === 'active' ? 'active' : 'inactive',
-                version: 'v1',
-                variables: [
-                  { key: 'student_name', label: 'Student Name', type: 'text', example: 'Aarav' }
-                ]
-              });
-            }
-          });
-        }
+        // Strictly set database templates
+        setTemplates(dbTemplates);
 
-        if (waRes.status === 'fulfilled' && waRes.value?.data) {
-          waRes.value.data.forEach((wt: any) => {
-            const isAipta = (wt.message_body || '').toLowerCase().includes('aipta') || (wt.template_key || '').toLowerCase().includes('membership');
-            if (!isAipta && !INITIAL_TEMPLATES.some(t => t.key === wt.template_key && t.channel === 'whatsapp')) {
-              extraTemplates.push({
-                id: `backend-wa-${wt.id}`,
-                channel: 'whatsapp',
-                name: wt.template_name || wt.name || 'WhatsApp Template',
-                key: wt.template_key || `wa.${wt.id}`,
-                description: wt.category ? `Category: ${wt.category}` : 'WhatsApp notification template',
-                body: wt.message_body || '',
-                status: wt.status === 'active' ? 'active' : 'inactive',
-                version: 'v1',
-                variables: [
-                  { key: 'student.name', label: 'Student Name', type: 'text', example: 'Aarav' }
-                ]
-              });
-            }
+        // 4. Hydrate System Configurations from MySQL system_configurations table
+        const sysConfigs = sysConfigRes.status === 'fulfilled' && sysConfigRes.value?.data ? sysConfigRes.value.data : [];
+        if (sysConfigs.length > 0) {
+          setChannels(prev => {
+            const updated = { ...prev };
+            sysConfigs.forEach((cfg: any) => {
+              const cType = (cfg.channel_type || '').toLowerCase() as ChannelType;
+              if (updated[cType]) {
+                updated[cType] = mapDbConfigToChannelConfig(cfg, updated[cType]);
+              }
+            });
+            return updated;
           });
-        }
-
-        if (extraTemplates.length > 0) {
-          setTemplates(prev => [...prev, ...extraTemplates]);
         }
       } catch (err) {
-        console.error('Failed to sync backend templates', err);
+        console.error('Failed to sync backend data from database', err);
+        setTemplates([]);
+      } finally {
+        setIsLoadingTemplates(false);
       }
     };
     loadBackendData();
@@ -733,30 +413,74 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
     return templates
       .filter(t => t.channel === activeTab)
       .filter(t => {
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
-        return t.name.toLowerCase().includes(q) || t.key.toLowerCase().includes(q) || t.body.toLowerCase().includes(q);
-      });
-  }, [templates, activeTab, searchQuery]);
+        // Status filter
+        if (statusFilter !== 'all' && t.status !== statusFilter) return false;
 
-  // Counts
+        // Category filter
+        if (categoryFilter !== 'all') {
+          const cat = getTemplateCategory(t);
+          if (cat !== categoryFilter) return false;
+        }
+
+        // Search query
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchName = t.name.toLowerCase().includes(q);
+          const matchKey = t.key.toLowerCase().includes(q);
+          const matchBody = t.body.toLowerCase().includes(q);
+          const matchSubject = t.subject ? t.subject.toLowerCase().includes(q) : false;
+          if (!matchName && !matchKey && !matchBody && !matchSubject) return false;
+        }
+
+        return true;
+      });
+  }, [templates, activeTab, searchQuery, statusFilter, categoryFilter]);
+
+  // Template pagination calculations
+  const totalTemplates = currentChannelTemplates.length;
+  const totalTemplatePages = Math.max(1, Math.ceil(totalTemplates / templatePageSize));
+  const paginatedTemplates = useMemo(() => {
+    const startIndex = (templatePage - 1) * templatePageSize;
+    return currentChannelTemplates.slice(startIndex, startIndex + templatePageSize);
+  }, [currentChannelTemplates, templatePage, templatePageSize]);
+
+  // Deliveries pagination calculations
+  const totalDeliveries = deliveries.length;
+  const totalDeliveriesPages = Math.max(1, Math.ceil(totalDeliveries / deliveriesPageSize));
+  const paginatedDeliveries = useMemo(() => {
+    const startIndex = (deliveriesPage - 1) * deliveriesPageSize;
+    return deliveries.slice(startIndex, startIndex + deliveriesPageSize);
+  }, [deliveries, deliveriesPage, deliveriesPageSize]);
+
+  // Counts - dynamically reflecting database items
   const smsCount = templates.filter(t => t.channel === 'sms').length;
   const emailCount = templates.filter(t => t.channel === 'email').length;
   const whatsappCount = templates.filter(t => t.channel === 'whatsapp').length;
   const deliveriesCount = deliveries.length;
 
-  // Toggle template active / inactive
-  const handleToggleStatus = (templateId: string | number) => {
-    setTemplates(prev =>
-      prev.map(t => {
-        if (t.id === templateId) {
-          const newStatus = t.status === 'active' ? 'inactive' : 'active';
-          showToast(`Template marked as ${newStatus}`);
-          return { ...t, status: newStatus };
-        }
-        return t;
-      })
-    );
+  // Toggle template active / inactive in MySQL database
+  const handleToggleStatus = async (templateId: string | number) => {
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl) return;
+    const newStatus = tpl.status === 'active' ? 'inactive' : 'active';
+
+    try {
+      if (tpl.channel === 'sms' && tpl.dbId) {
+        await smsTemplateService.updateTemplate(tpl.dbId, { status: newStatus });
+      } else if (tpl.channel === 'email' && tpl.dbId) {
+        await emailTemplateService.updateTemplateStatus(String(tpl.dbId), newStatus.toUpperCase() as 'ACTIVE' | 'INACTIVE');
+      } else if (tpl.channel === 'whatsapp' && tpl.dbId) {
+        await whatsappTemplateService.updateTemplate(tpl.dbId, { status: newStatus });
+      }
+
+      setTemplates(prev =>
+        prev.map(t => (t.id === templateId ? { ...t, status: newStatus } : t))
+      );
+      showToast(`Template marked as ${newStatus} in database`);
+    } catch (err: any) {
+      console.error('Failed to update status in database', err);
+      showToast(`Failed to update status: ${err.response?.data?.message || err.message}`);
+    }
   };
 
   // Open Template Editor (Edit or Create New)
@@ -770,6 +494,7 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
         channel,
         name: `New ${channel.toUpperCase()} Template`,
         key: `custom.${channel}_${Date.now().toString().slice(-4)}`,
+        category: 'General',
         description: `Custom ${channel} template for Vidya Setu`,
         subject: channel === 'email' ? 'Notification from Vidya Setu' : undefined,
         body: channel === 'email'
@@ -789,35 +514,143 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
     }
   };
 
-  // Save template from editor
-  const handleSaveTemplate = () => {
+  // Save template from editor into MySQL database (create or update)
+  const handleSaveTemplate = async () => {
     if (!editingTemplate) return;
     if (!editingTemplate.name.trim() || !editingTemplate.key.trim()) {
       showToast('Name and Template Key are required');
       return;
     }
 
-    setTemplates(prev => {
-      const idx = prev.findIndex(t => t.id === editingTemplate.id);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = editingTemplate;
-        return copy;
-      } else {
-        return [editingTemplate, ...prev];
-      }
-    });
+    try {
+      const isEditing = Boolean(editingTemplate.dbId);
+      const savedTemplate = { ...editingTemplate };
 
-    showToast(`Template "${editingTemplate.name}" saved successfully`);
-    setEditingTemplate(null);
+      if (editingTemplate.channel === 'sms') {
+        if (isEditing) {
+          await smsTemplateService.updateTemplate(editingTemplate.dbId!, {
+            template_name: editingTemplate.name,
+            category: editingTemplate.category || 'General',
+            dlt_template_id: editingTemplate.dltId || 'DLT_DEFAULT',
+            message_body: editingTemplate.body,
+            status: editingTemplate.status,
+          });
+        } else {
+          const res = await smsTemplateService.createTemplate({
+            tenant_id: 1,
+            template_name: editingTemplate.name,
+            template_key: editingTemplate.key,
+            category: editingTemplate.category || 'General',
+            dlt_template_id: editingTemplate.dltId || 'DLT_DEFAULT',
+            message_body: editingTemplate.body,
+            status: editingTemplate.status,
+          });
+          if (res?.data?.id) {
+            savedTemplate.dbId = res.data.id;
+            savedTemplate.id = `sms-${res.data.id}`;
+          }
+        }
+      } else if (editingTemplate.channel === 'email') {
+        const varsObj = editingTemplate.variables.reduce((acc: any, v) => ({ ...acc, [v.key]: v.label }), {});
+        if (isEditing) {
+          await emailTemplateService.updateTemplate(String(editingTemplate.dbId!), {
+            name: editingTemplate.name,
+            category: editingTemplate.category || 'ONBOARDING',
+            subject: editingTemplate.subject || editingTemplate.name,
+            description: editingTemplate.description,
+            html_body: editingTemplate.htmlBody || editingTemplate.body,
+            text_body: editingTemplate.body,
+            variables: varsObj,
+          });
+        } else {
+          const res = await emailTemplateService.createTemplate({
+            template_key: editingTemplate.key,
+            name: editingTemplate.name,
+            category: editingTemplate.category || 'ONBOARDING',
+            subject: editingTemplate.subject || editingTemplate.name,
+            description: editingTemplate.description,
+            html_body: editingTemplate.htmlBody || editingTemplate.body,
+            text_body: editingTemplate.body,
+            variables: varsObj,
+            status: editingTemplate.status.toUpperCase(),
+          });
+          if (res?.data?.id) {
+            savedTemplate.dbId = res.data.id;
+            savedTemplate.id = `email-${res.data.id}`;
+          }
+        }
+      } else if (editingTemplate.channel === 'whatsapp') {
+        if (isEditing) {
+          await whatsappTemplateService.updateTemplate(editingTemplate.dbId!, {
+            template_name: editingTemplate.name,
+            category: editingTemplate.category || 'General',
+            dlt_template_id: editingTemplate.dltId || 'WA_DEFAULT',
+            message_body: editingTemplate.body,
+            buttons: (editingTemplate.buttons as any) || null,
+            status: editingTemplate.status,
+          });
+        } else {
+          const res = await whatsappTemplateService.createTemplate({
+            tenant_id: 1,
+            template_name: editingTemplate.name,
+            template_key: editingTemplate.key,
+            category: editingTemplate.category || 'General',
+            dlt_template_id: editingTemplate.dltId || 'WA_DEFAULT',
+            header_type: 'none',
+            header_content: null,
+            footer_text: null,
+            message_body: editingTemplate.body,
+            buttons: (editingTemplate.buttons as any) || null,
+            status: editingTemplate.status,
+          });
+          if (res?.data?.id) {
+            savedTemplate.dbId = res.data.id;
+            savedTemplate.id = `wa-${res.data.id}`;
+          }
+        }
+      }
+
+      setTemplates(prev => {
+        const idx = prev.findIndex(t => t.id === savedTemplate.id);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = savedTemplate;
+          return copy;
+        } else {
+          return [savedTemplate, ...prev];
+        }
+      });
+
+      showToast(`Template "${savedTemplate.name}" saved to database`);
+      setEditingTemplate(null);
+    } catch (err: any) {
+      console.error('Failed to save template to database', err);
+      showToast(`Error saving template: ${err.response?.data?.message || err.message}`);
+    }
   };
 
-  // Delete template
-  const handleDeleteTemplate = (id: string | number) => {
-    if (window.confirm('Are you sure you want to delete this template?')) {
-      setTemplates(prev => prev.filter(t => t.id !== id));
-      showToast('Template deleted');
-      setEditingTemplate(null);
+  // Delete template from MySQL database
+  const handleDeleteTemplate = async (id: string | number) => {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+
+    if (window.confirm(`Are you sure you want to delete template "${tpl.name}" from database?`)) {
+      try {
+        if (tpl.channel === 'sms' && tpl.dbId) {
+          await smsTemplateService.deleteTemplate(tpl.dbId);
+        } else if (tpl.channel === 'email' && tpl.dbId) {
+          await emailTemplateService.deleteTemplate(String(tpl.dbId));
+        } else if (tpl.channel === 'whatsapp' && tpl.dbId) {
+          await whatsappTemplateService.deleteTemplate(tpl.dbId);
+        }
+
+        setTemplates(prev => prev.filter(t => t.id !== id));
+        showToast('Template deleted from database');
+        setEditingTemplate(null);
+      } catch (err: any) {
+        console.error('Failed to delete template from database', err);
+        showToast(`Failed to delete template: ${err.response?.data?.message || err.message}`);
+      }
     }
   };
 
@@ -826,7 +659,7 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
     setIsTestingChannel(channelKey);
     setTimeout(() => {
       const ch = channels[channelKey];
-      const hasConfig = ch.endpoint !== '-' && ch.endpoint.startsWith('http');
+      const hasConfig = ch.endpoint !== '-' && ch.endpoint.length > 0;
       const nowStr = new Date().toLocaleString('en-US', {
         month: 'numeric',
         day: 'numeric',
@@ -869,32 +702,83 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
     }, 800);
   };
 
-  // Save channel configuration
-  const handleSaveChannelConfig = (channelKey: ChannelType) => {
-    showToast(`${channels[channelKey].name} channel configuration saved`);
-    setConfiguringChannelId(null);
+  // Save channel configuration to MySQL system_configurations table
+  const handleSaveChannelConfig = async (channelKey: ChannelType) => {
+    try {
+      const ch = channels[channelKey];
+      let parsedCreds: any = {};
+      try {
+        parsedCreds = JSON.parse(ch.providerOptionsJson);
+      } catch {
+        parsedCreds = {};
+      }
+
+      if (channelKey === 'sms') {
+        if (ch.endpoint && ch.endpoint !== '-') parsedCreds.api_endpoint = ch.endpoint;
+        if (ch.apiKey) parsedCreds.auth_token = ch.apiKey;
+        if (ch.sender) parsedCreds.from_number = ch.sender;
+      } else if (channelKey === 'email') {
+        if (ch.endpoint && ch.endpoint !== '-') {
+          const parts = ch.endpoint.split(':');
+          parsedCreds.smtp_host = parts[0];
+          if (parts[1]) parsedCreds.smtp_port = parts[1];
+        }
+        if (ch.apiKey) parsedCreds.smtp_password = ch.apiKey;
+        if (ch.sender) parsedCreds.from_email = ch.sender;
+      } else if (channelKey === 'whatsapp') {
+        if (ch.endpoint && ch.endpoint !== '-') parsedCreds.api_endpoint = ch.endpoint;
+        if (ch.apiKey) parsedCreds.auth_token = ch.apiKey;
+      }
+
+      const payload = {
+        provider_name: ch.provider || (channelKey === 'sms' ? 'Twilio' : channelKey === 'email' ? 'SMTP Server' : 'Meta Cloud API'),
+        is_enabled: ch.enabledForSending,
+        sender_id: ch.sender || null,
+        credentials: parsedCreds
+      };
+
+      await systemConfigurationService.save(channelKey.toUpperCase() as any, payload);
+      showToast(`${ch.name} configuration saved to database`);
+      setConfiguringChannelId(null);
+    } catch (err: any) {
+      console.error('Failed to save channel config to database', err);
+      showToast(`Error saving configuration: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  // Open test send modal with pre-filled default
+  const handleOpenTestModal = (targetTemplate: UnifiedTemplate) => {
+    setTestingTemplate(targetTemplate);
+    setTestSendRecipient(targetTemplate.channel === 'email' ? 'parent.sharma@gmail.com' : '+91 98201 12450');
+    setIsTestSendModalOpen(true);
   };
 
   // Dispatch test send from template modal
   const handleSendTestFromTemplate = () => {
-    if (!editingTemplate) return;
-    const recipient = testSendRecipient.trim() || (editingTemplate.channel === 'email' ? 'parent.sharma@gmail.com' : '+91 98201 12450');
+    const target = testingTemplate || editingTemplate;
+    if (!target || isDispatchingTest) return;
+    const recipient = testSendRecipient.trim() || (target.channel === 'email' ? 'parent.sharma@gmail.com' : '+91 98201 12450');
 
-    const newDelivery: DeliveryLog = {
-      id: `del-${Date.now()}`,
-      recipient,
-      channel: editingTemplate.channel,
-      templateKey: editingTemplate.key,
-      templateName: editingTemplate.name,
-      status: 'SENT',
-      providerMsgId: `msg_${Math.floor(100000000000 + Math.random() * 900000000000)}`,
-      timestamp: 'Just now',
-      details: `Test dispatch delivered to provider adapter for ${recipient}`
-    };
+    setIsDispatchingTest(true);
+    setTimeout(() => {
+      const newDelivery: DeliveryLog = {
+        id: `del-${Date.now()}`,
+        recipient,
+        channel: target.channel,
+        templateKey: target.key,
+        templateName: target.name,
+        status: 'SENT',
+        providerMsgId: `msg_${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+        timestamp: 'Just now',
+        details: `Test dispatch delivered to provider adapter for ${recipient}`
+      };
 
-    setDeliveries(prev => [newDelivery, ...prev]);
-    setIsTestSendModalOpen(false);
-    showToast(`Test message dispatched to ${recipient}!`);
+      setDeliveries(prev => [newDelivery, ...prev]);
+      setIsDispatchingTest(false);
+      setIsTestSendModalOpen(false);
+      setTestingTemplate(null);
+      showToast(`Test message dispatched to ${recipient}!`);
+    }, 600);
   };
 
   return (
@@ -908,7 +792,7 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
       )}
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className={`${editingTemplate ? 'max-w-[1520px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8 pt-6 transition-all duration-150`}>
         {editingTemplate ? (
           <TemplateEditorModal
             template={editingTemplate}
@@ -916,7 +800,6 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
             onClose={() => setEditingTemplate(null)}
             onSave={handleSaveTemplate}
             onDelete={() => handleDeleteTemplate(editingTemplate.id)}
-            onTestSend={() => setIsTestSendModalOpen(true)}
             isPreviewHidden={isPreviewHidden}
             onTogglePreview={() => setIsPreviewHidden(!isPreviewHidden)}
             showToast={showToast}
@@ -1386,47 +1269,91 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
         {/* TAB CONTENT 2, 3, 4: TEMPLATE LIST */}
         {(activeTab === 'sms' || activeTab === 'email' || activeTab === 'whatsapp') && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Search and Count Bar */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-              {/* Search input with label */}
-              <div className="w-full sm:max-w-md">
-                <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-1">
-                  SEARCH
+            {/* Search and Filters Bar */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3.5">
+                {/* Search input with label */}
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-1">
+                    SEARCH
+                  </label>
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search by name, key, or message..."
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                    />
+                  </div>
                 </div>
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Name or key"
-                    className="w-full pl-9 pr-4 py-1.5 bg-slate-50/60 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
 
-              {/* Right: Template count & + New template */}
-              <div className="flex items-center gap-3 self-end sm:self-center">
-                <span className="text-xs font-semibold text-slate-500">
-                  {currentChannelTemplates.length} templates
-                </span>
-                <button
-                  onClick={() => handleOpenEditor()}
-                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-1.5 rounded-xl text-xs shadow-xs transition-all cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>New template</span>
-                </button>
+                {/* Status Filter */}
+                <div className="w-full sm:w-44">
+                  <label className="block text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-1">
+                    STATUS
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active Only</option>
+                    <option value="inactive">Inactive Only</option>
+                  </select>
+                </div>
+
+                {/* Category Filter */}
+                <div className="w-full sm:w-48">
+                  <label className="block text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-1">
+                    CATEGORY
+                  </label>
+                  <select
+                    value={categoryFilter}
+                    onChange={e => setCategoryFilter(e.target.value)}
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="Admission">Admission</option>
+                    <option value="Attendance">Attendance</option>
+                    <option value="Fees & Finance">Fees & Finance</option>
+                    <option value="Exams & Academics">Exams & Academics</option>
+                    <option value="Schedule & Timetable">Schedule & Timetable</option>
+                    <option value="General">General</option>
+                  </select>
+                </div>
+
+                {/* Reset Filters button */}
+                {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setStatusFilter('all');
+                      setCategoryFilter('all');
+                    }}
+                    className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors cursor-pointer self-stretch sm:self-end flex items-center justify-center gap-1.5 shrink-0 h-[38px]"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Template Cards List */}
-            {currentChannelTemplates.length === 0 ? (
+            {isLoadingTemplates ? (
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-12 text-center space-y-2">
+                <RefreshCw className="w-5 h-5 animate-spin mx-auto text-blue-600" />
+                <p className="text-slate-500 text-sm font-medium">Loading templates from database...</p>
+              </div>
+            ) : currentChannelTemplates.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
                 <p className="text-slate-500 text-sm">No templates found matching your search.</p>
               </div>
             ) : (
-              currentChannelTemplates.map(tpl => (
+              paginatedTemplates.map(tpl => (
                 <div
                   key={tpl.id}
                   className="bg-white border border-slate-200/90 rounded-2xl p-5 hover:border-slate-300 transition-all shadow-xs flex flex-col md:flex-row md:items-start justify-between gap-4"
@@ -1484,8 +1411,16 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
                     )}
                   </div>
 
-                  {/* Right Actions: Edit & Deactivate */}
+                  {/* Right Actions: Test send, Edit & Deactivate */}
                   <div className="flex items-center gap-2 self-end md:self-start flex-shrink-0 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenTestModal(tpl)}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Test send</span>
+                    </button>
                     <button
                       onClick={() => handleOpenEditor(tpl)}
                       className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
@@ -1501,6 +1436,21 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
                   </div>
                 </div>
               ))
+            )}
+
+            {/* Template Pagination */}
+            {totalTemplates > 0 && (
+              <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
+                <Pagination
+                  currentPage={templatePage}
+                  totalPages={totalTemplatePages}
+                  totalItems={totalTemplates}
+                  pageSize={templatePageSize}
+                  onPageChange={setTemplatePage}
+                  onPageSizeChange={setTemplatePageSize}
+                  pageSizeOptions={[5, 10, 20, 50]}
+                />
+              </div>
             )}
           </div>
         )}
@@ -1539,7 +1489,7 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {deliveries.map(del => (
+                    {paginatedDeliveries.map(del => (
                       <tr key={del.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-5 py-3.5 font-medium text-slate-900 font-mono">
                           {del.recipient}
@@ -1588,6 +1538,19 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
                   </tbody>
                 </table>
               </div>
+
+              {/* Deliveries Pagination */}
+              {totalDeliveries > 0 && (
+                <Pagination
+                  currentPage={deliveriesPage}
+                  totalPages={totalDeliveriesPages}
+                  totalItems={totalDeliveries}
+                  pageSize={deliveriesPageSize}
+                  onPageChange={setDeliveriesPage}
+                  onPageSizeChange={setDeliveriesPageSize}
+                  pageSizeOptions={[5, 10, 20, 50]}
+                />
+              )}
             </div>
           </div>
         )}
@@ -1596,56 +1559,141 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
       </div>
 
       {/* TEST SEND DISPATCH MODAL */}
-      {isTestSendModalOpen && editingTemplate && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <Send className="w-4 h-4 text-blue-600" />
-                <span>Test Dispatch Template</span>
-              </h3>
-              <button
-                onClick={() => setIsTestSendModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {(() => {
+        const activeTestTemplate = testingTemplate || editingTemplate;
+        if (!isTestSendModalOpen || !activeTestTemplate) return null;
 
-            <p className="text-xs text-slate-500">
-              Send a test message using template <span className="font-mono text-slate-700">{editingTemplate.key}</span> with live substitution tokens.
-            </p>
+        return createPortal(
+          <div 
+            className="fixed inset-0 z-[99999] bg-transparent flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => {
+              if (!isDispatchingTest) {
+                setIsTestSendModalOpen(false);
+                setTestingTemplate(null);
+              }
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200/90 ring-1 ring-slate-900/10 space-y-5 animate-in fade-in zoom-in-95 duration-150"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between pb-3.5 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl border ${
+                    activeTestTemplate.channel === 'email'
+                      ? 'bg-blue-50 text-blue-600 border-blue-100'
+                      : activeTestTemplate.channel === 'whatsapp'
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                      : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                  }`}>
+                    {activeTestTemplate.channel === 'email' && <Mail className="w-5 h-5" />}
+                    {activeTestTemplate.channel === 'whatsapp' && <MessageCircle className="w-5 h-5" />}
+                    {activeTestTemplate.channel === 'sms' && <Smartphone className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                      <span>Test Dispatch</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                        {activeTestTemplate.channel}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Send a test message with live substitution values.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isDispatchingTest) {
+                      setIsTestSendModalOpen(false);
+                      setTestingTemplate(null);
+                    }
+                  }}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                {editingTemplate.channel === 'email' ? 'Recipient Email Address' : 'Recipient Phone Number'}
-              </label>
-              <input
-                type={editingTemplate.channel === 'email' ? 'email' : 'tel'}
-                value={testSendRecipient}
-                onChange={e => setTestSendRecipient(e.target.value)}
-                placeholder={editingTemplate.channel === 'email' ? 'parent.sharma@gmail.com' : '+91 98201 12345'}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+              {/* Template Information Card */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3.5 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-800 truncate">{activeTestTemplate.name}</span>
+                  <span className="font-mono text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                    {activeTestTemplate.key}
+                  </span>
+                </div>
+                {activeTestTemplate.subject && (
+                  <div className="text-slate-500 truncate pt-1 border-t border-slate-200/60 text-[11px]">
+                    <span className="font-medium text-slate-600">Subject: </span>
+                    <span>{activeTestTemplate.subject}</span>
+                  </div>
+                )}
+              </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setIsTestSendModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSendTestFromTemplate}
-                className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-xs cursor-pointer"
-              >
-                Dispatch Test
-              </button>
+              {/* Recipient Input */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  {activeTestTemplate.channel === 'email' ? 'RECIPIENT EMAIL ADDRESS' : 'RECIPIENT PHONE NUMBER'}
+                </label>
+                <div className="relative">
+                  <div className="absolute left-3.5 top-3 text-slate-400">
+                    {activeTestTemplate.channel === 'email' ? <Mail className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
+                  </div>
+                  <input
+                    type={activeTestTemplate.channel === 'email' ? 'email' : 'tel'}
+                    value={testSendRecipient}
+                    onChange={e => setTestSendRecipient(e.target.value)}
+                    placeholder={activeTestTemplate.channel === 'email' ? 'parent.sharma@gmail.com' : '+91 98201 12345'}
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                  <span className="text-blue-500 font-bold">ℹ</span>
+                  <span>The message will be routed through the configured gateway with sample tokens replaced.</span>
+                </p>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isDispatchingTest}
+                  onClick={() => {
+                    setIsTestSendModalOpen(false);
+                    setTestingTemplate(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDispatchingTest}
+                  onClick={handleSendTestFromTemplate}
+                  className="px-5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isDispatchingTest ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Dispatching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Dispatch Test</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 };
@@ -1659,7 +1707,6 @@ interface TemplateEditorModalProps {
   onClose: () => void;
   onSave: () => void;
   onDelete: () => void;
-  onTestSend: () => void;
   isPreviewHidden: boolean;
   onTogglePreview: () => void;
   showToast: (msg: string) => void;
@@ -1671,7 +1718,6 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
   onClose,
   onSave,
   onDelete,
-  onTestSend,
   isPreviewHidden,
   onTogglePreview,
   showToast
@@ -2109,40 +2155,33 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                 {(template.variables || []).map((v, idx) => (
                   <div
                     key={idx}
-                    className="bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 rounded-xl p-3 transition-colors"
+                    className="bg-slate-50/80 hover:bg-slate-50/95 border border-slate-200/90 rounded-2xl p-3.5 transition-all shadow-2xs space-y-3"
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center text-xs">
-                      {/* KEY */}
-                      <div className="sm:col-span-3">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">KEY</div>
+                    {/* Top Tier: Key, Data Type, and Actions */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      {/* Key Token */}
+                      <div className="flex-1 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          TOKEN KEY
+                        </label>
                         <input
                           type="text"
                           value={v.key}
                           onChange={e => handleUpdateVariable(idx, { key: e.target.value })}
-                          placeholder="variable.key"
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
+                          placeholder="variable.name"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
                         />
                       </div>
 
-                      {/* LABEL */}
-                      <div className="sm:col-span-3">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">LABEL</div>
-                        <input
-                          type="text"
-                          value={v.label}
-                          onChange={e => handleUpdateVariable(idx, { label: e.target.value })}
-                          placeholder="Human label"
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
-                        />
-                      </div>
-
-                      {/* TYPE */}
-                      <div className="sm:col-span-2">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">TYPE</div>
+                      {/* Data Type */}
+                      <div className="w-full sm:w-32 shrink-0">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          DATA TYPE
+                        </label>
                         <select
                           value={v.type}
                           onChange={e => handleUpdateVariable(idx, { type: e.target.value as any })}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
                         >
                           <option value="text">text</option>
                           <option value="number">number</option>
@@ -2151,25 +2190,22 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                         </select>
                       </div>
 
-                      {/* EXAMPLE */}
-                      <div className="sm:col-span-3">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">EXAMPLE VALUE</div>
-                        <input
-                          type="text"
-                          value={v.example}
-                          onChange={e => handleUpdateVariable(idx, { example: e.target.value })}
-                          placeholder="Preview example value"
-                          className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
-                        />
-                      </div>
-
-                      {/* ACTIONS */}
-                      <div className="sm:col-span-1 flex items-center justify-end gap-1 sm:pt-4">
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5 self-end sm:self-auto sm:pt-4 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleInsertVariable(v.key)}
+                          title="Insert token into template"
+                          className="px-2.5 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer border border-blue-200 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Insert</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleCopyToken(v.key)}
-                          title="Copy token to clipboard"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                          title={`Copy {{${v.key}}} to clipboard`}
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-slate-200 bg-white shadow-2xs"
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
@@ -2177,10 +2213,39 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                           type="button"
                           onClick={() => handleRemoveVariable(idx)}
                           title="Remove variable"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer border border-slate-200 bg-white hover:border-rose-200 shadow-2xs"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
+                      </div>
+                    </div>
+
+                    {/* Bottom Tier: Label and Example Value */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2.5 border-t border-slate-200/60">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          HUMAN LABEL
+                        </label>
+                        <input
+                          type="text"
+                          value={v.label}
+                          onChange={e => handleUpdateVariable(idx, { label: e.target.value })}
+                          placeholder="e.g. Student Full Name"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          SAMPLE VALUE (FOR PREVIEW)
+                        </label>
+                        <input
+                          type="text"
+                          value={v.example}
+                          onChange={e => handleUpdateVariable(idx, { example: e.target.value })}
+                          placeholder="e.g. Aarav Sharma"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
+                        />
                       </div>
                     </div>
                   </div>
@@ -2230,17 +2295,20 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                     </div>
 
                     {/* Rendered Email Content Card */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3 min-h-[160px]">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3 min-h-[160px] overflow-hidden">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                         RENDERED EMAIL
                       </div>
                       {template.htmlBody ? (
-                        <div
-                          className="text-xs leading-relaxed text-slate-800 prose prose-slate max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderedHtml }}
-                        />
+                        <div className="overflow-x-auto max-w-full">
+                          <div
+                            className="text-xs leading-relaxed text-slate-800 prose prose-slate max-w-none break-words [&_h1]:text-lg [&_h1]:sm:text-xl [&_h1]:break-words [&_h2]:text-base [&_h2]:break-words [&_table]:w-full [&_table]:min-w-0"
+                            style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                            dangerouslySetInnerHTML={{ __html: renderedHtml }}
+                          />
+                        </div>
                       ) : (
-                        <div className="text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+                        <div className="text-xs leading-relaxed text-slate-800 whitespace-pre-wrap break-words">
                           {renderedBody}
                         </div>
                       )}
@@ -2323,7 +2391,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
             <span>Delete template</span>
           </button>
 
-          {/* Right: Cancel, Test send, Save changes */}
+          {/* Right: Cancel, Save changes */}
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -2331,15 +2399,6 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={onTestSend}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-            >
-              <Send className="w-3.5 h-3.5 text-blue-600" />
-              <span>Test send</span>
             </button>
 
             <button

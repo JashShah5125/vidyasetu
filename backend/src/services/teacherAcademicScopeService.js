@@ -21,17 +21,49 @@ class TeacherAcademicScopeService {
             throw err;
         }
 
-        // 1. Fetch allocated batches from teacher_allocations
+        // 1. Fetch allocated batches from teacher_allocations and scheduled lectures
         const [allocRows] = await pool.query(
             `SELECT DISTINCT ta.batch_id, ta.branch_id, ta.academic_year_id
              FROM teacher_allocations ta
-             WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL`,
-            [tid, uid]
+             WHERE ta.tenant_id = ? AND ta.teacher_user_id = ? AND ta.deleted_at IS NULL
+             UNION
+             SELECT DISTINCT l.batch_id, l.branch_id, l.academic_year_id
+             FROM lectures l
+             WHERE l.tenant_id = ? AND l.teacher_user_id = ? AND l.deleted_at IS NULL`,
+            [tid, uid, tid, uid]
         );
 
-        const batchIds = Array.from(new Set(allocRows.map(r => Number(r.batch_id)).filter(Boolean)));
-        const branchIds = Array.from(new Set(allocRows.map(r => Number(r.branch_id)).filter(Boolean)));
-        const academicYearIds = Array.from(new Set(allocRows.map(r => Number(r.academic_year_id)).filter(Boolean)));
+        let batchIds = Array.from(new Set(allocRows.map(r => Number(r.batch_id)).filter(Boolean)));
+        let branchIds = Array.from(new Set(allocRows.map(r => Number(r.branch_id)).filter(Boolean)));
+        let academicYearIds = Array.from(new Set(allocRows.map(r => Number(r.academic_year_id)).filter(Boolean)));
+
+        // Fallback for newly onboarded teachers without lectures yet: resolve by staff profile branches
+        if (batchIds.length === 0) {
+            const [staffRows] = await pool.query(
+                `SELECT branch_ids FROM staff_profiles WHERE tenant_id = ? AND user_id = ? AND deleted_at IS NULL`,
+                [tid, uid]
+            );
+            if (staffRows.length > 0 && staffRows[0].branch_ids) {
+                try {
+                    const parsed = typeof staffRows[0].branch_ids === 'string'
+                        ? JSON.parse(staffRows[0].branch_ids)
+                        : staffRows[0].branch_ids;
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const [branchBatches] = await pool.query(
+                            `SELECT id, branch_id, academic_year_id FROM batches WHERE tenant_id = ? AND branch_id IN (?) AND deleted_at IS NULL`,
+                            [tid, parsed.map(Number)]
+                        );
+                        branchBatches.forEach(b => {
+                            batchIds.push(b.id);
+                            branchIds.push(b.branch_id);
+                            if (b.academic_year_id) academicYearIds.push(b.academic_year_id);
+                        });
+                    }
+                } catch (e) {
+                    // ignore JSON parse error
+                }
+            }
+        }
 
         if (batchIds.length === 0) {
             return {

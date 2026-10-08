@@ -100,11 +100,17 @@ export const TeacherAttendance: React.FC = () => {
     branch?: string;
     course?: string;
     batch?: string;
+    batchId?: string | number;
+    tab?: 'lectures' | 'history' | 'summary' | 'low_attendance';
     date?: string;
   } | null;
 
   // Active Sub-Tab
-  const [activeTab, setActiveTab] = useState<'lectures' | 'history' | 'summary' | 'low_attendance'>('lectures');
+  const queryTab = searchParams.get('tab');
+  const initialTab = (queryTab === 'history' || queryTab === 'summary' || queryTab === 'low_attendance' || queryTab === 'lectures')
+    ? queryTab
+    : navState?.tab || 'lectures';
+  const [activeTab, setActiveTab] = useState<'lectures' | 'history' | 'summary' | 'low_attendance'>(initialTab);
 
   // Date Navigation State
   const initialTargetDate = navState?.date || navState?.activeLecture?.date || navState?.activeLecture?.lectureDate || (navState as any)?.lecture?.date || (navState as any)?.lecture?.lectureDate;
@@ -165,8 +171,20 @@ export const TeacherAttendance: React.FC = () => {
   const [historyData, setHistoryData] = useState<TeacherAttendanceHistoryResponse | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
-  const [historyBatchFilter, setHistoryBatchFilter] = useState('all');
+  const queryBatchId = searchParams.get('batchId') || (navState?.batchId ? String(navState.batchId) : undefined);
+  const [historyBatchFilter, setHistoryBatchFilter] = useState(queryBatchId || 'all');
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'submitted' | 'pending'>('all');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab') || navState?.tab;
+    if (tab && (tab === 'history' || tab === 'summary' || tab === 'low_attendance' || tab === 'lectures')) {
+      setActiveTab(tab);
+    }
+    const bId = searchParams.get('batchId') || (navState?.batchId ? String(navState.batchId) : undefined);
+    if (bId) {
+      setHistoryBatchFilter(String(bId));
+    }
+  }, [searchParams, navState]);
 
   // Batch Summary State
   const [batchSummaries, setBatchSummaries] = useState<BatchTurnoutSummaryItem[]>([]);

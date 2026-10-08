@@ -8,6 +8,9 @@ const { requireAuth, requirePermission } = require('../middleware/authMiddleware
 
 router.use(requireAuth);
 
+// Executive Analytics: Institute & Branch MRR, ARR, and financial metrics
+router.get('/analytics', requirePermission(['fee.view', 'finance.view']), branchFinanceController.getFinanceAnalytics);
+
 // Branch-scoped Student Fee Collection list
 router.get('/students', requirePermission('fee.view'), branchFinanceController.getStudents);
 

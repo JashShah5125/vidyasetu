@@ -279,8 +279,42 @@ export const teacherScheduleApi = {
 
   async deleteAvailability(id: number | string): Promise<void> {
     await api.delete(`/teacher/schedule/availability/${id}`);
+  },
+
+  async getLeaveRequests(): Promise<TeacherLeaveRequestItem[]> {
+    const res = await api.get('/teacher/schedule/leave-requests');
+    return res.data.data;
+  },
+
+  async createLeaveRequest(payload: CreateLeaveRequestPayload): Promise<TeacherLeaveRequestItem> {
+    const res = await api.post('/teacher/schedule/leave-requests', payload);
+    return res.data.data;
+  },
+
+  async cancelLeaveRequest(id: number | string): Promise<{ success: boolean }> {
+    const res = await api.delete(`/teacher/schedule/leave-requests/${id}`);
+    return res.data.data;
   }
 };
+
+export interface TeacherLeaveRequestItem {
+  id: number | string;
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  branchName?: string;
+  createdAt: string;
+}
+
+export interface CreateLeaveRequestPayload {
+  startDate: string;
+  endDate: string;
+  leaveType: string;
+  reason: string;
+  branchId?: number | string;
+}
 
 export interface WeeklyAvailabilityDay {
   id?: number | string;

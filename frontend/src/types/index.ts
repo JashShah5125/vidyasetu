@@ -1,4 +1,4 @@
-export type Role = 'saas-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance' | 'parent' | 'student';
+export type Role = 'saas-admin' | 'super-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance' | 'parent' | 'student';
 
 export interface UserProfile {
   id?: string;
@@ -13,6 +13,7 @@ export interface UserProfile {
   tenantName?: string;
   mustChangePassword?: boolean;
   isImpersonated?: boolean;
+  isSaasAdmin?: boolean;
 }
 
 export type TenantStatusCode = 0 | 1 | 2 | 3;

@@ -8,7 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
 import { Modal } from '../components/ui/Modal';
-import { Plus, ArrowLeft, Upload, Loader2, Eye, Edit3, Trash2, AlertTriangle, User, Briefcase, DollarSign, Shield } from 'lucide-react';
+import { Plus, ArrowLeft, Upload, Loader2, Eye, Edit3, Trash2, AlertTriangle, User, Briefcase, DollarSign, Shield, Calendar, Clock, CheckCircle2, XCircle, Check, X, Users as UsersIcon } from 'lucide-react';
 import type { Staff } from '../types';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { staffApi } from '../services/staffApi';
@@ -164,6 +164,43 @@ export const Users: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 10;
 
+  // Leave Requests state for Admin / Branch Admin
+  const [mainTab, setMainTab] = useState<'directory' | 'leaves'>('directory');
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [loadingLeaves, setLoadingLeaves] = useState(false);
+  const [leaveFilterStatus, setLeaveFilterStatus] = useState<string>('all');
+  const [leaveActionLoading, setLeaveActionLoading] = useState<number | null>(null);
+
+  const fetchLeaveRequests = async () => {
+    setLoadingLeaves(true);
+    try {
+      const res = await staffApi.getLeaveRequests({
+        branchId: !isBranchAdmin && filterBranch !== 'All' ? filterBranch : undefined,
+        status: leaveFilterStatus !== 'all' ? leaveFilterStatus : undefined,
+      });
+      if (res?.data) {
+        setLeaveRequests(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch leave requests:', err);
+    } finally {
+      setLoadingLeaves(false);
+    }
+  };
+
+  const handleUpdateLeaveStatus = async (id: number, status: 'approved' | 'rejected') => {
+    setLeaveActionLoading(id);
+    try {
+      await staffApi.updateLeaveStatus(id, status);
+      addToast('Leave request updated successfully', 'success');
+      fetchLeaveRequests();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Could not update leave status', 'error');
+    } finally {
+      setLeaveActionLoading(null);
+    }
+  };
+
   const fetchStaff = async () => {
     setLoading(true);
     try {
@@ -272,6 +309,16 @@ export const Users: React.FC = () => {
   React.useEffect(() => {
     fetchStaff();
   }, [currentPage, searchTerm, filterBranch, filterRole]);
+
+  React.useEffect(() => {
+    if (mainTab === 'leaves') {
+      fetchLeaveRequests();
+    }
+  }, [mainTab, leaveFilterStatus, filterBranch]);
+
+  const pendingLeavesCount = useMemo(() => {
+    return leaveRequests.filter(r => String(r.status).toLowerCase() === 'pending').length;
+  }, [leaveRequests]);
 
   const ROLE_FILTER_OPTIONS = isBranchAdmin
     ? [
@@ -888,25 +935,80 @@ export const Users: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Staff Directory</h2>
+          <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Staff Management</h2>
           <p className="text-base text-slate-500 mt-2">
             {isBranchAdmin
-              ? "Manage branch personnel profiles, assign operational roles, and update staff details."
-              : "Manage personnel profile records, assign security role boundaries, and allocate active branch hubs."}
+              ? "Manage branch personnel profiles, assign operational roles, and review faculty leave requests."
+              : "Manage institute personnel profile records, assign security role boundaries, and review faculty leaves."}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
-            <Upload size={14} /> Bulk Import
-          </Button>
-          <Button variant="secondary" onClick={handleExportCSV}>
-            Export CSV
-          </Button>
-          <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={() => navigate('/staff/new')}>
-            <Plus size={18} /> Add Staff
-          </Button>
+          {mainTab === 'directory' ? (
+            <>
+              <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 font-bold">
+                <Upload size={14} /> Bulk Import
+              </Button>
+              <Button variant="secondary" onClick={handleExportCSV}>
+                Export CSV
+              </Button>
+              <Button variant="primary" style={{ gap: '6px' }} className="px-5 py-2.5 text-sm shadow-sm" onClick={() => navigate('/staff/new')}>
+                <Plus size={18} /> Add Staff
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" onClick={fetchLeaveRequests} className="flex items-center gap-1.5 font-semibold">
+              <Clock size={15} /> Refresh Requests
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Main Tab Navigation */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          type="button"
+          onClick={() => setMainTab('directory')}
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+            mainTab === 'directory'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <UsersIcon size={16} />
+          Staff Directory
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-normal">
+            {totalStaff}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMainTab('leaves');
+            fetchLeaveRequests();
+          }}
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
+            mainTab === 'leaves'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Calendar size={16} />
+          Faculty Leave Requests
+          {pendingLeavesCount > 0 ? (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold animate-pulse">
+              {pendingLeavesCount} Pending
+            </span>
+          ) : (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-normal">
+              {leaveRequests.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {mainTab === 'directory' && (
+        <>
 
       {/* Search, Filter, Sort Controls & Export CSV */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
@@ -1086,6 +1188,176 @@ export const Users: React.FC = () => {
           onPageChange={setCurrentPage}
         />
       </Card>
+      </>
+      )}
+
+      {/* Leave Requests Tab for Admin & Branch Admin */}
+      {mainTab === 'leaves' && (
+        <div className="space-y-4">
+          {/* Status filter bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">Status:</span>
+              {(['all', 'pending', 'approved', 'rejected'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setLeaveFilterStatus(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors cursor-pointer ${
+                    leaveFilterStatus === st
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {st}
+                  {st === 'pending' && pendingLeavesCount > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 bg-amber-400 text-slate-900 rounded-full text-[10px] font-black">
+                      {pendingLeavesCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {!isBranchAdmin && (
+              <div className="w-full sm:w-56">
+                <Select
+                  value={filterBranch}
+                  onChange={(e) => setFilterBranch(e.target.value)}
+                  options={branchFilterOptions}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Leave Requests Table Card */}
+          <Card>
+            {loadingLeaves ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+                <p className="text-sm font-medium text-slate-500">Loading leave requests...</p>
+              </div>
+            ) : leaveRequests.length === 0 ? (
+              <div className="text-center py-16">
+                <Calendar className="mx-auto text-slate-300 mb-3" size={40} />
+                <p className="text-base font-semibold text-slate-700">No leave requests found</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Faculty leave submissions from teachers will be listed here for approval.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-600 border-collapse">
+                  <thead className="bg-slate-50/80 text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="px-5 py-3.5">Faculty / Staff</th>
+                      <th className="px-5 py-3.5">Branch</th>
+                      <th className="px-5 py-3.5">Leave Duration</th>
+                      <th className="px-5 py-3.5">Type & Reason</th>
+                      <th className="px-5 py-3.5">Status</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leaveRequests.map((req) => {
+                      const isPending = String(req.status).toLowerCase() === 'pending';
+                      const isApproved = String(req.status).toLowerCase() === 'approved';
+                      const isRejected = String(req.status).toLowerCase() === 'rejected';
+
+                      return (
+                        <tr key={req.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="font-semibold text-slate-900">{req.staff_name || 'Staff Member'}</div>
+                            <div className="text-xs text-slate-500 font-mono mt-0.5">{req.staff_email || req.employee_id || '—'}</div>
+                            {req.designation && (
+                              <span className="inline-block mt-1 text-[11px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                                {req.designation}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md">
+                              {req.branch_name || 'Main Branch'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="font-medium text-slate-800 text-xs flex items-center gap-1.5">
+                              <Calendar size={13} className="text-slate-400" />
+                              {req.start_date === req.end_date
+                                ? req.start_date
+                                : `${req.start_date} → ${req.end_date}`}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                              <Clock size={11} /> Requested: {new Date(req.created_at).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 max-w-xs">
+                            <span className="inline-block text-xs font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded capitalize mb-1">
+                              {req.leave_type || 'Leave'}
+                            </span>
+                            <p className="text-xs text-slate-600 line-clamp-2" title={req.reason}>
+                              {req.reason || 'No reason provided.'}
+                            </p>
+                          </td>
+                          <td className="px-5 py-4">
+                            {isPending && (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                                <Clock size={12} /> Pending Review
+                              </span>
+                            )}
+                            {isApproved && (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                                <CheckCircle2 size={12} /> Approved
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-full">
+                                <XCircle size={12} /> Rejected
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            {isPending ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  disabled={leaveActionLoading === req.id}
+                                  onClick={() => handleUpdateLeaveStatus(req.id, 'approved')}
+                                  className="!bg-emerald-600 hover:!bg-emerald-700 text-white !px-3 !py-1 text-xs flex items-center gap-1 font-semibold"
+                                >
+                                  {leaveActionLoading === req.id ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <Check size={12} />
+                                  )}
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={leaveActionLoading === req.id}
+                                  onClick={() => handleUpdateLeaveStatus(req.id, 'rejected')}
+                                  className="!bg-rose-50 hover:!bg-rose-100 !text-rose-700 !border-rose-200 !px-3 !py-1 text-xs flex items-center gap-1 font-semibold"
+                                >
+                                  <X size={12} />
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-medium capitalize">{req.status}</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       {/* Delete Staff Confirmation Modal */}
       <Modal

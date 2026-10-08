@@ -41,6 +41,51 @@ const conflictService = {
             }
         }
 
+        // 1b. Teacher Availability & Leave Check
+        if (teacherUserId) {
+            const [availRows] = await pool.query(
+                `SELECT id, specific_date, day_of_week, start_time, end_time, is_available, reason
+                 FROM teacher_availability
+                 WHERE tenant_id = ? AND teacher_user_id = ? AND deleted_at IS NULL
+                   AND (
+                     specific_date = ? 
+                     OR (specific_date IS NULL AND day_of_week = (WEEKDAY(?) + 1))
+                   )`,
+                [tenantId, teacherUserId, lectureDate, lectureDate]
+            );
+
+            for (const slot of availRows) {
+                if (slot.specific_date) {
+                    if (!slot.is_available) {
+                        const hasOverlap = !(endTime <= slot.start_time || startTime >= slot.end_time);
+                        if (hasOverlap) {
+                            conflicts.push({
+                                type: 'teacher_unavailable',
+                                severity: 'danger',
+                                message: `Teacher has marked themselves UNAVAILABLE on this date (${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)})${slot.reason ? ` — Reason: ${slot.reason}` : ''}.`
+                            });
+                        }
+                    }
+                } else if (!slot.specific_date) {
+                    if (!slot.is_available) {
+                        conflicts.push({
+                            type: 'teacher_unavailable',
+                            severity: 'danger',
+                            message: `Teacher has marked themselves UNAVAILABLE on this weekday (Day Off / Not Working).`
+                        });
+                    } else {
+                        if (startTime < slot.start_time || endTime > slot.end_time) {
+                            conflicts.push({
+                                type: 'teacher_unavailable',
+                                severity: 'danger',
+                                message: `Teacher is only available between ${slot.start_time.slice(0, 5)} and ${slot.end_time.slice(0, 5)} on this weekday.`
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         // Base exclusion clause for editing current lecture
         let excludeClause = '';
         const queryParams = [tenantId, lectureDate, startTime, endTime];

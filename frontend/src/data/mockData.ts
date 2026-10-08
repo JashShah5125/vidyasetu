@@ -1,4 +1,4 @@
-export type Role = 'saas-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance';
+export type Role = 'saas-admin' | 'super-admin' | 'inst-admin' | 'branch-admin' | 'counsellor' | 'teacher' | 'finance';
 
 export interface UserProfile {
   id?: string;
@@ -8,6 +8,7 @@ export interface UserProfile {
   branch?: string;
   tenantId?: string;
   tenantName?: string;
+  isSaasAdmin?: boolean;
 }
 
 export interface Tenant {

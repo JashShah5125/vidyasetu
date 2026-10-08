@@ -153,7 +153,7 @@ export interface CreateStudentPayload {
   discount_amount?: number | string;
   downpayment_amount?: number | string;
   installment_count?: number | string;
-  status?: string;
+  status?: number | string;
 }
 
 const getStudentBasePath = (): string => {

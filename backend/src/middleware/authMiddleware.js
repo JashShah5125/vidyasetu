@@ -12,6 +12,10 @@ const requireAuth = async (req, res, next) => {
     try {
         const decoded = verifyToken(token);
         req.user = decoded;
+        req.user.tenantId = decoded.tenantId || decoded.tenant_id;
+        req.user.tenant_id = req.user.tenantId;
+        req.user.userId = decoded.userId || decoded.id;
+        req.user.id = req.user.userId;
 
         if (decoded.isImpersonated) {
             req.user.isImpersonated = true;
@@ -25,7 +29,12 @@ const requireAuth = async (req, res, next) => {
             req.user.isSaasAdmin = true;
         }
 
-        if (!isSaasAdmin && !decoded.isImpersonated && (!roleCodes || roleCodes.length === 0)) {
+        let isTeacher = decoded.userType === 'teacher' || roleCodes.includes('teacher');
+        if (isTeacher) {
+            req.user.isTeacher = true;
+        }
+
+        if (!isSaasAdmin && !isTeacher && !decoded.isImpersonated && (!roleCodes || roleCodes.length === 0)) {
             return res.status(403).json({
                 status: 'error',
                 message: 'Access denied. No active security role assigned to your account. Please contact system administrator.'

@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { saveVoucher } from '../utils/expenseService';
 import type { Voucher } from '../utils/expenseService';
-import { FileText, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { otherExpenseApi } from '../services/otherExpenseApi';
+import { otherIncomeApi } from '../services/otherIncomeApi';
+import { FileText, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
 export const ExpenseVoucher: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, addToast } = useApp();
+  const { currentUser, branches, addToast } = useApp();
   const [successMsg, setSuccessMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -26,6 +28,15 @@ export const ExpenseVoucher: React.FC = () => {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [status, setStatus] = useState<Voucher['status']>('Paid');
 
+  // Resolve numerical branch ID for MySQL foreign key
+  const branchId = useMemo(() => {
+    if (currentUser?.branchId) return Number(currentUser.branchId);
+    if ((currentUser as any)?.branch_id) return Number((currentUser as any).branch_id);
+    const matched = branches.find(b => b.name === currentUser?.branch);
+    if (matched?.id) return Number(matched.id);
+    return 1;
+  }, [currentUser, branches]);
+
   // Handle voucher type changing to change default direction and categories
   const handleVoucherTypeChange = (val: string) => {
     const vt = val as Voucher['type'];
@@ -38,44 +49,87 @@ export const ExpenseVoucher: React.FC = () => {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !amount || !paidTo) {
       addToast('Please fill in Description, Amount, and Paid To / Received From.', 'error');
       return;
     }
 
-    const direction: Voucher['direction'] = (voucherType === 'Receipt' || voucherType === 'Fee') ? 'Credit' : 'Debit';
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      addToast('Please enter a valid amount greater than ₹0.', 'error');
+      return;
+    }
 
-    const voucherData: Omit<Voucher, 'id'> = {
-      date,
-      type: voucherType,
-      category,
-      description,
-      amount: parseFloat(amount),
-      paymentMethod,
-      paidTo,
-      referenceNo: referenceNo || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
-      attachmentName: attachment ? attachment.name : undefined,
-      status,
-      direction,
-      branch: currentUser?.branch || 'Mumbai West'
+    const isCredit = (voucherType === 'Receipt' || voucherType === 'Fee');
+
+    const paymentModeMap: Record<string, string> = {
+      'Bank Transfer': 'bank_transfer',
+      'UPI': 'upi',
+      'Cash': 'cash',
+      'Cheque': 'cheque'
     };
 
-    saveVoucher(voucherData);
-    setSuccessMsg('Voucher Saved Successfully in accounting registry!');
-    
-    // Clear form
-    setDescription('');
-    setAmount('');
-    setPaidTo('');
-    setReferenceNo('');
-    setAttachment(null);
+    const statusNumMap: Record<string, number> = {
+      'Paid': 2,
+      'Pending': 0
+    };
 
-    setTimeout(() => {
-      setSuccessMsg('');
-      navigate('/expense-ledger');
-    }, 2000);
+    try {
+      setIsSubmitting(true);
+
+      if (!isCredit) {
+        // Save outflow voucher strictly to MySQL branch_other_expenses table
+        const created = await otherExpenseApi.createOtherExpense({
+          branchId,
+          title: description.trim(),
+          category,
+          description: `[${voucherType}] ${description.trim()} | Paid to: ${paidTo.trim()}`,
+          amount: parsedAmount,
+          expenseDate: date,
+          status: statusNumMap[status] ?? 2,
+          paymentMode: paymentModeMap[paymentMethod] || 'bank_transfer',
+          referenceNumber: referenceNo.trim() || undefined,
+          payee: paidTo.trim() || undefined
+        });
+
+        setSuccessMsg('Voucher created');
+        addToast('Voucher created', 'success');
+      } else {
+        // Save inflow voucher strictly to MySQL branch_other_income table
+        await otherIncomeApi.createOtherIncome({
+          branchId,
+          title: description.trim(),
+          description: `[${voucherType} - ${category}] Received from: ${paidTo.trim()} | Note: ${description.trim()}`,
+          amount: parsedAmount,
+          incomeDate: date,
+          paymentMode: paymentModeMap[paymentMethod] || 'bank_transfer',
+          referenceNumber: referenceNo.trim() || undefined
+        });
+
+        setSuccessMsg('Voucher created');
+        addToast('Voucher created', 'success');
+      }
+
+      // Clear form
+      setDescription('');
+      setAmount('');
+      setPaidTo('');
+      setReferenceNo('');
+      setAttachment(null);
+
+      setTimeout(() => {
+        setSuccessMsg('');
+        navigate('/expense-ledger');
+      }, 1500);
+    } catch (err: any) {
+      console.error('Failed to create voucher in database:', err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to save voucher to database';
+      addToast(errMsg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -151,19 +205,19 @@ export const ExpenseVoucher: React.FC = () => {
               options={
                 (voucherType === 'Receipt' || voucherType === 'Fee')
                   ? [
-                      { value: 'Donations', label: 'Donations' },
-                      { value: 'Fees', label: 'Student Fees' },
-                      { value: 'Other', label: 'Other Income / Scrap' }
-                    ]
+                    { value: 'Donations', label: 'Donations' },
+                    { value: 'Fees', label: 'Student Fees' },
+                    { value: 'Other', label: 'Other Income / Scrap' }
+                  ]
                   : [
-                      { value: 'Salaries', label: 'Salaries & Wages' },
-                      { value: 'Electricity', label: 'Electricity Bills' },
-                      { value: 'Maintenance', label: 'Maintenance & Repairs' },
-                      { value: 'Stationery', label: 'Stationery & Printing' },
-                      { value: 'Transport', label: 'Transport / Bus Fuel' },
-                      { value: 'Hostel', label: 'Hostel Operations' },
-                      { value: 'Other', label: 'Other Expenses' }
-                    ]
+                    { value: 'Salaries', label: 'Salaries & Wages' },
+                    { value: 'Electricity', label: 'Electricity Bills' },
+                    { value: 'Maintenance', label: 'Maintenance & Repairs' },
+                    { value: 'Stationery', label: 'Stationery & Printing' },
+                    { value: 'Transport', label: 'Transport / Bus Fuel' },
+                    { value: 'Hostel', label: 'Hostel Operations' },
+                    { value: 'Other', label: 'Other Expenses' }
+                  ]
               }
             />
 
@@ -178,8 +232,8 @@ export const ExpenseVoucher: React.FC = () => {
 
             <Input
               type="text"
-              label={ (voucherType === 'Receipt' || voucherType === 'Fee') ? "Received From" : "Paid To" }
-              placeholder={ (voucherType === 'Receipt' || voucherType === 'Fee') ? "e.g. Student Account or Donor" : "e.g. Vendor or Staff Name" }
+              label={(voucherType === 'Receipt' || voucherType === 'Fee') ? "Received From" : "Paid To"}
+              placeholder={(voucherType === 'Receipt' || voucherType === 'Fee') ? "e.g. Student Account or Donor" : "e.g. Vendor or Staff Name"}
               value={paidTo}
               onChange={(e) => setPaidTo(e.target.value)}
               required
@@ -250,6 +304,7 @@ export const ExpenseVoucher: React.FC = () => {
             <Button
               type="button"
               variant="secondary"
+              disabled={isSubmitting}
               onClick={() => navigate('/dashboard')}
             >
               Cancel
@@ -257,8 +312,20 @@ export const ExpenseVoucher: React.FC = () => {
             <Button
               type="submit"
               variant="primary"
+              disabled={isSubmitting}
+              className="flex items-center gap-2"
             >
-              Save Voucher
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <FileText size={16} />
+                  <span>Save Voucher</span>
+                </>
+              )}
             </Button>
           </div>
         </form>

@@ -52,5 +52,15 @@ export const staffApi = {
         const basePath = getStaffBasePath();
         const { data } = await api.delete(`${basePath}/${id}`);
         return data;
+    },
+    getLeaveRequests: async (filters: { branchId?: string; status?: string } = {}) => {
+        const basePath = getStaffBasePath();
+        const { data } = await api.get(`${basePath}/leave-requests`, { params: filters });
+        return data;
+    },
+    updateLeaveStatus: async (id: number | string, status: 'approved' | 'rejected' | 'cancelled') => {
+        const basePath = getStaffBasePath();
+        const { data } = await api.put(`${basePath}/leave-requests/${id}/status`, { status });
+        return data;
     }
 };

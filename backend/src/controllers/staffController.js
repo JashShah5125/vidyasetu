@@ -1,4 +1,5 @@
 const staffModel = require('../models/staffModel');
+const pool = require('../config/db');
 
 const createStaff = async (req, res) => {
     try {
@@ -119,10 +120,111 @@ const deleteStaff = async (req, res) => {
     }
 };
 
+const getAdminLeaveRequests = async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || req.user?.tenant_id || 2;
+        const { branchId, status } = req.query;
+        let query = `
+            SELECT lr.id, lr.tenant_id, lr.branch_id, lr.staff_id,
+                   DATE_FORMAT(lr.start_date, '%Y-%m-%d') AS start_date,
+                   DATE_FORMAT(lr.end_date, '%Y-%m-%d') AS end_date,
+                   lr.leave_type, lr.reason, lr.status, lr.created_at,
+                   b.name AS branch_name,
+                   CONCAT(sp.first_name, ' ', COALESCE(sp.last_name, '')) AS staff_name,
+                   sp.employee_id, sp.designation, u.email AS staff_email
+            FROM leave_requests lr
+            JOIN staff_profiles sp ON lr.staff_id = sp.id
+            LEFT JOIN users u ON sp.user_id = u.id
+            LEFT JOIN branches b ON lr.branch_id = b.id
+            WHERE lr.tenant_id = ? AND lr.deleted_at IS NULL
+        `;
+        const params = [tenantId];
+        if (branchId && branchId !== 'All') {
+            if (isNaN(Number(branchId))) {
+                query += ' AND b.name = ?';
+                params.push(branchId);
+            } else {
+                query += ' AND (lr.branch_id = ? OR b.id = ?)';
+                params.push(Number(branchId), Number(branchId));
+            }
+        }
+        if (status && status !== 'all') {
+            query += ' AND lr.status = ?';
+            params.push(status);
+        }
+        query += ' ORDER BY lr.created_at DESC';
+
+        const [rows] = await pool.query(query, params);
+        res.status(200).json({
+            status: 'success',
+            data: rows
+        });
+    } catch (error) {
+        console.error('Error fetching admin leave requests:', error);
+        res.status(500).json({ message: 'Failed to fetch leave requests.', error: error.message });
+    }
+};
+
+const updateAdminLeaveStatus = async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || req.user?.tenant_id || 2;
+        const approverId = req.user?.userId || req.user?.id;
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!status || !['approved', 'rejected', 'cancelled'].includes(status)) {
+            return res.status(400).json({ message: 'Valid status (approved, rejected, cancelled) is required.' });
+        }
+
+        const [leaveRows] = await pool.query(
+            `SELECT lr.id, lr.start_date, lr.end_date, lr.leave_type, lr.reason, sp.user_id
+             FROM leave_requests lr
+             JOIN staff_profiles sp ON lr.staff_id = sp.id
+             WHERE lr.id = ? AND lr.tenant_id = ? AND lr.deleted_at IS NULL`,
+            [Number(id), tenantId]
+        );
+
+        if (leaveRows.length === 0) {
+            return res.status(404).json({ message: 'Leave request not found.' });
+        }
+
+        const leave = leaveRows[0];
+
+        await pool.query(
+            `UPDATE leave_requests SET status = ?, approved_by = ?, updated_at = NOW() WHERE id = ?`,
+            [status, approverId, Number(id)]
+        );
+
+        if (status === 'rejected') {
+            const sDate = new Date(leave.start_date).toISOString().split('T')[0];
+            const eDate = new Date(leave.end_date).toISOString().split('T')[0];
+            await pool.query(
+                `DELETE FROM teacher_availability
+                 WHERE tenant_id = ?
+                   AND teacher_user_id = ?
+                   AND specific_date >= ?
+                   AND specific_date <= ?
+                   AND reason LIKE ?`,
+                [tenantId, leave.user_id, sDate, eDate, `%[Leave:%`]
+            ).catch(e => console.warn('Availability cleanup note:', e.message));
+        }
+
+        res.status(200).json({
+            status: 'success',
+            message: `Leave request marked as ${status}.`
+        });
+    } catch (error) {
+        console.error('Error updating leave status:', error);
+        res.status(500).json({ message: 'Failed to update leave status.', error: error.message });
+    }
+};
+
 module.exports = {
     createStaff,
     getStaffList,
     getStaffById,
     updateStaff,
-    deleteStaff
+    deleteStaff,
+    getAdminLeaveRequests,
+    updateAdminLeaveStatus
 };

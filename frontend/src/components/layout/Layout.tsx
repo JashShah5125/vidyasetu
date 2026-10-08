@@ -33,7 +33,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const handleExitImpersonation = () => {
     exitImpersonation();
-    navigate('/tenants');
+    navigate('/saas/tenants');
   };
 
   if (!currentUser) {
