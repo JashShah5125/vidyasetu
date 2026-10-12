@@ -142,7 +142,7 @@ const verifyStaffInBranch = async (tenantId, branchId, staffId) => {
          WHERE sp.tenant_id = ?
            AND sp.id = ?
            AND sp.deleted_at IS NULL
-           AND (uba.id IS NOT NULL OR JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON)))
+           AND (uba.id IS NOT NULL OR JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR)))
          LIMIT 1`,
         [Number(branchId), tenantId, Number(staffId), Number(branchId)]
     );

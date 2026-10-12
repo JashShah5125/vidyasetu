@@ -497,7 +497,7 @@ const attendanceModel = {
         const params = [date, tenantId];
 
         if (branchId && branchId !== 'All') {
-            query += ` AND (JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON)) OR b.name = ?)`;
+            query += ` AND (JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR)) OR b.name = ?)`;
             params.push(branchId, branchId);
         }
         if (employeeType && employeeType !== 'All') {

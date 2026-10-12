@@ -130,7 +130,7 @@ const getEnquiryBasePath = (): string => {
     if (savedUser) {
       const user = JSON.parse(savedUser);
       const role = String(user.role || '').toLowerCase().replace(/_/g, '-');
-      if (role === 'branch-admin') {
+      if (role === 'branch-admin' || role === 'counsellor') {
         return '/branch/enquiries';
       }
     }

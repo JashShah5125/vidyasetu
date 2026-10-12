@@ -137,7 +137,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
     // ── Scope fragments ───────────────────────────────────────────────
     const branchSql = branchId ? ` AND s.primary_branch_id = ${Number(branchId)}` : '';
     const staffBranchSql = branchId
-        ? ` AND JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST('${Number(branchId)}' AS JSON))`
+        ? ` AND JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST('${Number(branchId)}' AS CHAR))`
         : '';
 
     // ── Date calculations for previous period comparisons ─────────────

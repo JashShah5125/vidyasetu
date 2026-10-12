@@ -525,7 +525,7 @@ const getUserFullDetails = async (userId) => {
                         (SELECT COUNT(*) FROM students WHERE primary_branch_id = b.id AND deleted_at IS NULL) AS total_students,
                         (SELECT COUNT(*) FROM batches WHERE branch_id = b.id AND deleted_at IS NULL) AS total_batches,
                         (SELECT COUNT(*) FROM classrooms WHERE branch_id = b.id AND deleted_at IS NULL) AS total_classrooms,
-                        (SELECT COUNT(*) FROM staff_profiles WHERE JSON_CONTAINS(branch_ids, CAST(b.id AS JSON)) AND deleted_at IS NULL) AS total_staff,
+                        (SELECT COUNT(*) FROM staff_profiles WHERE JSON_CONTAINS(branch_ids, CAST(b.id AS CHAR)) AND deleted_at IS NULL) AS total_staff,
                         (SELECT COUNT(*) FROM student_invoices WHERE branch_id = b.id AND deleted_at IS NULL) AS total_invoices,
                         (SELECT COALESCE(SUM(paid_amount), 0) FROM student_invoices WHERE branch_id = b.id AND deleted_at IS NULL) AS total_revenue_collected
                  FROM user_branch_access uba

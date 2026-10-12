@@ -8,7 +8,7 @@ const buildBranchFilter = (branchId, params) => {
     const numericBranchId = Number(branchId);
     params.push(JSON.stringify([numericBranchId]), numericBranchId, numericBranchId);
     return ` AND (
-        JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON))
+        JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR))
         OR JSON_UNQUOTE(JSON_EXTRACT(sp.branch_ids, '$[0]')) = ?
         OR EXISTS (SELECT 1 FROM user_branch_access uba WHERE uba.user_id = u.id AND uba.branch_id = ?)
     )`;

@@ -364,6 +364,7 @@ const ContentRouter = () => {
       <Route path="/admin/batches" element={<BatchSetup />} />
       <Route path="/admin/classrooms" element={<ClassroomSetup />} />
       <Route path="/admin/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/admin/leads/all" element={<LeadsAdmissions initialTab="all" />} />
       <Route path="/admin/leads/:id/convert" element={<StudentRegistration />} />
       <Route path="/admin/leads/fee" element={<LeadsAdmissions initialTab="fee" />} />
       <Route path="/admin/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
@@ -412,6 +413,7 @@ const ContentRouter = () => {
       <Route path="/branch/batches" element={<BatchSetup />} />
       <Route path="/branch/classrooms" element={<ClassroomSetup />} />
       <Route path="/branch/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/branch/leads/all" element={<LeadsAdmissions initialTab="all" />} />
       <Route path="/branch/leads/:id/convert" element={<StudentRegistration />} />
       <Route path="/branch/leads/fee" element={<LeadsAdmissions initialTab="fee" />} />
       <Route path="/branch/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
@@ -450,6 +452,7 @@ const ContentRouter = () => {
       {/* ── Counsellor Routes (/counsellor/*) ── */}
       <Route path="/counsellor/dashboard" element={<Dashboard />} />
       <Route path="/counsellor/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/counsellor/leads/all" element={<LeadsAdmissions initialTab="all" />} />
       <Route path="/counsellor/leads/:id/convert" element={<StudentRegistration />} />
       <Route path="/counsellor/leads/fee" element={<LeadsAdmissions initialTab="fee" />} />
       <Route path="/counsellor/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
@@ -528,6 +531,7 @@ const ContentRouter = () => {
       <Route path="/timetable" element={<Attendance initialTab="timetable" />} />
       <Route path="/my-schedule" element={isTeacher ? <Navigate to="/teacher/schedule" replace /> : <Attendance initialTab="timetable" />} />
       <Route path="/leads" element={<LeadsAdmissions initialTab="pipeline" />} />
+      <Route path="/leads/all" element={<LeadsAdmissions initialTab="all" />} />
       <Route path="/leads/:id/convert" element={<StudentRegistration />} />
       <Route path="/admission/:id" element={<StudentRegistration />} />
       <Route path="/leads/fee" element={<LeadsAdmissions initialTab="fee" />} />

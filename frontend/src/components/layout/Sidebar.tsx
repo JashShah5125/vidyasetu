@@ -156,7 +156,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'ERP & Admissions',
             links: [
-              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/admin/leads', icon: Users },
+              { name: 'All Leads', label: 'All Leads', path: '/admin/leads/all', icon: FileText },
+              { name: 'Leads & Admissions', label: 'Lead Pipeline', path: '/admin/leads', icon: Users },
               { name: 'Students Roster', label: 'Students Roster', path: '/admin/students', icon: GraduationCap },
               { name: 'Staff & Roles', label: 'Staff Directory', path: '/admin/staff', icon: ShieldCheck }
             ]
@@ -211,7 +212,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'ERP & Admissions',
             links: [
-              { name: 'Leads & Admissions', label: 'Leads & Enquiries', path: '/branch/leads', icon: Users },
+              { name: 'All Leads', label: 'All Leads', path: '/branch/leads/all', icon: FileText },
+              { name: 'Leads & Admissions', label: 'Lead Pipeline', path: '/branch/leads', icon: Users },
               { name: 'Students Roster', label: 'Students Roster', path: '/branch/students', icon: GraduationCap },
               { name: 'Staff & Roles', label: 'Staff Directory', path: '/branch/staff', icon: ShieldCheck }
             ]
@@ -257,6 +259,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'CRM Pipeline',
             links: [
+              { name: 'All Leads', label: 'All Leads', path: '/counsellor/leads/all', icon: FileText },
               { name: 'Lead Pipeline', label: 'Lead Pipeline', path: '/counsellor/leads', icon: Users },
               { name: 'Fee Discussion', label: 'Fee Discussion', path: '/counsellor/leads/fee', icon: DollarSign },
               { name: 'Admission & Docs', label: 'Admission & Docs', path: '/counsellor/leads/admission', icon: ClipboardList },
@@ -364,13 +367,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     label: string;
     badge?: number;
   }) => {
-    const isCounsellor = currentUser?.role === 'counsellor';
     const isSalariesPath = path === '/finance/expenses/salaries';
-    const isActive = path === '/leads'
-      ? (isCounsellor
-        ? (location.pathname === '/leads' || location.pathname === '/leads/pipeline')
-        : location.pathname.startsWith('/leads')
-      )
+    const isLeadsRoot = path === '/leads' || path === '/counsellor/leads' || path === '/admin/leads' || path === '/branch/leads';
+    const isActive = isLeadsRoot
+      ? (location.pathname === path || location.pathname === `${path}/pipeline`)
       : path === '/fees'
         ? location.pathname === '/fees' || location.pathname.startsWith('/fees/')
         : isSalariesPath

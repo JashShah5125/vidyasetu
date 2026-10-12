@@ -31,32 +31,33 @@ import type { Lead, Student } from '../types';
 import { studentStatusBadgeStyle, studentStatusLabelOf } from '../services/studentMaps';
 
 interface LeadsAdmissionsProps {
-  initialTab?: 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
+  initialTab?: 'all' | 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
 }
 
 const phases = [
-  { id: 'pipeline',  label: 'Lead Pipeline',          phase: 'Phase 1', icon: Users },
-  { id: 'fee',         label: 'Fee Discussion',          phase: 'Phase 2', icon: DollarSign },
-  { id: 'admission',   label: 'Admission & Docs',        phase: 'Phase 3', icon: ClipboardList },
-  { id: 'batch',       label: 'Batch Allocation',        phase: 'Phase 4', icon: Layers },
-  { id: 'payment',     label: 'Payment & Activation',   phase: 'Phase 5', icon: Zap },
+  { id: 'all', label: 'All Leads', phase: 'Master', icon: FileText },
+  { id: 'pipeline', label: 'Lead Pipeline', phase: 'Phase 1', icon: Users },
+  { id: 'fee', label: 'Fee Discussion', phase: 'Phase 2', icon: DollarSign },
+  { id: 'admission', label: 'Admission & Docs', phase: 'Phase 3', icon: ClipboardList },
+  { id: 'batch', label: 'Batch Allocation', phase: 'Phase 4', icon: Layers },
+  { id: 'payment', label: 'Payment & Activation', phase: 'Phase 5', icon: Zap },
 ] as const;
 
 type TabId = typeof phases[number]['id'];
 
 const StatusBadge: React.FC<{ status: string | number }> = ({ status }) => {
   const leadMap: Record<string, string> = {
-    'New Enquiry':          'bg-blue-50 text-blue-700 border-blue-200',
-    'Assigned':             'bg-slate-100 text-slate-700 border-slate-200',
-    'Contacted':            'bg-indigo-50 text-indigo-700 border-indigo-200',
-    'Follow-up':            'bg-amber-50 text-amber-800 border-amber-200',
-    'Demo Scheduled':       'bg-purple-50 text-purple-700 border-purple-200',
-    'Fee Discussion':       'bg-cyan-50 text-cyan-700 border-cyan-200',
-    'Interested':           'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'Not Interested':       'bg-red-50 text-red-700 border-red-200',
-    'Lost':                 'bg-rose-50 text-rose-700 border-rose-200',
-    'Converted':            'bg-slate-100 text-slate-600 border-slate-300',
-    'Cancelled':            'bg-slate-50 text-slate-500 border-slate-200'
+    'New Enquiry': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Assigned': 'bg-slate-100 text-slate-700 border-slate-200',
+    'Contacted': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'Follow-up': 'bg-amber-50 text-amber-800 border-amber-200',
+    'Demo Scheduled': 'bg-purple-50 text-purple-700 border-purple-200',
+    'Fee Discussion': 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    'Interested': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'Not Interested': 'bg-red-50 text-red-700 border-red-200',
+    'Lost': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Converted': 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold',
+    'Cancelled': 'bg-slate-50 text-slate-500 border-slate-200'
   };
 
   const statusStr = typeof status === 'number' ? studentStatusLabelOf(status) : String(status);
@@ -191,21 +192,29 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   }, []);
 
   // Tab routing sync
+  const basePath = useMemo(() => {
+    if (location.pathname.startsWith('/counsellor/leads')) return '/counsellor/leads';
+    if (location.pathname.startsWith('/admin/leads')) return '/admin/leads';
+    if (location.pathname.startsWith('/branch/leads')) return '/branch/leads';
+    return '/leads';
+  }, [location.pathname]);
+
   const tabRouteMap: Record<TabId, string> = {
-    pipeline: '/leads',
-    fee: '/leads/fee',
-    admission: '/leads/admission',
-    batch: '/leads/batch',
-    payment: '/leads/payment'
+    all: `${basePath}/all`,
+    pipeline: `${basePath}`,
+    fee: `${basePath}/fee`,
+    admission: `${basePath}/admission`,
+    batch: `${basePath}/batch`,
+    payment: `${basePath}/payment`
   };
 
   useEffect(() => {
-    setActiveTab(initialTab);
+    setActiveTab(initialTab || 'pipeline');
   }, [initialTab]);
 
   // Filters State
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
-  const [search, setSearch]             = useState('');
+  const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterSource, setFilterSource] = useState('All');
   const isBranchAdmin = currentUser?.role === 'branch-admin';
@@ -343,7 +352,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     // 1. Prioritize live academicData batches from the database
     if (academicData?.batches && academicData.batches.length > 0) {
       const liveBatches = academicData.batches;
-      const courseObj = academicData.courses?.find((c: any) => 
+      const courseObj = academicData.courses?.find((c: any) =>
         c.name.toLowerCase() === cName || c.name.toLowerCase().includes(cName) || (cName && cName.includes(c.name.toLowerCase()))
       );
       const branchObj = academicData.branches?.find((b: any) => b.name.toLowerCase() === bBranch);
@@ -521,7 +530,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [isViewOnly, setIsViewOnly] = useState(true);
 
   const handleOpenLeadDetail = async (
-    l: Lead, 
+    l: Lead,
     defaultTab: 'profile' | 'course' | 'history' | 'fee' = 'profile',
     viewOnly: boolean = true
   ) => {
@@ -607,13 +616,38 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   };
 
   useEffect(() => {
-    if (location.state?.activeLeadId) {
+    const searchParams = new URLSearchParams(location.search);
+    const shouldOpenAdd = Boolean(
+      location.state?.openAddLead ||
+      searchParams.get('action') === 'new' ||
+      searchParams.get('mode') === 'new'
+    );
+
+    if (shouldOpenAdd) {
+      setLeadForm({
+        name: '',
+        email: '',
+        mobile: '',
+        parentName: '',
+        parentMobile: '',
+        parentEmail: '',
+        course: courses[0]?.name || '',
+        program: courses[0]?.programs?.[0] || '',
+        level: 'year1',
+        academicYear: '2024-2025',
+        source: 'Walk-in',
+        remarks: '',
+        branch: (currentUser?.role === 'branch-admin' ? currentUser.branch : branches[0]?.name) || '',
+        counsellor: currentUser?.name || 'Admin'
+      });
+      setShowAddLead(true);
+    } else if (location.state?.activeLeadId) {
       const targetLead = leads.find(l => l.id === location.state.activeLeadId);
       if (targetLead) {
         handleOpenLeadDetail(targetLead);
       }
     }
-  }, [location.state?.activeLeadId, leads]);
+  }, [location.search, location.state?.openAddLead, location.state?.activeLeadId, leads, courses, branches, currentUser]);
 
   // Computed filter options from live database
   const branchFilterOptions = useMemo(() => [
@@ -674,7 +708,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     if (academicData?.levels) {
       const courseObj = academicData.courses?.find(c => c.name === courseName);
       const progObj = academicData.programs?.find(p => p.name === programName && (!courseObj || Number(p.course_id) === Number(courseObj.id)));
-      
+
       if (progObj) {
         const matchedByProg = academicData.levels.filter(l => Number(l.program_id) === Number(progObj.id));
         if (matchedByProg.length > 0) {
@@ -703,10 +737,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   // Filtered lists
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
-      if (filterStatus === 'All') {
-        if (l.status === 'Converted' || l.status === 'Cancelled' || l.status === 'Lost' || l.status === 'Not Interested') return false;
+      if (activeTab === 'all') {
+        if (filterStatus !== 'All' && l.status !== filterStatus) return false;
       } else {
-        if (l.status !== filterStatus) return false;
+        if (filterStatus === 'All') {
+          if (l.status === 'Converted' || l.status === 'Cancelled' || l.status === 'Lost' || l.status === 'Not Interested') return false;
+        } else {
+          if (l.status !== filterStatus) return false;
+        }
       }
       if (activeTab === 'fee' && l.status !== 'Fee Discussion') return false;
       const q = search.toLowerCase();
@@ -740,15 +778,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         (s.course && s.course.toLowerCase().includes(q)) ||
         (s.branch && s.branch.toLowerCase().includes(q))
       );
-      
+
       let matchSt = true;
       if (filterStatus !== 'All') {
         const sStatusStr = String(s.status);
         const fStatusStr = String(filterStatus);
-        matchSt = sStatusStr === fStatusStr || 
-                  studentStatusLabelOf(s.status).toLowerCase() === fStatusStr.toLowerCase() ||
-                  (s.status === 'Active Student' && filterStatus === 'Active') ||
-                  (s.status === 1 && filterStatus === 'Active');
+        matchSt = sStatusStr === fStatusStr ||
+          studentStatusLabelOf(s.status).toLowerCase() === fStatusStr.toLowerCase() ||
+          (s.status === 'Active Student' && filterStatus === 'Active') ||
+          (s.status === 1 && filterStatus === 'Active');
       }
 
       const matchBranch = currentUser?.role === 'branch-admin'
@@ -781,7 +819,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   }, [filteredStudents, page]);
 
   const totalPages = useMemo(() => {
-    const listLen = (activeTab === 'pipeline' || activeTab === 'fee') ? filteredLeads.length : filteredStudents.length;
+    const listLen = (activeTab === 'pipeline' || activeTab === 'fee' || activeTab === 'all') ? filteredLeads.length : filteredStudents.length;
     return Math.max(1, Math.ceil(listLen / PER_PAGE));
   }, [activeTab, filteredLeads.length, filteredStudents.length]);
 
@@ -790,6 +828,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     const activeLeads = leads.filter(l => l.status !== 'Converted' && l.status !== 'Cancelled' && l.status !== 'Lost' && l.status !== 'Not Interested');
     const sourceStudents = apiStudents.length > 0 ? apiStudents : students;
     return {
+      totalAllLeads: leads.length,
+      convertedCount: leads.filter(l => l.status === 'Converted').length,
+      activePipelineCount: activeLeads.length,
+      closedCount: leads.filter(l => l.status === 'Cancelled' || l.status === 'Lost' || l.status === 'Not Interested').length,
       totalLeads: activeLeads.length,
       newEnquiries: activeLeads.filter(l => l.status === 'New Enquiry').length,
       followUp: activeLeads.filter(l => l.status === 'Follow-up').length,
@@ -872,7 +914,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       });
       await apiCreateEnquiry(payload);
       addToast('New enquiry logged successfully!', 'success');
-      setShowAddLead(false);
+      handleCloseAddLead();
       setLeadForm({
         name: '',
         email: '',
@@ -932,7 +974,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   // CSV Export helper
   const handleExportCSV = () => {
-    const list = (activeTab === 'pipeline' || activeTab === 'fee') ? filteredLeads : filteredStudents;
+    const list = (activeTab === 'pipeline' || activeTab === 'fee' || activeTab === 'all') ? filteredLeads : filteredStudents;
     if (list.length === 0) return;
     const headers = ['ID', 'Name', 'Mobile', 'Course', 'Status'];
     const rows = list.map(item => [
@@ -942,7 +984,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       item.course || '',
       item.status
     ]);
-    const csvContent = "data:text/csv;charset=utf-8," 
+    const csvContent = "data:text/csv;charset=utf-8,"
       + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -951,6 +993,18 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleCloseAddLead = () => {
+    setShowAddLead(false);
+    if (location.state?.fromDashboard) {
+      navigate('/counsellor/dashboard');
+    } else {
+      const searchParams = new URLSearchParams(location.search);
+      if (searchParams.get('action') === 'new' || searchParams.get('mode') === 'new') {
+        navigate(location.pathname, { replace: true });
+      }
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -964,7 +1018,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <div className="flex items-center gap-3">
             <button 
               type="button"
-              onClick={() => setShowAddLead(false)} 
+              onClick={handleCloseAddLead} 
               className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
               title="Return to list"
             >
@@ -989,16 +1043,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <Button 
               type="button" 
               variant="secondary" 
-              onClick={() => setShowAddLead(false)} 
+              onClick={handleCloseAddLead} 
               className="cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-4"
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               type="button"
-              variant="primary" 
+              variant="primary"
               onClick={(e) => handleAddLeadSubmit(e as any)}
-              className="flex items-center gap-1.5 cursor-pointer font-bold text-xs px-5 shadow-sm" 
+              className="flex items-center gap-1.5 cursor-pointer font-bold text-xs px-5 shadow-sm"
               style={{ backgroundColor: '#2563eb', color: 'white' }}
             >
               <Plus size={15} /> Save & Log Enquiry
@@ -1237,15 +1291,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <Button 
               type="button" 
               variant="secondary" 
-              onClick={() => setShowAddLead(false)} 
+              onClick={handleCloseAddLead} 
               className="cursor-pointer px-6"
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              variant="primary" 
-              style={{ backgroundColor: '#2563eb', color: 'white' }} 
+            <Button
+              type="submit"
+              variant="primary"
+              style={{ backgroundColor: '#2563eb', color: 'white' }}
               className="cursor-pointer font-bold flex items-center gap-1.5 px-7 shadow-sm"
             >
               <Plus size={16} /> Save & Log Enquiry
@@ -1272,8 +1326,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }} 
+            <button
+              onClick={() => { setShowLeadDetail(false); setSelectedLead(null); }}
               className="flex items-center justify-center h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
               title="Return to list"
             >
@@ -1289,7 +1343,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 </span>
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
-                {isViewOnly 
+                {isViewOnly
                   ? 'Read-only overview of enquiry information, academic interests, timeline, and fee structure.'
                   : 'Modify student contact information, course interest, counselor assignment, or fee configuration.'}
               </p>
@@ -1299,29 +1353,29 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <div className="flex items-center gap-2 shrink-0">
             {isViewOnly ? (
               <>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={() => setIsViewOnly(false)} 
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsViewOnly(false)}
                   className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200"
                 >
                   <Pencil size={14} className="text-amber-600" /> Edit Lead
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="primary" 
+                <Button
+                  type="button"
+                  variant="primary"
                   onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: selectedLead.feeConfig } })}
-                  className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs" 
+                  className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs"
                   style={{ backgroundColor: '#2563eb', color: 'white' }}
                 >
                   Convert to Student <ChevronRight size={14} />
                 </Button>
               </>
             ) : (
-              <Button 
-                type="button" 
-                variant="secondary" 
-                onClick={() => setIsViewOnly(true)} 
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsViewOnly(true)}
                 className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200"
               >
                 <Eye size={14} className="text-blue-600" /> Switch to View
@@ -1338,9 +1392,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 key={t.id}
                 type="button"
                 onClick={() => setModalTab(t.id as any)}
-                className={`pb-3 px-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                  modalTab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+                className={`pb-3 px-3 font-semibold text-sm border-b-2 transition-colors cursor-pointer whitespace-nowrap ${modalTab === t.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
               >
                 {t.label}
               </button>
@@ -1596,9 +1649,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                           <p className="text-xs text-slate-500">Agreed commercial terms, concession, downpayment, and payment installments</p>
                         </div>
                       </div>
-                      <Button 
-                        type="button" 
-                        variant="secondary" 
+                      <Button
+                        type="button"
+                        variant="secondary"
                         onClick={() => setIsViewOnly(false)}
                         className="cursor-pointer text-xs font-semibold flex items-center gap-1.5"
                       >
@@ -1639,9 +1692,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                      <Button 
-                        type="button" 
-                        variant="primary" 
+                      <Button
+                        type="button"
+                        variant="primary"
                         onClick={() => navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: selectedLead.feeConfig } })}
                         style={{ backgroundColor: '#10b981', color: 'white', padding: '0.65rem 1.5rem', fontSize: '0.9rem' }}
                         className="cursor-pointer"
@@ -1724,42 +1777,42 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
                     <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Course Interest & Academic Year</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                      <Select 
-                        label="Interested Course *" 
-                        value={fCourse} 
-                        onChange={e => { 
+                      <Select
+                        label="Interested Course *"
+                        value={fCourse}
+                        onChange={e => {
                           const newC = e.target.value;
-                          setFCourse(newC); 
+                          setFCourse(newC);
                           const progs = getProgramsForCourse(newC);
                           const firstProg = progs[0]?.value || '';
-                          setFProgram(firstProg); 
+                          setFProgram(firstProg);
                           const lvls = getLevelsForProgram(newC, firstProg);
-                          setFLevel(lvls[0]?.value || ''); 
-                        }} 
-                        options={courseFilterOptions.filter(o => o.value !== 'All')} 
+                          setFLevel(lvls[0]?.value || '');
+                        }}
+                        options={courseFilterOptions.filter(o => o.value !== 'All')}
                       />
-                      <Select 
-                        label="Program" 
-                        value={fProgram} 
-                        onChange={e => { 
+                      <Select
+                        label="Program"
+                        value={fProgram}
+                        onChange={e => {
                           const newP = e.target.value;
-                          setFProgram(newP); 
+                          setFProgram(newP);
                           const lvls = getLevelsForProgram(fCourse, newP);
                           setFLevel(lvls[0]?.value || '');
-                        }} 
-                        options={[{ value: '', label: 'Select Program' }, ...getProgramsForCourse(fCourse)]} 
+                        }}
+                        options={[{ value: '', label: 'Select Program' }, ...getProgramsForCourse(fCourse)]}
                       />
-                      <Select 
-                        label="Level / Class" 
-                        value={fLevel} 
-                        onChange={e => setFLevel(e.target.value)} 
-                        options={[{ value: '', label: 'Select Level' }, ...getLevelsForProgram(fCourse, fProgram)]} 
+                      <Select
+                        label="Level / Class"
+                        value={fLevel}
+                        onChange={e => setFLevel(e.target.value)}
+                        options={[{ value: '', label: 'Select Level' }, ...getLevelsForProgram(fCourse, fProgram)]}
                       />
-                      <Select 
-                        label="Academic Year" 
-                        value={fAcademicYear} 
-                        onChange={e => setFAcademicYear(e.target.value)} 
-                        options={academicYearOptions} 
+                      <Select
+                        label="Academic Year"
+                        value={fAcademicYear}
+                        onChange={e => setFAcademicYear(e.target.value)}
+                        options={academicYearOptions}
                       />
                     </div>
 
@@ -1876,8 +1929,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     </h4>
                     <p className="text-xs text-slate-500">Configure the fee structure with the parent. When finalized, convert this lead to a registered student. The configuration will carry over.</p>
                   </div>
-                  
-                  <FeeConfigurator 
+
+                  <FeeConfigurator
                     academicData={academicData}
                     initialCourse={selectedLead.feeConfig?.course || selectedLead.course}
                     initialProgram={selectedLead.feeConfig?.program || selectedLead.program}
@@ -2049,7 +2102,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
         {/* 2-Column Dashboard Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
+
           {/* LEFT COLUMN: Student Profile, Academics & Fee Summary (7 cols) */}
           <div className="lg:col-span-7 space-y-5">
             {/* 1. Student Profile Card */}
@@ -2275,11 +2328,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <button
             type="button"
             onClick={() => setIsFilterExpanded(!isFilterExpanded)}
-            className={`group flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border shadow-2xs active:scale-95 ${
-              isFilterExpanded || activeFilters.length > 0
+            className={`group flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border shadow-2xs active:scale-95 ${isFilterExpanded || activeFilters.length > 0
                 ? 'bg-slate-900 text-white border-slate-900 shadow-xs hover:bg-slate-800'
                 : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Filter size={13} className={`transition-transform duration-200 group-hover:scale-110 ${isFilterExpanded || activeFilters.length > 0 ? 'text-white' : 'text-slate-500 group-hover:text-slate-700'}`} />
             <span>Filters</span>
@@ -2323,9 +2375,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <button
                 key={p.id}
                 onClick={() => navigate(tabRouteMap[p.id])}
-                className={`flex-1 min-w-[150px] flex flex-col items-center gap-1.5 px-4 py-4 text-center transition-all border-b-2 cursor-pointer relative ${
-                  isActive ? 'border-blue-600 bg-blue-50/60 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}
+                className={`flex-1 min-w-[150px] flex flex-col items-center gap-1.5 px-4 py-4 text-center transition-all border-b-2 cursor-pointer relative ${isActive ? 'border-blue-600 bg-blue-50/60 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  }`}
               >
                 {idx < phases.length - 1 && (
                   <span className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-200 hidden md:block">
@@ -2334,9 +2385,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 )}
                 <Icon size={16} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
                 <span className="text-[11px] font-bold leading-tight">{p.label}</span>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                  isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
-                }`}>{p.phase}</span>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
+                  }`}>{p.phase}</span>
               </button>
             );
           })}
@@ -2411,7 +2461,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           </div>
 
           {/* Form Controls Single-Line Grid */}
-          <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${activeTab === 'pipeline' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-2.5 items-end`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${activeTab === 'pipeline' || activeTab === 'all' ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-2.5 items-end`}>
             {/* Search */}
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
@@ -2427,7 +2477,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     setSearch(sanitized);
                     setPage(1);
                   }}
-                  placeholder={activeTab === 'pipeline' ? 'Search leads...' : 'Search students...'}
+                  placeholder={activeTab === 'pipeline' || activeTab === 'all' ? 'Search leads by name, mobile, course...' : 'Search students...'}
                   className="w-full h-8 pl-8 pr-2.5 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs placeholder:text-slate-400"
                 />
               </div>
@@ -2502,7 +2552,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   onChange={e => setFilterStatus(e.target.value)}
                   className="w-full h-8 text-xs font-semibold bg-slate-50 hover:bg-white border border-slate-200 text-slate-800 rounded-xl px-2.5 pr-7 appearance-none cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white transition-all shadow-xs"
                 >
-                  {activeTab === 'pipeline' ? (
+                  {activeTab === 'pipeline' || activeTab === 'all' ? (
                     <>
                       <option value="All">All Stages</option>
                       <option value="New Enquiry">New Enquiry</option>
@@ -2511,6 +2561,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       <option value="Demo Scheduled">Demo Scheduled</option>
                       <option value="Fee Discussion">Fee Discussion</option>
                       <option value="Interested">Interested</option>
+                      <option value="Converted">Converted</option>
                       <option value="Not Interested">Not Interested</option>
                       <option value="Lost">Lost / Dropped</option>
                       <option value="Cancelled">Cancelled</option>
@@ -2539,8 +2590,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               </div>
             </div>
 
-            {/* Discovery Source (shown on pipeline tab) */}
-            {activeTab === 'pipeline' && (
+            {/* Discovery Source (shown on pipeline & all tab) */}
+            {(activeTab === 'pipeline' || activeTab === 'all') && (
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                   Discovery Source
@@ -2569,15 +2620,122 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
+      {/* TAB CONTENT 0: ALL LEADS MASTER DIRECTORY */}
+      {activeTab === 'all' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Enquiries', value: stats.totalAllLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
+              { label: 'Active in Pipeline', value: stats.activePipelineCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Converted to Admission', value: stats.convertedCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Closed / Dropped', value: stats.closedCount, color: 'bg-rose-50 border-rose-200', text: 'text-rose-700' },
+            ].map(s => (
+              <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
+                <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
+                <div className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>All Leads Master Directory</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Complete registry of all student enquiries across every stage — active, in process, converted, and closed.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
+                Showing {filteredLeads.length} leads
+              </span>
+            </CardHeader>
+            <Table
+              dense
+              minWidth="1100px"
+              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
+            >
+              {paginatedLeads.map(l => (
+                <tr
+                  key={l.id}
+                  onClick={() => handleOpenLeadDetail(l, 'profile', true)}
+                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">
+                    <div>{l.name}</div>
+                    {l.email && <div className="text-xs text-slate-400 font-normal">{l.email}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <div className="text-slate-800 font-medium">{l.mobile || '—'}</div>
+                    {l.parentMobile && (
+                      <div className="text-xs text-slate-500 mt-0.5">Parent: {l.parentMobile}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-xs font-semibold">
+                      {l.course || '—'}
+                    </span>
+                    {l.program && (
+                      <div className="text-xs text-slate-500 mt-0.5">{l.program}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap font-medium">{l.branch || '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <StatusBadge status={l.status} />
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.counsellor || 'Unassigned'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLeadDetail(l, 'profile', false)}
+                        title="Edit Lead"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer shrink-0"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenLeadDetail(l, 'history', true)}
+                        title="Call Log / Follow-ups"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
+                      >
+                        <PhoneCall size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeadToDelete(l)}
+                        title="Delete Lead"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filteredLeads.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
+                    {leadsLoading ? 'Loading leads...' : 'No leads matching current filters.'}
+                  </td>
+                </tr>
+              )}
+            </Table>
+            <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredLeads.length} pageSize={PER_PAGE} onPageChange={setPage} />
+          </Card>
+        </div>
+      )}
+
       {/* TAB CONTENT 1: LEAD PIPELINE */}
       {activeTab === 'pipeline' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Leads',   value: stats.totalLeads,   color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
-              { label: 'New Enquiries', value: stats.newEnquiries, color: 'bg-blue-50 border-blue-200',   text: 'text-blue-700' },
-              { label: 'Follow-up',     value: stats.followUp,     color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Interested',    value: stats.interested,    color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Total Leads', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
+              { label: 'New Enquiries', value: stats.newEnquiries, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Follow-up', value: stats.followUp, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Interested', value: stats.interested, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -2590,14 +2748,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Active Lead Registrations</CardTitle>
             </CardHeader>
-            <Table 
-              dense 
+            <Table
+              dense
               minWidth="1100px"
               headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
             >
               {paginatedLeads.map(l => (
-                <tr 
-                  key={l.id} 
+                <tr
+                  key={l.id}
                   onClick={() => handleOpenLeadDetail(l, 'profile', true)}
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
                 >
@@ -2677,14 +2835,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Fee Discussion Queue</CardTitle>
             </CardHeader>
-            <Table 
-              dense 
+            <Table
+              dense
               minWidth="1200px"
               headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', 'Next Follow-up', { label: 'Actions', align: 'center' }]}
             >
               {paginatedLeads.map(l => (
-                <tr 
-                  key={l.id} 
+                <tr
+                  key={l.id}
                   onClick={() => handleOpenLeadDetail(l, 'fee', true)}
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
                 >
@@ -2762,10 +2920,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Enquiries',    value: stats.totalLeads,      color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
-              { label: 'Pending Docs',       value: stats.pendingDocs,     color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Pending Verification', value: stats.pendingReview, color: 'bg-blue-50 border-blue-200',  text: 'text-blue-700' },
-              { label: 'Active Students',    value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Total Enquiries', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
+              { label: 'Pending Docs', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Pending Verification', value: stats.pendingReview, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Active Students', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -2778,7 +2936,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <CardHeader>
               <CardTitle>Admission & Verification Queue</CardTitle>
             </CardHeader>
-            <Table 
+            <Table
               dense
               minWidth="1120px"
               colWidths={['160px', '180px', '130px', '140px', '170px', '170px', '140px']}
@@ -2869,10 +3027,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Registered',  value: stats.totalStudents,   color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
-              { label: 'Active Students', value: stats.activeStudents,       color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-              { label: 'Fee Collected',   value: `₹${stats.feeCollected.toLocaleString()}`, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Outstanding',     value: `₹${stats.feeOutstanding.toLocaleString()}`, color: 'bg-red-50 border-red-200', text: 'text-red-600' },
+              { label: 'Total Registered', value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
+              { label: 'Active Students', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Fee Collected', value: `₹${stats.feeCollected.toLocaleString()}`, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Outstanding', value: `₹${stats.feeOutstanding.toLocaleString()}`, color: 'bg-red-50 border-red-200', text: 'text-red-600' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -2935,11 +3093,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                         }
                       }}
                       disabled={s.status === 'Active Student'}
-                      className={`inline-flex items-center justify-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-colors select-none whitespace-nowrap ${
-                        s.status !== 'Active Student'
+                      className={`inline-flex items-center justify-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-colors select-none whitespace-nowrap ${s.status !== 'Active Student'
                           ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 cursor-pointer shadow-xs'
                           : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       {s.status === 'Active Student' ? 'Activated' : 'Record Payment'}
                     </button>
@@ -2957,12 +3114,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
       {/* Delete / Mark Lead as Lost Confirmation Modal */}
       {leadToDelete && createPortal(
-        <div 
+        <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           onClick={() => !isDeletingLead && setLeadToDelete(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
@@ -3009,9 +3166,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             </div>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button 
-                type="button" 
-                variant="secondary" 
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={() => {
                   setLeadToDelete(null);
                   setLostReason('');
@@ -3091,11 +3248,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-                          doc.status === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
-                          doc.status === 2 ? 'bg-rose-50 text-rose-700 border-rose-300' :
-                          'bg-amber-50 text-amber-700 border-amber-300'
-                        }`}>
+                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${doc.status === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                            doc.status === 2 ? 'bg-rose-50 text-rose-700 border-rose-300' :
+                              'bg-amber-50 text-amber-700 border-amber-300'
+                          }`}>
                           {doc.status === 1 ? 'Verified' : doc.status === 2 ? 'Rejected' : 'Pending Verification'}
                         </span>
                       </div>

@@ -216,7 +216,7 @@ const validateTeacherInBranch = async (tenantId, branchId, teacherUserId) => {
            AND u.deleted_at IS NULL
            AND (
              uba.id IS NOT NULL 
-             OR JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON))
+             OR JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR))
              OR EXISTS (SELECT 1 FROM teacher_allocations ta WHERE ta.teacher_user_id = u.id AND ta.branch_id = ? AND ta.tenant_id = ?)
            )
          LIMIT 1`,

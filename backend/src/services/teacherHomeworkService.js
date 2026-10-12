@@ -195,7 +195,7 @@ class TeacherHomeworkService {
 
         // 1. Fetch from homeworks
         if ((reqType === 'all' || reqType === 'homework') && allowedBatchIds.length > 0 && allowedSubjectIds.length > 0) {
-            const hwBatchOrConditions = allowedBatchIds.map(() => `JSON_CONTAINS(h.batch_ids, CAST(? AS JSON))`).join(' OR ');
+            const hwBatchOrConditions = allowedBatchIds.map(() => `JSON_CONTAINS(h.batch_ids, CAST(? AS CHAR))`).join(' OR ');
             const [hwRows] = await pool.query(
                 `SELECT h.id, h.tenant_id, h.branch_id, h.academic_year_id, h.subject_id,
                         h.title, h.description, 'homework' AS assignment_type,
@@ -221,7 +221,7 @@ class TeacherHomeworkService {
 
         // 2. Fetch from assignments
         if ((reqType === 'all' || reqType === 'assignment') && allowedBatchIds.length > 0 && allowedSubjectIds.length > 0) {
-            const asgBatchOrConditions = allowedBatchIds.map(() => `JSON_CONTAINS(COALESCE(a.batch_ids, JSON_ARRAY(a.batch_id)), CAST(? AS JSON))`).join(' OR ');
+            const asgBatchOrConditions = allowedBatchIds.map(() => `JSON_CONTAINS(COALESCE(a.batch_ids, JSON_ARRAY(a.batch_id)), CAST(? AS CHAR))`).join(' OR ');
             const [asgRows] = await pool.query(
                 `SELECT a.id, a.tenant_id, a.branch_id, a.academic_year_id, a.subject_id,
                         a.title, a.description, 'assignment' AS assignment_type,

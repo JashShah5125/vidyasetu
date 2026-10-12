@@ -42,7 +42,12 @@ import {
   Eye,
   Pencil,
   Loader2,
-  Wallet
+  Wallet,
+  RotateCcw,
+  Receipt,
+  RefreshCw,
+  Printer,
+  Sparkles
 } from 'lucide-react';
 import { formatDate as fmtDate } from '../../utils/dateFormatter';
 import {
@@ -771,6 +776,79 @@ export const BranchFinancePage: React.FC = () => {
   const totalOtherPages = Math.ceil(otherIncomeTotal / otherIncomeLimit) || 1;
   const totalOtherExpensePages = Math.ceil(otherExpenseTotal / otherExpenseLimit) || 1;
 
+  const otherIncomePageSum = useMemo(() => {
+    return otherIncomes.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  }, [otherIncomes]);
+
+  const otherExpensePageSum = useMemo(() => {
+    return otherExpenses.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  }, [otherExpenses]);
+
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+    (branchFilter !== 'All' && branchOptions.length > 1) ||
+    statusFilter !== 'All' ||
+    (isOtherExpense && (categoryFilter !== 'All' || expenseStatusFilter !== 'All'))
+  );
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setBranchFilter('All');
+    setStatusFilter('All');
+    setCategoryFilter('All');
+    setExpenseStatusFilter('All');
+  };
+
+  const handleRefresh = () => {
+    if (isOtherIncome) {
+      fetchOtherIncomes(otherIncomePage);
+    } else if (isOtherExpense) {
+      fetchOtherExpenses(otherExpensePage);
+    }
+  };
+
+  const renderPaymentModeBadge = (mode?: string) => {
+    const m = (mode || 'bank_transfer').toLowerCase().trim();
+    if (m === 'upi') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200/80 text-[11px] font-bold">
+          <CreditCard size={11} className="text-violet-500" />
+          UPI / GPay
+        </span>
+      );
+    }
+    if (m === 'cash') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[11px] font-bold">
+          <Wallet size={11} className="text-emerald-500" />
+          Cash
+        </span>
+      );
+    }
+    if (m === 'cheque') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80 text-[11px] font-bold">
+          <FileText size={11} className="text-amber-500" />
+          Cheque
+        </span>
+      );
+    }
+    if (m === 'card') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/80 text-[11px] font-bold">
+          <CreditCard size={11} className="text-sky-500" />
+          Card
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-[11px] font-bold">
+        <ArrowRightLeft size={11} className="text-blue-500" />
+        Bank Transfer
+      </span>
+    );
+  };
+
   const [isSalaryDetailActive, setIsSalaryDetailActive] = useState<boolean>(false);
 
   const isSalaryStructure = currentPath.includes('/payroll/structure') || currentPath.includes('/salary-structure');
@@ -786,14 +864,20 @@ export const BranchFinancePage: React.FC = () => {
 
   if (isSalaryStructure || isSalaryStatus) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         {/* ── Page Title Header & Tabs (Hidden when viewing history or editing salary) ── */}
         {!isSalaryDetailActive && (
-          <>
+          <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Staff Salaries & Payroll</h2>
-                <p className="text-sm text-slate-500 mt-0.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/80">
+                    <Users size={12} className="text-indigo-600 shrink-0" />
+                    Payroll Operations • Staff Compensation
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-slate-900 tracking-tight">Staff Salaries & Payroll</h2>
+                <p className="text-sm text-slate-500 mt-1 max-w-2xl">
                   Master compensation structure, monthly disbursement logs, and branch payroll operations
                 </p>
               </div>
@@ -811,29 +895,33 @@ export const BranchFinancePage: React.FC = () => {
             </div>
 
             {/* Sub-Navigation Tabs */}
-            <div className="flex border-b border-slate-200 gap-8">
+            <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200/80 w-fit">
               <button
+                type="button"
                 onClick={() => navigate('/finance/payroll/structure')}
-                className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
                   isSalaryStructure
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                    ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
+                <Briefcase size={14} className={isSalaryStructure ? 'text-indigo-600' : 'text-slate-400'} />
                 Salary Structure (Master)
               </button>
               <button
+                type="button"
                 onClick={() => navigate('/finance/expenses/salaries')}
-                className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
                   isSalaryStatus
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                    ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
+                <Calendar size={14} className={isSalaryStatus ? 'text-indigo-600' : 'text-slate-400'} />
                 Monthly Salary Operations
               </button>
             </div>
-          </>
+          </div>
         )}
 
         {isSalaryStructure ? (
@@ -858,138 +946,324 @@ export const BranchFinancePage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">{viewInfo.title}</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{viewInfo.subtitle}</p>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+              isOtherIncome
+                ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
+                : isOtherExpense
+                ? 'text-rose-700 bg-rose-50 border-rose-200/80'
+                : 'text-indigo-700 bg-indigo-50 border-indigo-200/80'
+            }`}>
+              {isOtherIncome ? (
+                <TrendingUp size={12} className="text-emerald-600 shrink-0" />
+              ) : isOtherExpense ? (
+                <TrendingDown size={12} className="text-rose-600 shrink-0" />
+              ) : (
+                <IconComponent size={12} className="text-indigo-600 shrink-0" />
+              )}
+              {isOtherIncome ? 'Income Registry • Non-Fee Revenue' : isOtherExpense ? 'Expense Operations • Branch Cash Outflows' : `${viewInfo.module} • Branch Operations`}
+            </span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-slate-900 tracking-tight">{viewInfo.title}</h2>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">{viewInfo.subtitle}</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleRefresh}
+            disabled={isOtherIncome ? otherIncomeLoading : otherExpenseLoading}
+            className="flex items-center gap-1.5 font-bold shadow-2xs"
+          >
+            <RefreshCw size={14} className={otherIncomeLoading || otherExpenseLoading ? 'animate-spin' : ''} /> Refresh
+          </Button>
+          <Button
+            size="sm"
             variant="secondary"
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 font-bold"
+            className="flex items-center gap-1.5 font-bold shadow-2xs"
           >
             <Download size={14} /> Export CSV
           </Button>
           <Button
+            size="sm"
             variant="primary"
             onClick={isOtherExpense ? () => navigate('/finance/expenses/other/new') : openAddModal}
-            className="flex items-center gap-1.5 font-bold"
+            className="flex items-center gap-1.5 font-bold shadow-xs"
           >
-            <Plus size={14} /> {isOtherExpense ? 'Record Expense' : 'Record Income'}
+            <Plus size={15} /> {isOtherExpense ? 'Record Expense' : 'Record Income'}
           </Button>
         </div>
       </div>
 
       {/* ── 4 KPI Financial Metric Cards ── */}
       {isOtherIncome ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-slate-700 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Other Income</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmt(otherIncomeSummary.totalAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Cumulative non-fee revenue</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Total Other Income */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-slate-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Other Income
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-200/80 shadow-2xs group-hover:scale-105 transition-transform">
+                <Wallet size={16} />
+              </div>
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-emerald-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">Today's Receipts</div>
-              <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{fmt(otherIncomeSummary.todayAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Received on {fmtDate(new Date())}</div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-2 tracking-tight">
+              {fmt(otherIncomeSummary.totalAmount)}
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-blue-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-blue-700">This Month's Receipts</div>
-              <div className="text-2xl font-bold text-blue-700 mt-1 tabular-nums">{fmt(otherIncomeSummary.thisMonthAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Current billing cycle</div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Cumulative non-fee revenue</span>
+              <span className="font-semibold text-slate-600 font-mono">All-time</span>
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-indigo-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Records</div>
-              <div className="text-2xl font-bold text-indigo-900 mt-1 tabular-nums">{otherIncomeSummary.totalCount}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Recorded non-fee transactions</div>
+          </div>
+
+          {/* Card 2: Today's Receipts */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Today's Receipts
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/80 shadow-2xs group-hover:scale-105 transition-transform">
+                <TrendingUp size={16} />
+              </div>
             </div>
-          </Card>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 mt-2 tracking-tight">
+              {fmt(otherIncomeSummary.todayAmount)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Received on {fmtDate(new Date())}</span>
+              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: This Month's Receipts */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-blue-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                This Month's Receipts
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/80 shadow-2xs group-hover:scale-105 transition-transform">
+                <Calendar size={16} />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-blue-700 mt-2 tracking-tight">
+              {fmt(otherIncomeSummary.thisMonthAmount)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Current billing cycle</span>
+              <span className="font-semibold text-blue-600 font-mono">Active Cycle</span>
+            </div>
+          </div>
+
+          {/* Card 4: Total Records */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-indigo-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+                Total Records
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100/80 shadow-2xs group-hover:scale-105 transition-transform">
+                <Receipt size={16} />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-indigo-900 mt-2 tracking-tight">
+              {otherIncomeSummary.totalCount}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Recorded non-fee entries</span>
+              <span className="font-semibold text-indigo-600 font-mono">{otherIncomeTotal} total</span>
+            </div>
+          </div>
         </div>
       ) : isOtherExpense ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-rose-600 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-rose-600">Total Expenses</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmt(otherExpenseSummary.totalAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">{otherExpenseSummary.totalCount} total records</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Total Expenses */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-slate-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Expenses
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100/80 shadow-2xs">
+                <Wallet size={16} />
+              </div>
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-amber-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Approval</div>
-              <div className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">{fmt(otherExpenseSummary.pendingAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Awaiting approval / payment</div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-2 tracking-tight">
+              {fmt(otherExpenseSummary.totalAmount)}
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-emerald-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">Paid Expenses</div>
-              <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{fmt(otherExpenseSummary.paidAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Settled this period</div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>{otherExpenseSummary.totalCount} total entries</span>
+              <span className="font-semibold text-rose-600 font-mono">Outflow</span>
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-blue-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-blue-700">This Month</div>
-              <div className="text-2xl font-bold text-blue-700 mt-1 tabular-nums">{fmt(otherExpenseSummary.thisMonthAmount)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Current billing cycle</div>
+          </div>
+
+          {/* Card 2: Pending Approval */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-amber-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                Pending Approval
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100/80 shadow-2xs">
+                <Clock size={16} />
+              </div>
             </div>
-          </Card>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-amber-700 mt-2 tracking-tight">
+              {fmt(otherExpenseSummary.pendingAmount)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Awaiting payment approval</span>
+              <span className="font-semibold text-amber-600 font-mono">In Review</span>
+            </div>
+          </div>
+
+          {/* Card 3: Paid Expenses */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Settled / Paid
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/80 shadow-2xs">
+                <CheckCircle2 size={16} />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-2 tracking-tight">
+              {fmt(otherExpenseSummary.paidAmount)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Settled this financial period</span>
+              <span className="font-semibold text-emerald-600 font-mono">Completed</span>
+            </div>
+          </div>
+
+          {/* Card 4: This Month */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-blue-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                This Month
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/80 shadow-2xs">
+                <Calendar size={16} />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-blue-700 mt-2 tracking-tight">
+              {fmt(otherExpenseSummary.thisMonthAmount)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Current billing cycle</span>
+              <span className="font-semibold text-blue-600 font-mono">Active Cycle</span>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-slate-700 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Billed / Allocated</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmt(metrics.total)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">{metrics.count} total transaction entries</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-slate-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Total Billed / Allocated
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 border border-slate-200/80 shadow-2xs">
+                <Wallet size={16} />
+              </div>
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-emerald-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-emerald-700">Settled & Paid</div>
-              <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{fmt(metrics.paid)}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Cleared through bank / UPI</div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-2 tracking-tight">
+              {fmt(metrics.total)}
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-rose-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-rose-700">Pending Due</div>
-              <div className="text-2xl font-bold text-rose-700 mt-1 tabular-nums">{fmt(metrics.due)}</div>
-              <div className="text-[11px] text-rose-500 mt-0.5">Outstanding queue for settlement</div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>{metrics.count} transaction entries</span>
+              <span className="font-semibold text-slate-600 font-mono">Gross</span>
             </div>
-          </Card>
-          <Card className="border-l-4 border-l-blue-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Active Branch</div>
-              <div className="text-xl font-bold text-blue-900 mt-1 truncate">{currentUser?.branch || 'Main Campus'}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">FY 2026-27 Active Ledger</div>
+          </div>
+
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                Settled & Paid
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/80 shadow-2xs">
+                <TrendingUp size={16} />
+              </div>
             </div>
-          </Card>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-2 tracking-tight">
+              {fmt(metrics.paid)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Cleared through bank / UPI</span>
+              <span className="font-semibold text-emerald-600 font-mono">Settled</span>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-rose-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">
+                Pending Due
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100/80 shadow-2xs">
+                <AlertCircle size={16} />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-rose-700 mt-2 tracking-tight">
+              {fmt(metrics.due)}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>Outstanding queue</span>
+              <span className="font-semibold text-rose-600 font-mono">Due</span>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-blue-300 hover:shadow-sm transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                Active Branch
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100/80 shadow-2xs">
+                <Building2 size={16} />
+              </div>
+            </div>
+            <div className="text-xl font-bold text-slate-900 mt-2 truncate">
+              {currentUser?.branch || 'Main Campus'}
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2.5 border-t border-slate-100/90">
+              <span>FY 2026-27 Active Ledger</span>
+              <span className="font-semibold text-blue-600 font-mono">Branch</span>
+            </div>
+          </div>
         </div>
       )}
 
       {/* ── Filters Bar ── */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full items-end ${isOtherExpense ? 'sm:grid-cols-5' : ''}`}>
-          <Input
-            label="Search Records"
-            placeholder={isOtherIncome ? "Search by Record #, Title, Reference, Description..." : isOtherExpense ? "Search by Record #, Title, Payee, Reference..." : "Search by title, payee, UTR..."}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            wrapperClassName={(isOtherIncome || isOtherExpense) && branchOptions.length > 1 ? "" : "sm:col-span-2"}
-          />
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <Filter size={14} className="text-slate-400" />
+            <span>Registry Filter Controls</span>
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <RotateCcw size={12} /> Reset Filters
+            </button>
+          )}
+        </div>
+
+        <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${isOtherExpense ? 'lg:grid-cols-5' : branchOptions.length > 1 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-4 items-end`}>
+          <div className={!isOtherExpense && branchOptions.length <= 1 ? "sm:col-span-1" : ""}>
+            <Input
+              label="Search Records"
+              placeholder={isOtherIncome ? "Search by Record #, Title, Ref..." : isOtherExpense ? "Search by Record #, Title, Payee..." : "Search by title, payee, UTR..."}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
           {(isOtherIncome || isOtherExpense) && branchOptions.length > 1 && (
             <Select
               label="Branch"
@@ -998,6 +1272,7 @@ export const BranchFinancePage: React.FC = () => {
               options={branchOptions}
             />
           )}
+
           {isOtherExpense && (
             <>
               <Select
@@ -1023,6 +1298,7 @@ export const BranchFinancePage: React.FC = () => {
               />
             </>
           )}
+
           <Select
             label="Payment Mode"
             value={statusFilter}
@@ -1039,14 +1315,40 @@ export const BranchFinancePage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Table ── */}
-      <Card className="p-0 overflow-hidden border border-slate-200 shadow-sm">
-        <CardHeader className="p-5 border-b border-slate-100 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>{viewInfo.title} Registry</CardTitle>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Showing {isOtherIncome ? otherIncomes.length : isOtherExpense ? otherExpenses.length : filteredRecords.length} recorded items
-            </p>
+      {/* ── Table Card ── */}
+      <Card className="p-0 overflow-hidden border border-slate-200/90 rounded-2xl shadow-xs bg-white">
+        <CardHeader className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs ${
+              isOtherIncome
+                ? 'bg-emerald-50 text-emerald-600 border-emerald-100/80'
+                : isOtherExpense
+                ? 'bg-rose-50 text-rose-600 border-rose-100/80'
+                : 'bg-indigo-50 text-indigo-600 border-indigo-100/80'
+            }`}>
+              {isOtherIncome ? <DollarSign size={17} /> : isOtherExpense ? <TrendingDown size={17} /> : <FileText size={17} />}
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 leading-snug">{viewInfo.title} Registry</CardTitle>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Showing {isOtherIncome ? otherIncomes.length : isOtherExpense ? otherExpenses.length : filteredRecords.length} recorded items
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isOtherIncome && otherIncomes.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-slate-200/80 text-xs font-semibold text-slate-600 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Page Total:</span>
+                <span className="font-mono font-bold text-emerald-600">+{fmt(otherIncomePageSum)}</span>
+              </span>
+            )}
+            {isOtherExpense && otherExpenses.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-slate-200/80 text-xs font-semibold text-slate-600 shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Page Total:</span>
+                <span className="font-mono font-bold text-rose-600">-{fmt(otherExpensePageSum)}</span>
+              </span>
+            )}
           </div>
         </CardHeader>
 
@@ -1068,56 +1370,80 @@ export const BranchFinancePage: React.FC = () => {
               {otherIncomeLoading ? (
                 <tr>
                   <td colSpan={7}>
-                    <div className="flex items-center justify-center py-12 text-slate-400 text-sm font-medium">
-                      <Loader2 size={20} className="animate-spin mr-2.5 text-blue-600" /> Loading other income records...
+                    <div className="flex items-center justify-center py-14 text-slate-400 text-sm font-medium">
+                      <Loader2 size={22} className="animate-spin mr-2.5 text-blue-600" /> Loading other income records...
                     </div>
                   </td>
                 </tr>
               ) : otherIncomes.length === 0 ? (
                 <tr>
                   <td colSpan={7}>
-                    <div className="py-14 text-center text-slate-400 text-sm">
-                      <Wallet size={28} className="mx-auto mb-2 text-slate-300" />
-                      No other income records found matching the current search.
+                    <div className="py-16 text-center text-slate-400 text-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                        <Wallet size={24} />
+                      </div>
+                      <p className="font-semibold text-slate-600">No other income records found</p>
+                      <p className="text-xs text-slate-400 mt-1">Try resetting search filters or record a new income transaction.</p>
+                      {hasActiveFilters && (
+                        <Button size="sm" variant="secondary" onClick={handleResetFilters} className="mt-4 font-semibold">
+                          Reset Filters
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ) : (
                 otherIncomes.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-2.5 py-2 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">
-                      {rec.income_record_number}
+                  <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors group">
+                    <td className="px-3.5 py-3 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/80 border border-blue-200/70 text-blue-700 shadow-2xs">
+                        <Receipt size={12} className="text-blue-500 shrink-0" />
+                        {rec.income_record_number}
+                      </span>
                     </td>
-                    <td className="px-2.5 py-2 text-left">
-                      <div className="text-xs sm:text-sm font-bold text-slate-900">{rec.title}</div>
+                    <td className="px-3.5 py-3 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                          {rec.title}
+                        </span>
+                        {rec.reference_number && (
+                          <span className="font-mono text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 shrink-0" title={`Ref: ${rec.reference_number}`}>
+                            #{rec.reference_number}
+                          </span>
+                        )}
+                      </div>
                       {rec.description && (
-                        <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[260px]">
+                        <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-sm sm:max-w-md" title={rec.description}>
                           {rec.description}
                         </div>
                       )}
                     </td>
-                    <td className="px-2.5 py-2 text-left whitespace-nowrap">
-                      <span className="inline-flex px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
+                    <td className="px-3.5 py-3 text-left whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100/80 text-slate-700 text-xs font-semibold border border-slate-200/70">
+                        <Building2 size={12} className="text-slate-400 shrink-0" />
                         {rec.branch_name || 'Main Campus'}
                       </span>
                     </td>
-                    <td className="px-2.5 py-2 text-right font-bold text-emerald-700 tabular-nums whitespace-nowrap text-xs sm:text-sm">
-                      {fmt(rec.amount)}
-                    </td>
-                    <td className="px-2.5 py-2 text-center text-xs text-slate-600 whitespace-nowrap">
-                      {fmtDate(rec.income_date)}
-                    </td>
-                    <td className="px-2.5 py-2 text-center text-xs text-slate-700 capitalize whitespace-nowrap">
-                      <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
-                        {(rec.payment_mode || 'bank_transfer').replace(/_/g, ' ')}
+                    <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                      <span className="font-black font-mono text-xs sm:text-sm text-emerald-600 tabular-nums">
+                        +{fmt(rec.amount)}
                       </span>
                     </td>
-                    <td className="px-2.5 py-2 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center justify-end gap-1">
+                    <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 text-slate-600 font-mono text-xs">
+                        <Calendar size={12} className="text-slate-400 shrink-0" />
+                        {fmtDate(rec.income_date)}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                      {renderPaymentModeBadge(rec.payment_mode)}
+                    </td>
+                    <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5">
                         <button
                           type="button"
                           title="View Details"
-                          className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg border border-slate-200/80 text-slate-500 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
                           onClick={() => setViewingRecord(rec)}
                         >
                           <Eye size={13} />
@@ -1125,7 +1451,7 @@ export const BranchFinancePage: React.FC = () => {
                         <button
                           type="button"
                           title="Edit Entry"
-                          className="p-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg border border-blue-200/80 text-blue-600 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer shadow-2xs"
                           onClick={() => openEditModal(rec)}
                         >
                           <Pencil size={13} />
@@ -1133,7 +1459,7 @@ export const BranchFinancePage: React.FC = () => {
                         <button
                           type="button"
                           title="Delete Entry"
-                          className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg border border-rose-200/80 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer shadow-2xs"
                           onClick={() => setDeletingRecord(rec)}
                         >
                           <Trash2 size={13} />
@@ -1144,16 +1470,42 @@ export const BranchFinancePage: React.FC = () => {
                 ))
               )}
             </Table>
-            <Pagination
-              currentPage={otherIncomePage}
-              totalPages={totalOtherPages}
-              totalItems={otherIncomeTotal}
-              pageSize={otherIncomeLimit}
-              onPageChange={(p) => {
-                setOtherIncomePage(p);
-                fetchOtherIncomes(p);
-              }}
-            />
+
+            {/* Total Inflow Summary Bar */}
+            {otherIncomes.length > 0 && (
+              <div className="bg-slate-50/80 px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold border-t border-slate-200/80">
+                <span className="text-slate-500">
+                  Showing page <strong className="text-slate-700">{otherIncomePage}</strong> of <strong className="text-slate-700">{totalOtherPages}</strong> ({otherIncomeTotal} total records)
+                </span>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
+                    <span className="text-slate-600">
+                      Page Inflow: <strong className="text-emerald-700 font-mono text-sm">+{fmt(otherIncomePageSum)}</strong>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-600">
+                      Registry Cumulative: <strong className="text-slate-900 font-mono text-sm">{fmt(otherIncomeSummary.totalAmount)}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 bg-white border-t border-slate-100">
+              <Pagination
+                currentPage={otherIncomePage}
+                totalPages={totalOtherPages}
+                totalItems={otherIncomeTotal}
+                pageSize={otherIncomeLimit}
+                onPageChange={(p) => {
+                  setOtherIncomePage(p);
+                  fetchOtherIncomes(p);
+                }}
+              />
+            </div>
           </>
         ) : isOtherExpense ? (
           <>
@@ -1175,17 +1527,25 @@ export const BranchFinancePage: React.FC = () => {
               {otherExpenseLoading ? (
                 <tr>
                   <td colSpan={9}>
-                    <div className="flex items-center justify-center py-12 text-slate-400 text-sm font-medium">
-                      <Loader2 size={20} className="animate-spin mr-2.5 text-blue-600" /> Loading other expense records...
+                    <div className="flex items-center justify-center py-14 text-slate-400 text-sm font-medium">
+                      <Loader2 size={22} className="animate-spin mr-2.5 text-blue-600" /> Loading other expense records...
                     </div>
                   </td>
                 </tr>
               ) : otherExpenses.length === 0 ? (
                 <tr>
                   <td colSpan={9}>
-                    <div className="py-14 text-center text-slate-400 text-sm">
-                      <Wallet size={28} className="mx-auto mb-2 text-slate-300" />
-                      No other expense records found matching the current search.
+                    <div className="py-16 text-center text-slate-400 text-sm">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                        <Wallet size={24} />
+                      </div>
+                      <p className="font-semibold text-slate-600">No other expense records found</p>
+                      <p className="text-xs text-slate-400 mt-1">Try resetting search filters or record a new expense.</p>
+                      {hasActiveFilters && (
+                        <Button size="sm" variant="secondary" onClick={handleResetFilters} className="mt-4 font-semibold">
+                          Reset Filters
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1193,34 +1553,51 @@ export const BranchFinancePage: React.FC = () => {
                 otherExpenses.map((rec) => {
                   const statusInfo = STATUS_MAP[rec.status] || STATUS_MAP[0];
                   return (
-                    <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-2.5 py-2 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">
-                        {rec.expense_record_number}
+                    <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors group">
+                      <td className="px-3.5 py-3 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50/80 border border-blue-200/70 text-blue-700 shadow-2xs">
+                          <Receipt size={12} className="text-blue-500 shrink-0" />
+                          {rec.expense_record_number}
+                        </span>
                       </td>
-                      <td className="px-2.5 py-2 text-left">
-                        <div className="text-xs sm:text-sm font-bold text-slate-900">{rec.title}</div>
+                      <td className="px-3.5 py-3 text-left">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                            {rec.title}
+                          </span>
+                          {rec.reference_number && (
+                            <span className="font-mono text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 shrink-0">
+                              #{rec.reference_number}
+                            </span>
+                          )}
+                        </div>
                         {rec.description && (
-                          <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[260px]">
+                          <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-sm sm:max-w-md" title={rec.description}>
                             {rec.description}
                           </div>
                         )}
                       </td>
-                      <td className="px-2.5 py-2 text-left whitespace-nowrap">
-                        <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
+                      <td className="px-3.5 py-3 text-left whitespace-nowrap">
+                        <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200/70">
                           {rec.category}
                         </span>
                       </td>
-                      <td className="px-2.5 py-2 text-left text-xs text-slate-700 whitespace-nowrap">
+                      <td className="px-3.5 py-3 text-left text-xs font-medium text-slate-700 whitespace-nowrap">
                         {rec.payee || '—'}
                       </td>
-                      <td className="px-2.5 py-2 text-right font-bold text-rose-700 tabular-nums whitespace-nowrap text-xs sm:text-sm">
-                        {fmt(rec.amount)}
+                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                        <span className="font-black font-mono text-xs sm:text-sm text-rose-600 tabular-nums">
+                          -{fmt(rec.amount)}
+                        </span>
                       </td>
-                      <td className="px-2.5 py-2 text-center text-xs text-slate-600 whitespace-nowrap">
-                        {fmtDate(rec.expense_date)}
+                      <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 text-slate-600 font-mono text-xs">
+                          <Calendar size={12} className="text-slate-400 shrink-0" />
+                          {fmtDate(rec.expense_date)}
+                        </span>
                       </td>
-                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                           statusInfo.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                           statusInfo.color === 'blue' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                           statusInfo.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
@@ -1229,17 +1606,15 @@ export const BranchFinancePage: React.FC = () => {
                           {statusInfo.label}
                         </span>
                       </td>
-                      <td className="px-2.5 py-2 text-center text-xs text-slate-700 capitalize whitespace-nowrap">
-                        <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
-                          {(rec.payment_mode || 'bank_transfer').replace(/_/g, ' ')}
-                        </span>
+                      <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                        {renderPaymentModeBadge(rec.payment_mode)}
                       </td>
-                      <td className="px-2.5 py-2 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center justify-end gap-1">
+                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             title="View Details"
-                            className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-slate-200/80 text-slate-500 hover:text-slate-900 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
                             onClick={() => navigate(`/finance/expenses/other/${rec.id}`)}
                           >
                             <Eye size={13} />
@@ -1247,7 +1622,7 @@ export const BranchFinancePage: React.FC = () => {
                           <button
                             type="button"
                             title="Edit Entry"
-                            className="p-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-blue-200/80 text-blue-600 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer shadow-2xs"
                             onClick={() => navigate(`/finance/expenses/other/${rec.id}?edit=true`)}
                           >
                             <Pencil size={13} />
@@ -1255,7 +1630,7 @@ export const BranchFinancePage: React.FC = () => {
                           <button
                             type="button"
                             title="Delete Entry"
-                            className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-rose-200/80 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer shadow-2xs"
                             onClick={() => setDeletingExpenseRecord(rec)}
                           >
                             <Trash2 size={13} />
@@ -1267,16 +1642,42 @@ export const BranchFinancePage: React.FC = () => {
                 })
               )}
             </Table>
-            <Pagination
-              currentPage={otherExpensePage}
-              totalPages={totalOtherExpensePages}
-              totalItems={otherExpenseTotal}
-              pageSize={otherExpenseLimit}
-              onPageChange={(p) => {
-                setOtherExpensePage(p);
-                fetchOtherExpenses(p);
-              }}
-            />
+
+            {/* Total Outflow Summary Bar */}
+            {otherExpenses.length > 0 && (
+              <div className="bg-slate-50/80 px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold border-t border-slate-200/80">
+                <span className="text-slate-500">
+                  Showing page <strong className="text-slate-700">{otherExpensePage}</strong> of <strong className="text-slate-700">{totalOtherExpensePages}</strong> ({otherExpenseTotal} total records)
+                </span>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 bg-rose-500 rounded-full" />
+                    <span className="text-slate-600">
+                      Page Outflow: <strong className="text-rose-700 font-mono text-sm">-{fmt(otherExpensePageSum)}</strong>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-600">
+                      Total Expenses: <strong className="text-slate-900 font-mono text-sm">{fmt(otherExpenseSummary.totalAmount)}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 bg-white border-t border-slate-100">
+              <Pagination
+                currentPage={otherExpensePage}
+                totalPages={totalOtherExpensePages}
+                totalItems={otherExpenseTotal}
+                pageSize={otherExpenseLimit}
+                onPageChange={(p) => {
+                  setOtherExpensePage(p);
+                  fetchOtherExpenses(p);
+                }}
+              />
+            </div>
           </>
         ) : (
           <Table
@@ -1296,40 +1697,45 @@ export const BranchFinancePage: React.FC = () => {
             {filteredRecords.length === 0 ? (
               <tr>
                 <td colSpan={8}>
-                  <div className="py-14 text-center text-slate-400 text-sm">
-                    <FileText size={28} className="mx-auto mb-2 text-slate-300" />
-                    No finance records match this filter.
+                  <div className="py-16 text-center text-slate-400 text-sm">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                      <FileText size={24} />
+                    </div>
+                    <p className="font-semibold text-slate-600">No finance records match this filter</p>
+                    <p className="text-xs text-slate-400 mt-1">Adjust search parameters or clear filters.</p>
                   </div>
                 </td>
               </tr>
             ) : (
               filteredRecords.map((rec) => (
-                <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-2.5 py-2 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
-                    {rec.id}
-                    {rec.reference && <div className="text-[10px] text-slate-400 font-normal">{rec.reference}</div>}
+                <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors group">
+                  <td className="px-3.5 py-3 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-800 shadow-2xs">
+                      {rec.id}
+                    </span>
+                    {rec.reference && <div className="text-[10px] text-slate-400 font-normal mt-0.5">{rec.reference}</div>}
                   </td>
-                  <td className="px-2.5 py-2 text-left">
+                  <td className="px-3.5 py-3 text-left">
                     <div className="text-xs sm:text-sm font-semibold text-slate-900">{rec.title}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">{rec.recipient || 'Branch Account'}</div>
                   </td>
-                  <td className="px-2.5 py-2 text-left whitespace-nowrap">
-                    <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
+                  <td className="px-3.5 py-3 text-left whitespace-nowrap">
+                    <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200/60">
                       {rec.category}
                     </span>
                   </td>
-                  <td className="px-2.5 py-2 text-right font-bold text-slate-900 tabular-nums whitespace-nowrap text-xs sm:text-sm">
+                  <td className="px-3.5 py-3 text-right font-bold text-slate-900 tabular-nums whitespace-nowrap text-xs sm:text-sm">
                     {fmt(rec.amount)}
                   </td>
-                  <td className="px-2.5 py-2 text-center text-xs text-slate-600 whitespace-nowrap">
+                  <td className="px-3.5 py-3 text-center text-xs text-slate-600 whitespace-nowrap">
                     {fmtDate(rec.date)}
                   </td>
-                  <td className="px-2.5 py-2 text-center text-xs text-slate-600 whitespace-nowrap">
-                    {rec.paymentMode || 'Bank Transfer'}
+                  <td className="px-3.5 py-3 text-center text-xs text-slate-600 whitespace-nowrap">
+                    {renderPaymentModeBadge(rec.paymentMode)}
                   </td>
-                  <td className="px-2.5 py-2 text-center whitespace-nowrap">
+                  <td className="px-3.5 py-3 text-center whitespace-nowrap">
                     <span
-                      className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                         rec.status === 'Paid'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : rec.status === 'Pending'
@@ -1340,12 +1746,12 @@ export const BranchFinancePage: React.FC = () => {
                       {rec.status}
                     </span>
                   </td>
-                  <td className="px-2.5 py-2 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center justify-end gap-1">
+                  <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                    <div className="inline-flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         title="View Details"
-                        className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
                         onClick={() => addToast(`Viewing details for ${rec.id}`, 'info')}
                       >
                         <Eye size={13} />
@@ -1353,7 +1759,7 @@ export const BranchFinancePage: React.FC = () => {
                       <button
                         type="button"
                         title="Edit Entry"
-                        className="p-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer shadow-2xs"
                         onClick={() => addToast(`Editing ${rec.id}`, 'info')}
                       >
                         <Pencil size={13} />
@@ -1361,7 +1767,7 @@ export const BranchFinancePage: React.FC = () => {
                       <button
                         type="button"
                         title="Delete Entry"
-                        className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shadow-2xs"
                         onClick={() => {
                           setRecords(prev => prev.filter(r => r.id !== rec.id));
                           addToast(`Entry ${rec.id} removed`, 'success');
@@ -1385,7 +1791,7 @@ export const BranchFinancePage: React.FC = () => {
           setIsAddModalOpen(false);
           setEditingRecord(null);
         }}
-        title={editingRecord ? `Edit ${editingRecord.income_record_number}` : `Record ${viewInfo.title} Entry`}
+        title={editingRecord ? `Edit Record • ${editingRecord.income_record_number}` : `Record ${viewInfo.title} Entry`}
         size="md"
       >
         <form onSubmit={handleSaveRecord} className="space-y-4 text-sm text-slate-600">
@@ -1497,7 +1903,7 @@ export const BranchFinancePage: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" className="font-bold" disabled={submittingForm}>
+            <Button type="submit" variant="primary" className="font-bold shadow-xs" disabled={submittingForm}>
               {submittingForm ? <Loader2 size={15} className="animate-spin mr-1.5" /> : null}
               {editingRecord ? 'Update Record' : isOtherExpense ? 'Save Expense Record' : 'Save Income Record'}
             </Button>
@@ -1514,51 +1920,87 @@ export const BranchFinancePage: React.FC = () => {
           size="md"
         >
           <div className="space-y-4 text-sm">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
-              <div className="flex justify-between items-center border-b border-slate-200/60 pb-2.5">
-                <span className="text-xs font-bold uppercase text-slate-500">Record Number</span>
-                <span className="font-mono font-bold text-sm text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200">
-                  {viewingRecord.income_record_number}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">Income Title</span>
-                <span className="font-bold text-slate-900">{viewingRecord.title}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">Amount Received</span>
-                <span className="font-bold text-base text-emerald-700">{fmt(viewingRecord.amount)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">Income Date</span>
-                <span className="font-semibold text-slate-700">{fmtDate(viewingRecord.income_date)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">Payment Mode</span>
-                <span className="capitalize font-semibold text-slate-700">{(viewingRecord.payment_mode || '').replace(/_/g, ' ')}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold uppercase text-slate-500">Reference / UTR</span>
-                <span className="font-mono font-semibold text-slate-700">{viewingRecord.reference_number || '—'}</span>
-              </div>
-              {viewingRecord.creator_name && (
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase text-slate-500">Recorded By</span>
-                  <span className="text-slate-600">{viewingRecord.creator_name}</span>
+            {/* Elegant Receipt Card */}
+            <div className="bg-gradient-to-b from-slate-50 to-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                    <Receipt size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Record Number</span>
+                    <span className="font-mono font-bold text-sm text-blue-700">
+                      {viewingRecord.income_record_number}
+                    </span>
+                  </div>
                 </div>
-              )}
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Amount Received</span>
+                  <span className="font-black font-mono text-xl text-emerald-600">
+                    +{fmt(viewingRecord.amount)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Income Title</span>
+                  <span className="font-bold text-slate-900 text-sm">{viewingRecord.title}</span>
+                </div>
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Income Date</span>
+                  <span className="font-semibold text-slate-700 flex items-center gap-1 mt-0.5">
+                    <Calendar size={13} className="text-slate-400" />
+                    {fmtDate(viewingRecord.income_date)}
+                  </span>
+                </div>
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Payment Mode</span>
+                  <div className="mt-1">
+                    {renderPaymentModeBadge(viewingRecord.payment_mode)}
+                  </div>
+                </div>
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Reference / UTR</span>
+                  <span className="font-mono font-semibold text-slate-700 mt-0.5 block truncate">
+                    {viewingRecord.reference_number || '—'}
+                  </span>
+                </div>
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Branch</span>
+                  <span className="font-semibold text-slate-700 flex items-center gap-1 mt-0.5">
+                    <Building2 size={13} className="text-slate-400" />
+                    {viewingRecord.branch_name || 'Main Campus'}
+                  </span>
+                </div>
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Recorded By</span>
+                  <span className="font-semibold text-slate-700 mt-0.5 block truncate">
+                    {viewingRecord.creator_name || 'Finance Staff'}
+                  </span>
+                </div>
+              </div>
+
               {viewingRecord.description && (
-                <div className="pt-2 border-t border-slate-200/60">
-                  <span className="text-xs font-bold uppercase text-slate-500 block mb-1">Description</span>
-                  <p className="text-slate-700 text-xs leading-relaxed bg-white p-2.5 rounded border border-slate-200">
+                <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Description / Notes</span>
+                  <p className="text-slate-700 text-xs leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/80">
                     {viewingRecord.description}
                   </p>
                 </div>
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setViewingRecord(null)}>
+            <div className="flex justify-between items-center gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 font-bold"
+              >
+                <Printer size={14} /> Print Receipt
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setViewingRecord(null)}>
                 Close
               </Button>
             </div>
@@ -1575,14 +2017,14 @@ export const BranchFinancePage: React.FC = () => {
           size="sm"
         >
           <div className="space-y-4 text-sm text-slate-600">
-            <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+            <div className="flex items-center gap-3 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800">
               <AlertTriangle size={24} className="shrink-0 text-rose-600" />
               <p className="text-xs font-medium">
                 Are you sure you want to delete other income record <strong className="font-bold">{deletingRecord.income_record_number}</strong> ({fmt(deletingRecord.amount)})?
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              This action will remove the entry from your active financial revenue totals.
+              This action will remove the entry from your active financial revenue totals permanently.
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setDeletingRecord(null)} disabled={submittingForm}>
@@ -1606,7 +2048,7 @@ export const BranchFinancePage: React.FC = () => {
           size="sm"
         >
           <div className="space-y-4 text-sm text-slate-600">
-            <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+            <div className="flex items-center gap-3 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800">
               <AlertTriangle size={24} className="shrink-0 text-rose-600" />
               <p className="text-xs font-medium">
                 Are you sure you want to delete expense record <strong className="font-bold">{deletingExpenseRecord.expense_record_number}</strong> ({fmt(deletingExpenseRecord.amount)})?

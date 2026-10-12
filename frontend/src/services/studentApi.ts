@@ -166,7 +166,7 @@ const getStudentBasePath = (): string => {
       if (role === 'finance' || userType === 'finance') {
         return '/branch/finance/students';
       }
-      if (role === 'branch-admin' || role === 'branch_admin') {
+      if (role === 'branch-admin' || role === 'branch_admin' || role === 'counsellor') {
         return '/branch/students';
       }
     }

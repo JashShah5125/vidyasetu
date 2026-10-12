@@ -216,7 +216,7 @@ const timetableModel = {
                AND (r.code = 'teacher' OR sp.employee_type = 'Teaching')
                AND (
                  uba.id IS NOT NULL 
-                 OR JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON))
+                 OR JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR))
                  OR EXISTS (SELECT 1 FROM teacher_allocations ta WHERE ta.teacher_user_id = u.id AND ta.branch_id = ? AND ta.tenant_id = ?)
                )
              GROUP BY u.id

@@ -254,10 +254,10 @@ const getStaffList = async (tenantId, filters = {}, accessContext = { scope: 'TE
     if (accessContext.scope !== 'BRANCH' && filters.branchId && filters.branchId !== 'All') {
         const isNumeric = !isNaN(Number(filters.branchId)) && String(filters.branchId).trim() !== '';
         if (isNumeric) {
-            query += ` AND (JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON)) OR b.id = ?)`;
+            query += ` AND (JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR)) OR b.id = ?)`;
             params.push(String(filters.branchId), Number(filters.branchId));
         } else {
-            query += ` AND (b.name = ? OR EXISTS (SELECT 1 FROM branches br WHERE br.tenant_id = sp.tenant_id AND br.name = ? AND JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(br.id AS JSON))))`;
+            query += ` AND (b.name = ? OR EXISTS (SELECT 1 FROM branches br WHERE br.tenant_id = sp.tenant_id AND br.name = ? AND JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(br.id AS CHAR))))`;
             params.push(filters.branchId, filters.branchId);
         }
     }
@@ -350,10 +350,10 @@ const getStaffList = async (tenantId, filters = {}, accessContext = { scope: 'TE
     if (accessContext.scope !== 'BRANCH' && filters.branchId && filters.branchId !== 'All') {
         const isNumeric = !isNaN(Number(filters.branchId)) && String(filters.branchId).trim() !== '';
         if (isNumeric) {
-            countQuery += ` AND (JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS JSON)) OR b.id = ?)`;
+            countQuery += ` AND (JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(? AS CHAR)) OR b.id = ?)`;
             countParams.push(String(filters.branchId), Number(filters.branchId));
         } else {
-            countQuery += ` AND (b.name = ? OR EXISTS (SELECT 1 FROM branches br WHERE br.tenant_id = sp.tenant_id AND br.name = ? AND JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(br.id AS JSON))))`;
+            countQuery += ` AND (b.name = ? OR EXISTS (SELECT 1 FROM branches br WHERE br.tenant_id = sp.tenant_id AND br.name = ? AND JSON_CONTAINS(COALESCE(sp.branch_ids, JSON_ARRAY()), CAST(br.id AS CHAR))))`;
             countParams.push(filters.branchId, filters.branchId);
         }
     }

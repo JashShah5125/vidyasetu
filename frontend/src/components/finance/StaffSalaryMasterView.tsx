@@ -25,11 +25,56 @@ import {
   CheckCircle2,
   Layers,
   ArrowUpDown,
-  RotateCcw
+  RotateCcw,
+  ChevronDown,
+  X,
+  BadgeCheck,
+  TrendingUp
 } from 'lucide-react';
 import { formatDate } from '../../utils/dateFormatter';
 
 const fmt = (n: number) => '₹' + (Number(n) || 0).toLocaleString('en-IN');
+
+const getEmployeeTypeBadge = (type?: string) => {
+  switch (type?.toLowerCase()) {
+    case 'teaching':
+      return {
+        bg: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
+        dot: 'bg-indigo-500',
+        label: 'Teaching'
+      };
+    case 'non-teaching':
+      return {
+        bg: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+        dot: 'bg-emerald-500',
+        label: 'Non-Teaching'
+      };
+    case 'administration':
+      return {
+        bg: 'bg-amber-50 text-amber-700 border-amber-200/80',
+        dot: 'bg-amber-500',
+        label: 'Administration'
+      };
+    case 'counsellor':
+      return {
+        bg: 'bg-purple-50 text-purple-700 border-purple-200/80',
+        dot: 'bg-purple-500',
+        label: 'Counsellor'
+      };
+    case 'management':
+      return {
+        bg: 'bg-rose-50 text-rose-700 border-rose-200/80',
+        dot: 'bg-rose-500',
+        label: 'Management'
+      };
+    default:
+      return {
+        bg: 'bg-slate-100 text-slate-700 border-slate-200',
+        dot: 'bg-slate-400',
+        label: type || 'Staff'
+      };
+  }
+};
 
 interface StaffSalaryMasterViewProps {
   branchFilter?: string;
@@ -114,6 +159,21 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
     return { totalStaff, totalAllocated, avgSalary };
   }, [staffList, total]);
 
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() ||
+    employeeTypeFilter !== 'All' ||
+    (branchFilter !== 'All' && branchOptions.length > 2)
+  );
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setEmployeeTypeFilter('All');
+    if (onBranchChange && branchFilter !== 'All') {
+      onBranchChange('All');
+    }
+    setPage(1);
+  };
+
   // If in-page Edit View is active
   if (editingStaff) {
     return (
@@ -143,72 +203,78 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* ── Standard 3-Column Compact KPI Financial Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="border-l-4 border-l-blue-600 shadow-xs hover:shadow-sm transition-shadow">
-          <div className="p-3 sm:p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
-                Total Active Staff
-              </span>
-              <div className="w-6.5 h-6.5 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center">
-                <Users size={14} />
-              </div>
-            </div>
-            <div className="text-xl font-bold text-slate-900 mt-0.5 tabular-nums tracking-tight">
-              {stats.totalStaff} Members
-            </div>
-            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-              Across all department designations
+      {/* ── Modern Elevated 3-Column KPI Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Total Active Staff */}
+        <div className="group relative overflow-hidden bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-radial from-blue-500/10 via-transparent to-transparent rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Total Active Staff
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-blue-50/60 shadow-xs transition-transform group-hover:scale-105">
+              <Users size={20} className="stroke-[2.2]" />
             </div>
           </div>
-        </Card>
+          <div className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+            {stats.totalStaff}{' '}
+            <span className="text-sm font-semibold text-slate-500 font-sans">Members</span>
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+            <span>Across all designations & departments</span>
+          </div>
+        </div>
 
-        <Card className="border-l-4 border-l-emerald-500 shadow-xs hover:shadow-sm transition-shadow">
-          <div className="p-3 sm:p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-                Total Monthly Basic
-              </span>
-              <div className="w-6.5 h-6.5 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <DollarSign size={14} />
-              </div>
-            </div>
-            <div className="text-xl font-bold text-emerald-700 mt-0.5 tabular-nums tracking-tight">
-              {fmt(stats.totalAllocated)} <span className="text-xs font-normal text-emerald-600">/ mo</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-              Committed basic payroll expense
+        {/* Total Monthly Basic */}
+        <div className="group relative overflow-hidden bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-radial from-emerald-500/10 via-transparent to-transparent rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Total Monthly Baseline
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-4 ring-emerald-50/60 shadow-xs transition-transform group-hover:scale-105">
+              <DollarSign size={20} className="stroke-[2.2]" />
             </div>
           </div>
-        </Card>
+          <div className="text-2xl font-black font-mono text-emerald-700 tracking-tight">
+            {fmt(stats.totalAllocated)}{' '}
+            <span className="text-xs font-semibold text-emerald-600 font-sans">/ month</span>
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>Committed master compensation</span>
+          </div>
+        </div>
 
-        <Card className="border-l-4 border-l-indigo-500 shadow-xs hover:shadow-sm transition-shadow">
-          <div className="p-3 sm:p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
-                Avg. Basic Salary
-              </span>
-              <div className="w-6.5 h-6.5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <Briefcase size={14} />
-              </div>
-            </div>
-            <div className="text-xl font-bold text-indigo-900 mt-0.5 tabular-nums tracking-tight">
-              {fmt(stats.avgSalary)} <span className="text-xs font-normal text-indigo-600">/ staff</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-              Average remuneration per employee
+        {/* Avg Basic Salary */}
+        <div className="group relative overflow-hidden bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all duration-200">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-radial from-indigo-500/10 via-transparent to-transparent rounded-full -mr-8 -mt-8 pointer-events-none" />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Avg. Monthly Compensation
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center ring-4 ring-indigo-50/60 shadow-xs transition-transform group-hover:scale-105">
+              <Briefcase size={20} className="stroke-[2.2]" />
             </div>
           </div>
-        </Card>
+          <div className="text-2xl font-black font-mono text-slate-900 tracking-tight">
+            {fmt(stats.avgSalary)}{' '}
+            <span className="text-xs font-semibold text-slate-500 font-sans">/ staff</span>
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            <span>Average remuneration per member</span>
+          </div>
+        </div>
       </div>
 
-      {/* ── Filters & Search Toolbar ── */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+      {/* ── Modern Elevated Filter & Search Bar ── */}
+      <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 flex-1">
           {/* Search Input */}
           <div className="relative min-w-[240px] max-w-sm flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
@@ -216,178 +282,250 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
                 setSearchTerm(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search by name, ID, designation..."
-              className="w-full pl-9 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              placeholder="Search staff by name, ID, designation..."
+              className="w-full pl-9.5 pr-8 py-2 text-sm bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-md"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           {/* Employee Type Filter */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type:</span>
-            <select
-              value={employeeTypeFilter}
-              onChange={(e) => {
-                setEmployeeTypeFilter(e.target.value);
-                setPage(1);
-              }}
-              className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            >
-              <option value="All">All Types</option>
-              <option value="Teaching">Teaching / Faculty</option>
-              <option value="Non-Teaching">Non-Teaching</option>
-              <option value="Administration">Administration</option>
-              <option value="Counsellor">Counsellor</option>
-              <option value="Management">Management</option>
-            </select>
+            <div className="relative">
+              <select
+                value={employeeTypeFilter}
+                onChange={(e) => {
+                  setEmployeeTypeFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="appearance-none pl-3 pr-8 py-2 text-xs font-semibold bg-slate-50 hover:bg-slate-100/80 border border-slate-200/90 rounded-xl text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all"
+              >
+                <option value="All">All Types</option>
+                <option value="Teaching">Teaching / Faculty</option>
+                <option value="Non-Teaching">Non-Teaching</option>
+                <option value="Administration">Administration</option>
+                <option value="Counsellor">Counsellor</option>
+                <option value="Management">Management</option>
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
           </div>
 
           {/* Branch Filter if multi-branch */}
           {branchOptions.length > 2 && onBranchChange && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Branch:</span>
-              <select
-                value={branchFilter}
-                onChange={(e) => {
-                  onBranchChange(e.target.value);
-                  setPage(1);
-                }}
-                className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              >
-                {branchOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={branchFilter}
+                  onChange={(e) => {
+                    onBranchChange(e.target.value);
+                    setPage(1);
+                  }}
+                  className="appearance-none pl-3 pr-8 py-2 text-xs font-semibold bg-slate-50 hover:bg-slate-100/80 border border-slate-200/90 rounded-xl text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all"
+                >
+                  {branchOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
             </div>
           )}
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setSearchTerm('');
-            setEmployeeTypeFilter('All');
-            setPage(1);
-          }}
-          className="text-slate-600 hover:text-slate-900 font-semibold flex items-center gap-1.5 self-end md:self-auto"
-        >
-          <RotateCcw size={13} />
-          Reset Filters
-        </Button>
+        {/* Reset button */}
+        {hasActiveFilters && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResetFilters}
+            className="text-xs font-semibold text-slate-600 hover:text-slate-900 border-slate-200 rounded-xl px-3 py-1.5 flex items-center gap-1.5 hover:bg-slate-50 self-end md:self-auto"
+          >
+            <RotateCcw size={13} />
+            <span>Reset</span>
+          </Button>
+        )}
       </div>
 
-      {/* ── Standard Table Template Card Container ── */}
-      <Card className="p-0 overflow-hidden border border-slate-200 shadow-sm">
-
+      {/* ── Elevated Table Card ── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 space-y-3">
-            <Loader2 size={32} className="animate-spin text-blue-600" />
-            <p className="text-sm text-slate-500 font-medium">Loading staff salary structure...</p>
+          <div className="flex flex-col items-center justify-center py-20 space-y-3">
+            <div className="w-10 h-10 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+            <p className="text-sm text-slate-500 font-semibold">Loading staff salary structure...</p>
           </div>
         ) : staffList.length === 0 ? (
-          <div className="text-center py-16 px-4">
-            <Users size={40} className="mx-auto text-slate-300 mb-2.5" />
-            <h3 className="text-base font-semibold text-slate-700">No staff members found</h3>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+          <div className="text-center py-20 px-4">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 shadow-xs">
+              <Users size={28} />
+            </div>
+            <h3 className="text-base font-bold text-slate-800">No staff members found</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               {searchTerm || employeeTypeFilter !== 'All'
-                ? 'Try adjusting your search query or type filters to see staff records.'
+                ? 'Try adjusting your search criteria or resetting filters to find staff records.'
                 : 'No active staff records exist for this branch.'}
             </p>
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetFilters}
+                className="mt-4 rounded-xl text-xs font-semibold"
+              >
+                <RotateCcw size={13} className="mr-1.5" />
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <Table
             dense
             borderless
             headers={[
-              { label: 'Staff Member', align: 'left' },
-              { label: 'Employee ID', align: 'left' },
-              { label: 'Employee Type', align: 'left' },
-              { label: 'Designation', align: 'left' },
-              { label: 'Basic Monthly Salary', align: 'left' },
-              { label: 'Effective From', align: 'left' },
-              { label: 'Actions', align: 'right' }
+              { label: 'STAFF MEMBER', align: 'left' },
+              { label: 'EMPLOYEE ID', align: 'left' },
+              { label: 'EMPLOYEE TYPE', align: 'left' },
+              { label: 'DESIGNATION', align: 'left' },
+              { label: 'MONTHLY BASIC', align: 'left' },
+              { label: 'EFFECTIVE FROM', align: 'left' },
+              { label: 'ACTIONS', align: 'right' }
             ]}
           >
-            {staffList.map((staff) => (
-              <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
-                {/* Staff Member */}
-                <td className="px-3.5 py-3 text-left whitespace-nowrap">
-                  <span className="font-semibold text-slate-900 text-sm">
-                    {staff.full_name}
-                  </span>
-                </td>
+            {staffList.map((staff) => {
+              const typeBadge = getEmployeeTypeBadge(staff.employee_type);
+              const initials = (staff.full_name || 'Staff')
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
 
-                {/* Employee ID */}
-                <td className="px-3.5 py-3 text-left whitespace-nowrap font-mono text-xs text-slate-600 font-medium">
-                  {staff.employee_id || `ID: ${staff.id}`}
-                </td>
+              return (
+                <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors group">
+                  {/* Staff Member */}
+                  <td className="px-4 py-3.5 text-left whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center border border-slate-200/80 shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+                        {initials}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-sm leading-tight">
+                          {staff.full_name}
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium">
+                          {staff.department || 'Active Staff'}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
 
-                {/* Employee Type */}
-                <td className="px-3.5 py-3 text-left whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                    {staff.employee_type || 'Staff'}
-                  </span>
-                </td>
+                  {/* Employee ID */}
+                  <td className="px-4 py-3.5 text-left whitespace-nowrap">
+                    <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100/90 px-2.5 py-1 rounded-md border border-slate-200/80">
+                      {staff.employee_id || `ID: ${staff.id}`}
+                    </span>
+                  </td>
 
-                {/* Designation */}
-                <td className="px-3.5 py-3 text-left text-xs font-medium text-slate-700 whitespace-nowrap">
-                  {staff.designation || staff.department || '—'}
-                </td>
-
-                {/* Basic Monthly Salary */}
-                <td className="px-3.5 py-3 text-left whitespace-nowrap font-bold text-slate-900 text-sm">
-                  {fmt(staff.salary_amount)}
-                </td>
-
-                {/* Effective From */}
-                <td className="px-3.5 py-3 text-left text-slate-600 text-xs font-medium whitespace-nowrap">
-                  {staff.salary_effective_from ? formatDate(staff.salary_effective_from) : 'Joining Date'}
-                </td>
-
-                {/* Actions */}
-                <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setEditingStaff(staff)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:text-blue-800 hover:bg-blue-50 border border-blue-200"
+                  {/* Employee Type */}
+                  <td className="px-4 py-3.5 text-left whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${typeBadge.bg}`}
                     >
-                      <Pencil size={13} />
-                      <span>Edit Salary</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setHistoryStaffId(staff.id)}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200"
-                      title="View complete payment history"
-                    >
-                      <Eye size={13} />
-                      <span>History</span>
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      <span className={`w-1.5 h-1.5 rounded-full ${typeBadge.dot}`} />
+                      {typeBadge.label}
+                    </span>
+                  </td>
+
+                  {/* Designation */}
+                  <td className="px-4 py-3.5 text-left text-xs font-semibold text-slate-700 whitespace-nowrap">
+                    {staff.designation || staff.department || '—'}
+                  </td>
+
+                  {/* Basic Monthly Salary */}
+                  <td className="px-4 py-3.5 text-left whitespace-nowrap">
+                    <span className="font-black font-mono text-slate-900 text-sm tracking-tight">
+                      {fmt(staff.salary_amount)}
+                    </span>
+                    <span className="text-[11px] text-slate-400 ml-1 font-medium">/mo</span>
+                  </td>
+
+                  {/* Effective From */}
+                  <td className="px-4 py-3.5 text-left text-xs font-medium text-slate-600 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={13} className="text-slate-400 shrink-0" />
+                      <span>{staff.salary_effective_from ? formatDate(staff.salary_effective_from) : 'Joining Date'}</span>
+                    </div>
+                  </td>
+
+                  {/* Actions */}
+                  <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingStaff(staff)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white border border-indigo-200/80 transition-all shadow-2xs hover:shadow-xs active:scale-95"
+                      >
+                        <Pencil size={13} />
+                        <span>Edit Salary</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHistoryStaffId(staff.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 transition-all shadow-2xs hover:shadow-xs active:scale-95"
+                        title="View complete payment history"
+                      >
+                        <Eye size={13} />
+                        <span>History</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </Table>
         )}
 
-        {/* Pagination */}
+        {/* Modern Summary Strip & Pagination */}
         {staffList.length > 0 && (
-          <div className="border-t border-slate-200">
-            <Pagination
-              currentPage={page}
-              totalPages={Math.max(1, Math.ceil(total / limit))}
-              totalItems={total}
-              pageSize={limit}
-              onPageChange={setPage}
-            />
+          <div className="border-t border-slate-200/80 bg-slate-50/50">
+            <div className="px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 font-medium">
+              <div className="flex items-center gap-2">
+                <span>Showing <strong>{staffList.length}</strong> of <strong>{total}</strong> active staff members</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span>
+                  Page Basic Allocation:{' '}
+                  <strong className="font-mono text-slate-900">{fmt(stats.totalAllocated)}</strong>
+                </span>
+              </div>
+            </div>
+            <div className="border-t border-slate-200/60">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, Math.ceil(total / limit))}
+                totalItems={total}
+                pageSize={limit}
+                onPageChange={setPage}
+              />
+            </div>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 };
+
