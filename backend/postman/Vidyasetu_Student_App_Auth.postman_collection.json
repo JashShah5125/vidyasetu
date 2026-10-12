@@ -1,0 +1,2183 @@
+{
+	"info": {
+		"_postman_id": "8f3b145a-c21d-4de3-92f7-e7d639b7f58a",
+		"name": "Vidyasetu Student Application API Suite",
+		"description": "Complete Postman Collection for Vidyasetu Student Mobile App & Web Portal APIs (Modules 1 to 5).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Module 1: Auth & Device Management",
+			"item": [
+				{
+					"name": "1. Student Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Login successful and returns tokens\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('tokens');",
+									"    pm.expect(jsonData.data.tokens).to.have.property('accessToken');",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set(\"studentAccessToken\", jsonData.data.tokens.accessToken);",
+									"    pm.collectionVariables.set(\"studentRefreshToken\", jsonData.data.tokens.refreshToken);",
+									"    if (jsonData.data.student) {",
+									"        pm.collectionVariables.set(\"studentMobile\", jsonData.data.student.mobile);",
+									"    }",
+									"    console.log(\"Saved studentAccessToken and studentRefreshToken to collection variables\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"identifier\": \"STU-2026-0003\",\n  \"password\": \"student123\",\n  \"deviceMeta\": {\n    \"deviceIdentifier\": \"pixel-8-uuid-test-999\",\n    \"deviceName\": \"Pixel 8 Pro\",\n    \"osType\": \"Android\",\n    \"osVersion\": \"14\",\n    \"appVersion\": \"1.0.0\",\n    \"fcmToken\": \"mock_fcm_token_abcdef123456789\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticate student via Student Code, Email, or Mobile and receive JWT access + refresh tokens."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Refresh Access Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Token refreshed successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('accessToken');",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set(\"studentAccessToken\", jsonData.data.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{studentRefreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/refresh-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"refresh-token"
+							]
+						},
+						"description": "Generate a new short-lived JWT access token using the stored refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Register Device & Push Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Device registered successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"deviceIdentifier\": \"pixel-8-uuid-test-999\",\n  \"deviceName\": \"Pixel 8 Pro\",\n  \"osType\": \"Android\",\n  \"osVersion\": \"14\",\n  \"appVersion\": \"1.0.0\",\n  \"fcmToken\": \"mock_fcm_token_abcdef123456789\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/register-device",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"register-device"
+							]
+						},
+						"description": "Register or update student phone device metadata and FCM push notification token."
+					},
+					"response": []
+				},
+				{
+					"name": "4. Change Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Password changed successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"student123\",\n  \"newPassword\": \"student123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/change-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"change-password"
+							]
+						},
+						"description": "Update password for the currently logged in student user."
+					},
+					"response": []
+				},
+				{
+					"name": "5. Forgot Password (Request OTP)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"OTP generated/dispatched\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.devOtp) {",
+									"    pm.collectionVariables.set(\"devOtp\", jsonData.devOtp);",
+									"    console.log(\"Saved devOtp:\", jsonData.devOtp);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"identifier\": \"STU-2026-0003\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"forgot-password"
+							]
+						},
+						"description": "Request password reset OTP by providing Student Code, Email, or Mobile."
+					},
+					"response": []
+				},
+				{
+					"name": "6. Reset Password (Verify OTP)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Password reset successful\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobile\": \"{{studentMobile}}\",\n  \"otp\": \"{{devOtp}}\",\n  \"newPassword\": \"student123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"reset-password"
+							]
+						},
+						"description": "Verify OTP and set a new password."
+					},
+					"response": []
+				},
+				{
+					"name": "7. Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Logout successful\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{studentRefreshToken}}\",\n  \"fcmToken\": \"mock_fcm_token_abcdef123456789\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Invalidate user session and deactivate device push token."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 2: Profile & Demographics",
+			"item": [
+				{
+					"name": "1. Get Full Student Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Profile retrieved successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('studentId');",
+									"    pm.expect(jsonData.data).to.have.property('studentCode');",
+									"    pm.expect(jsonData.data).to.have.property('academic');",
+									"    pm.expect(jsonData.data).to.have.property('branch');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"profile"
+							]
+						},
+						"description": "Fetch authenticated student's full profile including personal demographics, academic batch info, and branch."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Update Allowed Contact & Address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Profile updated successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data.contact.address.city).to.eql('Pune');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"city\": \"Pune\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"411038\",\n  \"bloodGroup\": \"B+\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"profile"
+							]
+						},
+						"description": "Update permitted student profile fields (address, blood group, contact). Immutable fields like student_code, full_name, dob, and branch are strictly blocked."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Upload Profile Photo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "photo",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/profile/photo",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"profile",
+								"photo"
+							]
+						},
+						"description": "Upload a new avatar photo for the student profile."
+					},
+					"response": []
+				},
+				{
+					"name": "4. Get Guardian Details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Guardians list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/profile/guardians",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"profile",
+								"guardians"
+							]
+						},
+						"description": "Get parent/guardian profiles and emergency contact details."
+					},
+					"response": []
+				},
+				{
+					"name": "5. Get Uploaded Documents",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Documents list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/profile/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"profile",
+								"documents"
+							]
+						},
+						"description": "List uploaded student certificates, marksheets, and their verification statuses."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 3: Academic Enrollment & Faculty",
+			"item": [
+				{
+					"name": "1. Get Active Academic Enrollment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Enrollment details returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('enrollmentId');",
+									"    pm.expect(jsonData.data).to.have.property('batch');",
+									"    pm.expect(jsonData.data).to.have.property('course');",
+									"    pm.expect(jsonData.data).to.have.property('academicYear');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/academic/enrollment",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"academic",
+								"enrollment"
+							]
+						},
+						"description": "Get active academic batch, course, program, academic year, classroom, and branch allocation for the student."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Enrolled Subjects",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Subjects list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.subjects)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/academic/subjects",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"academic",
+								"subjects"
+							]
+						},
+						"description": "List all enrolled subjects (Physics, Chemistry, Mathematics, etc.) for the student's active batch/level/bundle."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Assigned Faculty",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Faculty list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.faculty)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/academic/faculty",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"academic",
+								"faculty"
+							]
+						},
+						"description": "List all faculty members and teachers assigned to teach this student's batch with their designations and mapped subjects."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 4: Timetable & Schedule",
+			"item": [
+				{
+					"name": "1. Get Today Schedule",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Today schedule returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('date');",
+									"    pm.expect(jsonData.data).to.have.property('lectures');",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.lectures && jsonData.data.lectures.length > 0) {",
+									"    pm.collectionVariables.set(\"sampleLectureId\", jsonData.data.lectures[0].lectureId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/schedule/today",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"schedule",
+								"today"
+							]
+						},
+						"description": "Fetch today's scheduled lectures for the student's active batch with timing, subject, teacher, and classroom details."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Calendar Schedule",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Calendar schedule returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('days');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/schedule/calendar?from=2026-10-05&to=2026-10-11",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"schedule",
+								"calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-10-05"
+								},
+								{
+									"key": "to",
+									"value": "2026-10-11"
+								}
+							]
+						},
+						"description": "Fetch weekly/monthly calendar timetable with date range query parameters (?from=YYYY-MM-DD&to=YYYY-MM-DD)."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Lecture Session Details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Lecture details returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('lectureId');",
+									"    pm.expect(jsonData.data).to.have.property('subject');",
+									"    pm.expect(jsonData.data).to.have.property('teacher');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/schedule/lectures/{{sampleLectureId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"schedule",
+								"lectures",
+								"{{sampleLectureId}}"
+							]
+						},
+						"description": "Get deep details for a specific lecture session including topics, teacher bio, classroom info, and cancellation status."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 5: Attendance Tracker",
+			"item": [
+				{
+					"name": "1. Get Overall Attendance Summary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Attendance summary returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('overview');",
+									"    pm.expect(jsonData.data.overview).to.have.property('attendancePercentage');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/attendance/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"attendance",
+								"summary"
+							]
+						},
+						"description": "Get student's overall attendance statistics including total lectures, present count, absent count, late count, and percentage."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Attendance History Log (Month/Year)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Attendance history returned with day breakdown\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('days');",
+									"    pm.expect(jsonData.data).to.have.property('history');",
+									"    pm.expect(Array.isArray(jsonData.data.days)).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.history)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/attendance/history?month=10&year=2026",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"attendance",
+								"history"
+							],
+							"query": [
+								{
+									"key": "month",
+									"value": "10"
+								},
+								{
+									"key": "year",
+									"value": "2026"
+								}
+							]
+						},
+						"description": "Get date-wise attendance records with filters for month/year or date range (?from=YYYY-MM-DD&to=YYYY-MM-DD)."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Attendance Log for Specific Day (?date=)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Day-wise attendance returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('days');",
+									"    pm.expect(jsonData.data).to.have.property('history');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/attendance/history?date=2026-10-05",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"attendance",
+								"history"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "2026-10-05"
+								}
+							]
+						},
+						"description": "Filter lecture-wise attendance logs for a specific single day (?date=YYYY-MM-DD)."
+					},
+					"response": []
+				},
+				{
+					"name": "4. Get Subject-wise Attendance Breakdown",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Subject-wise attendance returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.subjects)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/attendance/subject-wise",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"attendance",
+								"subject-wise"
+							]
+						},
+						"description": "Get percentage and counts of attendance broken down for each enrolled subject."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 6: Homework & Assignments",
+			"item": [
+				{
+					"name": "1. List Homeworks (All)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Homeworks list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.homeworks)).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.homeworks && jsonData.data.homeworks.length > 0) {",
+									"    pm.collectionVariables.set(\"sampleHomeworkId\", jsonData.data.homeworks[0].id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/homeworks",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"homeworks"
+							]
+						},
+						"description": "List all homework assignments published for the student's enrolled batch with calculated status badge."
+					},
+					"response": []
+				},
+				{
+					"name": "2. List Homeworks (Filter by Status & Subject)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Filtered homeworks returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.homeworks)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/homeworks?status=pending&subjectId=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"homeworks"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								},
+								{
+									"key": "subjectId",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Filter homework by status (?status=pending|submitted|graded|overdue) and subject (?subjectId=...)."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Homework Details & Instructions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Homework details returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('title');",
+									"    pm.expect(jsonData.data).to.have.property('dueDate');",
+									"    pm.expect(jsonData.data).to.have.property('attachments');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/homeworks/{{sampleHomeworkId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"homeworks",
+								"{{sampleHomeworkId}}"
+							]
+						},
+						"description": "Get deep homework details, instructions, teacher attachments, due date, max marks, and existing submission."
+					},
+					"response": []
+				},
+				{
+					"name": "4. Submit Homework Solution",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Homework submitted successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('submissionId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"responseText\": \"Solved problems 1 through 12 on Coulomb's Law and electric field with diagrams.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/homeworks/{{sampleHomeworkId}}/submit",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"homeworks",
+								"{{sampleHomeworkId}}",
+								"submit"
+							]
+						},
+						"description": "Submit homework solution (text remarks and/or file attachments via multipart/form-data)."
+					},
+					"response": []
+				},
+				{
+					"name": "5. Get My Submission & Teacher Feedback",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Submission details returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('isSubmitted');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/homeworks/{{sampleHomeworkId}}/my-submission",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"homeworks",
+								"{{sampleHomeworkId}}",
+								"my-submission"
+							]
+						},
+						"description": "View student's submission status, uploaded solutions, marks obtained, and teacher evaluation feedback."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 7: Exams & Assessments",
+			"item": [
+				{
+					"name": "1. Get Upcoming Scheduled Exams",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Upcoming exams list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.exams)).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.exams && jsonData.data.exams.length > 0) {",
+									"    pm.collectionVariables.set(\"sampleExamId\", jsonData.data.exams[0].examId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/exams/upcoming",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"exams",
+								"upcoming"
+							]
+						},
+						"description": "List upcoming scheduled exams with dates, timings, max marks, passing marks, and syllabus topics."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Completed Exam Results",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Exam results returned with aggregate summary\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('summary');",
+									"    pm.expect(Array.isArray(jsonData.data.results)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/exams/results",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"exams",
+								"results"
+							]
+						},
+						"description": "List completed exam results with marks obtained, max marks, percentage, grade, and pass/fail status."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Detailed Exam Score Breakdown",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Exam result details returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('scoreCard');",
+									"    pm.expect(jsonData.data).to.have.property('evaluation');",
+									"    pm.expect(jsonData.data.scoreCard).to.have.property('marksObtained');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/exams/results/{{sampleExamId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"exams",
+								"results",
+								"{{sampleExamId}}"
+							]
+						},
+						"description": "Detailed exam score breakdown with teacher remarks, evaluation timestamp, and subject info."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 8: Doubts & Query Resolution",
+			"item": [
+				{
+					"name": "1. List Doubts (All)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Doubts list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.doubts)).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.doubts && jsonData.data.doubts.length > 0) {",
+									"    pm.collectionVariables.set(\"sampleDoubtId\", jsonData.data.doubts[0].id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/doubts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"doubts"
+							]
+						},
+						"description": "List all doubt questions submitted by the student with status and unread response counters."
+					},
+					"response": []
+				},
+				{
+					"name": "2. List Doubts (Filter by Status & Subject)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Filtered doubts returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.doubts)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/doubts?status=open&subjectId=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"doubts"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "open"
+								},
+								{
+									"key": "subjectId",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Filter doubts by status (?status=open|in_progress|resolved|reopened) and subject."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Create a New Doubt Question",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Doubt created successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('doubtId');",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.doubtId) {",
+									"    pm.collectionVariables.set(\"sampleDoubtId\", jsonData.data.doubtId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subjectId\": 1,\n  \"topic\": \"Faraday Law & Magnetic Flux Calculation\",\n  \"message\": \"Sir, how do we compute flux through a non-planar loop placed in a non-uniform field?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/doubts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"doubts"
+							]
+						},
+						"description": "Create a new academic doubt thread with subject selection and initial question."
+					},
+					"response": []
+				},
+				{
+					"name": "4. Get Doubt Thread & Messages",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Doubt thread messages returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('messages');",
+									"    pm.expect(Array.isArray(jsonData.data.messages)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/doubts/{{sampleDoubtId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"doubts",
+								"{{sampleDoubtId}}"
+							]
+						},
+						"description": "Get complete conversation thread with all back-and-forth messages, sender details, and attachments."
+					},
+					"response": []
+				},
+				{
+					"name": "5. Reply in Doubt Thread",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Reply posted successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('messageId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"message\": \"Thank you sir, could you also recommend 2 practice questions on this topic?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/doubts/{{sampleDoubtId}}/messages",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"doubts",
+								"{{sampleDoubtId}}",
+								"messages"
+							]
+						},
+						"description": "Send a follow-up reply message or attachment in an ongoing doubt thread."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module 9: Fees & Invoices",
+			"item": [
+				{
+					"name": "1. Get Overall Fee Summary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Fee summary returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('overview');",
+									"    pm.expect(jsonData.data.overview).to.have.property('netAmount');",
+									"    pm.expect(jsonData.data.overview).to.have.property('paidAmount');",
+									"    pm.expect(jsonData.data.overview).to.have.property('balanceAmount');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/fees/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"fees",
+								"summary"
+							]
+						},
+						"description": "Get student's overall fee details including total fee, concessions, paid amount, balance due, and next due installment."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Invoices List (All - Paginated)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Invoices list returned with pagination\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('pagination');",
+									"    pm.expect(Array.isArray(jsonData.data.invoices)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/fees/invoices?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"fees",
+								"invoices"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "List all installment invoices with payment dates, transaction modes, reference IDs, and balance due."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Invoices List (Filtered: status=pending)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Filtered invoices returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data.invoices)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{studentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/fees/invoices?status=pending",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"fees",
+								"invoices"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								}
+							]
+						},
+						"description": "Filter pending / upcoming installment invoices."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "studentAccessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "studentRefreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "studentMobile",
+			"value": "9988776655",
+			"type": "string"
+		},
+		{
+			"key": "devOtp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "sampleLectureId",
+			"value": "257",
+			"type": "string"
+		},
+		{
+			"key": "sampleHomeworkId",
+			"value": "37",
+			"type": "string"
+		},
+		{
+			"key": "sampleExamId",
+			"value": "5",
+			"type": "string"
+		},
+		{
+			"key": "sampleDoubtId",
+			"value": "3",
+			"type": "string"
+		}
+	]
+}

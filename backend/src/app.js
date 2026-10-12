@@ -127,6 +127,9 @@ app.use('/api/admin/users', userRoutes);
 app.use('/api/admin/roles', roleRoutes);
 app.use('/api/institute', instituteRoutes);
 
+// Student Application & Mobile Portal Module
+app.use('/api/app', require('./applications'));
+
 // 404 Handler
 app.use((req, res, next) => {
     res.status(404).json({ status: 'error', message: 'Route not found' });

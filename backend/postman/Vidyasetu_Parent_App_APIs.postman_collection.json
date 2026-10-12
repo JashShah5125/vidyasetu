@@ -1,0 +1,1468 @@
+{
+	"info": {
+		"_postman_id": "9d8e7f6a-5b4c-3a21-9e8d-7c6b5a4f3e21",
+		"name": "Vidyasetu Parent Application API Suite",
+		"description": "Complete Postman Collection for Vidyasetu Parent Mobile Application APIs.\nOrganized into clean modules with automated test scripts and collection variables.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Module 0: Parent Auth & Session",
+			"item": [
+				{
+					"name": "1. Parent Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Login successful for Parent\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data.userType).to.eql('parent');",
+									"    pm.expect(jsonData.data).to.have.property('tokens');",
+									"    pm.expect(jsonData.data.tokens).to.have.property('accessToken');",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.tokens) {",
+									"    pm.collectionVariables.set(\"parentAccessToken\", jsonData.data.tokens.accessToken);",
+									"    pm.collectionVariables.set(\"parentRefreshToken\", jsonData.data.tokens.refreshToken);",
+									"    if (jsonData.data.parent && jsonData.data.parent.children && jsonData.data.parent.children.length > 0) {",
+									"        pm.collectionVariables.set(\"childStudentId\", String(jsonData.data.parent.children[0].studentId));",
+									"    }",
+									"    console.log(\"Saved parentAccessToken, parentRefreshToken, and childStudentId\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"identifier\": \"{{parentIdentifier}}\",\n  \"password\": \"{{parentPassword}}\",\n  \"deviceMeta\": {\n    \"deviceIdentifier\": \"parent-galaxy-s24-mock-001\",\n    \"deviceName\": \"Galaxy S24 Ultra\",\n    \"osType\": \"Android\",\n    \"osVersion\": \"14\",\n    \"appVersion\": \"1.0.0\",\n    \"fcmToken\": \"mock_parent_fcm_token_9876543210\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. Refresh Access Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"New access token returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('accessToken');",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set(\"parentAccessToken\", jsonData.data.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{parentRefreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/refresh-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"refresh-token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3. Change Password (Authenticated)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Password changed successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"parent123\",\n  \"newPassword\": \"parent123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/change-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"change-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "4. Forgot Password - Request OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"OTP request acknowledged\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.devOtp) {",
+									"    pm.collectionVariables.set(\"devResetOtp\", jsonData.data.devOtp);",
+									"    console.log(\"Saved devResetOtp:\", jsonData.data.devOtp);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"identifier\": \"{{parentIdentifier}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"forgot-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "5. Reset Password using OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 or 400\", function () {",
+									"    pm.expect([200, 400]).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobile\": \"9988770011\",\n  \"otp\": \"{{devResetOtp}}\",\n  \"newPassword\": \"parent123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"reset-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "6. Register Device & Push Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"deviceIdentifier\": \"parent-galaxy-s24-mock-001\",\n  \"deviceName\": \"Galaxy S24 Ultra\",\n  \"osType\": \"Android\",\n  \"osVersion\": \"14\",\n  \"appVersion\": \"1.0.0\",\n  \"fcmToken\": \"mock_parent_fcm_token_9876543210\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/register-device",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"register-device"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "7. Parent Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{parentRefreshToken}}\",\n  \"deviceIdentifier\": \"parent-galaxy-s24-mock-001\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"auth",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module P1: Parent Profile & Account",
+			"item": [
+				{
+					"name": "1. Get Parent Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Parent profile details returned with linked children\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('guardianId');",
+									"    pm.expect(jsonData.data).to.have.property('fullName');",
+									"    pm.expect(jsonData.data).to.have.property('email');",
+									"    pm.expect(jsonData.data).to.have.property('mobile');",
+									"    pm.expect(jsonData.data).to.have.property('children');",
+									"    pm.expect(Array.isArray(jsonData.data.children)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. Update Parent Contact & Address Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Parent profile updated successfully\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data.occupation).to.eql('Senior Software Engineer');",
+									"    pm.expect(jsonData.data.address).to.eql('Flat 402, Sunshine Heights, Pune');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"occupation\": \"Senior Software Engineer\",\n  \"address\": \"Flat 402, Sunshine Heights, Pune\",\n  \"relation\": \"Father\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3. Upload Parent Profile Photo Avatar",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 or 400 if no file selected in runner\", function () {",
+									"    pm.expect([200, 400]).to.include(pm.response.code);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "photo",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/profile/photo",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"profile",
+								"photo"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module P2: Family Dashboard & Multi-Child Overview",
+			"item": [
+				{
+					"name": "1. Get Parent Home Aggregated Dashboard",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Family overview and children summaries returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('greeting');",
+									"    pm.expect(jsonData.data).to.have.property('children');",
+									"    pm.expect(jsonData.data).to.have.property('parentActions');",
+									"    pm.expect(jsonData.data).to.have.property('recentUpdates');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/home",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"home"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Linked Children List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"List of linked children returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(Array.isArray(jsonData.data)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Child Deep-Dive Overview (Single Child)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Child academic snapshot, weekly attendance, and upcoming agenda returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('student');",
+									"    pm.expect(jsonData.data).to.have.property('attendance');",
+									"    pm.expect(jsonData.data.attendance).to.have.property('overallPercentage');",
+									"    pm.expect(jsonData.data.attendance).to.have.property('daysAttendedThisWeek');",
+									"    pm.expect(jsonData.data).to.have.property('academicSnapshot');",
+									"    pm.expect(jsonData.data).to.have.property('upcoming');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/overview",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"overview"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module P3: Child Academic & Schedule Monitoring",
+			"item": [
+				{
+					"name": "1. Child Timetable Today",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Child today's timetable returned with batch lectures\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('date');",
+									"    pm.expect(jsonData.data).to.have.property('dayOfWeek');",
+									"    pm.expect(jsonData.data).to.have.property('lectures');",
+									"    pm.expect(Array.isArray(jsonData.data.lectures)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/timetable/today",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"timetable",
+								"today"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. Child Timetable Calendar Range",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Calendar schedule returned for date range\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('range');",
+									"    pm.expect(jsonData.data).to.have.property('days');",
+									"    pm.expect(Array.isArray(jsonData.data.days)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/timetable/calendar?from=2026-09-01&to=2026-09-07",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"timetable",
+								"calendar"
+							],
+							"query": [
+								{
+									"key": "from",
+									"value": "2026-09-01"
+								},
+								{
+									"key": "to",
+									"value": "2026-09-07"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3. Child Attendance Summary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Child overall attendance summary & standing returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('overallPercentage');",
+									"    pm.expect(jsonData.data).to.have.property('standingStatus');",
+									"    pm.expect(jsonData.data).to.have.property('requiredPercentage');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/attendance/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"attendance",
+								"summary"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "4. Child Attendance History Log",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Child attendance history days returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('days');",
+									"    pm.expect(Array.isArray(jsonData.data.days)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/attendance/history?month=9&year=2026",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"attendance",
+								"history"
+							],
+							"query": [
+								{
+									"key": "month",
+									"value": "9"
+								},
+								{
+									"key": "year",
+									"value": "2026"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "5. Child Subject-Wise Attendance",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Subject-wise attendance breakdown returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('subjects');",
+									"    pm.expect(Array.isArray(jsonData.data.subjects)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/attendance/subject-wise",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"attendance",
+								"subject-wise"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "6. Child Upcoming Scheduled Exams",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Upcoming exams list returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('upcomingExams');",
+									"    pm.expect(Array.isArray(jsonData.data.upcomingExams)).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/exams/upcoming",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"exams",
+								"upcoming"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "7. Child Exam Results (Completed)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Completed exam results with pagination returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"    pm.expect(Array.isArray(jsonData.data)).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.length > 0) {",
+									"    pm.collectionVariables.set(\"childExamId\", String(jsonData.data[0].examId));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/exams/results?page=1&limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"exams",
+								"results"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "8. Child Exam Result Details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Detailed score breakdown returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('examId');",
+									"    pm.expect(jsonData.data).to.have.property('marksObtained');",
+									"    pm.expect(jsonData.data).to.have.property('grade');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/exams/results/{{childExamId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"exams",
+								"results",
+								"{{childExamId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "9. Child Assigned Homeworks List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Homeworks list returned with pagination\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"    pm.expect(Array.isArray(jsonData.data)).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.data && jsonData.data.length > 0) {",
+									"    pm.collectionVariables.set(\"childHomeworkId\", String(jsonData.data[0].id));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/homeworks?page=1&limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"homeworks"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "10. Child Homework Details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Homework details & submission returned\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('id');",
+									"    pm.expect(jsonData.data).to.have.property('title');",
+									"    pm.expect(jsonData.data).to.have.property('subject');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/homeworks/{{childHomeworkId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"homeworks",
+								"{{childHomeworkId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Module P4: Fees & Online Payments",
+			"item": [
+				{
+					"name": "1. Get Fee Summary for Child",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Child fee summary returned with overview & next installment\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('student');",
+									"    pm.expect(jsonData.data).to.have.property('overview');",
+									"    pm.expect(jsonData.data.overview).to.have.property('grossAmount');",
+									"    pm.expect(jsonData.data.overview).to.have.property('paidAmount');",
+									"    pm.expect(jsonData.data.overview).to.have.property('outstandingBalance');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/fees/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"fees",
+								"summary"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Invoices & Fee Breakdown for Child",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.test(\"Invoices list returned with pagination & breakdown heads\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData).to.have.property('invoices');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"    pm.expect(Array.isArray(jsonData.invoices)).to.eql(true);",
+									"    if (jsonData.invoices.length > 0) {",
+									"        pm.expect(jsonData.invoices[0]).to.have.property('breakdownHeads');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{parentAccessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/app/parent/children/{{childStudentId}}/fees/invoices?page=1&limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"app",
+								"parent",
+								"children",
+								"{{childStudentId}}",
+								"fees",
+								"invoices"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000"
+		},
+		{
+			"key": "parentIdentifier",
+			"value": "parent.9988770011@parent.vidyasetu.com"
+		},
+		{
+			"key": "parentPassword",
+			"value": "parent123"
+		},
+		{
+			"key": "parentAccessToken",
+			"value": ""
+		},
+		{
+			"key": "parentRefreshToken",
+			"value": ""
+		},
+		{
+			"key": "childStudentId",
+			"value": "3"
+		},
+		{
+			"key": "childExamId",
+			"value": "5"
+		},
+		{
+			"key": "childHomeworkId",
+			"value": "37"
+		}
+	]
+}
