@@ -137,11 +137,10 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
       }
     } catch (err: any) {
       console.error('Error fetching master staff salaries:', err);
-      addToast({
-        title: 'Error',
-        message: err?.response?.data?.message || err.message || 'Failed to load staff salary structure.',
-        type: 'error'
-      });
+      addToast(
+        err?.response?.data?.message || err.message || 'Failed to load staff salary structure.',
+        'error'
+      );
     } finally {
       setLoading(false);
     }
@@ -185,7 +184,13 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
           setEditingStaff(null);
           fetchStaffSalaries();
         }}
-        addToast={addToast}
+        addToast={(toast) => {
+          if (typeof toast === 'string') {
+            addToast(toast);
+          } else {
+            addToast(toast.message, toast.type);
+          }
+        }}
       />
     );
   }

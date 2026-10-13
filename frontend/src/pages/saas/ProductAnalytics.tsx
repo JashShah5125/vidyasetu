@@ -67,12 +67,13 @@ const FilterChips: React.FC<{ value: FilterVal; onChange: (v: FilterVal) => void
 );
 
 const TenantRow: React.FC<{
-  id: string; name: string; status: string;
+  id: string | number; name: string; status: string | number;
   value: number; max: number; unit: string; decimals?: number;
 }> = ({ id, name, status, value, max, unit, decimals = 0 }) => {
   const pct = Math.min((value / max) * 100, 100);
   const badge = getUsageBadge(pct);
   const initials = name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
+  const isActive = status === 'Active' || status === 1 || status === '1' || status === 'active';
   return (
     <div className="px-5 py-3.5 flex items-center gap-4 hover:bg-slate-50 transition-colors">
       <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -97,8 +98,8 @@ const TenantRow: React.FC<{
       <div className="text-sm font-bold text-slate-700 w-10 text-right flex-shrink-0">{pct.toFixed(0)}%</div>
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${badge.cls}`}>{badge.label}</span>
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${
-        status === 'Active' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-red-700 bg-red-50 border-red-200'
-      }`}>{status}</span>
+        isActive ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-red-700 bg-red-50 border-red-200'
+      }`}>{isActive ? 'Active' : 'Inactive'}</span>
     </div>
   );
 };

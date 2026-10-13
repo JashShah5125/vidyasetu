@@ -90,8 +90,7 @@ const UpcomingExamsTable: React.FC<UpcomingExamsTableProps> = ({ data, loading }
                   const { day, month, fullDate } = formatDateBadge(exam.dueDate);
                   const isPublished =
                     exam.status === 'Published' ||
-                    exam.status === 1 ||
-                    exam.status === '1';
+                    String(exam.status) === '1';
 
                   return (
                     <tr

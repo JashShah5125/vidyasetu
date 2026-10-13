@@ -105,6 +105,7 @@ const updateTemplateSchema = Joi.object({
             'string.base': 'Description must be a string'
         }),
     category: Joi.string()
+        .custom((val) => (val ? String(val).toUpperCase() : val))
         .valid(...VALID_CATEGORIES)
         .optional()
         .messages({
