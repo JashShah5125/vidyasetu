@@ -11,6 +11,7 @@ import {
   Loader2,
   ArrowUpRight
 } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { DashboardKpis } from '../types';
 
 interface ExecutiveKpiRowProps {
@@ -107,6 +108,14 @@ const TrendIndicator = ({ change }: { change: number }) => {
 
 const ExecutiveKpiRow: React.FC<ExecutiveKpiRowProps> = ({ kpis, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+
+  const leadsPath = isBranchAdmin ? '/branch/leads/all' : '/admin/leads/all';
+  const studentsPath = isBranchAdmin ? '/branch/students' : '/admin/students';
+  const staffPath = isBranchAdmin ? '/branch/staff' : '/admin/staff';
+  const feesPath = isBranchAdmin ? '/branch/fees' : '/admin/fees';
 
   const cards = [
     {
@@ -118,7 +127,7 @@ const ExecutiveKpiRow: React.FC<ExecutiveKpiRowProps> = ({ kpis, loading }) => {
       border: 'border border-indigo-100',
       accentBar: 'bg-indigo-500',
       subtext: 'Filtered enrollment count',
-      onClick: () => navigate('/students'),
+      onClick: () => navigate(studentsPath),
     },
     {
       label: 'Active Staff',
@@ -129,7 +138,7 @@ const ExecutiveKpiRow: React.FC<ExecutiveKpiRowProps> = ({ kpis, loading }) => {
       border: 'border border-sky-100',
       accentBar: 'bg-sky-500',
       subtext: `${kpis?.activeStaff?.teachingCount ?? 0} Teaching · ${kpis?.activeStaff?.nonTeachingCount ?? 0} Non-teaching`,
-      onClick: () => navigate('/staff'),
+      onClick: () => navigate(staffPath),
     },
     {
       label: 'Admissions',
@@ -141,7 +150,7 @@ const ExecutiveKpiRow: React.FC<ExecutiveKpiRowProps> = ({ kpis, loading }) => {
       accentBar: 'bg-emerald-500',
       badge: kpis?.admissions?.change !== undefined ? <TrendIndicator change={kpis.admissions.change} /> : undefined,
       subtext: 'New enrollments in period',
-      onClick: () => navigate('/leads-admissions'),
+      onClick: () => navigate(leadsPath),
     },
     {
       label: 'Fee Collected',
@@ -155,7 +164,7 @@ const ExecutiveKpiRow: React.FC<ExecutiveKpiRowProps> = ({ kpis, loading }) => {
         ? <TrendIndicator change={kpis.feeCollection.change} />
         : undefined,
       subtext: 'Net fees received in range',
-      onClick: () => navigate('/fees'),
+      onClick: () => navigate(feesPath),
     },
     {
       label: 'Pending Fees',
@@ -166,7 +175,7 @@ const ExecutiveKpiRow: React.FC<ExecutiveKpiRowProps> = ({ kpis, loading }) => {
       border: 'border border-amber-100',
       accentBar: 'bg-amber-500',
       subtext: `${kpis?.pendingFees?.dueCount ?? 0} students overdue`,
-      onClick: () => navigate('/fees'),
+      onClick: () => navigate(feesPath),
     },
   ];
 

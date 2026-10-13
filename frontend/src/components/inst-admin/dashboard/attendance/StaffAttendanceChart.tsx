@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { AttendanceData } from '../types';
 
 interface StaffAttendanceChartProps {
@@ -51,6 +52,14 @@ const StaffAttendanceChart: React.FC<StaffAttendanceChartProps> = ({
   loading,
 }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin =
+    currentUser?.role === 'branch-admin'
+
+  const handleClick = () => {
+    const basePath = isBranchAdmin ? '/branch/attendance' : '/admin/attendance';
+    navigate(`${basePath}?tab=staff`, { state: { tab: 'staff' } });
+  };
 
   const today = data?.today ?? {
     pct: 0,
@@ -102,7 +111,7 @@ const StaffAttendanceChart: React.FC<StaffAttendanceChartProps> = ({
 
   return (
     <div
-      onClick={() => navigate('/staff')}
+      onClick={handleClick}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-xs flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Hover accent */}

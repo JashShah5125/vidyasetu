@@ -1,16 +1,26 @@
 const Joi = require('joi');
 
-const VALID_CATEGORIES = ['AUTHENTICATION', 'ONBOARDING', 'TENANT', 'SUBSCRIPTION'];
+const VALID_CATEGORIES = [
+    'AUTHENTICATION',
+    'ONBOARDING',
+    'TENANT',
+    'SUBSCRIPTION',
+    'TRANSACTIONAL',
+    'NOTIFICATION',
+    'GENERAL',
+    'COMMUNICATION',
+    'ACADEMIC'
+];
 const VALID_STATUSES = ['ACTIVE', 'INACTIVE'];
 
 const createTemplateSchema = Joi.object({
     template_key: Joi.string()
-        .pattern(/^[A-Z][A-Z0-9_]*$/)
+        .pattern(/^[A-Za-z][A-Za-z0-9_.-]*$/)
         .max(100)
         .required()
         .messages({
             'string.empty': 'Template key is required',
-            'string.pattern.base': 'Template key must contain only uppercase letters, numbers, and underscores, and start with a letter',
+            'string.pattern.base': 'Template key must start with a letter and contain only letters, numbers, underscores, dots, or hyphens',
             'string.max': 'Template key must not exceed 100 characters',
             'any.required': 'Template key is required'
         }),
@@ -31,6 +41,7 @@ const createTemplateSchema = Joi.object({
             'string.base': 'Description must be a string'
         }),
     category: Joi.string()
+        .custom((val) => (val ? String(val).toUpperCase() : val))
         .valid(...VALID_CATEGORIES)
         .required()
         .messages({

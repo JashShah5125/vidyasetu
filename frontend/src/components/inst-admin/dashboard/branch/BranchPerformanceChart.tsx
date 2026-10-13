@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { BranchPerformanceItem } from '../types';
 
 interface BranchPerformanceChartProps {
@@ -19,6 +20,9 @@ const METRIC_OPTIONS: { label: string; value: Metric }[] = [
 
 const BranchPerformanceChart: React.FC<BranchPerformanceChartProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const branchesPath = isBranchAdmin ? '/branch/branches' : '/admin/branches';
   const [metric, setMetric] = useState<Metric>('students');
 
   const sorted = [...(data ?? [])].sort((a, b) => b[metric] - a[metric]).slice(0, 6);
@@ -32,7 +36,7 @@ const BranchPerformanceChart: React.FC<BranchPerformanceChartProps> = ({ data, l
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
       <div className="border-b border-slate-100 pb-2.5 flex items-center justify-between">
-        <div onClick={() => navigate('/branches')} className="cursor-pointer">
+        <div onClick={() => navigate(branchesPath)} className="cursor-pointer">
           <div className="flex items-center gap-1.5">
             <h4 className="font-bold text-slate-900 text-sm leading-tight group-hover:text-indigo-950 transition-colors">
               Branch Performance
@@ -64,7 +68,7 @@ const BranchPerformanceChart: React.FC<BranchPerformanceChartProps> = ({ data, l
         </div>
       </div>
 
-      <div style={{ height: 160, width: '100%' }} onClick={() => navigate('/branches')} className="cursor-pointer">
+      <div style={{ height: 160, width: '100%' }} onClick={() => navigate(branchesPath)} className="cursor-pointer">
         {loading || sorted.length === 0 ? (
           <div className="h-full flex items-center justify-center text-xs text-slate-400">
             {loading ? 'Loading performance...' : 'No branch data available'}

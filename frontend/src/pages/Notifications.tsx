@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -16,14 +16,37 @@ interface NotificationBroadcast {
   channels?: string[];
 }
 
+const INST_BROADCASTS_STORAGE_KEY = 'vidyasetu_institute_broadcasts_v1';
+
+const INITIAL_BROADCASTS: NotificationBroadcast[] = [
+  { id: 'BC-01', type: 'Announcement', title: 'Independence Day Holiday Notice', body: 'Please note that the institute will remain closed on 15th August 2026. Online classes will also be suspended.', targetAudience: 'All Users', status: 'Sent', sentAt: '2026-08-14 10:00:00', channels: ['Email', 'In-App System Notification'] },
+  { id: 'BC-02', type: 'Exam Alert', title: 'JEE Main Mock Test Series Schedule', body: 'The schedules for mock test series 3 & 4 have been released. Check details under the Homeworks & Exams tab.', targetAudience: 'JEE Prep Course Only', status: 'Sent', sentAt: '2026-08-10 14:30:00', channels: ['Email', 'SMS', 'In-App System Notification'] },
+  { id: 'BC-03', type: 'Fee Reminder', title: 'Reminder: Q2 Fee Instalment Deadline', body: 'This is a gentle reminder that the deadline for Q2 course fee payment is 25th August 2026.', targetAudience: 'Parents Only', status: 'Scheduled', sentAt: '2026-08-22 09:00:00', channels: ['Email', 'SMS'] }
+];
+
 export const Notifications: React.FC = () => {
   const { logAction, branches, currentUser } = useApp();
 
-  const [broadcasts, setBroadcasts] = useState<NotificationBroadcast[]>([
-    { id: 'BC-01', type: 'Announcement', title: 'Independence Day Holiday Notice', body: 'Please note that the institute will remain closed on 15th August 2026. Online classes will also be suspended.', targetAudience: 'All Users', status: 'Sent', sentAt: '2026-08-14 10:00:00', channels: ['Email', 'In-App System Notification'] },
-    { id: 'BC-02', type: 'Exam Alert', title: 'JEE Main Mock Test Series Schedule', body: 'The schedules for mock test series 3 & 4 have been released. Check details under the Homeworks & Exams tab.', targetAudience: 'JEE Prep Course Only', status: 'Sent', sentAt: '2026-08-10 14:30:00', channels: ['Email', 'SMS', 'In-App System Notification'] },
-    { id: 'BC-03', type: 'Fee Reminder', title: 'Reminder: Q2 Fee Instalment Deadline', body: 'This is a gentle reminder that the deadline for Q2 course fee payment is 25th August 2026.', targetAudience: 'Parents Only', status: 'Scheduled', sentAt: '2026-08-22 09:00:00', channels: ['Email', 'SMS'] }
-  ]);
+  const [broadcasts, setBroadcasts] = useState<NotificationBroadcast[]>(() => {
+    try {
+      const saved = localStorage.getItem(INST_BROADCASTS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load institute broadcasts from storage:', e);
+    }
+    return INITIAL_BROADCASTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(INST_BROADCASTS_STORAGE_KEY, JSON.stringify(broadcasts));
+    } catch (e) {
+      console.error('Failed to save institute broadcasts to storage:', e);
+    }
+  }, [broadcasts]);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [type, setType] = useState<NotificationBroadcast['type']>('Announcement');

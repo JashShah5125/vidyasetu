@@ -167,7 +167,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
         [branchPerfRows],
         [otherIncomeRows],
         [staffSalaryRows],
-        [ledgerExpenseRows],
+        [otherExpenseRows],
         [feeDuesRows],
         [attendancePendingRows],
         [openDoubtsRows],
@@ -217,7 +217,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
                ${academicYearSql}`,
             [tenantId, isoDate(prevFrom), isoDate(prevTo)]
         ),
-        // 3c. Real Admissions monthly trend for the selected year
+        // 3c. Real Admissions intake trend dynamically filtered by selected date range
         db.query(
             `SELECT
                DATE_FORMAT(s.created_at, '%b') AS label,
@@ -225,13 +225,13 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
                COUNT(*) AS count
              FROM students s
              WHERE s.tenant_id = ? AND s.deleted_at IS NULL
-               AND YEAR(s.created_at) = YEAR(?)
+               AND DATE(s.created_at) BETWEEN ? AND ?
                ${branchSql}
                ${studentAcademicSql}
                ${academicYearSql}
              GROUP BY mo, label
              ORDER BY mo ASC`,
-            [tenantId, to]
+            [tenantId, from, to]
         ),
         // 4. Fee collection in period
         db.query(
@@ -451,13 +451,16 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
                ${staffBranchSql}`,
             [tenantId]
         ),
-        // 17. Ledger expenses
+        // 17. Operational other expenses by category
         db.query(
-            `SELECT COALESCE(SUM(iel.amount), 0) AS amount
-             FROM income_expense_ledger iel
-             WHERE iel.tenant_id = ? AND iel.type = 'expense'
-               AND iel.transaction_date BETWEEN ? AND ?
-               ${branchId ? `AND iel.branch_id = ${Number(branchId)}` : ''}`,
+            `SELECT boe.category, COALESCE(SUM(boe.amount), 0) AS amount
+             FROM branch_other_expenses boe
+             WHERE boe.tenant_id = ? AND boe.deleted_at IS NULL
+               AND boe.status NOT IN (3, 4)
+               AND boe.expense_date BETWEEN ? AND ?
+               ${branchId ? `AND boe.branch_id = ${Number(branchId)}` : ''}
+             GROUP BY boe.category
+             ORDER BY amount DESC`,
             [tenantId, from, to]
         ),
         // 18. Fee dues count
@@ -723,9 +726,35 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
     const monthlySalary = Number(staffSalaryRows[0]?.total_monthly_salary) || 0;
     const proratedSalary = Math.round((monthlySalary / 30) * spanDays);
 
-    const ledgerExpenses = Number(ledgerExpenseRows[0]?.amount) || 0;
-    const totalExpenses = proratedSalary + ledgerExpenses;
+    // ── Expense Category Breakdown (100% Dynamic from Database) ──────
+    const categoryMap = new Map();
+    if (proratedSalary > 0) {
+        categoryMap.set('Staff Salaries', proratedSalary);
+    }
+    for (const row of otherExpenseRows || []) {
+        const cat = String(row.category || 'Other').trim();
+        const amt = Number(row.amount) || 0;
+        if (amt > 0) {
+            categoryMap.set(cat, (categoryMap.get(cat) || 0) + amt);
+        }
+    }
+
+    const rawBreakdown = Array.from(categoryMap.entries())
+        .map(([category, amount]) => ({
+            category,
+            amount,
+            isMock: false
+        }))
+        .sort((a, b) => b.amount - a.amount);
+
+    const totalExpenses = rawBreakdown.reduce((sum, item) => sum + item.amount, 0);
+    const otherExpenses = Math.max(0, totalExpenses - proratedSalary);
     const netFinancial = totalIncome - totalExpenses;
+
+    const expenseBreakdown = rawBreakdown.map(item => ({
+        ...item,
+        pct: totalExpenses > 0 ? Math.round((item.amount / totalExpenses) * 100) : 0
+    }));
 
     return {
         meta: {
@@ -811,10 +840,10 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
             otherIncome,
             expenses: totalExpenses,
             salaryExpenses: proratedSalary,
-            otherExpenses: ledgerExpenses,
+            otherExpenses,
             net: netFinancial
         },
-        expenseBreakdown: mockExpenseBreakdown(totalExpenses),
+        expenseBreakdown,
         attentionRequired: {
             feeDues: pendingFeeDueCount,
             lowAttendance: 0,

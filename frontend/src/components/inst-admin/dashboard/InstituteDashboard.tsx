@@ -83,20 +83,20 @@ const loadSavedFilters = (tenantId?: string | number): DashboardHeaderFilters =>
 const InstituteDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const isBranchAdmin =
-    currentUser?.role === 'branch-admin' ||
-    currentUser?.role === 'branch_admin' ||
-    currentUser?.role === 'branchadmin';
+    currentUser?.role === 'branch-admin'
+
+  const activeTenantId = currentUser?.tenantId || (currentUser as any)?.tenant_id;
 
   const [filters, setFilters] = useState<DashboardHeaderFilters>(() =>
-    loadSavedFilters(currentUser?.tenant_id)
+    loadSavedFilters(activeTenantId)
   );
 
   // Keep filters in sync with localStorage scoped to tenant
   useEffect(() => {
     try {
-      localStorage.setItem(getStorageKey(currentUser?.tenant_id), JSON.stringify(filters));
+      localStorage.setItem(getStorageKey(activeTenantId), JSON.stringify(filters));
     } catch { /* ignore */ }
-  }, [filters, currentUser?.tenant_id]);
+  }, [filters, activeTenantId]);
 
   // Branch-admin: lock to their branch
   useEffect(() => {
@@ -127,6 +127,7 @@ const InstituteDashboard: React.FC = () => {
     programId: filters.programId !== 'all' ? filters.programId : null,
     levelId: filters.levelId !== 'all' ? filters.levelId : null,
     batchId: filters.batchId !== 'all' ? filters.batchId : null,
+    tenantId: currentUser?.tenantId || (currentUser as any)?.tenant_id || null,
   };
 
   const { data, loading, error, refetch } = useDashboard(queryParams, isBranchAdmin);

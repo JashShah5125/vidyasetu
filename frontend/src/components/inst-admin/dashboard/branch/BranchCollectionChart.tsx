@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { BranchCollectionItem } from '../types';
 
 interface BranchCollectionChartProps {
@@ -19,6 +20,9 @@ const formatCurrency = (v: number) => {
 
 const BranchCollectionChart: React.FC<BranchCollectionChartProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const feesPath = isBranchAdmin ? '/branch/fees' : '/admin/fees';
 
   const sorted = [...(data ?? [])].sort((a, b) => b.amount - a.amount).slice(0, 6);
   const branchNames = sorted.map(b => b.branchName);
@@ -27,7 +31,7 @@ const BranchCollectionChart: React.FC<BranchCollectionChartProps> = ({ data, loa
 
   return (
     <div
-      onClick={() => navigate('/fees')}
+      onClick={() => navigate(feesPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-2 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}

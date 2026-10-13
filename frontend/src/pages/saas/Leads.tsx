@@ -1161,7 +1161,8 @@ export const Leads: React.FC = () => {
   const renderFormField = (label: string, key: keyof LeadFormState, required = false, placeholder = '') => (
     <div key={key} className="flex flex-col gap-1">
       <Input
-        label={label + (required ? ' *' : '')}
+        label={label}
+        required={required}
         value={form[key]}
         onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
         error={formErrors[key]}
@@ -1170,10 +1171,11 @@ export const Leads: React.FC = () => {
     </div>
   );
 
-  const formSelect = (label: string, key: keyof LeadFormState, options: { value: string; label: string }[]) => (
+  const formSelect = (label: string, key: keyof LeadFormState, options: { value: string; label: string }[], required = false) => (
     <Select
       key={key}
       label={label}
+      required={required}
       value={form[key]}
       onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
       options={options}

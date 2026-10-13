@@ -80,7 +80,7 @@ export const BillingRevenue: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 8;
 
-  // Generate list of proper Financial Years dynamically (April 1 to March 31)
+  // Generate list of proper Financial / Assessment Years dynamically (April 1 to March 31)
   const financialYears = useMemo(() => {
     const today = new Date();
     const currentMonth = today.getMonth() + 1; // 1-12
@@ -91,7 +91,7 @@ export const BillingRevenue: React.FC = () => {
     for (let i = 0; i < 6; i++) {
       const startYr = currentFyStart - i;
       const endYr = startYr + 1;
-      const label = `FY ${startYr}-${String(endYr).slice(-2)}${i === 0 ? ' (Current FY)' : ''}`;
+      const label = `AY ${startYr + 1}-${String(endYr + 1).slice(-2)} (FY ${startYr}-${String(endYr).slice(-2)})${i === 0 ? ' (Current)' : ''}`;
       const startDate = `${startYr}-04-01`;
       const endDate = `${endYr}-03-31`;
       fys.push({
@@ -122,24 +122,29 @@ export const BillingRevenue: React.FC = () => {
 
   const currentFyLabel = useMemo(() => {
     if (periodYear === 'all' && !periodStartDate && !periodEndDate) {
-      return 'All Financial Years';
+      const today = new Date();
+      const currentMonth = today.getMonth() + 1;
+      const currentFyStart = currentMonth >= 4 ? today.getFullYear() : today.getFullYear() - 1;
+      return `Assessment Year Cycle (April – March) • FY ${currentFyStart}-${String(currentFyStart + 1).slice(-2)}`;
     }
     const found = financialYears.find(f => f.value === periodYear);
     if (found && periodStartDate === found.startDate && periodEndDate === found.endDate) {
-      return `FY ${found.value}-${String(Number(found.value) + 1).slice(-2)}`;
+      const startYr = Number(found.value);
+      return `AY ${startYr + 1}-${String(startYr + 2).slice(-2)} (FY ${startYr}-${String(startYr + 1).slice(-2)}: April – March)`;
     }
     if (periodStartDate && periodEndDate) {
-      const startD = new Date(periodStartDate);
-      const endD = new Date(periodEndDate);
-      if (startD.getMonth() === 3 && startD.getDate() === 1 && endD.getMonth() === 2 && endD.getDate() === 31) {
-        return `FY ${startD.getFullYear()}-${String(endD.getFullYear()).slice(-2)}`;
+      const startParts = periodStartDate.split('-').map(Number);
+      const endParts = periodEndDate.split('-').map(Number);
+      if (startParts[1] === 4 && startParts[2] === 1 && endParts[1] === 3 && endParts[2] === 31) {
+        return `AY ${startParts[0] + 1}-${String(endParts[0] + 1).slice(-2)} (FY ${startParts[0]}-${String(endParts[0]).slice(-2)}: April – March)`;
       }
       return `${periodStartDate} to ${periodEndDate}`;
     }
     if (periodYear !== 'all') {
-      return `FY ${periodYear}-${String(Number(periodYear) + 1).slice(-2)}`;
+      const yr = Number(periodYear);
+      return `AY ${yr + 1}-${String(yr + 2).slice(-2)} (FY ${yr}-${String(yr + 1).slice(-2)}: April – March)`;
     }
-    return 'All Financial Years';
+    return 'Assessment Year Cycle (April – March)';
   }, [periodYear, periodStartDate, periodEndDate, financialYears]);
 
   const isPeriodFilterActive = useMemo(
@@ -232,6 +237,10 @@ export const BillingRevenue: React.FC = () => {
 
   const openCreateInvoice = () => {
     navigate('/billing/invoices/new');
+  };
+
+  const openViewInvoice = (inv: Invoice) => {
+    navigate(`/billing/invoices/${inv.dbId}`);
   };
 
   const openEditInvoice = (inv: Invoice) => {

@@ -305,6 +305,7 @@ export const InvoiceFormPage: React.FC = () => {
               />
               <Select
                 label="Currency"
+                required
                 value={form.currency}
                 onChange={(e) => setField('currency', e.target.value)}
                 options={CURRENCIES}

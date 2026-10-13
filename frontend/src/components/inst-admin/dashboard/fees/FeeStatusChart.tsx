@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { FeeStatusItem } from '../types';
 
 interface FeeStatusChartProps {
@@ -25,6 +26,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 const FeeStatusChart: React.FC<FeeStatusChartProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const feesPath = isBranchAdmin ? '/branch/fees' : '/admin/fees';
 
   const items = data ?? [];
   const totalCount = items.reduce((s, d) => s + d.count, 0);
@@ -42,7 +46,7 @@ const FeeStatusChart: React.FC<FeeStatusChartProps> = ({ data, loading }) => {
 
   return (
     <div
-      onClick={() => navigate('/fees')}
+      onClick={() => navigate(feesPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-2 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}

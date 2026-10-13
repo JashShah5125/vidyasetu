@@ -3,17 +3,22 @@ const branchModel = require('../models/branchModel');
 const dashboardService = require('../services/dashboardService');
 
 /**
- * Resolve tenantId from request context, respecting SaaS admin impersonation
+ * Resolve tenantId from request context strictly scoped to the logged-in user's institute
  */
 const resolveTenant = (req) => {
-    let tenantId = req.user?.tenantId;
-    if (req.user?.isSaasAdmin && req.query.tenant_id) {
-        tenantId = Number(req.query.tenant_id);
+    // 1. If explicit tenant_id query param is supplied (e.g. from impersonation or SaaS admin inspection)
+    if (req.query.tenant_id && Number(req.query.tenant_id) > 0) {
+        return Number(req.query.tenant_id);
     }
-    if (!tenantId || tenantId === 1) {
-        tenantId = req.query.tenant_id ? Number(req.query.tenant_id) : 2;
+
+    // 2. Strict tenantId of the authenticated logged-in user
+    const userTenantId = req.user?.tenantId || req.user?.tenant_id;
+    if (userTenantId && Number(userTenantId) > 0) {
+        return Number(userTenantId);
     }
-    return tenantId;
+
+    // 3. Fallback for unassigned sessions
+    return 2;
 };
 
 /**
@@ -530,7 +535,7 @@ const getSaasRevenue = async (req, res) => {
             return res.status(200).json({ status: 'success', data: { revenue_trend: trend } });
         }
 
-        // 3. Monthly breakdown (Default or selected year/month)
+        // 3. Monthly breakdown (Assessment Year cycle: April to March)
         const [paidByMonth] = await db.query(`
             SELECT
                 YEAR(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))) AS yr,
@@ -542,34 +547,41 @@ const getSaasRevenue = async (req, res) => {
             GROUP BY YEAR(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))), MONTH(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))
         `);
 
-        let monthTotals = Array(12).fill(0);
-
-        paidByMonth.forEach(row => {
-            const yr = Number(row.yr);
-            const mo = Number(row.mo) - 1;
-            const rev = Number(row.rev) || 0;
-            if (yr === selectedYear && mo >= 0 && mo < 12) {
-                monthTotals[mo] += rev;
-            }
-        });
+        const isAllYears = !req.query.year || req.query.year === 'all';
+        const ayMonthOrder = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
         const today = new Date();
         const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth();
+        const currentMonth = today.getMonth() + 1; // 1-indexed
 
-        const trend = monthTotals.map((added, index) => {
-            const monthStr = new Date(selectedYear, index, 1).toLocaleString('en-US', { month: 'short' });
-            const isFuture = selectedYear > currentYear || (selectedYear === currentYear && index > currentMonth);
+        const trend = ayMonthOrder.map((m) => {
+            const targetYear = m >= 4 ? selectedYear : selectedYear + 1;
+            const monthStr = new Date(2000, m - 1, 1).toLocaleString('en-US', { month: 'short' });
+
+            let added = 0;
+            paidByMonth.forEach(row => {
+                const yr = Number(row.yr);
+                const mo = Number(row.mo);
+                const rev = Number(row.rev) || 0;
+                if (isAllYears) {
+                    if (mo === m) added += rev;
+                } else {
+                    if (yr === targetYear && mo === m) added += rev;
+                }
+            });
+
+            const isFuture = isAllYears ? false : (targetYear > currentYear || (targetYear === currentYear && m > currentMonth));
+            const isCurrent = isAllYears ? (m === currentMonth) : (targetYear === currentYear && m === currentMonth);
 
             // 1. Specific single month selected -> Show value ONLY on that month
             if (selectedMonth !== null) {
-                const isSelected = (index + 1) === selectedMonth;
+                const isSelected = m === selectedMonth;
                 const val = (!isFuture && isSelected) ? Math.round(added) : 0;
                 return {
                     m: monthStr,
                     val: '₹' + val.toLocaleString('en-IN'),
                     raw_val: val,
-                    isCurrent: selectedYear === currentYear && index === currentMonth,
+                    isCurrent,
                     isFuture: isFuture || !isSelected
                 };
             }
@@ -590,7 +602,7 @@ const getSaasRevenue = async (req, res) => {
                 m: monthStr,
                 val: '₹' + monthVal.toLocaleString('en-IN'),
                 raw_val: monthVal,
-                isCurrent: selectedYear === currentYear && index === currentMonth,
+                isCurrent,
                 isFuture: false
             };
         });

@@ -147,6 +147,8 @@ export const BatchSetup: React.FC = () => {
   const [isLoadingBatchStudents, setIsLoadingBatchStudents] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
   const [viewTab, setViewTab] = useState<'students' | 'overview'>('students');
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentPageSize, setStudentPageSize] = useState(10);
 
   // Student Profile Detail View State (Image 2 Full Profile)
   const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentDetail | null>(null);
@@ -189,6 +191,17 @@ export const BatchSetup: React.FC = () => {
       (s.guardianName || '').toLowerCase().includes(q)
     );
   }, [viewingBatchStudents, studentSearch]);
+
+  useEffect(() => {
+    setStudentPage(1);
+  }, [studentSearch, viewingBatch?.id]);
+
+  const studentTotalPages = Math.max(1, Math.ceil(filteredBatchStudents.length / studentPageSize));
+
+  const paginatedBatchStudents = useMemo(() => {
+    const start = (studentPage - 1) * studentPageSize;
+    return filteredBatchStudents.slice(start, start + studentPageSize);
+  }, [filteredBatchStudents, studentPage, studentPageSize]);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setCurrentPage(1); }, 300);
@@ -1449,25 +1462,26 @@ export const BatchSetup: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[980px]">
-                    <thead className="bg-slate-50/70 border-b border-slate-100">
-                      <tr className="text-slate-500 font-bold uppercase tracking-wider text-[11px]">
-                        <th className="px-4 py-3.5 w-16">Roll No</th>
-                        <th className="px-4 py-3.5 min-w-[210px]">Student Profile</th>
-                        <th className="px-4 py-3.5 min-w-[170px]">Contact Details</th>
-                        <th className="px-4 py-3.5 min-w-[170px]">Parent / Guardian</th>
-                        <th className="px-4 py-3.5 min-w-[110px]">Enrolled Date</th>
-                        <th className="px-4 py-3.5 min-w-[110px]">Fee Status</th>
-                        <th className="px-4 py-3.5 min-w-[100px]">Status</th>
-                        <th className="px-4 py-3.5 min-w-[90px] text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {filteredBatchStudents.map((s, idx) => {
-                        const rollDisplay = s.rollNo && !s.rollNo.startsWith('STU-')
-                          ? s.rollNo
-                          : `#${String(idx + 1).padStart(2, '0')}`;
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse min-w-[980px]">
+                      <thead className="bg-slate-50/70 border-b border-slate-100">
+                        <tr className="text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                          <th className="px-4 py-3.5 w-16">Roll No</th>
+                          <th className="px-4 py-3.5 min-w-[210px]">Student Profile</th>
+                          <th className="px-4 py-3.5 min-w-[170px]">Contact Details</th>
+                          <th className="px-4 py-3.5 min-w-[170px]">Parent / Guardian</th>
+                          <th className="px-4 py-3.5 min-w-[110px]">Enrolled Date</th>
+                          <th className="px-4 py-3.5 min-w-[110px]">Fee Status</th>
+                          <th className="px-4 py-3.5 min-w-[100px]">Status</th>
+                          <th className="px-4 py-3.5 min-w-[90px] text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {paginatedBatchStudents.map((s, idx) => {
+                          const rollDisplay = s.rollNo && !s.rollNo.startsWith('STU-')
+                            ? s.rollNo
+                            : `#${String((studentPage - 1) * studentPageSize + idx + 1).padStart(2, '0')}`;
                         const initials = (s.fullName || 'S')
                           .split(' ')
                           .slice(0, 2)
@@ -1599,7 +1613,20 @@ export const BatchSetup: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
-              )}
+
+                <div className="p-3 border-t border-slate-100 bg-slate-50/40">
+                  <Pagination
+                    currentPage={studentPage}
+                    totalPages={studentTotalPages}
+                    totalItems={filteredBatchStudents.length}
+                    pageSize={studentPageSize}
+                    onPageChange={p => setStudentPage(p)}
+                    onPageSizeChange={s => { setStudentPageSize(s); setStudentPage(1); }}
+                    pageSizeOptions={[10, 25, 50]}
+                  />
+                </div>
+              </>
+            )}
             </div>
           </div>
         )}

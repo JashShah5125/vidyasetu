@@ -587,10 +587,50 @@ const MainContent: React.FC = () => {
   );
 };
 
+const getPageTitle = (path: string): string => {
+  const clean = path.replace(/\/$/, '').toLowerCase();
+  if (!clean || clean === '' || clean === '/login') return 'Vidya Setu | Login';
+  if (clean.includes('/change-password')) return 'Vidya Setu | Change Password';
+  if (clean.includes('/dashboard')) return 'Vidya Setu | Dashboard';
+  if (clean.includes('/tenants')) return 'Vidya Setu | Tenants';
+  if (clean.includes('/leads')) return 'Vidya Setu | Leads CRM';
+  if (clean.includes('/plans')) return 'Vidya Setu | Subscription Plans';
+  if (clean.includes('/support')) return 'Vidya Setu | Support Tickets';
+  if (clean.includes('/billing')) return 'Vidya Setu | Billing & Revenue';
+  if (clean.includes('/analytics')) return 'Vidya Setu | Product Analytics';
+  if (clean.includes('/communication') || clean.includes('/broadcast') || clean.includes('/notifications')) {
+    return 'Vidya Setu | Communication Center';
+  }
+  if (clean.includes('/email-templates') || clean.includes('/sms-templates') || clean.includes('/whatsapp-templates') || clean.includes('/templates')) {
+    return 'Vidya Setu | Messaging Templates';
+  }
+  if (clean.includes('/students')) return 'Vidya Setu | Students';
+  if (clean.includes('/attendance')) return 'Vidya Setu | Attendance Roster';
+  if (clean.includes('/fees')) return 'Vidya Setu | Fees & Finance';
+  if (clean.includes('/expenses')) return 'Vidya Setu | Expenses';
+  if (clean.includes('/settings')) return 'Vidya Setu | Settings';
+  if (clean.includes('/audit')) return 'Vidya Setu | Audit Logs';
+  if (clean.includes('/courses')) return 'Vidya Setu | Course Setup';
+  if (clean.includes('/batches')) return 'Vidya Setu | Batches Setup';
+  if (clean.includes('/branches')) return 'Vidya Setu | Branches';
+  if (clean.includes('/doubts')) return 'Vidya Setu | Doubts Hub';
+  if (clean.includes('/homework') || clean.includes('/assignments')) return 'Vidya Setu | Homework & Exams';
+  if (clean.includes('/calendar')) return 'Vidya Setu | Academic Calendar';
+  if (clean.includes('/reports')) return 'Vidya Setu | Reports';
+  if (clean.includes('/users') || clean.includes('/staff')) return 'Vidya Setu | Users & Roles';
+
+  const segments = clean.split('/').filter(Boolean);
+  const last = segments[segments.length - 1] || 'Admin Portal';
+  const formatted = last.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return `Vidya Setu | ${formatted}`;
+};
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    document.title = getPageTitle(pathname);
+
     const resetScroll = () => {
       window.scrollTo(0, 0);
       const scrollContainers = document.querySelectorAll('.overflow-y-auto');

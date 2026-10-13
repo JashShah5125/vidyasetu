@@ -277,6 +277,13 @@ export const SupportTickets: React.FC = () => {
     }
   };
 
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+    setFilterBranch('All');
+  };
+  const hasActiveFilters = Boolean(searchTerm || filterStatus !== 'All' || filterBranch !== 'All');
+
   const handleExportCSV = () => {
     if (filteredTickets.length === 0) return;
 
@@ -546,7 +553,18 @@ export const SupportTickets: React.FC = () => {
           />
         </div>
 
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            variant="secondary"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+            style={{ height: '38px' }}
+            className={`w-full md:w-auto cursor-pointer text-xs font-semibold px-4 flex items-center gap-1.5 transition-colors ${
+              hasActiveFilters ? 'text-slate-700 hover:text-red-600 hover:border-red-200' : 'opacity-50 cursor-not-allowed'
+            }`}
+          >
+            <X size={14} /> Clear
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV} style={{ height: '38px' }} className="w-full md:w-auto cursor-pointer text-xs font-semibold px-4 flex items-center gap-1.5">
             <Download size={14} /> Export CSV
           </Button>

@@ -480,6 +480,7 @@ export const SubscriptionPlans: React.FC = () => {
             <Input label="Lifetime Price" type="number" min="0" placeholder="e.g. 100000" value={lifetimePrice} onChange={e => setLifetimePrice(e.target.value)} />
             <Select 
               label="Currency" 
+              required
               value={currency} 
               onChange={e => setCurrency(e.target.value)} 
               disabled={!!editingPlanId} 

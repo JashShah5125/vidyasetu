@@ -329,12 +329,13 @@ export const CounsellorDashboard: React.FC = () => {
     }));
   }, [sourceBreakdown]);
 
-  // Dynamic monthly timeline trend computed from real database records
+  // Dynamic monthly timeline trend computed from real database records (Assessment Year cycle: April to March)
   const monthlyTrendData = useMemo(() => {
+    const ayMonths = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    const calendarMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthMap: Record<string, { total: number; converted: number }> = {};
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    months.forEach((m) => {
+    ayMonths.forEach((m) => {
       monthMap[m] = { total: 0, converted: 0 };
     });
 
@@ -342,7 +343,7 @@ export const CounsellorDashboard: React.FC = () => {
       if (!r.created_at) return;
       const d = new Date(r.created_at);
       if (isNaN(d.getTime())) return;
-      const mName = months[d.getMonth()];
+      const mName = calendarMonthNames[d.getMonth()];
       if (monthMap[mName]) {
         monthMap[mName].total++;
         if (Number(r.status) === 7) {
@@ -351,7 +352,7 @@ export const CounsellorDashboard: React.FC = () => {
       }
     });
 
-    return months.map((m) => ({
+    return ayMonths.map((m) => ({
       month: m,
       enquiries: monthMap[m].total,
       converted: monthMap[m].converted
@@ -692,7 +693,7 @@ export const CounsellorDashboard: React.FC = () => {
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Monthly Trend
+                  Monthly Trend (Apr–Mar)
                 </button>
                 <button
                   type="button"

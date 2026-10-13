@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -15,12 +15,35 @@ interface NotificationBroadcast {
   channels?: string[];
 }
 
+const SAAS_BROADCASTS_STORAGE_KEY = 'vidyasetu_saas_broadcasts_v1';
+
+const INITIAL_BROADCASTS: NotificationBroadcast[] = [
+  { id: 'BC-01', type: 'Maintenance', title: 'Scheduled Database Upgrades (Sunday 2AM-4AM IST)', body: 'Routine security patching and read-replica index rebuilds. Expected downtime is 15 minutes max.', targetAudience: 'All Tenants', status: 'Sent', sentAt: '2026-08-01 10:00:00', channels: ['Email', 'In-App System Notification'] },
+  { id: 'BC-02', type: 'Announcement', title: 'New Payment Gateways Released!', body: 'Cashfree is now supported natively. You can configure credentials in Global Settings under your admin panel.', targetAudience: 'Active Tenants Only', status: 'Sent', sentAt: '2026-07-28 14:30:00', channels: ['Email', 'WhatsApp', 'In-App System Notification'] },
+  { id: 'BC-03', type: 'Email Campaign', title: 'Upgrade offer: Lock in 20% savings on Yearly plans', body: 'Annual renewal subscriptions have dynamic savings toggles enabled for this week.', targetAudience: 'Trial Tenants Only', status: 'Scheduled', sentAt: '2026-08-10 09:00:00', channels: ['Email'] }
+];
+
 export const CommunicationCenter: React.FC = () => {
-  const [broadcasts, setBroadcasts] = useState<NotificationBroadcast[]>([
-    { id: 'BC-01', type: 'Maintenance', title: 'Scheduled Database Upgrades (Sunday 2AM-4AM IST)', body: 'Routine security patching and read-replica index rebuilds. Expected downtime is 15 minutes max.', targetAudience: 'All Tenants', status: 'Sent', sentAt: '2026-08-01 10:00:00', channels: ['Email', 'In-App System Notification'] },
-    { id: 'BC-02', type: 'Announcement', title: 'New Payment Gateways Released!', body: 'Cashfree is now supported natively. You can configure credentials in Global Settings under your admin panel.', targetAudience: 'Active Tenants Only', status: 'Sent', sentAt: '2026-07-28 14:30:00', channels: ['Email', 'WhatsApp', 'In-App System Notification'] },
-    { id: 'BC-03', type: 'Email Campaign', title: 'Upgrade offer: Lock in 20% savings on Yearly plans', body: 'Annual renewal subscriptions have dynamic savings toggles enabled for this week.', targetAudience: 'Trial Tenants Only', status: 'Scheduled', sentAt: '2026-08-10 09:00:00', channels: ['Email'] }
-  ]);
+  const [broadcasts, setBroadcasts] = useState<NotificationBroadcast[]>(() => {
+    try {
+      const saved = localStorage.getItem(SAAS_BROADCASTS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load broadcasts from storage:', e);
+    }
+    return INITIAL_BROADCASTS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SAAS_BROADCASTS_STORAGE_KEY, JSON.stringify(broadcasts));
+    } catch (e) {
+      console.error('Failed to save broadcasts to storage:', e);
+    }
+  }, [broadcasts]);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [type, setType] = useState<'Maintenance' | 'Announcement' | 'Emergency Alert' | 'Email Campaign'>('Announcement');

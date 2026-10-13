@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -51,9 +51,24 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   const [savedType, setSavedType] = useState<'student' | 'staff' | 'teacher' | null>(null);
   
   const location = useLocation();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const navState = location.state as { branch?: string; course?: string; batch?: string; date?: string; tab?: 'students' | 'staff' | 'teachers' } | null;
 
-  const [attendanceType, setAttendanceType] = useState<'students' | 'staff' | 'teachers'>(navState?.tab || 'students');
+  const resolveTab = useCallback((): 'students' | 'staff' | 'teachers' => {
+    const qTab = (searchParams.get('tab') || searchParams.get('type') || '').toLowerCase();
+    if (qTab === 'staff') return 'staff';
+    if (qTab === 'teachers' || qTab === 'teacher') return 'teachers';
+    if (qTab === 'students' || qTab === 'student') return 'students';
+    if (navState?.tab) return navState.tab;
+    return 'students';
+  }, [searchParams, navState]);
+
+  const [attendanceType, setAttendanceType] = useState<'students' | 'staff' | 'teachers'>(resolveTab());
+
+  useEffect(() => {
+    const resolved = resolveTab();
+    setAttendanceType(resolved);
+  }, [resolveTab]);
 
   const [branch, setBranch] = useState(navState?.branch || (currentUser?.role === 'branch-admin' ? currentUser.branch || 'Mumbai West' : 'Mumbai West'));
   const [course, setCourse] = useState<string>('');

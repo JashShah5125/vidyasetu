@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { AdmissionsTrendPoint } from '../types';
 
 interface AdmissionsTrendChartProps {
@@ -50,6 +51,14 @@ const AdmissionsTrendChart: React.FC<AdmissionsTrendChartProps> = ({
   loading,
 }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+
+  const handleClick = () => {
+    const targetPath = isBranchAdmin ? '/branch/students' : '/admin/students';
+    navigate(targetPath);
+  };
 
   const points = data ?? [];
 
@@ -67,33 +76,29 @@ const AdmissionsTrendChart: React.FC<AdmissionsTrendChartProps> = ({
   }, [points]);
 
   const total = monthlyData.reduce((sum, item) => sum + item.count, 0);
-  const hasAdmissions = monthlyData.some((item) => item.count > 0);
 
-  const activeMonths = useMemo(
-    () => monthlyData.filter((m) => m.count > 0),
-    [monthlyData],
-  );
-
-  const maxMonth = useMemo(() => {
-    if (activeMonths.length === 0) return null;
-    return activeMonths.reduce((prev, curr) => (curr.count > prev.count ? curr : prev), activeMonths[0]);
-  }, [activeMonths]);
-
-  const minMonth = useMemo(() => {
-    if (activeMonths.length === 0) return null;
-    return activeMonths.reduce((prev, curr) => (curr.count < prev.count ? curr : prev), activeMonths[0]);
-  }, [activeMonths]);
-
-  const pieData = monthlyData.map((item, index) => ({
-    id: index,
-    value: item.count,
-    label: item.label,
-    color: MONTH_COLORS[index],
-  }));
+  const pieData = useMemo(() => {
+    if (total === 0) {
+      return [
+        {
+          id: 'empty',
+          value: 1,
+          label: 'No Intake',
+          color: '#e2e8f0',
+        },
+      ];
+    }
+    return monthlyData.map((item, index) => ({
+      id: index,
+      value: item.count,
+      label: item.label,
+      color: MONTH_COLORS[index],
+    }));
+  }, [monthlyData, total]);
 
   return (
     <div
-      onClick={() => navigate('/leads-admissions')}
+      onClick={handleClick}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 shadow-xs flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Hover accent */}
@@ -121,112 +126,56 @@ const AdmissionsTrendChart: React.FC<AdmissionsTrendChartProps> = ({
         </span>
       </div>
 
-      {/* Content: Chart on Left, Max/Least Stats on Right */}
-      <div className="h-[120px] w-full min-w-0 flex items-center justify-between gap-1.5 mt-0.5">
+      {/* Content: Centered Larger Donut Chart */}
+      <div className="h-[140px] w-full min-w-0 flex items-center justify-center mt-1">
         {loading ? (
           <div className="h-full w-full flex items-center justify-center text-xs text-slate-400">
             Loading admissions...
           </div>
-        ) : !hasAdmissions ? (
-          <div className="h-full w-full flex items-center justify-center text-xs text-slate-400">
-            No admissions data for period
-          </div>
         ) : (
-          <>
-            {/* Donut Chart on Left */}
-            <div className="relative w-[120px] h-[120px] flex items-center justify-center shrink-0">
-              <PieChart
-                series={[
-                  {
-                    data: pieData,
-                    innerRadius: 32,
-                    outerRadius: 48,
-                    paddingAngle: 2,
-                    cornerRadius: 3,
-                    highlightScope: {
-                      faded: 'global',
-                      highlighted: 'item',
-                    },
-                    faded: {
-                      innerRadius: 30,
-                      additionalRadius: -2,
-                      color: '#cbd5e1',
-                    },
-                    valueFormatter: (item) =>
-                      `${item.value.toLocaleString('en-IN')} (${total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)`,
+          <div
+            className="relative flex items-center justify-center transition-transform duration-300 group-hover:scale-105"
+            style={{ width: 140, height: 140 }}
+          >
+            <PieChart
+              series={[
+                {
+                  data: pieData,
+                  innerRadius: 44,
+                  outerRadius: 66,
+                  paddingAngle: total > 0 ? 2 : 0,
+                  cornerRadius: total > 0 ? 3 : 0,
+                  highlightScope: {
+                    fade: 'global',
+                    highlight: 'item',
                   },
-                ]}
-                width={120}
-                height={120}
-                hideLegend
-                margin={{ top: 2, bottom: 2, left: 2, right: 2 }}
-                sx={{ width: '100%', height: '100%' }}
-              />
+                  faded: {
+                    innerRadius: 42,
+                    additionalRadius: -2,
+                    color: '#cbd5e1',
+                  },
+                  valueFormatter: (item) =>
+                    total > 0
+                      ? `${item.value.toLocaleString('en-IN')} (${((item.value / total) * 100).toFixed(1)}%)`
+                      : '0 (0.0%)',
+                },
+              ]}
+              width={140}
+              height={140}
+              hideLegend
+              margin={{ top: 0, bottom: 0, left: 0, right: 0 }}
+            />
 
-              {/* Center value overlay */}
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-sm font-extrabold text-slate-900 leading-none">
-                  {total.toLocaleString('en-IN')}
-                </span>
-                <span className="text-[8px] text-slate-400 font-semibold tracking-tight mt-0.5 uppercase">
-                  Total
-                </span>
-              </div>
+            {/* Center value overlay */}
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                {total.toLocaleString('en-IN')}
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold tracking-wider mt-0.5 uppercase">
+                Total
+              </span>
             </div>
-
-            {/* Max & Least Stats on Right */}
-            <div className="flex-1 flex flex-col justify-center gap-1.5 pl-1.5 pr-0.5">
-              {/* Max Month */}
-              {maxMonth && (
-                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-50/80 border border-emerald-100 shadow-2xs">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <div>
-                      <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-wider block leading-tight">
-                        Max Month
-                      </span>
-                      <span className="text-xs font-extrabold text-emerald-950">
-                        {maxMonth.label}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-extrabold text-emerald-950 block leading-tight">
-                      {maxMonth.count}
-                    </span>
-                    <span className="text-[9px] text-emerald-700 font-medium">
-                      {total > 0 ? ((maxMonth.count / total) * 100).toFixed(1) : 0}%
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Least Month */}
-              {minMonth && (
-                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50/80 border border-amber-100 shadow-2xs">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                    <div>
-                      <span className="text-[9px] font-bold text-amber-800 uppercase tracking-wider block leading-tight">
-                        Least Month
-                      </span>
-                      <span className="text-xs font-extrabold text-amber-950">
-                        {minMonth.label}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-extrabold text-amber-950 block leading-tight">
-                      {minMonth.count}
-                    </span>
-                    <span className="text-[9px] text-amber-700 font-medium">
-                      {total > 0 ? ((minMonth.count / total) * 100).toFixed(1) : 0}%
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>

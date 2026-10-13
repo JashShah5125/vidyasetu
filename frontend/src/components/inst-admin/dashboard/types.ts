@@ -198,4 +198,5 @@ export interface DashboardQueryParams {
   programId?: string | number | null;
   levelId?: string | number | null;
   batchId?: string | number | null;
+  tenantId?: string | number | null;
 }

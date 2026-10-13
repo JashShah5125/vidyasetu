@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowUpRight, Calendar, MapPin, Award, CheckCircle2, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../../context/AuthContext';
 import type { UpcomingExamItem } from '../types';
 
 interface UpcomingExamsTableProps {
@@ -23,11 +24,15 @@ const formatDateBadge = (dateStr: string) => {
 
 const UpcomingExamsTable: React.FC<UpcomingExamsTableProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const assignmentsPath = isBranchAdmin ? '/branch/assignments' : '/admin/assignments';
+
   const exams = (data ?? []).slice(0, 3);
 
   return (
     <div
-      onClick={() => navigate('/assignments')}
+      onClick={() => navigate(assignmentsPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-3 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}

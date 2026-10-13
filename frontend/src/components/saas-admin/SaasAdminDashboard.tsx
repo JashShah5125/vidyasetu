@@ -617,9 +617,6 @@ export const SaasAdminDashboard: React.FC = () => {
                 className="h-7 text-[11px] font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 text-slate-800 outline-none cursor-pointer hover:bg-slate-100/80"
               >
                 <option value="all">All Months</option>
-                <option value="1">Jan</option>
-                <option value="2">Feb</option>
-                <option value="3">Mar</option>
                 <option value="4">Apr</option>
                 <option value="5">May</option>
                 <option value="6">Jun</option>
@@ -629,6 +626,9 @@ export const SaasAdminDashboard: React.FC = () => {
                 <option value="10">Oct</option>
                 <option value="11">Nov</option>
                 <option value="12">Dec</option>
+                <option value="1">Jan</option>
+                <option value="2">Feb</option>
+                <option value="3">Mar</option>
               </select>
             </div>
           </div>

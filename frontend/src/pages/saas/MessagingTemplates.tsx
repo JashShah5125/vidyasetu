@@ -493,8 +493,8 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
         id: `custom-${Date.now()}`,
         channel,
         name: `New ${channel.toUpperCase()} Template`,
-        key: `custom.${channel}_${Date.now().toString().slice(-4)}`,
-        category: 'General',
+        key: channel === 'email' ? `CUSTOM_EMAIL_${Date.now().toString().slice(-4)}` : `custom_${channel}_${Date.now().toString().slice(-4)}`,
+        category: channel === 'email' ? 'ONBOARDING' : 'General',
         description: `Custom ${channel} template for Vidya Setu`,
         subject: channel === 'email' ? 'Notification from Vidya Setu' : undefined,
         body: channel === 'email'
@@ -551,11 +551,16 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
           }
         }
       } else if (editingTemplate.channel === 'email') {
-        const varsObj = editingTemplate.variables.reduce((acc: any, v) => ({ ...acc, [v.key]: v.label }), {});
+        const varsObj = (editingTemplate.variables || []).reduce((acc: any, v) => ({ ...acc, [v.key]: v.label || v.key }), {});
+        const emailCategory = (editingTemplate.category && editingTemplate.category !== 'General')
+          ? editingTemplate.category.toUpperCase()
+          : 'ONBOARDING';
+        const sanitizedKey = editingTemplate.key.trim().replace(/[^A-Za-z0-9_.-]/g, '_');
+
         if (isEditing) {
           await emailTemplateService.updateTemplate(String(editingTemplate.dbId!), {
             name: editingTemplate.name,
-            category: editingTemplate.category || 'ONBOARDING',
+            category: emailCategory,
             subject: editingTemplate.subject || editingTemplate.name,
             description: editingTemplate.description,
             html_body: editingTemplate.htmlBody || editingTemplate.body,
@@ -564,15 +569,15 @@ export const MessagingTemplates: React.FC<MessagingTemplatesProps> = ({ defaultT
           });
         } else {
           const res = await emailTemplateService.createTemplate({
-            template_key: editingTemplate.key,
+            template_key: sanitizedKey,
             name: editingTemplate.name,
-            category: editingTemplate.category || 'ONBOARDING',
+            category: emailCategory,
             subject: editingTemplate.subject || editingTemplate.name,
             description: editingTemplate.description,
             html_body: editingTemplate.htmlBody || editingTemplate.body,
             text_body: editingTemplate.body,
             variables: varsObj,
-            status: editingTemplate.status.toUpperCase(),
+            status: (editingTemplate.status || 'ACTIVE').toUpperCase(),
           });
           if (res?.data?.id) {
             savedTemplate.dbId = res.data.id;
@@ -1926,6 +1931,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                   type="text"
                   value={template.name}
                   onChange={e => onChange({ ...template, name: e.target.value })}
+                  placeholder="e.g. Attendance Absence Notice / Fee Invoice Alert"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                 />
               </div>
@@ -1938,6 +1944,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                   type="text"
                   value={template.key}
                   onChange={e => onChange({ ...template, key: e.target.value })}
+                  placeholder="e.g. ATTENDANCE_ALERT"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
@@ -1955,6 +1962,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                 type="text"
                 value={template.description}
                 onChange={e => onChange({ ...template, description: e.target.value })}
+                placeholder="Brief description of when and to whom this notification trigger is executed..."
                 className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
               />
             </div>
@@ -1983,6 +1991,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                     onChange({ ...template, subject: e.target.value });
                   }}
                   maxLength={120}
+                  placeholder="e.g. Action Required: Fee Payment Notice for {{student.name}}"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                 />
               </div>
@@ -2012,6 +2021,13 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                   recordCursor('body', e.target);
                   onChange({ ...template, body: e.target.value });
                 }}
+                placeholder={
+                  isSMS
+                    ? "Enter SMS message text, e.g. Dear {{parent.name}}, your ward {{student.name}} was absent today. Contact {{institute.name}} for queries."
+                    : isWhatsApp
+                    ? "Enter WhatsApp message body with {{variable}} placeholders, e.g. Hello {{student.name}}, your homework for {{batch.name}} has been scheduled."
+                    : "Enter plain-text fallback content for email clients without HTML rendering..."
+                }
                 className="w-full bg-white border border-slate-200 rounded-xl p-3.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y leading-relaxed shadow-2xs"
               />
 
@@ -2121,6 +2137,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                     recordCursor('htmlBody', e.target);
                     onChange({ ...template, htmlBody: e.target.value });
                   }}
+                  placeholder="Paste or write HTML email content with inline CSS, e.g. <div style='font-family:sans-serif;'><h2>Hello {{student.name}}</h2><p>Here is your update from {{institute.name}}...</p></div>"
                   className="w-full bg-white border border-slate-200 rounded-b-xl p-3 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
@@ -2152,6 +2169,11 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
 
               {/* Variables Rows */}
               <div className="space-y-3">
+                {(!template.variables || template.variables.length === 0) && (
+                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500 font-medium">
+                    No variables registered yet. Click &quot;Add variable&quot; above to declare custom token mappings for this template.
+                  </div>
+                )}
                 {(template.variables || []).map((v, idx) => (
                   <div
                     key={idx}
@@ -2168,7 +2190,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                           type="text"
                           value={v.key}
                           onChange={e => handleUpdateVariable(idx, { key: e.target.value })}
-                          placeholder="variable.name"
+                          placeholder="e.g. student.name"
                           className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
                         />
                       </div>

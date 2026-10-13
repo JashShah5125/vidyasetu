@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../../context/AuthContext';
 import type { ExpenseBreakdownItem } from '../types';
 
 interface ExpenseBreakdownChartProps {
@@ -18,21 +19,42 @@ const formatCurrency = (v: number) => {
 
 const CATEGORY_COLORS = [
   '#f59e0b', // Amber (Salaries/Primary)
-  '#3b82f6', // Blue (Rent/Ops)
-  '#8b5cf6', // Purple (Marketing)
-  '#10b981', // Emerald (Supplies)
-  '#06b6d4', // Cyan (Maintenance)
+  '#3b82f6', // Blue (Electricity/Utilities)
+  '#8b5cf6', // Purple (Events/Marketing)
+  '#10b981', // Emerald (Maintenance)
+  '#06b6d4', // Cyan (Supplies/Tech)
+  '#ec4899', // Pink (Travel/Transport)
   '#64748b', // Slate (Other)
 ];
 
 const ExpenseBreakdownChart: React.FC<ExpenseBreakdownChartProps> = ({ data, loading }) => {
   const navigate = useNavigate();
-  const items = (data ?? []).slice(0, 5);
-  const total = items.reduce((a, b) => a + (b.amount || 0), 0);
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const expensesPath = isBranchAdmin ? '/branch/finance/expenses/salaries' : '/admin/finance/expenses/salaries';
+
+  const rawData = data ?? [];
+  const total = rawData.reduce((a, b) => a + (b.amount || 0), 0);
+
+  const items = useMemo(() => {
+    if (rawData.length <= 5) return rawData;
+    const top4 = rawData.slice(0, 4);
+    const remaining = rawData.slice(4);
+    const remainingAmount = remaining.reduce((sum, item) => sum + (item.amount || 0), 0);
+    return [
+      ...top4,
+      {
+        category: 'Other Operations',
+        amount: remainingAmount,
+        pct: total > 0 ? Math.round((remainingAmount / total) * 100) : 0,
+        isMock: false,
+      },
+    ];
+  }, [rawData, total]);
 
   return (
     <div
-      onClick={() => navigate('/expenses')}
+      onClick={() => navigate(expensesPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-2 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}
@@ -47,15 +69,10 @@ const ExpenseBreakdownChart: React.FC<ExpenseBreakdownChartProps> = ({ data, loa
             <ArrowUpRight size={13} className="text-slate-300 group-hover:text-amber-600 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all duration-200 shrink-0" />
           </div>
           <p className="h-4 overflow-hidden text-xs text-slate-500 font-normal mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 truncate">
-            Estimated cost breakdown by department
+            Department & operational cost distribution
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-extrabold text-slate-900">{formatCurrency(total)}</span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs group-hover:scale-105 transition-transform duration-200">
-            Estimated
-          </span>
-        </div>
+        <span className="text-xl font-extrabold text-slate-900">{formatCurrency(total)}</span>
       </div>
 
       {/* Category breakdown table / progress list */}
@@ -113,8 +130,8 @@ const ExpenseBreakdownChart: React.FC<ExpenseBreakdownChartProps> = ({ data, loa
 
       {/* Summary footer */}
       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] text-slate-400">
-        <span>Includes payroll disbursement estimation</span>
-        <span className="text-slate-500 font-semibold">{items.length} Active categories</span>
+        <span>Includes payroll & logged operational expenses</span>
+        <span className="text-slate-500 font-semibold">{rawData.length} Active categories</span>
       </div>
     </div>
   );

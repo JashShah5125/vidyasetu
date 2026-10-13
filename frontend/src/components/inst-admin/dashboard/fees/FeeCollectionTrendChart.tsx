@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { FeeCollectionTrendPoint } from '../types';
 
 interface FeeCollectionTrendChartProps {
@@ -19,6 +20,9 @@ const formatCurrency = (v: number) => {
 
 const FeeCollectionTrendChart: React.FC<FeeCollectionTrendChartProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const feesPath = isBranchAdmin ? '/branch/fees' : '/admin/fees';
 
   const points = data ?? [];
   const xLabels = points.map(d => d.label);
@@ -27,7 +31,7 @@ const FeeCollectionTrendChart: React.FC<FeeCollectionTrendChartProps> = ({ data,
 
   return (
     <div
-      onClick={() => navigate('/fees')}
+      onClick={() => navigate(feesPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-2 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}

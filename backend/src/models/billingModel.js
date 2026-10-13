@@ -42,16 +42,21 @@ const buildInvoiceDateFilter = (alias, params, { year, month, startDate, endDate
         params.push(Number(month));
 
         if (hasSpecificYear) {
+            const yr = Number(year);
+            const targetYear = Number(month) >= 4 ? yr : yr + 1;
             clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
-            params.push(Number(year));
+            params.push(targetYear);
         }
         return clause;
     }
 
-    // 3. If specific year is selected without specific month (e.g. year=2026)
+    // 3. If specific assessment/financial year is selected without specific month (April 1 to March 31)
     if (hasSpecificYear) {
-        clause += ` AND YEAR(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) = ?`;
-        params.push(Number(year));
+        const yr = Number(year);
+        clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) >= DATE(?)`;
+        params.push(`${yr}-04-01`);
+        clause += ` AND DATE(COALESCE(${p('payment_date')}, ${p('billing_period_start')}, DATE(${p('created_at')}))) <= DATE(?)`;
+        params.push(`${yr + 1}-03-31`);
         return clause;
     }
 
@@ -254,33 +259,33 @@ const getRevenueTrend = async (year = null, startDate = null, endDate = null) =>
             MONTH(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))
     `, params);
 
-    let monthSlots = [];
-    const isFinancialYear = (startDate && endDate) && (new Date(startDate).getMonth() === 3 && new Date(endDate).getMonth() === 2);
-    
-    if (isFinancialYear) {
-        const startYr = new Date(startDate).getFullYear();
-        // Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec of startYr, and Jan, Feb, Mar of startYr + 1
-        for (let m = 4; m <= 12; m++) {
-            monthSlots.push({ yr: startYr, mo: m, label: new Date(startYr, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
-        }
-        for (let m = 1; m <= 3; m++) {
-            monthSlots.push({ yr: startYr + 1, mo: m, label: new Date(startYr + 1, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
-        }
-    } else {
-        const selectedYear = year && year !== 'all' ? Number(year) : (startDate ? new Date(startDate).getFullYear() : new Date().getFullYear());
-        for (let m = 1; m <= 12; m++) {
-            monthSlots.push({ yr: selectedYear, mo: m, label: new Date(selectedYear, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
-        }
+    const today = new Date();
+    const currentMo = today.getMonth() + 1;
+    const currentYr = today.getFullYear();
+    const currentFyStart = currentMo >= 4 ? currentYr : currentYr - 1;
+
+    let startYr = currentFyStart;
+    if (startDate) {
+        const parsedY = Number(String(startDate).slice(0, 4));
+        if (!isNaN(parsedY)) startYr = parsedY;
+    } else if (year && year !== 'all') {
+        const parsedY = Number(year);
+        if (!isNaN(parsedY)) startYr = parsedY;
+    }
+
+    const monthSlots = [];
+    // Assessment Year sequence: April to December of startYr, then January to March of startYr + 1
+    for (let m = 4; m <= 12; m++) {
+        monthSlots.push({ yr: startYr, mo: m, label: new Date(startYr, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
+    }
+    for (let m = 1; m <= 3; m++) {
+        monthSlots.push({ yr: startYr + 1, mo: m, label: new Date(startYr + 1, m - 1, 1).toLocaleString('en-US', { month: 'short' }) });
     }
 
     const rowMap = new Map();
     rows.forEach(r => {
         rowMap.set(`${r.yr}-${r.mo}`, Number(r.rev) || 0);
     });
-
-    const now = new Date();
-    const currentYr = now.getFullYear();
-    const currentMo = now.getMonth() + 1;
 
     let runningTotal = 0;
     if (!year || year === 'all') {
@@ -320,9 +325,7 @@ const getRevenueTrend = async (year = null, startDate = null, endDate = null) =>
     });
 
     return { 
-        year: isFinancialYear 
-            ? `FY ${new Date(startDate).getFullYear()}-${String(new Date(endDate).getFullYear()).slice(-2)}` 
-            : (year || 'all'), 
+        year: `FY ${startYr}-${String(startYr + 1).slice(-2)} (AY ${startYr + 1}-${String(startYr + 2).slice(-2)})`, 
         trend 
     };
 };

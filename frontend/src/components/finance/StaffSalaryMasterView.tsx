@@ -283,7 +283,7 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
                 setPage(1);
               }}
               placeholder="Search staff by name, ID, designation..."
-              className="w-full pl-9.5 pr-8 py-2 text-sm bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+              className="w-full pl-10 pr-8 py-2 text-sm bg-slate-50 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
             />
             {searchTerm && (
               <button

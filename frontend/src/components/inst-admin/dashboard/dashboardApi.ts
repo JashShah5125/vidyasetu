@@ -26,6 +26,9 @@ export const fetchDashboardData = async (
   if (params.batchId != null && params.batchId !== 'all') {
     query.batchId = String(params.batchId);
   }
+  if (params.tenantId != null && params.tenantId !== '') {
+    query.tenant_id = String(params.tenantId);
+  }
 
   const endpoint = isBranchAdmin ? '/admin/dashboard/branch' : '/admin/dashboard/institute';
   const response = await api.get(endpoint, { params: query });

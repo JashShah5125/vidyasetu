@@ -367,15 +367,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     label: string;
     badge?: number;
   }) => {
-    const isSalariesPath = path === '/finance/expenses/salaries';
+    const isSalariesPath = path === '/finance/expenses/salaries' || path === '/admin/finance/expenses/salaries' || path === '/branch/finance/expenses/salaries';
     const isLeadsRoot = path === '/leads' || path === '/counsellor/leads' || path === '/admin/leads' || path === '/branch/leads';
+    const isExactOrChild = location.pathname === path || location.pathname.startsWith(`${path}/`);
     const isActive = isLeadsRoot
       ? (location.pathname === path || location.pathname === `${path}/pipeline`)
-      : path === '/fees'
-        ? location.pathname === '/fees' || location.pathname.startsWith('/fees/')
-        : isSalariesPath
-          ? location.pathname.startsWith('/finance/expenses/salaries') || location.pathname.startsWith('/finance/payroll') || location.pathname.startsWith('/finance/payables/salaries')
-          : location.pathname.startsWith(path);
+      : isSalariesPath
+        ? isExactOrChild || location.pathname.startsWith('/finance/payroll') || location.pathname.startsWith('/finance/payables/salaries')
+        : isExactOrChild;
     return (
       <div
         onClick={() => { navigate(path); onClose(); }}
@@ -441,7 +440,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
 
   // Collapsible group of nav items (e.g. System Settings, Templates)
   const CollapsibleGroup = ({ group }: { group: SidebarGroup }) => {
-    const hasActiveChild = group.links.some(l => location.pathname.startsWith(l.path));
+    const hasActiveChild = group.links.some(l => location.pathname === l.path || location.pathname.startsWith(`${l.path}/`));
     const [open, setOpen] = useState(hasActiveChild);
     const GroupIcon = group.groupIcon;
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../../context/AuthContext';
 import type { FinancialOverview } from '../types';
 
 interface IncomeExpenseChartProps {
@@ -19,16 +20,20 @@ const formatCurrency = (v: number) => {
 
 const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const expensesPath = isBranchAdmin ? '/branch/finance/expenses/salaries' : '/admin/finance/expenses/salaries';
+
   const net = data?.net ?? 0;
   const netPositive = net >= 0;
 
-  const categories = ['Fee Inc', 'Other Inc', 'Salary', 'Ledger Exp'];
+  const categories = ['Fee Inc', 'Other Inc', 'Salary', 'Other Exp'];
   const incomeValues = [data?.feeIncome ?? 0, data?.otherIncome ?? 0, 0, 0];
   const expenseValues = [0, 0, data?.salaryExpenses ?? 0, data?.otherExpenses ?? 0];
 
   return (
     <div
-      onClick={() => navigate('/expenses')}
+      onClick={() => navigate(expensesPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-2 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}

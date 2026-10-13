@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IndianRupee, ClipboardX, UserX, FileQuestion, ArrowRight } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
 import type { AttentionRequired } from '../types';
 
 interface AttentionSectionProps {
@@ -16,7 +17,7 @@ interface TileConfig {
   color: string;
   bg: string;
   border: string;
-  navigate: string;
+  getPath: (basePath: string) => string;
   navState?: any;
 }
 
@@ -29,7 +30,7 @@ const TILES: TileConfig[] = [
     color: 'text-amber-600',
     bg: 'bg-amber-50',
     border: 'border-amber-100',
-    navigate: '/fees',
+    getPath: (basePath) => `${basePath}/fees`,
   },
   {
     key: 'attendancePending',
@@ -39,7 +40,7 @@ const TILES: TileConfig[] = [
     color: 'text-orange-600',
     bg: 'bg-orange-50',
     border: 'border-orange-100',
-    navigate: '/attendance',
+    getPath: (basePath) => `${basePath}/attendance?tab=teachers`,
     navState: { tab: 'teachers' },
   },
   {
@@ -50,7 +51,7 @@ const TILES: TileConfig[] = [
     color: 'text-rose-600',
     bg: 'bg-rose-50',
     border: 'border-rose-100',
-    navigate: '/attendance',
+    getPath: (basePath) => `${basePath}/attendance?tab=students`,
     navState: { tab: 'students' },
   },
   {
@@ -61,12 +62,15 @@ const TILES: TileConfig[] = [
     color: 'text-indigo-600',
     bg: 'bg-indigo-50',
     border: 'border-indigo-100',
-    navigate: '/assignments',
+    getPath: (basePath) => `${basePath}/assignments`,
   },
 ];
 
 const AttentionSection: React.FC<AttentionSectionProps> = ({ data, loading }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isBranchAdmin = currentUser?.role === 'branch-admin';
+  const basePath = isBranchAdmin ? '/branch' : '/admin';
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs mb-5">
@@ -84,7 +88,7 @@ const AttentionSection: React.FC<AttentionSectionProps> = ({ data, loading }) =>
           return (
             <div
               key={tile.key}
-              onClick={() => navigate(tile.navigate, tile.navState ? { state: tile.navState } : undefined)}
+              onClick={() => navigate(tile.getPath(basePath), tile.navState ? { state: tile.navState } : undefined)}
               className="group relative border border-slate-200/80 hover:border-slate-300 rounded-xl p-3 bg-slate-50/50 hover:bg-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 cursor-pointer flex flex-col justify-between overflow-hidden"
             >
               <div className="flex items-center justify-between mb-1.5">

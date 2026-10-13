@@ -192,7 +192,7 @@ export const ProductAnalytics: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12 w-full animate-fade-in">
       <div>
         <h2 className="text-2xl font-display font-bold text-slate-900">Product Usage & Adoption Analytics</h2>
         <p className="text-sm text-slate-500 mt-1">
@@ -319,10 +319,10 @@ export const ProductAnalytics: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {paginatedMetrics.map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-semibold text-slate-900">{item.moduleName}</td>
-                  <td className="px-6 py-4 text-slate-500">{item.category}</td>
-                  <td className="px-6 py-4">
+                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4.5 font-semibold text-slate-900 leading-relaxed">{item.moduleName}</td>
+                  <td className="px-6 py-4.5 text-slate-500 leading-relaxed">{item.category}</td>
+                  <td className="px-6 py-4.5 leading-relaxed">
                     <div className="flex items-center gap-3">
                       <div className="w-full max-w-[150px] bg-slate-100 rounded-full h-2">
                         <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${item.utilizationRate}%` }} />
@@ -330,7 +330,7 @@ export const ProductAnalytics: React.FC = () => {
                       <span className="font-bold text-slate-700 text-xs">{item.utilizationRate}%</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4.5 leading-relaxed">
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColors[item.status]}`}>
                       {item.status}
                     </span>
