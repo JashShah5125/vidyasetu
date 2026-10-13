@@ -864,10 +864,25 @@ const createUser = async ({ tenant_id, name, email, mobile, password_hash, user_
 
         const newUserId = result.insertId;
 
-        if (role_id) {
+        let targetRoleId = role_id;
+        if (!targetRoleId && user_type) {
+            const normalizedType = user_type.toLowerCase().replace(/[\s-]+/g, '_');
+            const [matchedRoles] = await connection.query(
+                `SELECT id FROM roles 
+                 WHERE (LOWER(code) = ? OR LOWER(code) LIKE ? OR LOWER(name) LIKE ?) 
+                   AND is_active = 1 AND deleted_at IS NULL 
+                 ORDER BY id ASC LIMIT 1`,
+                [normalizedType, `%${normalizedType}%`, `%${normalizedType}%`]
+            );
+            if (matchedRoles && matchedRoles.length > 0) {
+                targetRoleId = matchedRoles[0].id;
+            }
+        }
+
+        if (targetRoleId) {
             await connection.query(
                 `INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES (?, ?, ?)`,
-                [newUserId, role_id, created_by || null]
+                [newUserId, targetRoleId, created_by || null]
             );
         }
 

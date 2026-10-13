@@ -438,6 +438,57 @@ interface InheritedPermissionRow {
   description: string;
 }
 
+const getMatchingRoleId = (
+  userType: string,
+  availableRoles: { id: number; name: string; code: string }[]
+): number | '' => {
+  if (!userType || !availableRoles || availableRoles.length === 0) return '';
+  const normalizedType = userType.toLowerCase().replace(/[\s-]+/g, '_');
+
+  const mappingRules: Record<string, string[]> = {
+    saas_admin: ['saas_admin', 'super_admin', 'platform_admin'],
+    inst_admin: ['inst_admin', 'institute_admin', 'admin'],
+    branch_admin: ['branch_admin', 'branch_manager'],
+    teacher: ['teacher', 'faculty'],
+    counsellor: ['counsellor', 'counselor', 'admission_counsellor'],
+    finance: ['finance', 'branch_finance', 'accountant'],
+    student: ['student'],
+    parent: ['parent', 'guardian'],
+  };
+
+  const candidateKeys = mappingRules[normalizedType] || [normalizedType];
+
+  // 1. Exact match on normalized role code
+  for (const key of candidateKeys) {
+    const found = availableRoles.find((r) => {
+      const code = (r.code || '').toLowerCase().replace(/[\s-]+/g, '_');
+      return code === key;
+    });
+    if (found) return found.id;
+  }
+
+  // 2. Partial match on normalized role code
+  for (const key of candidateKeys) {
+    const found = availableRoles.find((r) => {
+      const code = (r.code || '').toLowerCase().replace(/[\s-]+/g, '_');
+      return code.includes(key);
+    });
+    if (found) return found.id;
+  }
+
+  // 3. Match on role name
+  for (const key of candidateKeys) {
+    const nameKey = key.replace(/_/g, ' ');
+    const found = availableRoles.find((r) => {
+      const name = (r.name || '').toLowerCase();
+      return name.includes(nameKey);
+    });
+    if (found) return found.id;
+  }
+
+  return '';
+};
+
 export const UsersAndRoles: React.FC = () => {
   const { addToast } = useApp();
 
@@ -800,12 +851,22 @@ export const UsersAndRoles: React.FC = () => {
     setFormName('');
     setFormEmail('');
     setFormMobile('');
-    setFormUserType('saas-admin');
-    setFormRoleId(roles[0]?.id || '');
+    const initialUserType = 'saas-admin';
+    setFormUserType(initialUserType);
+    const activeRoles = rolesList.length > 0 ? rolesList : roles;
+    const initialRoleId = getMatchingRoleId(initialUserType, activeRoles);
+    setFormRoleId(initialRoleId !== '' ? initialRoleId : (activeRoles[0]?.id || ''));
     setFormUserStatus('active');
     setFormPassword('');
     setCreateUserError(null);
     setShowCreateModal(true);
+  };
+
+  const handleUserTypeChange = (newUserType: string) => {
+    setFormUserType(newUserType);
+    const activeRoles = rolesList.length > 0 ? rolesList : roles;
+    const matchedId = getMatchingRoleId(newUserType, activeRoles);
+    setFormRoleId(matchedId);
   };
 
   // Open FULL PAGE MANAGE View
@@ -4502,7 +4563,7 @@ export const UsersAndRoles: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-700 mb-1 block">User Type / Category <span className="text-red-500">*</span></label>
-                  <select value={formUserType} onChange={(e) => setFormUserType(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
+                  <select value={formUserType} onChange={(e) => handleUserTypeChange(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
                     <option value="saas-admin">SaaS Owner</option>
                     <option value="inst-admin">Inst Owner</option>
                     <option value="branch-admin">Branch Admin</option>
@@ -4516,9 +4577,9 @@ export const UsersAndRoles: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 mb-1 block">Global Role Mapping</label>
-                  <select value={formRoleId} onChange={(e) => setFormRoleId(Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
+                  <select value={formRoleId} onChange={(e) => setFormRoleId(e.target.value ? Number(e.target.value) : '')} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
                     <option value="">No Role (Default)</option>
-                    {rolesList.map(r => (<option key={r.id} value={r.id}>{r.name} ({r.code})</option>))}
+                    {(rolesList.length > 0 ? rolesList : roles).map(r => (<option key={r.id} value={r.id}>{r.name} ({r.code})</option>))}
                   </select>
                 </div>
                 <div>
