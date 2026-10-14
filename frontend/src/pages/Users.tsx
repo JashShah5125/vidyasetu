@@ -141,6 +141,7 @@ const getColumnTextValue = (s: any, colKey: StaffColumnKey): string => {
   }
 };
 
+
 export const Users: React.FC = () => {
   const { staff, addStaff, setStaff, currentUser, addToast, branches } = useApp();
   const navigate = useNavigate();
@@ -254,7 +255,7 @@ export const Users: React.FC = () => {
         if (names.length > 0) {
           branchName = names.join(', ');
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     let subjectsTaught = '';
@@ -322,26 +323,26 @@ export const Users: React.FC = () => {
 
   const ROLE_FILTER_OPTIONS = isBranchAdmin
     ? [
-        { value: 'All', label: 'All Operational Roles' },
-        { value: 'Teacher', label: 'Teacher / Faculty' },
-        { value: 'Counsellor', label: 'Counsellor' },
-        { value: 'Finance', label: 'Finance Staff' },
-        { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
-      ]
+      { value: 'All', label: 'All Operational Roles' },
+      { value: 'Teacher', label: 'Teacher / Faculty' },
+      { value: 'Counsellor', label: 'Counsellor' },
+      { value: 'Finance', label: 'Finance Staff' },
+      { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
+    ]
     : [
-        { value: 'All', label: 'All Roles' },
-        { value: 'Teacher', label: 'Teacher / Faculty' },
-        { value: 'Branch Admin', label: 'Branch Admin' },
-        { value: 'Institute Admin', label: 'Institute Admin' },
-        { value: 'Counsellor', label: 'Counsellor' },
-        { value: 'Finance', label: 'Finance Staff' },
-        { value: 'Teaching', label: 'Teaching Staff' },
-        { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
-      ];
+      { value: 'All', label: 'All Roles' },
+      { value: 'Teacher', label: 'Teacher / Faculty' },
+      { value: 'Branch Admin', label: 'Branch Admin' },
+      { value: 'Institute Admin', label: 'Institute Admin' },
+      { value: 'Counsellor', label: 'Counsellor' },
+      { value: 'Finance', label: 'Finance Staff' },
+      { value: 'Teaching', label: 'Teaching Staff' },
+      { value: 'Non-Teaching', label: 'Non-Teaching Staff' }
+    ];
 
   const branchFilterOptions = [
     { value: 'All', label: 'All Branches' },
-    ...(branches && branches.length > 0 
+    ...(branches && branches.length > 0
       ? branches.map(b => ({ value: b.name, label: b.name }))
       : Array.from(new Set(staff.map(s => s.branch))).filter(Boolean).map(b => ({ value: b as string, label: b as string }))
     )
@@ -442,8 +443,8 @@ export const Users: React.FC = () => {
     }
 
     // Check duplicate email
-    const duplicate = staff.some(s => 
-      s.email && s.email.toLowerCase() === cleanEmail.toLowerCase() && 
+    const duplicate = staff.some(s =>
+      s.email && s.email.toLowerCase() === cleanEmail.toLowerCase() &&
       (!editingEmail || s.email.toLowerCase() !== editingEmail.toLowerCase())
     );
     if (duplicate) {
@@ -501,25 +502,25 @@ export const Users: React.FC = () => {
         <div className="w-full">
           <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
             <Input label="Full Name" required placeholder="e.g. Mrs. Seema Deshpande" value={name} onChange={(e) => setName(e.target.value)} />
-            <Input 
-              label="Email Address Login" 
-              type="email" 
-              required 
-              placeholder="seema@apexiit.com" 
-              value={email} 
+            <Input
+              label="Email Address Login"
+              type="email"
+              required
+              placeholder="seema@apexiit.com"
+              value={email}
               error={emailError}
               onChange={(e) => {
                 setEmail(e.target.value);
                 if (emailError && (EMAIL_REGEX.test(e.target.value.trim()) || !e.target.value.trim())) {
                   setEmailError('');
                 }
-              }} 
+              }}
             />
             <div className="grid grid-cols-2 gap-4">
-              <Select 
-                label="Primary Security Role" 
-                value={role} 
-                onChange={(e) => setRole(e.target.value)} 
+              <Select
+                label="Primary Security Role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
                 options={[
                   { value: 'SuperAdmin', label: 'Super Admin' },
                   { value: 'Admin', label: 'Admin Executive' },
@@ -528,10 +529,10 @@ export const Users: React.FC = () => {
                   { value: 'Finance', label: 'Finance Staff' }
                 ]}
               />
-              <Select 
-                label="Allotted Branch Office" 
-                value={branch} 
-                onChange={(e) => setBranch(e.target.value)} 
+              <Select
+                label="Allotted Branch Office"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
                 options={[
                   { value: 'Mumbai West', label: 'Mumbai West' },
                   { value: 'Pune Camp', label: 'Pune Camp' }
@@ -605,11 +606,10 @@ export const Users: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setStaffProfileTab(tab.id as any)}
-                className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  staffProfileTab === tab.id
+                className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${staffProfileTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -968,11 +968,10 @@ export const Users: React.FC = () => {
         <button
           type="button"
           onClick={() => setMainTab('directory')}
-          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-            mainTab === 'directory'
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${mainTab === 'directory'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           <UsersIcon size={16} />
           Staff Directory
@@ -987,11 +986,10 @@ export const Users: React.FC = () => {
             setMainTab('leaves');
             fetchLeaveRequests();
           }}
-          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-            mainTab === 'leaves'
+          className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${mainTab === 'leaves'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           <Calendar size={16} />
           Faculty Leave Requests
@@ -1010,185 +1008,185 @@ export const Users: React.FC = () => {
       {mainTab === 'directory' && (
         <>
 
-      {/* Search, Filter, Sort Controls & Export CSV */}
-      <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className={`grid grid-cols-1 ${isBranchAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-4 flex-1 w-full items-end`}>
-          <Input
-            label="Search"
-            placeholder="Search by ID, name, email..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-          <Select
-            label="Role"
-            value={filterRole}
-            onChange={(e) => {
-              setFilterRole(e.target.value);
-              setCurrentPage(1);
-            }}
-            options={ROLE_FILTER_OPTIONS}
-          />
-          {!isBranchAdmin && (
-            <Select
-              label="Branch"
-              value={filterBranch}
-              onChange={(e) => {
-                setFilterBranch(e.target.value);
-                setCurrentPage(1);
-              }}
-              options={branchFilterOptions}
-            />
-          )}
-          <Select
-            label="Display Column"
-            value={selectedCustomColumn}
-            onChange={(e) => setSelectedCustomColumn(e.target.value as StaffColumnKey)}
-            options={STAFF_COLUMN_OPTIONS.map(opt => ({
-              value: opt.value,
-              label: opt.label
-            }))}
-          />
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setSearchTerm('');
-              setFilterRole('All');
-              setFilterBranch('All');
-              setCurrentPage(1);
-            }}
-            className="text-slate-500 hover:text-slate-700"
-          >
-            Clear
-          </Button>
-          <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Staff Directory Registry {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}
-          </CardTitle>
-        </CardHeader>
-        <Table 
-          minWidth="100%"
-          colWidths={['15%', '19%', '15%', '15%', '13%', '10%', '13%']}
-          headers={[
-            { label: 'ID', minWidth: '120px' },
-            { label: 'Staff Name', minWidth: '140px' },
-            { label: 'Branch / Hubs', minWidth: '120px' },
-            { label: (STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0]).header, minWidth: '120px' },
-            { label: 'Assigned Role', minWidth: '100px' },
-            { label: 'Status', minWidth: '80px', align: 'center' },
-            { label: 'Actions', minWidth: '95px', align: 'center' }
-          ]}
-        >
-          {paginatedStaff.map((s, idx) => {
-            const nameStr = ((s.first_name || '') + ' ' + (s.last_name || '')).trim();
-            const empId = (s as any).employee_id || s.id || `EMP-${idx + 1}`;
-            
-            let branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
-            if (s.branch_ids) {
-              try {
-                const bIds = Array.isArray(s.branch_ids) ? s.branch_ids : JSON.parse(s.branch_ids);
-                const names = bIds.map((id: any) => {
-                  const b = (branches || []).find(branch => String(branch.id) === String(id));
-                  return b ? b.name : null;
-                }).filter(Boolean);
-                if (names.length > 0) {
-                  branchStr = names.join(', ');
-                }
-              } catch (e) {}
-            }
-
-            const roleStr = s.role_name || (s.employee_type === 'Teaching' ? 'Teacher' : (s.designation || s.employee_type || 'Staff'));
-            const statusStr = (s.status || 'Active').toLowerCase();
-            
-            let statusBadgeClass = 'bg-red-50 text-red-600 border-red-200';
-            if (statusStr === 'active') {
-              statusBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            } else if (statusStr === 'inactive' || statusStr === 'suspended') {
-              statusBadgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
-            }
-
-            return (
-              <tr 
-                key={idx} 
-                className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                onClick={() => handleViewStaff(s)}
+          {/* Search, Filter, Sort Controls & Export CSV */}
+          <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
+            <div className={`grid grid-cols-1 ${isBranchAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-4 flex-1 w-full items-end`}>
+              <Input
+                label="Search"
+                placeholder="Search by ID, name, email..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+              <Select
+                label="Role"
+                value={filterRole}
+                onChange={(e) => {
+                  setFilterRole(e.target.value);
+                  setCurrentPage(1);
+                }}
+                options={ROLE_FILTER_OPTIONS}
+              />
+              {!isBranchAdmin && (
+                <Select
+                  label="Branch"
+                  value={filterBranch}
+                  onChange={(e) => {
+                    setFilterBranch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  options={branchFilterOptions}
+                />
+              )}
+              <Select
+                label="Display Column"
+                value={selectedCustomColumn}
+                onChange={(e) => setSelectedCustomColumn(e.target.value as StaffColumnKey)}
+                options={STAFF_COLUMN_OPTIONS.map(opt => ({
+                  value: opt.value,
+                  label: opt.label
+                }))}
+              />
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterRole('All');
+                  setFilterBranch('All');
+                  setCurrentPage(1);
+                }}
+                className="text-slate-500 hover:text-slate-700"
               >
-                <td className="px-3.5 py-2.5 font-mono text-xs font-semibold text-slate-600 whitespace-nowrap truncate max-w-[140px]" title={empId}>
-                  {empId}
-                </td>
-                <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[180px]">
-                  <div className="font-bold text-sm text-slate-900 whitespace-nowrap truncate" title={nameStr || 'Personnel Member'}>
-                    {nameStr || 'Personnel Member'}
-                  </div>
-                </td>
-                <td className="px-3.5 py-2.5 text-xs font-medium text-slate-700 whitespace-nowrap truncate max-w-[150px]">
-                  <span className="whitespace-nowrap truncate block" title={branchStr}>
-                    {branchStr}
-                  </span>
-                </td>
-                <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[150px]">
-                  {renderCustomColumnCell(s, selectedCustomColumn)}
-                </td>
-                <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[130px]">
-                  <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-semibold border whitespace-nowrap truncate ${roleBadgeColors(roleStr)}`}>
-                    {roleStr}
-                  </span>
-                </td>
-                <td className="px-3.5 py-2.5 whitespace-nowrap text-center">
-                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold capitalize border whitespace-nowrap ${statusBadgeClass}`}>
-                    {s.status || 'Active'}
-                  </span>
-                </td>
-                <td className="px-3.5 py-2.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      title="View Profile Details"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                      onClick={() => handleViewStaff(s)}
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Edit Staff Form"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}
-                    >
-                      <Edit3 size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete Staff"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                      onClick={() => setDeleteTarget(s)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </Table>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalStaff}
-          pageSize={itemsPerPage}
-          onPageChange={setCurrentPage}
-        />
-      </Card>
-      </>
+                Clear
+              </Button>
+              <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                Staff Directory Registry {loading && <Loader2 size={16} className="inline animate-spin ml-2" />}
+              </CardTitle>
+            </CardHeader>
+            <Table
+              minWidth="100%"
+              colWidths={['15%', '19%', '15%', '15%', '13%', '10%', '13%']}
+              headers={[
+                { label: 'ID', minWidth: '120px' },
+                { label: 'Staff Name', minWidth: '140px' },
+                { label: 'Branch / Hubs', minWidth: '120px' },
+                { label: (STAFF_COLUMN_OPTIONS.find(c => c.value === selectedCustomColumn) || STAFF_COLUMN_OPTIONS[0]).header, minWidth: '120px' },
+                { label: 'Assigned Role', minWidth: '100px' },
+                { label: 'Status', minWidth: '80px', align: 'center' },
+                { label: 'Actions', minWidth: '95px', align: 'center' }
+              ]}
+            >
+              {paginatedStaff.map((s, idx) => {
+                const nameStr = ((s.first_name || '') + ' ' + (s.last_name || '')).trim();
+                const empId = (s as any).employee_id || s.id || `EMP-${idx + 1}`;
+
+                let branchStr = s.primary_branch_name || s.branch_id || 'Unknown';
+                if (s.branch_ids) {
+                  try {
+                    const bIds = Array.isArray(s.branch_ids) ? s.branch_ids : JSON.parse(s.branch_ids);
+                    const names = bIds.map((id: any) => {
+                      const b = (branches || []).find(branch => String(branch.id) === String(id));
+                      return b ? b.name : null;
+                    }).filter(Boolean);
+                    if (names.length > 0) {
+                      branchStr = names.join(', ');
+                    }
+                  } catch (e) { }
+                }
+
+                const roleStr = s.role_name || (s.employee_type === 'Teaching' ? 'Teacher' : (s.designation || s.employee_type || 'Staff'));
+                const statusStr = (s.status || 'Active').toLowerCase();
+
+                let statusBadgeClass = 'bg-red-50 text-red-600 border-red-200';
+                if (statusStr === 'active') {
+                  statusBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                } else if (statusStr === 'inactive' || statusStr === 'suspended') {
+                  statusBadgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                }
+
+                return (
+                  <tr
+                    key={idx}
+                    className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                    onClick={() => handleViewStaff(s)}
+                  >
+                    <td className="px-3.5 py-2.5 font-mono text-xs font-semibold text-slate-600 whitespace-nowrap truncate max-w-[140px]" title={empId}>
+                      {empId}
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[180px]">
+                      <div className="font-bold text-sm text-slate-900 whitespace-nowrap truncate" title={nameStr || 'Personnel Member'}>
+                        {nameStr || 'Personnel Member'}
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-xs font-medium text-slate-700 whitespace-nowrap truncate max-w-[150px]">
+                      <span className="whitespace-nowrap truncate block" title={branchStr}>
+                        {branchStr}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[150px]">
+                      {renderCustomColumnCell(s, selectedCustomColumn)}
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap truncate max-w-[130px]">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded text-xs font-semibold border whitespace-nowrap truncate ${roleBadgeColors(roleStr)}`}>
+                        {roleStr}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap text-center">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold capitalize border whitespace-nowrap ${statusBadgeClass}`}>
+                        {s.status || 'Active'}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          title="View Profile Details"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          onClick={() => handleViewStaff(s)}
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Edit Staff Form"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          onClick={() => navigate(`/staff/${s.id}`, { state: { staffData: s } })}
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete Staff"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          onClick={() => setDeleteTarget(s)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </Table>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalStaff}
+              pageSize={itemsPerPage}
+              onPageChange={setCurrentPage}
+            />
+          </Card>
+        </>
       )}
 
       {/* Leave Requests Tab for Admin & Branch Admin */}
@@ -1203,11 +1201,10 @@ export const Users: React.FC = () => {
                   key={st}
                   type="button"
                   onClick={() => setLeaveFilterStatus(st)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors cursor-pointer ${
-                    leaveFilterStatus === st
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors cursor-pointer ${leaveFilterStatus === st
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                    }`}
                 >
                   {st}
                   {st === 'pending' && pendingLeavesCount > 0 && (

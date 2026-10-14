@@ -38,7 +38,11 @@ import {
   Clock,
   FileText,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Star,
+  UserPlus,
+  EyeOff,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import api from '../../services/api';
@@ -260,6 +264,17 @@ interface BranchAccess {
   is_primary: number;
   granted_at?: string;
   created_at: string;
+}
+
+interface AvailableBranchItem {
+  id: number;
+  name: string;
+  code: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  status?: string;
+  tenant_name?: string;
 }
 
 interface TenantSummary {
@@ -513,8 +528,14 @@ export const UsersAndRoles: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
 
-  // Create User Modal
+  // Create User Modal & Full-Page State
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [createTenantBranches, setCreateTenantBranches] = useState<AvailableBranchItem[]>([]);
+  const [createTenantBranchesLoading, setCreateTenantBranchesLoading] = useState(false);
+  const [selectedCreateBranchIds, setSelectedCreateBranchIds] = useState<number[]>([]);
+  const [createPrimaryBranchId, setCreatePrimaryBranchId] = useState<number | null>(null);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
 
   // FULL PAGE MANAGE USER STATE
   const [selectedManageUserId, setSelectedManageUserId] = useState<number | null>(null);
@@ -536,6 +557,16 @@ export const UsersAndRoles: React.FC = () => {
   const [showAssignRoleModal, setShowAssignRoleModal] = useState(false);
   const [assigningRoleId, setAssigningRoleId] = useState<number | null>(null);
   const [assigningRoleConfirm, setAssigningRoleConfirm] = useState<{ roleId: number; roleName: string } | null>(null);
+
+  // Branch Access Management States (Inside Sub-Tab 3)
+  const [showAssignBranchModal, setShowAssignBranchModal] = useState(false);
+  const [availableBranches, setAvailableBranches] = useState<AvailableBranchItem[]>([]);
+  const [availableBranchesLoading, setAvailableBranchesLoading] = useState(false);
+  const [assigningBranchId, setAssigningBranchId] = useState<number | null>(null);
+  const [isPrimarySelection, setIsPrimarySelection] = useState<Record<number, boolean>>({});
+  const [revokingBranch, setRevokingBranch] = useState<{ branchId: number; branchName: string } | null>(null);
+  const [revokingBranchSubmitting, setRevokingBranchSubmitting] = useState(false);
+  const [settingPrimaryBranchId, setSettingPrimaryBranchId] = useState<number | null>(null);
 
   // Suspend User Access Confirmation Modal
   const [suspendingUser, setSuspendingUser] = useState<UserRecord | null>(null);
@@ -845,25 +876,91 @@ export const UsersAndRoles: React.FC = () => {
     setUserPage(1);
   };
 
-  // Open Create User Modal
+  // Helper to fetch branches for a specific tenant during creation
+  const fetchTenantBranchesForCreate = async (tenantId: number | string) => {
+    if (!tenantId) {
+      setCreateTenantBranches([]);
+      setSelectedCreateBranchIds([]);
+      setCreatePrimaryBranchId(null);
+      return;
+    }
+    setCreateTenantBranchesLoading(true);
+    try {
+      const res = await api.get(`/admin/users/tenants/${tenantId}/branches`);
+      if (res.data.status === 'success') {
+        const branches = res.data.data || [];
+        setCreateTenantBranches(branches);
+        setSelectedCreateBranchIds([]);
+        setCreatePrimaryBranchId(null);
+      }
+    } catch (err) {
+      console.error('Error fetching tenant branches for user creation:', err);
+      setCreateTenantBranches([]);
+    } finally {
+      setCreateTenantBranchesLoading(false);
+    }
+  };
+
+  // Change tenant during user creation
+  const handleTenantChangeForCreate = (tId: number | '') => {
+    setFormTenantId(tId);
+    setSelectedCreateBranchIds([]);
+    setCreatePrimaryBranchId(null);
+    if (tId) {
+      fetchTenantBranchesForCreate(tId);
+    } else {
+      setCreateTenantBranches([]);
+    }
+  };
+
+  // Toggle branch selection in create form
+  const handleToggleCreateBranch = (branchId: number) => {
+    setSelectedCreateBranchIds(prev => {
+      const next = prev.includes(branchId) ? prev.filter(id => id !== branchId) : [...prev, branchId];
+      if (!next.includes(createPrimaryBranchId as number)) {
+        setCreatePrimaryBranchId(next[0] || null);
+      }
+      return next;
+    });
+  };
+
+  // Auto-generate secure password
+  const handleGeneratePassword = () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';
+    let pwd = '';
+    for (let i = 0; i < 12; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setFormPassword(pwd);
+    setShowCreatePassword(true);
+  };
+
+  // Open Full-Page Create User Form (Everything blank by default)
   const handleOpenCreateUser = () => {
-    setFormTenantId(tenants[0]?.id || 1);
+    setFormTenantId('');
     setFormName('');
     setFormEmail('');
     setFormMobile('');
-    const initialUserType = 'saas-admin';
-    setFormUserType(initialUserType);
-    const activeRoles = rolesList.length > 0 ? rolesList : roles;
-    const initialRoleId = getMatchingRoleId(initialUserType, activeRoles);
-    setFormRoleId(initialRoleId !== '' ? initialRoleId : (activeRoles[0]?.id || ''));
-    setFormUserStatus('active');
+    setFormUserType('');
+    setFormRoleId('');
+    setFormUserStatus('');
     setFormPassword('');
+    setShowCreatePassword(false);
+    setCreateTenantBranches([]);
+    setSelectedCreateBranchIds([]);
+    setCreatePrimaryBranchId(null);
     setCreateUserError(null);
-    setShowCreateModal(true);
+    setSelectedManageUserId(null);
+    setManagedUser(null);
+    setIsCreatingUser(true);
   };
 
   const handleUserTypeChange = (newUserType: string) => {
     setFormUserType(newUserType);
+    if (!newUserType) {
+      setFormRoleId('');
+      return;
+    }
     const activeRoles = rolesList.length > 0 ? rolesList : roles;
     const matchedId = getMatchingRoleId(newUserType, activeRoles);
     setFormRoleId(matchedId);
@@ -904,7 +1001,7 @@ export const UsersAndRoles: React.FC = () => {
     e.preventDefault();
     setCreateUserError(null);
     if (!formName || !formEmail || !formTenantId || !formUserType || !formPassword) {
-      const msg = 'Please fill in all required fields.';
+      const msg = 'Please fill in all required fields (Name, Email, Tenant, User Category, and Initial Password).';
       setCreateUserError(msg);
       return;
     }
@@ -925,12 +1022,19 @@ export const UsersAndRoles: React.FC = () => {
         user_type: formUserType,
         password: formPassword,
         status: formUserStatus,
-        role_id: formRoleId || null
+        role_id: formRoleId || null,
+        branch_ids: selectedCreateBranchIds,
+        primary_branch_id: createPrimaryBranchId
       });
       if (res.data.status === 'success') {
+        const createdId = res.data.data?.id;
         addToast(`User "${formName}" created successfully!`, 'info');
-        setShowCreateModal(false);
+        setIsCreatingUser(false);
         fetchUsers();
+        if (createdId) {
+          setSelectedManageUserId(createdId);
+          setManageUserTab('profile');
+        }
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Failed to create user.';
@@ -1010,6 +1114,88 @@ export const UsersAndRoles: React.FC = () => {
       addToast(err.response?.data?.message || 'Failed to revoke role.', 'error');
     } finally {
       setRevokingSubmitting(false);
+    }
+  };
+
+  // Fetch available branches for user's tenant
+  const fetchAvailableBranches = useCallback(async (userId: number) => {
+    setAvailableBranchesLoading(true);
+    try {
+      const res = await api.get(`/admin/users/${userId}/branches/available`);
+      if (res.data.status === 'success') {
+        setAvailableBranches(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching available branches:', err);
+      addToast('Failed to load available branches.', 'error');
+    } finally {
+      setAvailableBranchesLoading(false);
+    }
+  }, [addToast]);
+
+  // Open Assign Branch Panel
+  const handleOpenAssignBranchModal = () => {
+    if (!managedUser) return;
+    fetchAvailableBranches(managedUser.id);
+    setShowAssignBranchModal(prev => !prev);
+  };
+
+  // Assign branch to user
+  const handleAssignBranchToUser = async (branch: AvailableBranchItem) => {
+    if (!managedUser) return;
+    setAssigningBranchId(branch.id);
+    const isPrimary = !!isPrimarySelection[branch.id];
+    try {
+      const res = await api.post(`/admin/users/${managedUser.id}/branches`, {
+        branch_id: branch.id,
+        is_primary: isPrimary
+      });
+      if (res.data.status === 'success') {
+        addToast(`Branch "${branch.name}" access assigned to ${managedUser.name} successfully!`, 'success');
+        reloadManagedUser(managedUser.id);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to assign branch access.', 'error');
+    } finally {
+      setAssigningBranchId(null);
+    }
+  };
+
+  // Revoke branch access confirmation
+  const handleConfirmRevokeBranch = async () => {
+    if (!managedUser || !revokingBranch) return;
+    setRevokingBranchSubmitting(true);
+    try {
+      const res = await api.delete(`/admin/users/${managedUser.id}/branches/${revokingBranch.branchId}`);
+      if (res.data.status === 'success') {
+        addToast(`Branch access for "${revokingBranch.branchName}" revoked successfully.`, 'success');
+        setRevokingBranch(null);
+        reloadManagedUser(managedUser.id);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to revoke branch access.', 'error');
+    } finally {
+      setRevokingBranchSubmitting(false);
+    }
+  };
+
+  // Set Primary Branch
+  const handleSetPrimaryBranch = async (branchId: number, branchName: string) => {
+    if (!managedUser) return;
+    setSettingPrimaryBranchId(branchId);
+    try {
+      const res = await api.put(`/admin/users/${managedUser.id}/branches/${branchId}/primary`);
+      if (res.data.status === 'success') {
+        addToast(`"${branchName}" marked as primary branch for ${managedUser.name}.`, 'success');
+        reloadManagedUser(managedUser.id);
+        fetchUsers();
+      }
+    } catch (err: any) {
+      addToast(err.response?.data?.message || 'Failed to set primary branch.', 'error');
+    } finally {
+      setSettingPrimaryBranchId(null);
     }
   };
 
@@ -3152,33 +3338,188 @@ export const UsersAndRoles: React.FC = () => {
                         Institutes and physical branches this user has permission to access and operate within.
                       </p>
                     </div>
-                    <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded-full border border-blue-100">
-                      {managedUser.branch_access?.length || 0} Branches Configured
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded-full border border-blue-100">
+                        {managedUser.branch_access?.length || 0} Branches Configured
+                      </span>
+                      <Button
+                        type="button"
+                        variant={showAssignBranchModal ? "secondary" : "primary"}
+                        onClick={handleOpenAssignBranchModal}
+                        className="px-4 py-2 text-xs shadow-sm gap-1.5 shrink-0"
+                      >
+                        {showAssignBranchModal ? '✕ Close Assign Panel' : '+ Assign Branch Access'}
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* INLINE ASSIGN BRANCH SELECTION PANEL */}
+                  {showAssignBranchModal && (
+                    <div className="bg-slate-50 border border-blue-200 rounded-2xl p-5 space-y-4 shadow-sm animate-fade-in">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <Building2 size={18} className="text-blue-600" />
+                            Select Branch to Authorize Access
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Grant physical branch access permissions to <strong className="text-slate-800">{managedUser.name}</strong>.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setShowAssignBranchModal(false)}
+                          className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition cursor-pointer text-xs font-bold"
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
+
+                      {availableBranchesLoading ? (
+                        <div className="py-8 text-center text-slate-400">
+                          <RefreshCw size={22} className="animate-spin mx-auto mb-2 text-slate-300" />
+                          Loading available branches list...
+                        </div>
+                      ) : availableBranches.length === 0 ? (
+                        <div className="py-8 text-center text-slate-400 text-xs">
+                          No branches found for this user's institute.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {availableBranches.map((b) => {
+                            const isAssigned = managedUser.branch_access?.some(ba => ba.id === b.id || ba.branch_id === b.id);
+                            const assignedBa = managedUser.branch_access?.find(ba => ba.id === b.id || ba.branch_id === b.id);
+                            const isAssigningThis = assigningBranchId === b.id;
+
+                            return (
+                              <div key={b.id} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-2xs hover:border-blue-300 transition gap-3">
+                                <div className="space-y-1">
+                                  <div className="font-bold text-slate-900 text-sm flex items-center justify-between">
+                                    <span>{b.name}</span>
+                                    <code className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                      {b.code}
+                                    </code>
+                                  </div>
+                                  <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                                    <MapPin size={13} className="text-slate-400 shrink-0" />
+                                    <span>{b.city ? `${b.city}, ${b.state || ''}` : b.address || 'Location unassigned'}</span>
+                                  </div>
+                                  {b.tenant_name && (
+                                    <div className="text-[11px] text-slate-400">
+                                      Institute: <span className="text-slate-600 font-medium">{b.tenant_name}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                                  {isAssigned ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-xs inline-flex items-center gap-1">
+                                        <Check size={13} /> Granted
+                                      </span>
+                                      {assignedBa?.is_primary === 1 && (
+                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase rounded-full">
+                                          Primary
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-between w-full gap-2">
+                                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                                        <input
+                                          type="checkbox"
+                                          checked={!!isPrimarySelection[b.id]}
+                                          onChange={(e) => setIsPrimarySelection(prev => ({ ...prev, [b.id]: e.target.checked }))}
+                                          className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                                        />
+                                        Primary
+                                      </label>
+                                      <Button
+                                        type="button"
+                                        variant="primary"
+                                        disabled={isAssigningThis}
+                                        onClick={() => handleAssignBranchToUser(b)}
+                                        className="px-3 py-1.5 text-xs font-bold gap-1 shadow-xs"
+                                      >
+                                        {isAssigningThis ? (
+                                          <>
+                                            <RefreshCw size={13} className="animate-spin" /> Assigning...
+                                          </>
+                                        ) : (
+                                          '+ Authorize Access'
+                                        )}
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {managedUser.branch_access && managedUser.branch_access.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {managedUser.branch_access.map((ba) => (
-                        <div key={ba.id} className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-2 hover:border-blue-300 transition shadow-2xs">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-bold text-sm text-slate-900">{ba.name}</h4>
-                            {ba.is_primary === 1 && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase rounded-full">
-                                Primary
+                      {managedUser.branch_access.map((ba) => {
+                        const isSettingPrimary = settingPrimaryBranchId === ba.id;
+                        return (
+                          <div key={ba.id} className="bg-slate-50/80 border border-slate-200 rounded-xl p-4 flex flex-col justify-between hover:border-blue-300 transition shadow-2xs space-y-3">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-bold text-sm text-slate-900">{ba.name}</h4>
+                                {ba.is_primary === 1 ? (
+                                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase rounded-full">
+                                    Primary Branch
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={isSettingPrimary}
+                                    onClick={() => handleSetPrimaryBranch(ba.id, ba.name)}
+                                    title="Make this branch primary"
+                                    className="text-[11px] text-blue-600 hover:text-blue-800 font-bold transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {isSettingPrimary ? <RefreshCw size={11} className="animate-spin" /> : <Star size={12} />}
+                                    Set Primary
+                                  </button>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-500 space-y-1">
+                                <div>Branch Code: <span className="font-mono font-semibold text-slate-700">{ba.code}</span></div>
+                                <div>Location: <span className="text-slate-700">{ba.city ? `${ba.city}, ${ba.state || ''}` : ba.address || '—'}</span></div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                              <span className="text-slate-400 text-[11px]">
+                                {ba.granted_at ? `Granted: ${new Date(ba.granted_at).toLocaleDateString()}` : 'Configured'}
                               </span>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => setRevokingBranch({ branchId: ba.id, branchName: ba.name })}
+                                className="text-red-500 hover:text-red-700 font-bold transition flex items-center gap-1 cursor-pointer p-1 rounded hover:bg-red-50"
+                                title="Revoke branch access"
+                              >
+                                <Trash2 size={13} />
+                                Revoke
+                              </button>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500 space-y-1">
-                            <div>Branch Code: <span className="font-mono font-semibold text-slate-700">{ba.code}</span></div>
-                            <div>Location: <span className="text-slate-700">{ba.city ? `${ba.city}, ${ba.state || ''}` : ba.address || '—'}</span></div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
-                    <div className="p-12 text-center bg-slate-50 rounded-2xl text-slate-400 text-sm border border-dashed border-slate-200">
-                      No explicit branch mappings recorded. This user operates with standard tenant-wide access.
+                    <div className="p-12 text-center bg-slate-50 rounded-2xl text-slate-400 text-sm border border-dashed border-slate-200 space-y-3">
+                      <div>No explicit branch mappings recorded. This user operates with standard tenant-wide access.</div>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={handleOpenAssignBranchModal}
+                        className="px-4 py-2 text-xs shadow-sm gap-1.5 mx-auto"
+                      >
+                        <Building2 size={15} /> + Authorize First Branch Access
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -4070,6 +4411,420 @@ export const UsersAndRoles: React.FC = () => {
           </div>
         )}
         </div>
+      ) : isCreatingUser ? (
+        <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+          {/* Back Button & Header Badge */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setIsCreatingUser(false)}
+              className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-600 transition cursor-pointer"
+            >
+              <ArrowLeft size={18} /> Back to Users Directory
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 bg-blue-50 text-blue-800 border-blue-200">
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                Provisioning New User
+              </span>
+            </div>
+          </div>
+
+          {/* User Hero Banner Header (Matching Image 2) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-blue-600/10 text-blue-600 font-extrabold flex items-center justify-center text-xl shadow-2xs">
+                {formName.trim()
+                  ? formName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                  : <UserPlus size={26} className="text-blue-600" />}
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  {formName.trim() || 'New User Setup'}
+                </h2>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
+                  <span className="flex items-center gap-1">
+                    <Mail size={13} className="text-slate-400" />
+                    {formEmail.trim() || 'user@example.com'}
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Phone size={13} className="text-slate-400" />
+                    {formMobile.trim() || 'No Mobile Provided'}
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 font-semibold text-slate-700">
+                    <Building2 size={13} className="text-slate-400" />
+                    {tenants.find(t => t.id === Number(formTenantId))?.name || 'Workspace Unassigned'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              {formUserType ? (
+                getRoleBadge(
+                  rolesList.find(r => r.id === Number(formRoleId))?.name || formUserType
+                )
+              ) : (
+                <span className="px-3 py-1 bg-slate-100 text-slate-400 font-semibold text-xs rounded-full border border-slate-200">
+                  Role Not Selected
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 3 Metric Overview Cards (Matching Image 2) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-1">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Account ID &amp; Type</div>
+              <div className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                <span>New User</span>
+                {formUserType ? (
+                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-mono font-bold rounded">
+                    {formUserType.toUpperCase()}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-400 text-xs font-mono font-medium rounded">
+                    NOT SET
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-slate-500">
+                Tenant: {tenants.find(t => t.id === Number(formTenantId))?.name || 'Not selected'}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-1">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Account State</div>
+              <div className="text-base font-extrabold text-slate-800 flex items-center gap-1.5">
+                {formUserStatus ? (
+                  <>
+                    <span className={`w-2.5 h-2.5 rounded-full ${formUserStatus === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                    <span className="capitalize">{formUserStatus}</span>
+                  </>
+                ) : (
+                  <span className="text-slate-400 font-medium text-sm">Not Selected</span>
+                )}
+              </div>
+              <div className="text-xs text-slate-500">
+                {formUserStatus === 'active'
+                  ? 'Ready for immediate platform access upon registration'
+                  : formUserStatus === 'inactive'
+                  ? 'Access will be paused until enabled'
+                  : 'Pending selection'}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-1">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Membership &amp; Creation</div>
+              <div className="text-base font-extrabold text-slate-800">
+                {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+              <div className="text-xs text-slate-500">
+                Password Change Required: Yes (First login)
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreateUserSubmit} noValidate className="space-y-6">
+            {/* User Account Credentials & Settings Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h3 className="text-base font-bold text-slate-900">User Account Credentials &amp; Settings</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Update account credentials, tenant mapping, and active system category.
+                </p>
+              </div>
+
+              {createUserError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-sm animate-fade-in">
+                  <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 font-medium">{createUserError}</div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    Tenant Workspace <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formTenantId}
+                    onChange={(e) => handleTenantChangeForCreate(e.target.value ? Number(e.target.value) : '')}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  >
+                    <option value="">-- Select Tenant Workspace --</option>
+                    {tenants.map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400 mt-1">Select the institute workspace this user operates under.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Official displayed name on certificates, batches, and chat.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="ramesh@tenant.com"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Unique platform username for login and authentication.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    Mobile Number
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={10}
+                    value={formMobile}
+                    onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">10-digit Indian phone number for communications.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    User Type / Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formUserType}
+                    onChange={(e) => handleUserTypeChange(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  >
+                    <option value="">-- Select User Type / Category --</option>
+                    <option value="saas-admin">SaaS Owner / Admin</option>
+                    <option value="inst-admin">Institute Owner / Admin</option>
+                    <option value="branch-admin">Branch Admin</option>
+                    <option value="teacher">Teacher / Faculty</option>
+                    <option value="counsellor">Counsellor</option>
+                    <option value="finance">Finance Staff</option>
+                    <option value="student">Student</option>
+                  </select>
+                  <p className="text-[11px] text-slate-400 mt-1">Defines system navigation and core role capabilities.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    Global Role Mapping
+                  </label>
+                  <select
+                    value={formRoleId}
+                    onChange={(e) => setFormRoleId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  >
+                    <option value="">-- Select Global Role (Optional) --</option>
+                    {(rolesList.length > 0 ? rolesList : roles).map(r => (
+                      <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400 mt-1">Default RBAC security permission set.</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    Account Status
+                  </label>
+                  <select
+                    value={formUserStatus}
+                    onChange={(e) => setFormUserStatus(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                  >
+                    <option value="">-- Select Account Status --</option>
+                    <option value="active">Active (Access Allowed)</option>
+                    <option value="inactive">Inactive (Access Paused)</option>
+                  </select>
+                  <p className="text-[11px] text-slate-400 mt-1">Active users can authenticate and access the workspace.</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Initial Password <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePassword}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Sparkles size={12} /> Auto-Generate
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showCreatePassword ? "text" : "password"}
+                      required
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      placeholder="Enter initial secure password..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatePassword(prev => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                    >
+                      {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">User will be required to change this upon initial login.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Authorized Branches & Locations Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Building2 size={20} className="text-blue-600" />
+                    Authorized Branches &amp; Locations
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Institutes and physical branches this user has permission to access and operate within.
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded-full border border-blue-100">
+                  {selectedCreateBranchIds.length} Branches Selected
+                </span>
+              </div>
+
+              {createTenantBranchesLoading ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-slate-300" />
+                  Loading available branches for this institute...
+                </div>
+              ) : !formTenantId ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl text-slate-400 text-xs border border-dashed border-slate-200">
+                  Please select a Tenant Workspace above to view and authorize physical branches.
+                </div>
+              ) : createTenantBranches.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl text-slate-400 text-xs border border-dashed border-slate-200">
+                  No explicit branches found under this tenant workspace. You can still create the user now and assign branches later.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {createTenantBranches.map(b => {
+                    const isSelected = selectedCreateBranchIds.includes(b.id);
+                    const isPrimary = createPrimaryBranchId === b.id;
+
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => handleToggleCreateBranch(b.id)}
+                        className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between space-y-3 ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50/40 shadow-xs ring-1 ring-blue-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm text-slate-900">{b.name}</span>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="w-4 h-4 rounded text-blue-600 border-slate-300 pointer-events-none"
+                            />
+                          </div>
+                          <div className="text-xs text-slate-500 space-y-0.5">
+                            <div>Branch Code: <span className="font-mono font-semibold text-slate-700">{b.code}</span></div>
+                            <div>Location: <span className="text-slate-600">{b.city ? `${b.city}, ${b.state || ''}` : b.address || '—'}</span></div>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <div className="pt-2 border-t border-blue-200/60 flex items-center justify-between">
+                            {isPrimary ? (
+                              <span className="px-2 py-0.5 bg-blue-600 text-white font-extrabold text-[10px] uppercase rounded-full">
+                                Primary Branch
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCreatePrimaryBranchId(b.id);
+                                }}
+                                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                              >
+                                <Star size={12} /> Set as Primary
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Form Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsCreatingUser(false)}
+                className="text-sm font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+              >
+                Cancel &amp; Return to Directory
+              </button>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setIsCreatingUser(false)}
+                >
+                  Discard
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={formSubmitting}
+                  className="px-6 py-2.5 text-sm font-bold shadow-md gap-2"
+                >
+                  {formSubmitting ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" /> Provisioning User...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} /> Create User Account
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
       ) : (
         <>
           {/* Header */}
@@ -4511,102 +5266,7 @@ export const UsersAndRoles: React.FC = () => {
       </>
       )}
 
-      {/* CREATE USER MODAL */}
-      {showCreateModal && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-4">
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setShowCreateModal(false)} />
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in relative z-10 my-auto">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <User size={18} className="text-blue-600" /> Provision New Platform User
-              </h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition cursor-pointer">✕</button>
-            </div>
 
-            <form onSubmit={handleCreateUserSubmit} noValidate className="p-6 space-y-4">
-              {createUserError && (
-                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 text-sm animate-fade-in">
-                  <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 font-medium">{createUserError}</div>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-semibold text-slate-700 mb-1 block">Belongs To Tenant <span className="text-red-500">*</span></label>
-                <select value={formTenantId} onChange={(e) => setFormTenantId(Number(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
-                  {tenants.map(t => (<option key={t.id} value={t.id}>{t.name} ({t.slug})</option>))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Full Name <span className="text-red-500">*</span></label>
-                  <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Ramesh Kumar" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Email Address <span className="text-red-500">*</span></label>
-                  <input type="email" required value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="ramesh@tenant.com" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Mobile Number</label>
-                  <input
-                    type="text"
-                    maxLength={10}
-                    placeholder="9876543210"
-                    value={formMobile}
-                    onChange={(e) => setFormMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">User Type / Category <span className="text-red-500">*</span></label>
-                  <select value={formUserType} onChange={(e) => handleUserTypeChange(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
-                    <option value="saas-admin">SaaS Owner</option>
-                    <option value="inst-admin">Inst Owner</option>
-                    <option value="branch-admin">Branch Admin</option>
-                    <option value="teacher">Teacher</option>
-                    <option value="counsellor">Counsellor</option>
-                    <option value="finance">Finance Staff</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Global Role Mapping</label>
-                  <select value={formRoleId} onChange={(e) => setFormRoleId(e.target.value ? Number(e.target.value) : '')} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
-                    <option value="">No Role (Default)</option>
-                    {(rolesList.length > 0 ? rolesList : roles).map(r => (<option key={r.id} value={r.id}>{r.name} ({r.code})</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 mb-1 block">Account Status</label>
-                  <select value={formUserStatus} onChange={(e) => setFormUserStatus(e.target.value as any)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-700 mb-1 block">Initial Password <span className="text-red-500">*</span></label>
-                <input type="password" required value={formPassword} onChange={(e) => setFormPassword(e.target.value)} placeholder="Enter initial secure password..." className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition" />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-                <Button type="submit" variant="primary" disabled={formSubmitting}>
-                  {formSubmitting ? 'Saving...' : 'Create User'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* CREATE / EDIT ROLE MODAL */}
       {showRoleModal && createPortal(
@@ -4967,6 +5627,39 @@ export const UsersAndRoles: React.FC = () => {
               </Button>
               <Button variant="danger" onClick={handleConfirmRevokeRole} disabled={revokingSubmitting}>
                 {revokingSubmitting ? 'Revoking...' : 'Confirm Revoke'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* REVOKE BRANCH ACCESS CONFIRMATION MODAL */}
+      {revokingBranch && managedUser && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setRevokingBranch(null)} />
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 text-center animate-fade-in relative z-10 my-auto">
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto border border-red-100">
+              <Building2 size={28} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Revoke Branch Access?</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Are you sure you want to revoke physical branch access for <span className="font-bold text-slate-800">"{revokingBranch.branchName}"</span> from user <span className="font-bold text-slate-800">{managedUser.name}</span>?
+              </p>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-left">
+              <p className="text-xs text-amber-800 font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={14} className="shrink-0 text-amber-600" />
+                The user will no longer be mapped to this physical branch or receive branch-scoped privileges.
+              </p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setRevokingBranch(null)} disabled={revokingBranchSubmitting}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={handleConfirmRevokeBranch} disabled={revokingBranchSubmitting}>
+                {revokingBranchSubmitting ? 'Revoking...' : 'Confirm Revoke'}
               </Button>
             </div>
           </div>

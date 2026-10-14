@@ -1117,6 +1117,113 @@ const getUserInheritedPermissions = async (userId, { page = 1, limit = 10, searc
     };
 };
 
+const getUserAvailableBranches = async (userId) => {
+    const [userRows] = await pool.query('SELECT tenant_id FROM users WHERE id = ?', [userId]);
+    if (!userRows || userRows.length === 0) {
+        return [];
+    }
+    const tenantId = userRows[0].tenant_id;
+    let query = 'SELECT b.id, b.name, b.code, b.address_line1 AS address, b.city, b.state, b.status, t.name as tenant_name FROM branches b LEFT JOIN tenants t ON b.tenant_id = t.id WHERE b.deleted_at IS NULL';
+    const params = [];
+    if (tenantId && tenantId !== 1) {
+        query += ' AND b.tenant_id = ?';
+        params.push(tenantId);
+    }
+    query += ' ORDER BY b.name ASC';
+    const [branches] = await pool.query(query, params);
+    return branches;
+};
+
+const assignUserBranchAccess = async (userId, branchId, isPrimary = 0, assignedBy = null) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const [userRows] = await connection.query('SELECT tenant_id FROM users WHERE id = ?', [userId]);
+        if (!userRows || userRows.length === 0) {
+            throw new Error('User not found');
+        }
+        const tenantId = userRows[0].tenant_id;
+
+        if (isPrimary) {
+            await connection.query(
+                'UPDATE user_branch_access SET is_primary = 0 WHERE user_id = ?',
+                [userId]
+            );
+        }
+
+        const [existing] = await connection.query(
+            'SELECT id FROM user_branch_access WHERE user_id = ? AND branch_id = ?',
+            [userId, branchId]
+        );
+
+        if (existing && existing.length > 0) {
+            await connection.query(
+                `UPDATE user_branch_access 
+                 SET revoked_at = NULL, is_primary = ?, granted_by = ?, granted_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [isPrimary ? 1 : 0, assignedBy, existing[0].id]
+            );
+        } else {
+            await connection.query(
+                `INSERT INTO user_branch_access (tenant_id, user_id, branch_id, is_primary, granted_by, granted_at)
+                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [tenantId, userId, branchId, isPrimary ? 1 : 0, assignedBy]
+            );
+        }
+
+        await connection.commit();
+        return true;
+    } catch (err) {
+        await connection.rollback();
+        throw err;
+    } finally {
+        connection.release();
+    }
+};
+
+const removeUserBranchAccess = async (userId, branchId) => {
+    const [result] = await pool.query(
+        'UPDATE user_branch_access SET revoked_at = CURRENT_TIMESTAMP, is_primary = 0 WHERE user_id = ? AND branch_id = ?',
+        [userId, branchId]
+    );
+    return result.affectedRows > 0;
+};
+
+const setUserPrimaryBranch = async (userId, branchId) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        await connection.query(
+            'UPDATE user_branch_access SET is_primary = 0 WHERE user_id = ?',
+            [userId]
+        );
+        await connection.query(
+            'UPDATE user_branch_access SET is_primary = 1, revoked_at = NULL WHERE user_id = ? AND branch_id = ?',
+            [userId, branchId]
+        );
+        await connection.commit();
+        return true;
+    } catch (err) {
+        await connection.rollback();
+        throw err;
+    } finally {
+        connection.release();
+    }
+};
+
+const getBranchesByTenantId = async (tenantId) => {
+    let query = 'SELECT b.id, b.name, b.code, b.address_line1 AS address, b.city, b.state, b.status FROM branches b WHERE b.deleted_at IS NULL';
+    const params = [];
+    if (tenantId && tenantId !== 1 && tenantId !== '1') {
+        query += ' AND b.tenant_id = ?';
+        params.push(tenantId);
+    }
+    query += ' ORDER BY b.name ASC';
+    const [branches] = await pool.query(query, params);
+    return branches;
+};
+
 module.exports = {
     findUserByEmail,
     findUserById,
@@ -1139,5 +1246,10 @@ module.exports = {
     addUserPermissionOverride,
     removeUserPermissionOverride,
     getAllRoles,
-    getAllTenants
+    getAllTenants,
+    getUserAvailableBranches,
+    assignUserBranchAccess,
+    removeUserBranchAccess,
+    setUserPrimaryBranch,
+    getBranchesByTenantId
 };

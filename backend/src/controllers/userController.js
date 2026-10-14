@@ -47,7 +47,7 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 const createUser = async (req, res) => {
     try {
-        const { tenant_id, name, email, mobile, password, user_type, status, role_id } = req.body;
+        const { tenant_id, name, email, mobile, password, user_type, status, role_id, branch_ids, primary_branch_id } = req.body;
 
         if (!tenant_id || !name || !email || !password || !user_type) {
             return res.status(400).json({ status: 'error', message: 'Tenant, name, email, password, and user type are required' });
@@ -78,6 +78,14 @@ const createUser = async (req, res) => {
             role_id: role_id || null,
             created_by
         });
+
+        // If branches were specified during creation, link them immediately
+        if (Array.isArray(branch_ids) && branch_ids.length > 0) {
+            for (const bId of branch_ids) {
+                const isPrimary = (primary_branch_id && Number(primary_branch_id) === Number(bId)) ? 1 : (branch_ids.length === 1 ? 1 : 0);
+                await userModel.assignUserBranchAccess(newUserId, bId, isPrimary, created_by);
+            }
+        }
 
         res.status(201).json({
             status: 'success',
@@ -292,6 +300,66 @@ const getUserInheritedPermissions = async (req, res) => {
     }
 };
 
+const getUserAvailableBranches = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const branches = await userModel.getUserAvailableBranches(id);
+        res.status(200).json({ status: 'success', data: branches });
+    } catch (error) {
+        console.error('Error fetching available branches:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to fetch available branches' });
+    }
+};
+
+const assignUserBranchAccess = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { branch_id, is_primary } = req.body;
+        if (!branch_id) {
+            return res.status(400).json({ status: 'error', message: 'branch_id is required' });
+        }
+        const assigned_by = req.user ? (req.user.userId || req.user.id) : null;
+        await userModel.assignUserBranchAccess(id, branch_id, is_primary ? 1 : 0, assigned_by);
+        res.status(200).json({ status: 'success', message: 'Branch access assigned successfully' });
+    } catch (error) {
+        console.error('Error assigning branch access:', error);
+        res.status(500).json({ status: 'error', message: error.message || 'Failed to assign branch access' });
+    }
+};
+
+const removeUserBranchAccess = async (req, res) => {
+    try {
+        const { id, branchId } = req.params;
+        await userModel.removeUserBranchAccess(id, branchId);
+        res.status(200).json({ status: 'success', message: 'Branch access revoked successfully' });
+    } catch (error) {
+        console.error('Error revoking branch access:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to revoke branch access' });
+    }
+};
+
+const setUserPrimaryBranch = async (req, res) => {
+    try {
+        const { id, branchId } = req.params;
+        await userModel.setUserPrimaryBranch(id, branchId);
+        res.status(200).json({ status: 'success', message: 'Primary branch set successfully' });
+    } catch (error) {
+        console.error('Error setting primary branch:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to set primary branch' });
+    }
+};
+
+const getTenantBranches = async (req, res) => {
+    try {
+        const { tenantId } = req.params;
+        const branches = await userModel.getBranchesByTenantId(tenantId);
+        res.status(200).json({ status: 'success', data: branches });
+    } catch (error) {
+        console.error('Error fetching tenant branches:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to fetch tenant branches' });
+    }
+};
+
 module.exports = {
     listUsers,
     getUserById,
@@ -306,5 +374,10 @@ module.exports = {
     changeUserRole,
     addPermissionOverride,
     removePermissionOverride,
-    getUserInheritedPermissions
+    getUserInheritedPermissions,
+    getUserAvailableBranches,
+    assignUserBranchAccess,
+    removeUserBranchAccess,
+    setUserPrimaryBranch,
+    getTenantBranches
 };
