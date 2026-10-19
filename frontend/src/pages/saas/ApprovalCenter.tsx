@@ -131,7 +131,7 @@ export const ApprovalCenter: React.FC = () => {
                     return matchedTenant ? (
                       <div className="flex gap-2 items-center">
                         <Link 
-                          to={`/tenants/${matchedTenant.id}`} 
+                          to={`/saas/tenants?inspect=${matchedTenant.id}`} 
                           className="text-base font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer block"
                         >
                           {r.requester}

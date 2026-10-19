@@ -21,7 +21,7 @@ import {
   MapPin, Server, HardDrive, Smartphone, DollarSign, Receipt,
   BadgePercent, Layers, Sparkles, RefreshCw, LogIn
 } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getTenantStatusLabel } from '../types';
 
@@ -163,10 +163,14 @@ interface StudentHistoryRecord {
   assignments: { name: string; score: string; date: string }[];
 }
 
-export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ initialOpenCreate }) => {
+export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInspectId?: string | number }> = ({ initialOpenCreate, initialInspectId }) => {
   const { addToast, plans = [] } = useApp();
   const { currentUser, isImpersonating, impersonateTenant } = useAuth();
   const navigate = useNavigate();
+  const { id: routeId } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const inspectTargetId = initialInspectId || routeId || searchParams.get('inspect') || searchParams.get('tenantId') || searchParams.get('id') || (location.state as any)?.inspectTenantId;
   const isSuperAdmin = Boolean(
     (currentUser?.role === 'saas-admin' || currentUser?.role === 'super-admin' || currentUser?.isSaasAdmin) &&
     !isImpersonating
@@ -243,13 +247,12 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
   React.useEffect(() => {
     if (initialOpenCreate) {
       handleOpenAddModal();
-    } else {
+    } else if (!inspectTargetId) {
       setShowAddModal(false);
     }
-  }, [initialOpenCreate]);
+  }, [initialOpenCreate, inspectTargetId]);
 
   // ── Lead-based conversion prefill ──
-  const [searchParams] = useSearchParams();
   const [sourceLead, setSourceLead] = useState<any | null>(null);
   const [leadPrefillApplied, setLeadPrefillApplied] = useState(false);
 
@@ -803,8 +806,54 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
       }
     } else {
       setShowAddModal(false);
+      setEditingTenantId(null);
+      setViewingTenantData(null);
+      setIsViewOnly(false);
+      if (searchParams.get('inspect') || searchParams.get('tenantId') || searchParams.get('id') || routeId) {
+        navigate('/saas/tenants', { replace: true });
+      }
     }
   };
+
+  // ── Auto-inspect tenant when inspect target ID is specified in URL, route, or props ──
+  useEffect(() => {
+    if (!inspectTargetId) return;
+    let cancelled = false;
+
+    const loadTargetTenant = async () => {
+      try {
+        setIsLoadingHistory(true);
+        const res = await tenantService.getTenantById(inspectTargetId);
+        if (cancelled) return;
+        if (res?.data) {
+          await handleLoadTenantForm(res.data, true);
+        } else {
+          const found = tenants.find((t: any) => String(t.id) === String(inspectTargetId));
+          if (found && !cancelled) {
+            await handleLoadTenantForm(found, true);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load tenant for inspection:', err);
+        const found = tenants.find((t: any) => String(t.id) === String(inspectTargetId));
+        if (found && !cancelled) {
+          await handleLoadTenantForm(found, true);
+        } else if (!cancelled) {
+          addToast('Could not load tenant details for inspection.', 'error');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingHistory(false);
+        }
+      }
+    };
+
+    loadTargetTenant();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectTargetId]);
 
   const handleOpenAddInvoice = () => {
     const plansList = (availablePlans && availablePlans.length > 0) ? availablePlans : (plans || []);
@@ -2527,7 +2576,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean }> = ({ init
               <div className="flex gap-3 items-center">
                 {isViewOnly ? (
                   <>
-                    <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)}>Back to Directory</Button>
+                    <Button type="button" variant="secondary" onClick={handleCancelEdit}>Back to Directory</Button>
                     <Button 
                       type="button" 
                       variant="primary" 

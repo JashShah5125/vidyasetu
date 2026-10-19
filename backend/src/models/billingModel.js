@@ -180,23 +180,87 @@ const getBillingSummary = async (year = null, month = null, startDate = null, en
         ${whereClause}
     `, params);
 
-    // 4. MRR computation for active customer subscriptions
+    // 4. MRR & ARR computation scoped to the filtered period (or lifetime active if no filter)
+    let effectiveStart = startDate || null;
+    let effectiveEnd = endDate || null;
+
+    const hasSpecificYear = year && year !== 'all';
+    const hasSpecificMonth = month && month !== 'all';
+
+    if (!effectiveStart && !effectiveEnd) {
+        if (hasSpecificMonth) {
+            const m = Number(month);
+            if (hasSpecificYear) {
+                const yr = Number(year);
+                const targetYear = m >= 4 ? yr : yr + 1;
+                effectiveStart = `${targetYear}-${String(m).padStart(2, '0')}-01`;
+                const lastDay = new Date(targetYear, m, 0).getDate();
+                effectiveEnd = `${targetYear}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            } else {
+                const yr = new Date().getFullYear();
+                effectiveStart = `${yr}-${String(m).padStart(2, '0')}-01`;
+                const lastDay = new Date(yr, m, 0).getDate();
+                effectiveEnd = `${yr}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            }
+        } else if (hasSpecificYear) {
+            const yr = Number(year);
+            effectiveStart = `${yr}-04-01`;
+            effectiveEnd = `${yr + 1}-03-31`;
+        }
+    }
+
+    let mrrWhere = `
+        WHERE (t.tenant_type != 'master' OR t.tenant_type IS NULL) 
+          AND t.id != 1 
+          AND t.deleted_at IS NULL
+    `;
+    const mrrParams = [];
+
+    if (effectiveStart || effectiveEnd) {
+        mrrWhere += ` AND t.status != 3`;
+        if (effectiveEnd) {
+            mrrWhere += ` AND DATE(COALESCE(t.start_date, t.created_at)) <= DATE(?)`;
+            mrrParams.push(effectiveEnd);
+        }
+        if (effectiveStart) {
+            mrrWhere += ` AND (t.end_date IS NULL OR DATE(t.end_date) >= DATE(?))`;
+            mrrParams.push(effectiveStart);
+        }
+        mrrWhere += ` AND (DATE(?) < CURRENT_DATE OR (t.status = 1 OR t.status = '1') OR (t.status = 0 AND DATE(t.end_date) >= CURRENT_DATE))`;
+        mrrParams.push(effectiveEnd || '2099-12-31');
+    } else {
+        mrrWhere += ` AND (t.status = 1 OR t.status = '1')`;
+    }
+
     const [[tenantMrr]] = await pool.query(`
         SELECT
             SUM(
-                t.subscription_final_price / CASE LOWER(t.billing_cycle)
+                COALESCE(
+                    t.subscription_final_price,
+                    CASE LOWER(COALESCE(t.billing_cycle, 'annual'))
+                        WHEN 'monthly' THEN sp.monthly_price
+                        WHEN 'quarterly' THEN sp.quarterly_price
+                        WHEN 'half_yearly' THEN sp.half_yearly_price
+                        WHEN 'yearly' THEN sp.yearly_price
+                        WHEN 'annual' THEN sp.yearly_price
+                        WHEN 'lifetime' THEN sp.lifetime_price
+                        ELSE sp.yearly_price
+                    END,
+                    0
+                ) / CASE LOWER(COALESCE(t.billing_cycle, 'annual'))
                     WHEN 'monthly'     THEN 1
                     WHEN 'quarterly'   THEN 3
                     WHEN 'half_yearly' THEN 6
                     WHEN 'yearly'      THEN 12
                     WHEN 'annual'      THEN 12
                     WHEN 'lifetime'    THEN 36
-                    ELSE 1
+                    ELSE 12
                 END
             ) AS mrr
         FROM tenants t
-        WHERE (t.tenant_type != 'master' OR t.tenant_type IS NULL) AND t.id != 1 AND (t.status = 1 OR t.status = '1')
-    `);
+        LEFT JOIN subscription_plans sp ON t.plan_id = sp.id
+        ${mrrWhere}
+    `, mrrParams);
 
     const rawMrr = Number(tenantMrr?.mrr) || 0;
     const mrr = Math.round(rawMrr);

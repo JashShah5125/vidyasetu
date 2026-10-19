@@ -1141,7 +1141,13 @@ export const SaasAdminDashboard: React.FC = () => {
               stats.expiring_tenants.map((tenant) => (
                 <tr key={tenant.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-3 py-2.5 text-xs">
-                    <div className="font-bold text-slate-900">{tenant.name}</div>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/saas/tenants?inspect=${tenant.id}`)}
+                      className="text-left font-bold text-slate-900 hover:text-indigo-600 hover:underline cursor-pointer block"
+                    >
+                      {tenant.name}
+                    </button>
                     <div className="text-[10px] text-slate-400">{tenant.admin_email || tenant.slug}</div>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-slate-700 font-medium">
@@ -1189,7 +1195,7 @@ export const SaasAdminDashboard: React.FC = () => {
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
                     <button
-                      onClick={() => navigate(`/tenants/${tenant.id}`)}
+                      onClick={() => navigate(`/saas/tenants?inspect=${tenant.id}`)}
                       className="text-xs font-bold text-indigo-600 hover:text-indigo-900 hover:underline cursor-pointer"
                     >
                       Inspect

@@ -277,8 +277,7 @@ const DoubtChatsPlaceholder = () => {
 
 const TenantDetailsWrapper = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  return <TenantDetails tenantId={id!} onBack={() => navigate('/saas/tenants')} />;
+  return <TenantsManager initialInspectId={id} />;
 };
 
 const getRoleDashboard = (role?: string) => {

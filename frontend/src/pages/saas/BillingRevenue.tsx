@@ -120,6 +120,20 @@ export const BillingRevenue: React.FC = () => {
     setCurrentPage(1);
   };
 
+  const isLast30Days = useMemo(() => {
+    if (periodYear !== 'all' || !periodStartDate || !periodEndDate) return false;
+    const today = new Date();
+    const d30 = new Date();
+    d30.setDate(today.getDate() - 30);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const isoFmt = (d: Date) => d.toISOString().split('T')[0];
+    return (
+      (periodStartDate === fmt(d30) && periodEndDate === fmt(today)) ||
+      (periodStartDate === isoFmt(d30) && periodEndDate === isoFmt(today))
+    );
+  }, [periodYear, periodStartDate, periodEndDate]);
+
   const currentFyLabel = useMemo(() => {
     if (periodYear === 'all' && !periodStartDate && !periodEndDate) {
       const today = new Date();
@@ -133,6 +147,9 @@ export const BillingRevenue: React.FC = () => {
       return `AY ${startYr + 1}-${String(startYr + 2).slice(-2)} (FY ${startYr}-${String(startYr + 1).slice(-2)}: April – March)`;
     }
     if (periodStartDate && periodEndDate) {
+      if (isLast30Days) {
+        return `Last 30 Days (${periodStartDate} to ${periodEndDate})`;
+      }
       const startParts = periodStartDate.split('-').map(Number);
       const endParts = periodEndDate.split('-').map(Number);
       if (startParts[1] === 4 && startParts[2] === 1 && endParts[1] === 3 && endParts[2] === 31) {
@@ -145,7 +162,7 @@ export const BillingRevenue: React.FC = () => {
       return `AY ${yr + 1}-${String(yr + 2).slice(-2)} (FY ${yr}-${String(yr + 1).slice(-2)}: April – March)`;
     }
     return 'Assessment Year Cycle (April – March)';
-  }, [periodYear, periodStartDate, periodEndDate, financialYears]);
+  }, [periodYear, periodStartDate, periodEndDate, financialYears, isLast30Days]);
 
   const isPeriodFilterActive = useMemo(
     () => periodYear !== 'all' || Boolean(periodStartDate) || Boolean(periodEndDate),
@@ -415,7 +432,7 @@ export const BillingRevenue: React.FC = () => {
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      {financialYears[0].label.replace(' (Current FY)', '')} (Current)
+                      {financialYears[0].label}
                     </button>
                   )}
                   {financialYears.length > 1 && (
@@ -437,13 +454,15 @@ export const BillingRevenue: React.FC = () => {
                       const today = new Date();
                       const d30 = new Date();
                       d30.setDate(today.getDate() - 30);
+                      const pad = (n: number) => String(n).padStart(2, '0');
+                      const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
                       setPeriodYear('all');
-                      setPeriodStartDate(d30.toISOString().split('T')[0]);
-                      setPeriodEndDate(today.toISOString().split('T')[0]);
+                      setPeriodStartDate(fmt(d30));
+                      setPeriodEndDate(fmt(today));
                       setCurrentPage(1);
                     }}
                     className={`px-3 py-2 text-xs font-semibold rounded-lg border text-left transition-all cursor-pointer ${
-                      periodStartDate && !periodEndDate
+                      isLast30Days
                         ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm font-bold'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
