@@ -451,32 +451,38 @@ export const Assignments: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {st.submissionStatus ? (
-                            <div>
-                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
-                                st.submissionStatus === 'Graded' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
-                              }`}>
-                                {st.submissionStatus}
-                              </span>
-                              {st.files && st.files.length > 0 && (
-                                <div className="mt-1">
-                                  <a
-                                    href={st.files[0]}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 font-mono"
-                                  >
-                                    <FileText size={12} /> View Submission
-                                  </a>
-                                </div>
-                              )}
-                              {st.responseText && (
-                                <p className="text-xs text-slate-500 mt-1 line-clamp-1 italic">"{st.responseText}"</p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 font-medium">Pending submission</span>
-                          )}
+                          {(() => {
+                            const isStGraded = st.submissionStatus === 'Graded' || (st.marksObtained !== null && st.marksObtained !== undefined);
+                            const isStSubmitted = !isStGraded && (st.submissionStatus === 'Submitted' || Boolean(st.submittedAt) || Boolean(st.submissionId));
+                            const hasSubmission = isStGraded || isStSubmitted;
+                            const stDisplayStatus = isStGraded ? 'Graded' : isStSubmitted ? 'Submitted' : 'Not Submitted';
+                            return hasSubmission ? (
+                              <div>
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${
+                                  isStGraded ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                                }`}>
+                                  {stDisplayStatus}
+                                </span>
+                                {st.files && st.files.length > 0 && (
+                                  <div className="mt-1">
+                                    <a
+                                      href={st.files[0]}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 font-mono"
+                                    >
+                                      <FileText size={12} /> View Submission
+                                    </a>
+                                  </div>
+                                )}
+                                {st.responseText && (
+                                  <p className="text-xs text-slate-500 mt-1 line-clamp-1 italic">"{st.responseText}"</p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-medium">Pending submission</span>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4">
                           <input

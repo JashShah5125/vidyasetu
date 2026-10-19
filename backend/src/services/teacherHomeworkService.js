@@ -997,10 +997,11 @@ class TeacherHomeworkService {
         const [rows] = await pool.query(query, [numId, tid, activeBatchIds]);
 
         const students = rows.map(r => {
-            const hasSubmission = Boolean(r.submission_id && r.submission_status);
-            const isGraded = String(r.submission_status).toLowerCase() === 'graded' || (r.marks_obtained !== null && r.marks_obtained !== undefined);
+            const hasMarks = r.marks_obtained !== null && r.marks_obtained !== undefined;
+            const hasSubmission = Boolean(r.submission_id || r.submitted_at || r.submission_status);
+            const isGraded = String(r.submission_status).toLowerCase() === 'graded' || hasMarks;
 
-            let status = 'Pending';
+            let status = 'Not Submitted';
             if (isGraded) {
                 status = 'Graded';
             } else if (hasSubmission) {
@@ -1015,8 +1016,9 @@ class TeacherHomeworkService {
                 batchName: r.batch_name,
                 submissionId: r.submission_id || null,
                 status,
+                submissionStatus: status,
                 submittedAt: r.submitted_at || null,
-                marksObtained: r.marks_obtained !== null && r.marks_obtained !== undefined ? Number(r.marks_obtained) : null,
+                marksObtained: hasMarks ? Number(r.marks_obtained) : null,
                 teacherFeedback: r.teacher_feedback || '',
                 responseText: r.response_text || '',
                 files: parseJsonArray(r.submission_files),

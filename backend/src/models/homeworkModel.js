@@ -1817,21 +1817,33 @@ const getEvaluationRoster = async (tenantId, homeworkId, accessContext = null) =
 
     return {
         homework: { id: String(homeworkId), status: formatStatus(hw.status), maxMarks: hw.max_marks },
-        students: rows.map(r => ({
-            studentId: String(r.student_id),
-            studentName: r.student_name,
-            studentCode: r.student_code || '',
-            batchId: String(r.batch_id),
-            batchName: batchNameMap[r.batch_id] || '',
-            submissionId: r.submission_id ? String(r.submission_id) : null,
-            submissionStatus: r.submission_status ? titleize(r.submission_status) : null,
-            responseText: r.response_text || '',
-            files: parseJsonArray(r.submission_files),
-            marksObtained: r.marks_obtained === null || r.marks_obtained === undefined ? null : Number(r.marks_obtained),
-            feedback: r.teacher_feedback || '',
-            submittedAt: r.submitted_at || null,
-            gradedAt: r.graded_at || null
-        }))
+        students: rows.map(r => {
+            const hasMarks = r.marks_obtained !== null && r.marks_obtained !== undefined;
+            const hasSubmission = Boolean(r.submission_id || r.submitted_at || r.submission_status);
+            const rawStatus = (r.submission_status ? String(r.submission_status).toLowerCase() : '');
+            let subStatus = null;
+            if (rawStatus === 'graded' || hasMarks) {
+                subStatus = 'Graded';
+            } else if (rawStatus === 'submitted' || hasSubmission) {
+                subStatus = 'Submitted';
+            }
+            return {
+                studentId: String(r.student_id),
+                studentName: r.student_name,
+                studentCode: r.student_code || '',
+                batchId: String(r.batch_id),
+                batchName: batchNameMap[r.batch_id] || '',
+                submissionId: r.submission_id ? String(r.submission_id) : null,
+                status: subStatus || 'Pending',
+                submissionStatus: subStatus,
+                responseText: r.response_text || '',
+                files: parseJsonArray(r.submission_files),
+                marksObtained: hasMarks ? Number(r.marks_obtained) : null,
+                feedback: r.teacher_feedback || '',
+                submittedAt: r.submitted_at || null,
+                gradedAt: r.graded_at || null
+            };
+        })
     };
 };
 

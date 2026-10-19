@@ -286,7 +286,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             title: 'Communication',
             links: [
               { name: 'Notifications', label: 'Notifications', path: '/teacher/notifications', icon: Bell, badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined },
-              { name: 'Doubt Chats', label: 'Doubts', path: '/teacher/doubts', icon: MessageSquare, badge: 1 }
+              { name: 'Doubt Chats', label: 'Doubts', path: '/teacher/doubts', icon: MessageSquare }
             ]
           },
           {

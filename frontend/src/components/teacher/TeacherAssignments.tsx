@@ -1056,9 +1056,24 @@ export const TeacherAssignments: React.FC = () => {
     setRosterLoading(true);
     try {
       const data = await assignmentApi.getEvaluationRoster(item.id);
-      setRosterStudents(data.students);
+      const normalizedStudents = (data.students || []).map((s: any) => {
+        const hasMarks = s.marksObtained !== null && s.marksObtained !== undefined && s.marksObtained !== '';
+        const rawStatus = String(s.submissionStatus || s.status || '').toLowerCase();
+        let submissionStatus: string = 'Not Submitted';
+        if (rawStatus === 'graded' || hasMarks) {
+          submissionStatus = 'Graded';
+        } else if (rawStatus === 'submitted' || Boolean(s.submissionId) || Boolean(s.submittedAt)) {
+          submissionStatus = 'Submitted';
+        }
+        return {
+          ...s,
+          submissionStatus,
+          status: submissionStatus
+        };
+      });
+      setRosterStudents(normalizedStudents);
       const initial: Record<string, { marks: string; feedback: string }> = {};
-      data.students.forEach(s => {
+      normalizedStudents.forEach(s => {
         initial[s.studentId] = {
           marks: s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '',
           feedback: s.feedback || ''
@@ -1841,7 +1856,9 @@ export const TeacherAssignments: React.FC = () => {
   if (showEvaluate && selectedStudent) {
     const item = showEvaluate;
     const student = selectedStudent;
-    const isGraded = student.submissionStatus === 'Graded';
+    const isGraded = student.submissionStatus === 'Graded' || (student.marksObtained !== null && student.marksObtained !== undefined);
+    const isSubmitted = !isGraded && (student.submissionStatus === 'Submitted' || Boolean(student.submittedAt) || Boolean(student.submissionId));
+    const displaySubmissionStatus = isGraded ? 'Graded' : isSubmitted ? 'Submitted' : 'Not Submitted';
     const isSaving = evalGradingId === student.studentId;
 
     return (
@@ -1858,13 +1875,13 @@ export const TeacherAssignments: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-display font-bold text-slate-900">{student.studentName}</h2>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${student.submissionStatus === 'Graded'
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${isGraded
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : student.submissionStatus === 'Submitted'
+                  : isSubmitted
                     ? 'bg-blue-50 text-blue-700 border-blue-200'
                     : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}>
-                  {student.submissionStatus || 'Not Submitted'}
+                  {displaySubmissionStatus}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -2084,17 +2101,20 @@ export const TeacherAssignments: React.FC = () => {
   if (showEvaluate) {
     const item = showEvaluate;
     const totalStudents = rosterStudents.length;
-    const submittedCount = rosterStudents.filter(s => s.submissionStatus === 'Submitted' || s.submissionStatus === 'Graded').length;
-    const gradedCount = rosterStudents.filter(s => s.submissionStatus === 'Graded').length;
-    const pendingCount = rosterStudents.filter(s => s.submissionStatus !== 'Graded').length;
+    const submittedCount = rosterStudents.filter(s => s.submissionStatus === 'Submitted' || s.submissionStatus === 'Graded' || (s.marksObtained !== null && s.marksObtained !== undefined) || Boolean(s.submittedAt)).length;
+    const gradedCount = rosterStudents.filter(s => s.submissionStatus === 'Graded' || (s.marksObtained !== null && s.marksObtained !== undefined)).length;
+    const pendingCount = Math.max(0, totalStudents - gradedCount);
 
     const uniqueBatches = Array.from(new Set(rosterStudents.map(s => s.batchName).filter(Boolean)));
 
     const filteredRoster = rosterStudents.filter(s => {
+      const isStudentGraded = s.submissionStatus === 'Graded' || (s.marksObtained !== null && s.marksObtained !== undefined);
+      const isStudentSubmitted = isStudentGraded || s.submissionStatus === 'Submitted' || Boolean(s.submittedAt) || Boolean(s.submissionId);
+
       if (evalBatchFilter !== 'All' && s.batchName !== evalBatchFilter) return false;
-      if (evalStatusFilter === 'Graded' && s.submissionStatus !== 'Graded') return false;
-      if (evalStatusFilter === 'Submitted' && s.submissionStatus !== 'Submitted') return false;
-      if (evalStatusFilter === 'Not Submitted' && (s.submissionStatus === 'Submitted' || s.submissionStatus === 'Graded')) return false;
+      if (evalStatusFilter === 'Graded' && !isStudentGraded) return false;
+      if (evalStatusFilter === 'Submitted' && (!isStudentSubmitted || isStudentGraded)) return false;
+      if (evalStatusFilter === 'Not Submitted' && isStudentSubmitted) return false;
       if (evalSearch.trim()) {
         const q = evalSearch.toLowerCase();
         const matchName = s.studentName.toLowerCase().includes(q);
@@ -2263,8 +2283,9 @@ export const TeacherAssignments: React.FC = () => {
                 colWidths={['26%', '13%', '14%', '13%', '14%', '10%', '10%']}
               >
                 {filteredRoster.slice((evalCurrentPage - 1) * evalItemsPerPage, evalCurrentPage * evalItemsPerPage).map(student => {
-                  const isGraded = student.submissionStatus === 'Graded';
-                  const isSubmitted = student.submissionStatus === 'Submitted';
+                  const isGraded = student.submissionStatus === 'Graded' || (student.marksObtained !== null && student.marksObtained !== undefined);
+                  const isSubmitted = !isGraded && (student.submissionStatus === 'Submitted' || Boolean(student.submittedAt) || Boolean(student.submissionId));
+                  const displayStatus = isGraded ? 'Graded' : isSubmitted ? 'Submitted' : 'Not Submitted';
 
                   return (
                     <tr key={student.studentId} className="hover:bg-slate-50 transition-colors">
@@ -2296,7 +2317,7 @@ export const TeacherAssignments: React.FC = () => {
                             : 'bg-slate-100 text-slate-600'
                           }`}>
                           {isGraded && <CheckCircle2 size={11} />}
-                          {student.submissionStatus || 'Not Submitted'}
+                          {displayStatus}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
@@ -2366,9 +2387,24 @@ export const TeacherAssignments: React.FC = () => {
                 addToast(`Successfully assigned marks to ${result.successCount} student(s)!`, 'success');
                 // Reload evaluation roster
                 const data = await assignmentApi.getEvaluationRoster(item.id);
-                setRosterStudents(data.students);
+                const normalizedStudents = (data.students || []).map((s: any) => {
+                  const hasMarks = s.marksObtained !== null && s.marksObtained !== undefined && s.marksObtained !== '';
+                  const rawStatus = String(s.submissionStatus || s.status || '').toLowerCase();
+                  let submissionStatus: string = 'Not Submitted';
+                  if (rawStatus === 'graded' || hasMarks) {
+                    submissionStatus = 'Graded';
+                  } else if (rawStatus === 'submitted' || Boolean(s.submissionId) || Boolean(s.submittedAt)) {
+                    submissionStatus = 'Submitted';
+                  }
+                  return {
+                    ...s,
+                    submissionStatus,
+                    status: submissionStatus
+                  };
+                });
+                setRosterStudents(normalizedStudents);
                 const initial: Record<string, { marks: string; feedback: string }> = {};
-                data.students.forEach(s => {
+                normalizedStudents.forEach(s => {
                   initial[s.studentId] = {
                     marks: s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '',
                     feedback: s.feedback || ''
@@ -3366,20 +3402,20 @@ export const TeacherAssignments: React.FC = () => {
           <Table
             dense
             borderless
-            minWidth="1160px"
+            minWidth="800px"
             colWidths={
               activeSubTab === 'active'
-                ? ['24%', '13%', '15%', '11%', '9%', '12%', '16%']
-                : ['28%', '15%', '18%', '12%', '12%', '15%']
+                ? ['23%', '13%', '15%', '11%', '8%', '11%', '19%']
+                : ['28%', '14%', '18%', '12%', '12%', '16%']
             }
             headers={[
-              { label: activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam', align: 'left', minWidth: '220px' },
-              { label: 'Subject', align: 'left', minWidth: '120px' },
-              { label: 'Target Batch', align: 'left', minWidth: '140px' },
-              { label: activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date', align: 'left', minWidth: '110px' },
-              ...(activeSubTab === 'active' ? [{ label: 'Submissions', align: 'center' as const, minWidth: '100px' }] : []),
-              { label: 'Status', align: 'center' as const, minWidth: '120px' },
-              { label: 'Actions', align: 'right' as const, minWidth: '160px' }
+              { label: activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam', align: 'left' },
+              { label: 'Subject', align: 'left' },
+              { label: 'Target Batch', align: 'left' },
+              { label: activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date', align: 'left' },
+              ...(activeSubTab === 'active' ? [{ label: 'Submissions', align: 'center' as const }] : []),
+              { label: 'Status', align: 'center' as const },
+              { label: 'Actions', align: 'right' as const }
             ]}
           >
             {(paginatedData as HomeworkItem[]).length === 0 ? (
@@ -3398,6 +3434,9 @@ export const TeacherAssignments: React.FC = () => {
               (paginatedData as (HomeworkItem & { _examItem?: ExamItem })[]).map((assign) => {
                 const examItem = assign._examItem;
                 const displayStatus = examItem ? examItem.status : assign.status;
+                const submittedCount = assign.submittedCount ?? examItem?.submittedCount ?? 0;
+                const totalCount = assign.totalCount ?? examItem?.totalCount ?? null;
+                const isDraft = displayStatus === 'Draft' || assign.status === 'Draft';
                 return (
                 <tr key={assign.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-4 py-3 text-left">
@@ -3426,26 +3465,28 @@ export const TeacherAssignments: React.FC = () => {
                   </td>
                   {activeSubTab === 'active' && (
                     <td className="px-4 py-3 text-center text-slate-600 whitespace-nowrap">
-                      {examItem ? (
+                      {isDraft ? (
                         <span className="text-slate-400 text-xs">—</span>
                       ) : (
                         <>
-                          {assign.status === 'Draft' ? '—' : (
-                            <span className={`font-bold font-mono text-xs ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                              {assign.submittedCount}
-                            </span>
-                          )} / {assign.totalCount !== undefined && assign.totalCount !== null ? assign.totalCount : '—'}
+                          <span className={`font-bold font-mono text-xs ${submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                            {submittedCount}
+                          </span>
+                          {' / '}
+                          <span className="font-mono text-xs text-slate-600">
+                            {totalCount !== null && totalCount !== undefined ? totalCount : '—'}
+                          </span>
                         </>
                       )}
                     </td>
                   )}
-                  <td className="px-3 py-3 text-center whitespace-nowrap min-w-[120px]">
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
                     <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(displayStatus)}`}>
                       {displayStatus}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-right whitespace-nowrap min-w-[160px]">
-                    <div className="flex items-center justify-end gap-1.5 flex-nowrap shrink-0">
+                  <td className="px-3 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1 flex-nowrap shrink-0">
                       <button
                         type="button"
                         onClick={() => {
