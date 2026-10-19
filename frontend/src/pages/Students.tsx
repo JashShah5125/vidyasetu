@@ -850,7 +850,13 @@ export const Students: React.FC = () => {
       {/* Roster Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Enrolled Students ({totalItems})</CardTitle>
+          <CardTitle>
+            {filterStatus === '1'
+              ? `Active Enrolled Students (${totalItems})`
+              : filterStatus === '0'
+              ? `Inactive Students (${totalItems})`
+              : `Enrolled Students (${totalItems})`}
+          </CardTitle>
         </CardHeader>
 
         <Table

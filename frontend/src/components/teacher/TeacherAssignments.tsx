@@ -8,7 +8,9 @@ import { Select } from '../ui/Select';
 import { Table } from '../ui/Table';
 import { Pagination } from '../ui/Pagination';
 import { BulkImportModal } from '../ui/BulkImportModal';
+import { Modal } from '../ui/Modal';
 import {
+  AlertTriangle,
   Plus,
   ArrowLeft,
   BookOpen,
@@ -39,7 +41,7 @@ import {
 } from 'lucide-react';
 import type { ExamItem } from '../../types';
 import { assignmentApi } from '../../services/assignmentApi';
-import type { HomeworkItem, HomeworkScoping } from '../../services/assignmentApi';
+import type { HomeworkItem, HomeworkPayload, HomeworkScoping } from '../../services/assignmentApi';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -327,7 +329,7 @@ export const TeacherAssignments: React.FC = () => {
           duration: meta.duration || '',
           totalMarks: hw.maxMarks ?? meta.totalMarks ?? 100,
           passingMarks: meta.passingMarks ?? 40,
-          status: hwStatus === 'Published' ? 'Scheduled' : hwStatus === 'Closed' ? 'Completed' : hwStatus as ExamItem['status'],
+          status: hwStatus === 'Draft' ? 'Draft' : hwStatus === 'Published' ? 'Scheduled' : 'Completed',
           average: hw.classAveragePercentage ? `${hw.classAveragePercentage}%` : '',
           isRecurring: meta.isRecurring || false,
           recurrenceType: meta.recurrenceType,
@@ -350,7 +352,7 @@ export const TeacherAssignments: React.FC = () => {
           _branchId: hw.branchId,
           _academicYearId: hw.academicYearId,
           _subjectId: hw.subjectId,
-        } as ExamItem & Record<string, any>;
+        } as unknown as ExamItem;
       });
       setExams(examItems);
     } catch (err: any) {
@@ -387,6 +389,48 @@ export const TeacherAssignments: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [activePrimaryTab, activeSubTab, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery]);
+
+  // Reset status filter and scroll position whenever switching primary tabs or sub-tabs
+  useEffect(() => {
+    setFilterStatus('All');
+    const mainContainer = document.getElementById('main-scroll-container');
+    if (mainContainer) {
+      mainContainer.scrollTop = 0;
+    }
+  }, [activePrimaryTab, activeSubTab]);
+
+  // Dynamic status options based on primary tab (Homework, Exam, Assignment) and sub-tab (Active vs Drafts)
+  const statusFilterOptions = useMemo(() => {
+    if (activeSubTab === 'drafts') {
+      return [
+        { value: 'All', label: 'All Statuses' },
+        { value: 'Draft', label: 'Draft' }
+      ];
+    }
+
+    if (activePrimaryTab === 'exams') {
+      return [
+        { value: 'All', label: 'All Statuses' },
+        { value: 'Scheduled', label: 'Scheduled' },
+        { value: 'Completed', label: 'Completed' }
+      ];
+    }
+
+    if (activePrimaryTab === 'homework') {
+      return [
+        { value: 'All', label: 'All Statuses' },
+        { value: 'Published', label: 'Published' },
+        { value: 'Closed', label: 'Closed' }
+      ];
+    }
+
+    // activePrimaryTab === 'assignment'
+    return [
+      { value: 'All', label: 'All Statuses' },
+      { value: 'Published', label: 'Published' },
+      { value: 'Closed', label: 'Closed' }
+    ];
+  }, [activePrimaryTab, activeSubTab]);
 
   const filteredHomeworks = useMemo(() => {
     return homeworks.filter(item => {
@@ -648,35 +692,350 @@ export const TeacherAssignments: React.FC = () => {
     }
   };
 
-  const handleCloseAssign = async (item: HomeworkItem) => {
+  interface ConfirmCloseTarget {
+    id: string;
+    title: string;
+    type: 'homework' | 'assignment' | 'exam';
+    subject?: string;
+    batch?: string;
+    dueDate?: string;
+  }
+  const [confirmCloseTarget, setConfirmCloseTarget] = useState<ConfirmCloseTarget | null>(null);
+
+  const promptCloseItem = (
+    item: HomeworkItem | ExamItem,
+    typeOverride?: 'homework' | 'assignment' | 'exam'
+  ) => {
+    const isExam = typeOverride === 'exam' || (item as any).assignmentType === 'exam' || Boolean((item as any)._examItem);
+    const itemType: 'homework' | 'assignment' | 'exam' = isExam
+      ? 'exam'
+      : typeOverride || (((item as any).assignmentType || '').toLowerCase() === 'homework' ? 'homework' : 'assignment');
+
+    const title = (item as any).title || (item as any).name || 'Untitled';
+    const subject = (item as any).subjectName || (item as any).subject || '';
+    const batch = (item as any).batchNames?.length
+      ? (item as any).batchNames.join(', ')
+      : ((item as any).batch || '');
+    const dueDate = (item as any).dueDate || (item as any).examDate || '';
+
+    setConfirmCloseTarget({
+      id: String(item.id),
+      title,
+      type: itemType,
+      subject,
+      batch,
+      dueDate
+    });
+  };
+
+  const handleConfirmClose = async () => {
+    if (!confirmCloseTarget) return;
     setActionBusy(true);
+    const { id, title, type } = confirmCloseTarget;
+    const typeLabel = type === 'exam' ? 'Exam' : type === 'homework' ? 'Homework' : 'Assignment';
+
     try {
-      await assignmentApi.closeHomework(item.id);
-      addToast(`Assignment "${item.title}" closed successfully.`, 'info');
-      setShowHwDetail(null);
-      await refreshAll();
+      if (type === 'exam') {
+        if (id && !String(id).startsWith('EX-')) {
+          await assignmentApi.closeHomework(id);
+        }
+        setExams(prev => prev.map(e => e.id === id ? { ...e, status: 'Completed' } : e));
+        setShowExamDetails(null);
+        await refreshAll();
+        addToast(`Exam "${title}" marked as completed. Status updated to Completed.`, 'success');
+      } else {
+        await assignmentApi.closeHomework(id);
+        addToast(`${typeLabel} "${title}" closed successfully. Status updated to Closed.`, 'success');
+        setShowHwDetail(null);
+        await refreshAll();
+      }
+      setConfirmCloseTarget(null);
     } catch (err: any) {
-      addToast(err.message || 'Failed to close assignment.', 'error');
+      addToast(err.message || `Failed to close ${type}.`, 'error');
     } finally {
       setActionBusy(false);
     }
   };
 
-  const handleDeleteAssign = async (item: HomeworkItem) => {
-    const isExam = item.assignmentType === 'exam' || Boolean((item as any)._examItem);
-    const label = isExam ? 'exam' : item.assignmentType === 'homework' ? 'homework' : 'assignment';
-    if (!window.confirm(`Delete ${label} "${item.title}"? ${item.status === 'Published' ? 'Published items must be closed first.' : ''}`)) return;
+  const handleCloseAssign = (item: HomeworkItem) => {
+    const isHw = ((item.assignmentType || '').toLowerCase() === 'homework') || activePrimaryTab === 'homework';
+    promptCloseItem(item, isHw ? 'homework' : 'assignment');
+  };
+
+  const renderConfirmCloseModal = () => {
+    if (!confirmCloseTarget) return null;
+    const isExam = confirmCloseTarget.type === 'exam';
+    const isHw = confirmCloseTarget.type === 'homework';
+    const typeLabel = isExam ? 'Exam' : isHw ? 'Homework' : 'Assignment';
+
+    return (
+      <Modal
+        isOpen={Boolean(confirmCloseTarget)}
+        onClose={() => !actionBusy && setConfirmCloseTarget(null)}
+        title={`Close ${typeLabel}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setConfirmCloseTarget(null)}
+              disabled={actionBusy}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              style={{
+                backgroundColor: isExam ? '#4f46e5' : '#d97706',
+                color: 'white'
+              }}
+              className="cursor-pointer font-semibold shadow-sm flex items-center gap-1.5 px-4"
+              onClick={handleConfirmClose}
+              disabled={actionBusy}
+            >
+              {actionBusy ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <XCircle className="w-4 h-4 mr-1" />
+              )}
+              {actionBusy
+                ? 'Closing...'
+                : `Confirm Close ${typeLabel}`}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex items-start gap-4">
+          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+            isExam
+              ? 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+              : 'bg-amber-50 text-amber-600 border border-amber-100'
+          }`}>
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="space-y-3 flex-1">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900 leading-snug">
+                Are you sure you want to close{' '}
+                <span className="font-bold text-slate-950">"{confirmCloseTarget.title}"</span>?
+              </h4>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                {isExam
+                  ? 'This will mark the exam as Completed. The status will update to Completed.'
+                  : `This will mark this ${confirmCloseTarget.type} as Closed and stop accepting further student submissions.`}
+              </p>
+            </div>
+
+            {/* Summary card */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 text-xs space-y-1.5 text-slate-600">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-medium">Item Type</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
+                  isExam
+                    ? 'bg-purple-100 text-purple-700'
+                    : isHw
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {typeLabel}
+                </span>
+              </div>
+              {confirmCloseTarget.subject && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Subject</span>
+                  <span className="font-semibold text-slate-800">{confirmCloseTarget.subject}</span>
+                </div>
+              )}
+              {confirmCloseTarget.batch && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Target Batch</span>
+                  <span className="font-semibold text-slate-800 truncate max-w-[200px]" title={confirmCloseTarget.batch}>
+                    {confirmCloseTarget.batch}
+                  </span>
+                </div>
+              )}
+              {confirmCloseTarget.dueDate && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">{isExam ? 'Exam Date' : 'Due Date'}</span>
+                  <span className="font-semibold text-slate-800">{confirmCloseTarget.dueDate}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
+  };
+
+  interface ConfirmDeleteTarget {
+    id: string;
+    title: string;
+    type: 'homework' | 'assignment' | 'exam';
+    subject?: string;
+    batch?: string;
+    dueDate?: string;
+    status?: string;
+  }
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<ConfirmDeleteTarget | null>(null);
+
+  const promptDeleteItem = (item: HomeworkItem | ExamItem | any) => {
+    const isExam = item.assignmentType === 'exam' || Boolean(item._examItem) || activePrimaryTab === 'exams';
+    const isHw = !isExam && (((item.assignmentType || '').toLowerCase() === 'homework') || activePrimaryTab === 'homework');
+    const itemType: 'homework' | 'assignment' | 'exam' = isExam ? 'exam' : isHw ? 'homework' : 'assignment';
+
+    const title = item.title || item.name || 'Untitled';
+    const subject = item.subjectName || item.subject || '';
+    const batch = item.batchNames?.length
+      ? item.batchNames.join(', ')
+      : (item.batch || '');
+    const dueDate = item.dueDate || item.examDate || '';
+    const status = item.status || '';
+
+    setConfirmDeleteTarget({
+      id: String(item.id),
+      title,
+      type: itemType,
+      subject,
+      batch,
+      dueDate,
+      status
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteTarget) return;
     setActionBusy(true);
+    const { id, title, type } = confirmDeleteTarget;
+    const typeLabel = type === 'exam' ? 'Exam' : type === 'homework' ? 'Homework' : 'Assignment';
+
     try {
-      await assignmentApi.deleteHomework(item.id);
-      addToast(`${label.charAt(0).toUpperCase() + label.slice(1)} "${item.title}" deleted successfully.`, 'success');
-      setShowHwDetail(null);
+      if (type === 'exam') {
+        if (id && !String(id).startsWith('EX-')) {
+          await assignmentApi.deleteHomework(id);
+        }
+        setExams(prev => prev.filter(e => e.id !== id));
+        setShowExamDetails(null);
+      } else {
+        await assignmentApi.deleteHomework(id);
+        setShowHwDetail(null);
+      }
       await refreshAll();
+      addToast(`${typeLabel} "${title}" deleted successfully.`, 'success');
+      setConfirmDeleteTarget(null);
     } catch (err: any) {
-      addToast(err.message || `Failed to delete ${label}.`, 'error');
+      addToast(err.message || `Failed to delete ${typeLabel.toLowerCase()}.`, 'error');
     } finally {
       setActionBusy(false);
     }
+  };
+
+  const handleDeleteAssign = (item: HomeworkItem) => {
+    promptDeleteItem(item);
+  };
+
+  const renderConfirmDeleteModal = () => {
+    if (!confirmDeleteTarget) return null;
+    const isExam = confirmDeleteTarget.type === 'exam';
+    const isHw = confirmDeleteTarget.type === 'homework';
+    const typeLabel = isExam ? 'Exam' : isHw ? 'Homework' : 'Assignment';
+
+    return (
+      <Modal
+        isOpen={Boolean(confirmDeleteTarget)}
+        onClose={() => !actionBusy && setConfirmDeleteTarget(null)}
+        title={`Delete ${typeLabel}`}
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setConfirmDeleteTarget(null)}
+              disabled={actionBusy}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              style={{
+                backgroundColor: '#dc2626',
+                color: 'white'
+              }}
+              className="cursor-pointer font-semibold shadow-sm flex items-center gap-1.5 px-4 hover:bg-red-700 transition-colors"
+              onClick={handleConfirmDelete}
+              disabled={actionBusy}
+            >
+              {actionBusy ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-1" />
+              )}
+              {actionBusy
+                ? 'Deleting...'
+                : `Confirm Delete ${typeLabel}`}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex items-start gap-4">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 bg-rose-50 text-rose-600 border border-rose-100">
+            <Trash2 className="w-5 h-5" />
+          </div>
+          <div className="space-y-3 flex-1 min-w-0">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900 leading-snug">
+                Are you sure you want to delete{' '}
+                <span className="font-bold text-slate-950">&quot;{confirmDeleteTarget.title}&quot;</span>?
+              </h4>
+              <p className="text-xs text-rose-600 font-medium mt-1 leading-relaxed">
+                This action is permanent and cannot be undone. All associated records and student submissions for this {typeLabel.toLowerCase()} will be permanently removed.
+              </p>
+            </div>
+
+            {/* Summary card */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 text-xs space-y-1.5 text-slate-600">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-medium">Item Type</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
+                  isExam
+                    ? 'bg-purple-100 text-purple-700'
+                    : isHw
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {typeLabel}
+                </span>
+              </div>
+              {confirmDeleteTarget.subject && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Subject</span>
+                  <span className="font-semibold text-slate-800">{confirmDeleteTarget.subject}</span>
+                </div>
+              )}
+              {confirmDeleteTarget.batch && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Target Batch</span>
+                  <span className="font-semibold text-slate-800 truncate max-w-[200px]" title={confirmDeleteTarget.batch}>
+                    {confirmDeleteTarget.batch}
+                  </span>
+                </div>
+              )}
+              {confirmDeleteTarget.dueDate && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">{isExam ? 'Exam Date' : 'Due Date'}</span>
+                  <span className="font-semibold text-slate-800">{confirmDeleteTarget.dueDate}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+    );
   };
 
   const openEvaluate = async (item: HomeworkItem) => {
@@ -883,19 +1242,21 @@ export const TeacherAssignments: React.FC = () => {
       recurringInstanceIndex: instanceIdx
     };
 
+    const payload: HomeworkPayload = {
+      title: titleStr.trim(),
+      description: JSON.stringify(meta),
+      branchId: resolvedBranchId,
+      academicYearId: resolvedAcademicYearId,
+      subjectId: resolvedSubjectId,
+      assignmentType: 'exam',
+      batchIds: targetBatchIds,
+      dueDate: examDateStr || new Date().toISOString().slice(0, 10),
+      maxMarks: form.totalMarks !== undefined ? Number(form.totalMarks) : 100,
+      existingFiles: []
+    };
+
     return {
-      payload: {
-        title: titleStr.trim(),
-        description: JSON.stringify(meta),
-        branchId: resolvedBranchId,
-        academicYearId: resolvedAcademicYearId,
-        subjectId: resolvedSubjectId,
-        assignmentType: 'exam',
-        batchIds: targetBatchIds,
-        dueDate: examDateStr || new Date().toISOString().slice(0, 10),
-        maxMarks: form.totalMarks !== undefined ? Number(form.totalMarks) : 100,
-        existingFiles: []
-      },
+      payload,
       recurrenceSummary
     };
   };
@@ -1040,22 +1401,12 @@ export const TeacherAssignments: React.FC = () => {
     }
   };
 
-  const handleCancelExam = async (id: string) => {
+  const handleCancelExam = (id: string) => {
     const item = exams.find(e => e.id === id);
-    if (!window.confirm(`Are you sure you want to cancel exam "${item?.name || ''}"?`)) return;
-    setActionBusy(true);
-    try {
-      if (id && !String(id).startsWith('EX-')) {
-        await assignmentApi.closeHomework(id);
-      }
-      setExams(prev => prev.map(e => e.id === id ? { ...e, status: 'Cancelled' } : e));
-      setShowExamDetails(null);
-      await refreshAll();
-      addToast(`Exam "${item?.name || ''}" cancelled.`, 'info');
-    } catch (err: any) {
-      addToast(err.message || 'Failed to cancel exam.', 'error');
-    } finally {
-      setActionBusy(false);
+    if (item) {
+      promptCloseItem(item, 'exam');
+    } else {
+      promptCloseItem({ id, name: 'Exam' } as any, 'exam');
     }
   };
 
@@ -1116,9 +1467,29 @@ export const TeacherAssignments: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleCancelExam(ex.id)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-semibold hover:bg-red-100 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
               >
-                <XCircle size={15} /> Cancel Exam
+                <XCircle size={15} /> Close Exam
+              </button>
+            )}
+            {(ex.status === 'Completed' || ex.status === 'Draft') && (
+              <button
+                type="button"
+                onClick={() => {
+                  promptDeleteItem({
+                    id: ex.id,
+                    name: ex.name,
+                    title: ex.name,
+                    subject: ex.subject,
+                    batch: ex.batch,
+                    examDate: ex.examDate,
+                    assignmentType: 'exam',
+                    _examItem: ex
+                  });
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-sm font-semibold hover:bg-rose-100 transition-colors cursor-pointer"
+              >
+                <Trash2 size={15} /> Delete Exam
               </button>
             )}
             <button
@@ -1267,6 +1638,8 @@ export const TeacherAssignments: React.FC = () => {
             </button>
           </div>
         </div>
+        {renderConfirmCloseModal()}
+        {renderConfirmDeleteModal()}
       </div>
     );
   }
@@ -1303,7 +1676,7 @@ export const TeacherAssignments: React.FC = () => {
             )}
             {item.status === 'Published' && (
               <Button variant="secondary" className="cursor-pointer" onClick={() => handleCloseAssign(item)} disabled={actionBusy}>
-                <XCircle className="w-4 h-4 mr-1.5" /> Close Assignment
+                <XCircle className="w-4 h-4 mr-1.5" /> Close {((item.assignmentType || '').toLowerCase() === 'homework') ? 'Homework' : 'Assignment'}
               </Button>
             )}
             {(item.status === 'Published' || item.status === 'Closed') && (
@@ -1314,6 +1687,16 @@ export const TeacherAssignments: React.FC = () => {
                 onClick={() => { setShowHwDetail(null); openEvaluate(item); }}
               >
                 <ClipboardCheck className="w-4 h-4 mr-1.5" /> Evaluate
+              </Button>
+            )}
+            {item.status !== 'Published' && (
+              <Button
+                variant="secondary"
+                className="cursor-pointer text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                onClick={() => handleDeleteAssign(item)}
+                disabled={actionBusy}
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> Delete {((item.assignmentType || '').toLowerCase() === 'homework') ? 'Homework' : 'Assignment'}
               </Button>
             )}
           </div>
@@ -1448,6 +1831,8 @@ export const TeacherAssignments: React.FC = () => {
             )}
           </div>
         </div>
+        {renderConfirmCloseModal()}
+        {renderConfirmDeleteModal()}
       </div>
     );
   }
@@ -2863,46 +3248,56 @@ export const TeacherAssignments: React.FC = () => {
       </div>
 
       {/* Primary Tabs */}
-      <div className="flex border-b border-slate-200 overflow-x-auto hide-scrollbar">
-        <button
-          onClick={() => { setActivePrimaryTab('homework'); setActiveSubTab('active'); }}
-          className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'homework'
-            ? 'border-blue-600 text-blue-700'
-            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+      <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
+          <button
+            type="button"
+            onClick={() => { setActivePrimaryTab('homework'); setActiveSubTab('active'); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+              activePrimaryTab === 'homework' && activeSubTab !== 'drafts'
+                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 ring-2 ring-blue-500/15'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 border border-transparent'
             }`}
-        >
-          <BookOpen size={16} />
-          Homeworks
-        </button>
-        <button
-          onClick={() => { setActivePrimaryTab('assignment'); setActiveSubTab('active'); }}
-          className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'assignment'
-            ? 'border-blue-600 text-blue-700'
-            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          >
+            <BookOpen size={16} />
+            Homeworks
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActivePrimaryTab('assignment'); setActiveSubTab('active'); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+              activePrimaryTab === 'assignment' && activeSubTab !== 'drafts'
+                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 ring-2 ring-blue-500/15'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 border border-transparent'
             }`}
-        >
-          <FileText size={16} />
-          Assignments
-        </button>
-        <button
-          onClick={() => { setActivePrimaryTab('exams'); setActiveSubTab('active'); }}
-          className={`flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${activePrimaryTab === 'exams'
-            ? 'border-blue-600 text-blue-700'
-            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          >
+            <FileText size={16} />
+            Assignments
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActivePrimaryTab('exams'); setActiveSubTab('active'); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+              activePrimaryTab === 'exams' && activeSubTab !== 'drafts'
+                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 ring-2 ring-blue-500/15'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 border border-transparent'
             }`}
-        >
-          <ClipboardList size={16} />
-          Exams
-        </button>
-        <button
-          onClick={() => setActiveSubTab('drafts')}
-          className={`ml-auto flex-none px-6 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${activeSubTab === 'drafts'
-            ? 'border-blue-600 text-blue-700'
-            : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          >
+            <ClipboardList size={16} />
+            Exams
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('drafts')}
+            className={`ml-auto flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+              activeSubTab === 'drafts'
+                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 ring-2 ring-blue-500/15'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border border-transparent'
             }`}
-        >
-          Drafts ({draftsCount})
-        </button>
+          >
+            Drafts ({draftsCount})
+          </button>
+        </div>
       </div>
 
       {/* Scope & Filters */}
@@ -2955,11 +3350,7 @@ export const TeacherAssignments: React.FC = () => {
             label="Status"
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            options={[{ value: 'All', label: 'All Statuses' }, ...(activeSubTab === 'drafts' ? (
-              [{ value: 'Draft', label: 'Draft' }]
-            ) : (
-              [{ value: 'Published', label: 'Published' }, { value: 'Closed', label: 'Closed' }]
-            ))]}
+            options={statusFilterOptions}
           />
         </div>
       </div>
@@ -2975,20 +3366,20 @@ export const TeacherAssignments: React.FC = () => {
           <Table
             dense
             borderless
-            minWidth="1020px"
+            minWidth="1160px"
             colWidths={
               activeSubTab === 'active'
-                ? ['26%', '14%', '15%', '12%', '11%', '10%', '12%']
-                : ['30%', '16%', '18%', '14%', '10%', '12%']
+                ? ['24%', '13%', '15%', '11%', '9%', '12%', '16%']
+                : ['28%', '15%', '18%', '12%', '12%', '15%']
             }
             headers={[
-              { label: activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam', align: 'left' },
-              { label: 'Subject', align: 'left' },
-              { label: 'Target Batch', align: 'left' },
-              { label: activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date', align: 'left' },
-              ...(activeSubTab === 'active' ? [{ label: 'Submissions', align: 'center' as const }] : []),
-              { label: 'Status', align: 'center' as const },
-              { label: 'Actions', align: 'right' as const }
+              { label: activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam', align: 'left', minWidth: '220px' },
+              { label: 'Subject', align: 'left', minWidth: '120px' },
+              { label: 'Target Batch', align: 'left', minWidth: '140px' },
+              { label: activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date', align: 'left', minWidth: '110px' },
+              ...(activeSubTab === 'active' ? [{ label: 'Submissions', align: 'center' as const, minWidth: '100px' }] : []),
+              { label: 'Status', align: 'center' as const, minWidth: '120px' },
+              { label: 'Actions', align: 'right' as const, minWidth: '160px' }
             ]}
           >
             {(paginatedData as HomeworkItem[]).length === 0 ? (
@@ -3010,7 +3401,7 @@ export const TeacherAssignments: React.FC = () => {
                 return (
                 <tr key={assign.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-4 py-3 text-left">
-                    <div className="font-semibold text-slate-900 text-sm truncate max-w-[240px]" title={assign.title}>
+                    <div className="font-semibold text-slate-900 text-sm truncate max-w-[280px]" title={assign.title}>
                       {assign.title}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
@@ -3024,10 +3415,10 @@ export const TeacherAssignments: React.FC = () => {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[140px]" title={assign.subjectName}>
+                  <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[160px]" title={assign.subjectName}>
                     {assign.subjectName}
                   </td>
-                  <td className="px-4 py-3 text-left text-slate-600 text-xs truncate max-w-[160px]" title={assign.batchNames.join(', ')}>
+                  <td className="px-4 py-3 text-left text-slate-600 text-xs truncate max-w-[180px]" title={assign.batchNames.join(', ')}>
                     {assign.batchNames.join(', ') || '—'}
                   </td>
                   <td className="px-4 py-3 text-left font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
@@ -3043,18 +3434,18 @@ export const TeacherAssignments: React.FC = () => {
                             <span className={`font-bold font-mono text-xs ${assign.submittedCount > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
                               {assign.submittedCount}
                             </span>
-                          )} / {assign.totalCount > 0 ? assign.totalCount : '—'}
+                          )} / {assign.totalCount !== undefined && assign.totalCount !== null ? assign.totalCount : '—'}
                         </>
                       )}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-center whitespace-nowrap">
+                  <td className="px-3 py-3 text-center whitespace-nowrap min-w-[120px]">
                     <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(displayStatus)}`}>
                       {displayStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end gap-1.5">
+                  <td className="px-3 py-3 text-right whitespace-nowrap min-w-[160px]">
+                    <div className="flex items-center justify-end gap-1.5 flex-nowrap shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -3095,7 +3486,7 @@ export const TeacherAssignments: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleCloseAssign(assign)}
-                          title="Close"
+                          title={((assign.assignmentType || '').toLowerCase() === 'homework' || activePrimaryTab === 'homework') ? 'Close Homework' : 'Close Assignment'}
                           className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
@@ -3105,8 +3496,8 @@ export const TeacherAssignments: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleCancelExam(examItem.id)}
-                          title="Cancel Exam"
-                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
+                          title="Close Exam"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                         </button>
@@ -3115,7 +3506,7 @@ export const TeacherAssignments: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleDeleteAssign(assign)}
-                          title="Delete"
+                          title={examItem ? 'Delete Exam' : ((assign.assignmentType || '').toLowerCase() === 'homework' || activePrimaryTab === 'homework') ? 'Delete Homework' : 'Delete Assignment'}
                           className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -3139,6 +3530,8 @@ export const TeacherAssignments: React.FC = () => {
             onPageChange={setCurrentPage}
           />
         )}
+        {renderConfirmCloseModal()}
+        {renderConfirmDeleteModal()}
       </div>
     </div>
   );

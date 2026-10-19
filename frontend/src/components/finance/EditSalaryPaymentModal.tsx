@@ -15,6 +15,7 @@ import {
   Loader2,
   CheckCircle2
 } from 'lucide-react';
+import { formatDateForInput } from '../../utils/dateFormatter';
 
 interface EditSalaryPaymentModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ interface EditSalaryPaymentModalProps {
   payment: SalaryPaymentRecord | null;
   staffName?: string;
   onSuccess: () => void;
-  addToast: (toast: { title?: string; message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
+  addToast: (message: string | { title?: string; message?: string; type?: 'success' | 'info' | 'error' | 'warning' }, type?: 'success' | 'info' | 'error' | 'warning') => void;
 }
 
 const MONTH_NAMES = [
@@ -51,9 +52,7 @@ export const EditSalaryPaymentModal: React.FC<EditSalaryPaymentModalProps> = ({
   useEffect(() => {
     if (payment) {
       setAmount(String(payment.amount || ''));
-      setPaidDate(
-        payment.paid_date ? String(payment.paid_date).slice(0, 10) : new Date().toISOString().split('T')[0]
-      );
+      setPaidDate(formatDateForInput(payment.paid_date));
       setPaymentMode(payment.payment_mode || 'bank_transfer');
       setReference(payment.reference || '');
       setRemarks(payment.remarks || '');
@@ -85,11 +84,7 @@ export const EditSalaryPaymentModal: React.FC<EditSalaryPaymentModalProps> = ({
         remarks: remarks.trim() || null
       });
 
-      addToast({
-        title: 'Payment Record Updated',
-        message: `Updated salary payment for ${monthName} ${payment.salary_year} (${fmt(numAmt)}).`,
-        type: 'success'
-      });
+      addToast(`Updated salary payment for ${monthName} ${payment.salary_year} (${fmt(numAmt)}).`, 'success');
 
       onSuccess();
       onClose();

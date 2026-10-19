@@ -138,7 +138,7 @@ export const LectureScheduler = () => {
   const selectedBranchObj = useMemo(() => {
     if (!branch) return null;
     const branchList = options?.branches || branches;
-    return branchList.find(b => b.code === branch || b.name === branch || String(b.id) === branch) || null;
+    return branchList.find(b => b.code === branch || b.name === branch || String(b.id) === String(branch)) || null;
   }, [options, branches, branch]);
 
   // Load branch-assigned courses directly from branchApi to respect branch isolation
@@ -161,8 +161,11 @@ export const LectureScheduler = () => {
       });
   }, [selectedBranchObj?.id, currentUser?.branch, branches]);
 
-  // Derived available courses
+  // Derived available courses strictly under selected Branch
   const availableCourseList = useMemo(() => {
+    if (!selectedBranchObj) return [];
+
+    // 1. Direct branch assigned courses from branchApi
     if (branchAssignedCourses && branchAssignedCourses.length > 0) {
       return branchAssignedCourses.map((c: any) => ({
         id: Number(c.id),
@@ -172,9 +175,60 @@ export const LectureScheduler = () => {
         programs: c.programs || []
       }));
     }
-    if (!options?.courses || options.courses.length === 0) return [];
-    return options.courses;
-  }, [branchAssignedCourses, options]);
+
+    // 2. Fallback to options.courseBranches if available
+    if (options?.courseBranches && options.courseBranches.length > 0 && options?.courses) {
+      const assignedIds = new Set(
+        options.courseBranches
+          .filter(cb => Number(cb.branch_id) === Number(selectedBranchObj.id))
+          .map(cb => Number(cb.course_id))
+      );
+      const filtered = options.courses.filter(c => assignedIds.has(Number(c.id)));
+      if (filtered.length > 0) {
+        return filtered.map(c => ({
+          id: Number(c.id),
+          name: c.name,
+          code: c.code || '',
+          assigned_programs: [],
+          programs: []
+        }));
+      }
+    }
+
+    // 3. Fallback to courses linked via batches of this branch
+    if (options?.batches && options?.levels && options?.programs && options?.courses) {
+      const branchBatches = options.batches.filter(b => Number(b.branch_id) === Number(selectedBranchObj.id));
+      if (branchBatches.length > 0) {
+        const levelMap = new Map(options.levels.map(l => [Number(l.id), l]));
+        const progMap = new Map(options.programs.map(p => [Number(p.id), p]));
+        const courseIds = new Set<number>();
+        branchBatches.forEach(b => {
+          const lvl = levelMap.get(Number(b.level_id));
+          if (lvl) {
+            const prog = progMap.get(Number(lvl.program_id));
+            if (prog && prog.course_id) {
+              courseIds.add(Number(prog.course_id));
+            } else if ((lvl as any).course_id) {
+              courseIds.add(Number((lvl as any).course_id));
+            }
+          }
+        });
+        const matched = options.courses.filter(c => courseIds.has(Number(c.id)));
+        if (matched.length > 0) {
+          return matched.map(c => ({
+            id: Number(c.id),
+            name: c.name,
+            code: c.code || '',
+            assigned_programs: [],
+            programs: []
+          }));
+        }
+      }
+    }
+
+    // 4. Fallback to all courses in options
+    return options?.courses || [];
+  }, [selectedBranchObj, branchAssignedCourses, options]);
 
   const availableCourses = useMemo(() => {
     return availableCourseList.map(c => c.name);
@@ -187,21 +241,47 @@ export const LectureScheduler = () => {
     return availableCourseList.find(c => c.name === course || String(c.id) === String(course) || c.code === course) || null;
   }, [availableCourseList, course]);
 
-  // Derived available programs strictly under selected Course
+  // Derived available programs strictly under selected Course & Branch
   const availableProgramList = useMemo(() => {
     if (!selectedCourseObj) return [];
     const courseObj = selectedCourseObj as any;
+
     if (courseObj.assigned_programs && courseObj.assigned_programs.length > 0) {
       return courseObj.assigned_programs;
     }
     if (courseObj.programs && courseObj.programs.length > 0) {
-      return courseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
+      const assigned = courseObj.programs.filter((p: any) => p.is_assigned !== false && p.assigned !== false);
+      if (assigned.length > 0) return assigned;
     }
+
+    if (options?.branchPrograms && options.branchPrograms.length > 0 && selectedBranchObj && options?.programs) {
+      const assignedProgIds = new Set(
+        options.branchPrograms
+          .filter(bp => Number(bp.branch_id) === Number(selectedBranchObj.id) && Number(bp.course_id) === Number(selectedCourseObj.id))
+          .map(bp => Number(bp.program_id))
+      );
+      if (assignedProgIds.size > 0) {
+        return options.programs.filter(p => assignedProgIds.has(Number(p.id)));
+      }
+    }
+
+    if (options?.batches && options?.levels && options?.programs && selectedBranchObj) {
+      const branchBatches = options.batches.filter(b => Number(b.branch_id) === Number(selectedBranchObj.id));
+      const levelMap = new Map(options.levels.map(l => [Number(l.id), l]));
+      const progIds = new Set<number>();
+      branchBatches.forEach(b => {
+        const lvl = levelMap.get(Number(b.level_id));
+        if (lvl && lvl.program_id) progIds.add(Number(lvl.program_id));
+      });
+      const matched = (options.programs || []).filter(p => Number(p.course_id) === Number(selectedCourseObj.id) && progIds.has(Number(p.id)));
+      if (matched.length > 0) return matched;
+    }
+
     if (options?.programs) {
       return options.programs.filter(p => Number(p.course_id) === Number(selectedCourseObj.id));
     }
     return [];
-  }, [selectedCourseObj, options]);
+  }, [selectedCourseObj, selectedBranchObj, options]);
 
   const availablePrograms = useMemo(() => {
     return Array.from(new Set(availableProgramList.map((p: any) => p.name)));
@@ -216,8 +296,16 @@ export const LectureScheduler = () => {
   // Derived available levels strictly under selected Program
   const availableLevelList = useMemo(() => {
     if (!options?.levels || !selectedProgramObj) return [];
-    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number((l as any).course_id) === Number(selectedCourseObj.id)));
-  }, [options, selectedProgramObj, selectedCourseObj]);
+    const progId = Number(selectedProgramObj.id);
+    const byProgram = options.levels.filter(l => Number(l.program_id) === progId);
+    if (byProgram.length > 0) return byProgram;
+
+    // Fallback only if no levels in system have program_id defined
+    if (selectedCourseObj) {
+      return options.levels.filter(l => !l.program_id && Number((l as any).course_id) === Number(selectedCourseObj.id));
+    }
+    return [];
+  }, [options?.levels, selectedProgramObj, selectedCourseObj]);
 
   const availableLevels = useMemo(() => {
     return availableLevelList.map(l => ({ levelId: l.name, levelName: l.name, id: l.id }));
@@ -247,11 +335,36 @@ export const LectureScheduler = () => {
   const resolvedBatchObj = useMemo(() => {
     if (!batch) return null;
     if (availableBatchList.length > 0) {
-      const found = availableBatchList.find(b => String(b.id) === batch || b.name === batch || b.code === batch);
+      const found = availableBatchList.find(b => String(b.id) === String(batch) || b.name === batch || b.code === batch);
       if (found) return found;
     }
-    return options?.batches?.find(b => String(b.id) === batch || b.name === batch || b.code === batch) || null;
+    return options?.batches?.find(b => String(b.id) === String(batch) || b.name === batch || b.code === batch) || null;
   }, [batch, availableBatchList, options]);
+
+  // Automatically clean invalid lower-level selections when parent selections change or load
+  useEffect(() => {
+    if (course && availableCourseList.length > 0 && !selectedCourseObj) {
+      updateFilter('course', '', ['program', 'level', 'batch']);
+    }
+  }, [course, availableCourseList, selectedCourseObj]);
+
+  useEffect(() => {
+    if (program && availableProgramList.length > 0 && !selectedProgramObj) {
+      updateFilter('program', '', ['level', 'batch']);
+    }
+  }, [program, availableProgramList, selectedProgramObj]);
+
+  useEffect(() => {
+    if (level && availableLevelList.length > 0 && !selectedLevelObj) {
+      updateFilter('level', '', ['batch']);
+    }
+  }, [level, availableLevelList, selectedLevelObj]);
+
+  useEffect(() => {
+    if (batch && availableBatchList.length > 0 && !resolvedBatchObj) {
+      updateFilter('batch', '');
+    }
+  }, [batch, availableBatchList, resolvedBatchObj]);
 
   // Load weekly lectures from API whenever filters, activeTab, or selectedWeekStart change
   useEffect(() => {
@@ -566,22 +679,22 @@ export const LectureScheduler = () => {
                         ? [{ value: assignedBranch.code || assignedBranch.name, label: assignedBranch.name }]
                         : [{ value: '', label: 'Select...' }, ...(options?.branches || branches).map(b => ({ value: b.code || b.name, label: b.name }))]
                     } 
-                    value={branch} 
+                    value={selectedBranchObj ? (selectedBranchObj.code || selectedBranchObj.name) : branch} 
                     onChange={(e) => updateFilter('branch', e.target.value, ['course', 'program', 'level', 'batch'])} 
                     disabled={isBranchAdmin} 
                   />
                 </div>
                 <div className="flex-1 min-w-[140px]">
-                  <Select label="Course" options={[{ value: '', label: 'Select...' }, ...uniqueCourses.map(c => ({ value: c as string, label: c as string }))]} value={course} onChange={(e) => updateFilter('course', e.target.value, ['program', 'level', 'batch'])} disabled={!branch} />
+                  <Select label="Course" options={[{ value: '', label: 'Select...' }, ...uniqueCourses.map(c => ({ value: c as string, label: c as string }))]} value={selectedCourseObj?.name || course} onChange={(e) => updateFilter('course', e.target.value, ['program', 'level', 'batch'])} disabled={!branch} />
                 </div>
                 <div className="flex-1 min-w-[140px]">
-                  <Select label="Program" options={[{ value: '', label: 'Select...' }, ...availablePrograms.map(p => ({ value: p as string, label: p as string }))]} value={program} onChange={(e) => updateFilter('program', e.target.value, ['level', 'batch'])} disabled={!course} />
+                  <Select label="Program" options={[{ value: '', label: 'Select...' }, ...availablePrograms.map(p => ({ value: p as string, label: p as string }))]} value={selectedProgramObj?.name || program} onChange={(e) => updateFilter('program', e.target.value, ['level', 'batch'])} disabled={!course} />
                 </div>
                 <div className="flex-1 min-w-[140px]">
-                  <Select label="Level" options={[{ value: '', label: 'Select...' }, ...availableLevels.map(l => ({ value: l.levelId, label: l.levelName }))]} value={level} onChange={(e) => updateFilter('level', e.target.value, ['batch'])} disabled={!program} />
+                  <Select label="Level" options={[{ value: '', label: 'Select...' }, ...availableLevels.map(l => ({ value: l.levelId, label: l.levelName }))]} value={selectedLevelObj?.name || level} onChange={(e) => updateFilter('level', e.target.value, ['batch'])} disabled={!program} />
                 </div>
                 <div className="flex-1 min-w-[160px]">
-                  <Select label="Batch" options={[{ value: '', label: 'Select Batch...' }, ...availableBatchNames.map(b => ({ value: b, label: b }))]} value={batch} onChange={(e) => updateFilter('batch', e.target.value)} disabled={!level} />
+                  <Select label="Batch" options={[{ value: '', label: 'Select Batch...' }, ...availableBatchNames.map(b => ({ value: b, label: b }))]} value={resolvedBatchObj?.name || batch} onChange={(e) => updateFilter('batch', e.target.value)} disabled={!level} />
                 </div>
               </div>
             </div>

@@ -31,7 +31,18 @@ const getInstituteDashboard = async (req, res) => {
 
         let branchId = null;
         if (req.query.branchId && req.query.branchId !== 'all') {
-            branchId = Number(req.query.branchId);
+            const parsed = Number(req.query.branchId);
+            if (!isNaN(parsed) && parsed > 0) {
+                branchId = parsed;
+            } else {
+                const [brRows] = await db.query(
+                    'SELECT id FROM branches WHERE tenant_id = ? AND (name = ? OR code = ?) AND deleted_at IS NULL LIMIT 1',
+                    [tenantId, req.query.branchId, req.query.branchId]
+                );
+                if (brRows.length > 0) {
+                    branchId = brRows[0].id;
+                }
+            }
         }
         if (req.user?.role === 'branch-admin' && req.user?.primaryBranchId) {
             branchId = req.user.primaryBranchId;
@@ -40,7 +51,8 @@ const getInstituteDashboard = async (req, res) => {
         const data = await dashboardService.getDashboard({
             tenantId,
             branchId,
-            filters: req.query
+            filters: req.query,
+            isBranchAdmin: req.user?.role === 'branch-admin'
         });
 
         res.status(200).json({ status: 'success', data });
@@ -100,8 +112,8 @@ const getInstituteStats = async (req, res) => {
         let studentQuery = `
             SELECT
                 COUNT(*) AS total_students,
-                SUM(CASE WHEN status = 1 OR status = '1' OR status = 'active' OR status = 'Active Student' THEN 1 ELSE 0 END) AS active_students,
-                SUM(CASE WHEN status = 0 OR status = '0' OR status = 'inactive' THEN 1 ELSE 0 END) AS inactive_students
+                SUM(CASE WHEN status = 1 OR CAST(status AS CHAR) = 'active' THEN 1 ELSE 0 END) AS active_students,
+                SUM(CASE WHEN status = 0 OR CAST(status AS CHAR) = 'inactive' OR status != 1 THEN 1 ELSE 0 END) AS inactive_students
             FROM students
             WHERE tenant_id = ? AND deleted_at IS NULL
         `;

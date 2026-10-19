@@ -91,20 +91,12 @@ export const StaffSalaryHistoryView: React.FC<StaffSalaryHistoryViewProps> = ({
       setIsDeleting(true);
       await staffSalaryApi.deleteSalaryPayment(deletingPayment.id);
       const mName = MONTH_NAMES[deletingPayment.salary_month - 1] || `Month ${deletingPayment.salary_month}`;
-      addToast({
-        title: 'Payment Voided',
-        message: `Salary disbursement for ${mName} ${deletingPayment.salary_year} has been removed. Month status reverted to PENDING.`,
-        type: 'success'
-      });
+      addToast(`Salary disbursement for ${mName} ${deletingPayment.salary_year} has been removed. Month status reverted to PENDING.`, 'success');
       setDeletingPayment(null);
       fetchHistory();
     } catch (err: any) {
       console.error('Error deleting salary payment:', err);
-      addToast({
-        title: 'Error',
-        message: err?.response?.data?.message || err.message || 'Failed to delete payment record.',
-        type: 'error'
-      });
+      addToast(err?.response?.data?.message || err.message || 'Failed to delete payment record.', 'error');
     } finally {
       setIsDeleting(false);
     }

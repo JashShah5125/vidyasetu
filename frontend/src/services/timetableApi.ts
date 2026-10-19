@@ -8,7 +8,9 @@ export interface TimetableOptions {
   academicYears: Array<{ id: number; name: string; start_date?: string; end_date?: string; status?: string }>;
   courses: Array<{ id: number; name: string; code?: string; is_active?: number }>;
   programs: Array<{ id: number; course_id: number; name: string; code?: string; is_active?: number }>;
-  levels: Array<{ id: number; program_id: number; name: string; code?: string; is_active?: number }>;
+  courseBranches?: Array<{ course_id: number; branch_id: number }>;
+  branchPrograms?: Array<{ program_id: number; course_id: number; branch_id: number }>;
+  levels: Array<{ id: number; course_id?: number; program_id: number; name: string; code?: string; is_active?: number }>;
   batches: Array<{ id: number; branch_id: number; level_id: number; academic_year_id?: number; name: string; code?: string; start_time?: string; end_time?: string; classroom_id?: number }>;
   subjects: Array<{ id: number; name: string; code: string; type?: string; status?: string }>;
   teachers: Array<{ id: number; name: string; full_name?: string; email?: string; mobile?: string; primary_branch_id?: number; designation?: string; max_lectures_per_day?: number; max_lectures_per_week?: number }>;

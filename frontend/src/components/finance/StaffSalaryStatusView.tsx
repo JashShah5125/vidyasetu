@@ -37,7 +37,7 @@ import {
   Pencil,
   Trash2
 } from 'lucide-react';
-import { formatDate } from '../../utils/dateFormatter';
+import { formatDate, formatDateForInput } from '../../utils/dateFormatter';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -108,20 +108,12 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
     try {
       setIsDeleting(true);
       await staffSalaryApi.deleteSalaryPayment(deletingItem.payment_id);
-      addToast({
-        title: 'Payment Voided',
-        message: `Salary disbursement for ${deletingItem.full_name} (${monthName} ${selectedYear}) has been removed. Status reverted to PENDING.`,
-        type: 'success'
-      });
+      addToast(`Salary disbursement for ${deletingItem.full_name} (${monthName} ${selectedYear}) has been removed. Status reverted to PENDING.`, 'success');
       setDeletingItem(null);
       fetchStatus();
     } catch (err: any) {
       console.error('Error deleting salary payment:', err);
-      addToast({
-        title: 'Error',
-        message: err?.response?.data?.message || err.message || 'Failed to delete payment record.',
-        type: 'error'
-      });
+      addToast(err?.response?.data?.message || err.message || 'Failed to delete payment record.', 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -153,11 +145,7 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
       }
     } catch (err: any) {
       console.error('Error fetching monthly salary status:', err);
-      addToast({
-        title: 'Error',
-        message: err?.response?.data?.message || err.message || 'Failed to load monthly salary status.',
-        type: 'error'
-      });
+      addToast(err?.response?.data?.message || err.message || 'Failed to load monthly salary status.', 'error');
     } finally {
       setLoading(false);
     }
@@ -645,7 +633,7 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
                                       salary_month: selectedMonth,
                                       salary_year: selectedYear,
                                       amount: Number(item.paid_amount || item.salary_amount || 0),
-                                      paid_date: item.paid_date || new Date().toISOString().split('T')[0],
+                                      paid_date: item.paid_date ? formatDateForInput(item.paid_date) : formatDateForInput(new Date()),
                                       payment_mode: item.payment_mode || 'bank_transfer',
                                       reference: item.reference || null,
                                       remarks: item.remarks || null,

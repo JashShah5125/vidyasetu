@@ -72,6 +72,8 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         branches: academicData.branches || opts?.branches,
         courses: academicData.courses && academicData.courses.length > 0 ? academicData.courses : (opts?.courses || []),
         programs: academicData.programs && academicData.programs.length > 0 ? academicData.programs : (opts?.programs || []),
+        courseBranches: academicData.courseBranches || [],
+        branchPrograms: academicData.branchPrograms || [],
         levels: academicData.levels && academicData.levels.length > 0 ? academicData.levels : (opts?.levels || []),
         batches: academicData.batches && academicData.batches.length > 0 ? academicData.batches : (opts?.batches || []),
         academicYears: academicData.academicYears && academicData.academicYears.length > 0 ? academicData.academicYears : (opts?.academicYears || [])

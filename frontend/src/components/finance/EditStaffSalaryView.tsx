@@ -25,7 +25,7 @@ interface EditStaffSalaryViewProps {
   staff: StaffSalaryMasterItem;
   onBack: () => void;
   onSuccess: () => void;
-  addToast: (toast: { title?: string; message: string; type: 'success' | 'error' | 'info' | 'warning' }) => void;
+  addToast: (message: string | { title?: string; message?: string; type?: 'success' | 'info' | 'error' | 'warning' }, type?: 'success' | 'info' | 'error' | 'warning') => void;
 }
 
 const fmt = (n: number) => '₹' + (Number(n) || 0).toLocaleString('en-IN');
@@ -57,20 +57,12 @@ export const EditStaffSalaryView: React.FC<EditStaffSalaryViewProps> = ({
     try {
       setIsResetting(true);
       await staffSalaryApi.resetStaffSalary(staff.id);
-      addToast({
-        title: 'Salary Structure Cleared',
-        message: `Base monthly salary for ${staff.full_name} has been reset to ₹0.`,
-        type: 'success'
-      });
+      addToast(`Base monthly salary for ${staff.full_name} has been reset to ₹0.`, 'success');
       setIsResetModalOpen(false);
       onSuccess();
     } catch (err: any) {
       console.error('Error resetting staff salary:', err);
-      addToast({
-        title: 'Error',
-        message: err?.response?.data?.message || err.message || 'Failed to reset salary.',
-        type: 'error'
-      });
+      addToast(err?.response?.data?.message || err.message || 'Failed to reset salary.', 'error');
     } finally {
       setIsResetting(false);
     }
@@ -97,11 +89,7 @@ export const EditStaffSalaryView: React.FC<EditStaffSalaryViewProps> = ({
         salaryEffectiveFrom: effectiveFrom || null
       });
 
-      addToast({
-        title: 'Salary Structure Updated',
-        message: `Basic monthly salary for ${staff.full_name} set to ${fmt(numSalary)}.`,
-        type: 'success'
-      });
+      addToast(`Basic monthly salary for ${staff.full_name} set to ${fmt(numSalary)}.`, 'success');
 
       onSuccess();
     } catch (err: any) {

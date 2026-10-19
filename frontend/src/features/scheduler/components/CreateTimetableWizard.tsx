@@ -163,7 +163,13 @@ export const CreateTimetableWizard: React.FC<CreateTimetableWizardProps> = ({
 
   const availableLevelList = useMemo(() => {
     if (!options?.levels || !selectedProgramObj) return [];
-    return options.levels.filter(l => Number(l.program_id) === Number(selectedProgramObj.id) || (selectedCourseObj && Number((l as any).course_id) === Number(selectedCourseObj.id)));
+    const progId = Number(selectedProgramObj.id);
+    const byProgram = options.levels.filter(l => Number(l.program_id) === progId);
+    if (byProgram.length > 0) return byProgram;
+    if (selectedCourseObj) {
+      return options.levels.filter(l => !l.program_id && Number((l as any).course_id) === Number(selectedCourseObj.id));
+    }
+    return [];
   }, [options, selectedProgramObj, selectedCourseObj]);
 
   const availableLevels = useMemo(() => {

@@ -93,7 +93,7 @@ interface AppContextType {
   setBranches: React.Dispatch<React.SetStateAction<Branch[]>>;
   setStaff: React.Dispatch<React.SetStateAction<Staff[]>>;
   toasts: ToastMessage[];
-  addToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning') => void;
+  addToast: (message: string | { title?: string; message?: string; type?: 'success' | 'info' | 'error' | 'warning' }, type?: 'success' | 'info' | 'error' | 'warning') => void;
   tickets: SupportTicket[];
   addSupportTicket: (subject: string, description: string, priority: 'Low' | 'Medium' | 'High' | 'Critical', tenantName: string) => void;
   replyToSupportTicket: (ticketId: string, replyText: string, senderName: string) => void;
@@ -605,9 +605,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateDoubtStatus(doubtId, 'Resolved');
   };
 
-  const addToast = useCallback((message: string, type: 'success' | 'info' | 'error' | 'warning' = 'success') => {
+  const addToast = useCallback((message: any, type: 'success' | 'info' | 'error' | 'warning' = 'success') => {
     const id = Math.random().toString(36).substr(2, 9);
-    setToasts(prev => [...prev, { id, message, type }]);
+    let msgText = '';
+    let msgType: 'success' | 'info' | 'error' | 'warning' = type;
+
+    if (message && typeof message === 'object') {
+      msgText = message.message || message.title || message.error || JSON.stringify(message);
+      if (message.type && ['success', 'info', 'error', 'warning'].includes(message.type)) {
+        msgType = message.type;
+      }
+    } else {
+      msgText = String(message ?? '');
+    }
+
+    setToasts(prev => [...prev, { id, message: msgText, type: msgType }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 3500);

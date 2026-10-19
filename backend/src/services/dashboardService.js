@@ -73,7 +73,7 @@ const mockExpenseBreakdown = (totalExpenses) => {
  * Generic unified dashboard service
  * Serves both Institute Admin (branchId = null or selected) and Branch Admin (branchId = fixed).
  */
-const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
+const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchAdmin = false }) => {
     const { from, to } = resolveDateRange(filters);
     const granularity = resolveGranularity(from, to);
 
@@ -93,7 +93,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
         [levelsRows],
         [batchesRows]
     ] = await Promise.all([
-        branchId
+        (isBranchAdmin && branchId)
             ? db.query(`SELECT id, name, code FROM branches WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId, branchId])
             : db.query(`SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId]),
         db.query(
@@ -179,7 +179,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
         db.query(
             `SELECT COUNT(*) AS cnt FROM students s
              WHERE s.tenant_id = ? AND s.deleted_at IS NULL
-               AND (s.status = 1 OR s.status = '1' OR s.status = 'active' OR s.status = 'Active Student')
+               AND (s.status = 1 OR CAST(s.status AS CHAR) = 'active')
                ${branchSql}
                ${studentAcademicSql}
                ${academicYearSql}`,
@@ -345,7 +345,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
              FROM branches b
              LEFT JOIN students s ON s.primary_branch_id = b.id
                AND s.deleted_at IS NULL
-               AND (s.status = 1 OR s.status = '1' OR s.status = 'active' OR s.status = 'Active Student')
+               AND (s.status = 1 OR CAST(s.status AS CHAR) = 'active')
              WHERE b.tenant_id = ? AND b.deleted_at IS NULL
                ${branchId ? `AND b.id = ${Number(branchId)}` : ''}
              GROUP BY b.id, b.name
@@ -421,7 +421,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {} }) => {
                0) AS attendance_pct
              FROM branches b
              LEFT JOIN students s ON s.primary_branch_id = b.id AND s.deleted_at IS NULL
-               AND (s.status = 1 OR s.status = '1' OR s.status = 'active' OR s.status = 'Active Student')
+               AND (s.status = 1 OR CAST(s.status AS CHAR) = 'active')
              LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.status = 'active' AND se.deleted_at IS NULL
              LEFT JOIN lectures l ON l.batch_id = se.batch_id AND l.branch_id = b.id
                AND l.attendance_taken = 1 AND l.deleted_at IS NULL

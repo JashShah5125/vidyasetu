@@ -114,7 +114,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 t.type === 'error' ? 'bg-red-500' :
                 t.type === 'info' ? 'bg-blue-400' : 'bg-emerald-400'
               } animate-pulse`} />
-              <p className="text-xs font-semibold text-slate-100">{t.message}</p>
+              <p className="text-xs font-semibold text-slate-100">
+                {typeof t.message === 'string' ? t.message : ((t.message as any)?.message || (t.message as any)?.title || String(t.message))}
+              </p>
             </div>
           ))}
         </div>

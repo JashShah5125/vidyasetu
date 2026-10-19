@@ -265,44 +265,83 @@ const getTeacherAssignedBatchIds = async (tenantId, teacherUserId) => {
 };
 
 const enrichCounts = async (tenantId, homeworkRows, batchIdsById) => {
-    const homeworkIds = homeworkRows.map(h => Number(h.id));
-    if (!homeworkIds.length) return homeworkRows;
+    if (!homeworkRows || !homeworkRows.length) return homeworkRows;
 
-    const idList = [...new Set(homeworkIds)];
-
-    // Total enrolled students across each homework's targeted batches
+    // Total enrolled students across each item's targeted batches
     const pairs = [];
-    idList.forEach(id => {
-        (batchIdsById.get(id) || []).forEach(b => pairs.push([id, b]));
+    homeworkRows.forEach(h => {
+        const key = h.custom_id || String(h.id);
+        const bIds = batchIdsById.get(key) || batchIdsById.get(Number(h.id)) || batchIdsById.get(String(h.id)) || [];
+        bIds.forEach(b => pairs.push([key, b]));
     });
+
     if (pairs.length) {
-        const derived = pairs.map(() => 'SELECT ? AS homework_id, ? AS batch_id').join(' UNION ALL ');
+        const derived = pairs.map(() => 'SELECT ? AS custom_id, ? AS batch_id').join(' UNION ALL ');
         const [totalRows] = await pool.query(
-            `SELECT hb.homework_id, COUNT(DISTINCT se.student_id) AS total
+            `SELECT hb.custom_id, COUNT(DISTINCT se.student_id) AS total
                FROM (${derived}) hb
                JOIN student_enrollments se
                  ON se.tenant_id = ? AND se.status = 'active' AND se.deleted_at IS NULL
                 AND se.batch_id = hb.batch_id
-              GROUP BY hb.homework_id`,
+              GROUP BY hb.custom_id`,
             [...pairs.flat(), tenantId]
         );
         totalRows.forEach(r => {
-            const hw = homeworkRows.find(h => Number(h.id) === Number(r.homework_id));
+            const hw = homeworkRows.find(h => (h.custom_id || String(h.id)) === String(r.custom_id));
             if (hw) hw.total_count = Number(r.total);
         });
     }
 
-    const [submittedRows] = await pool.query(
-        `SELECT homework_id, COUNT(*) AS cnt
-           FROM homework_submissions
-          WHERE tenant_id = ? AND deleted_at IS NULL AND homework_id IN (?)
-          GROUP BY homework_id`,
-        [tenantId, idList]
-    );
-    submittedRows.forEach(r => {
-        const hw = homeworkRows.find(h => Number(h.id) === Number(r.homework_id));
-        if (hw) hw.submitted_count = Number(r.cnt);
-    });
+    // Submissions count for homeworks
+    const hwRows = homeworkRows.filter(h => !h.assignment_type || h.assignment_type === 'homework');
+    const hwIds = [...new Set(hwRows.map(h => Number(h.id)).filter(Boolean))];
+    if (hwIds.length) {
+        const [submittedRows] = await pool.query(
+            `SELECT homework_id, COUNT(*) AS cnt
+               FROM homework_submissions
+              WHERE tenant_id = ? AND deleted_at IS NULL AND homework_id IN (?)
+              GROUP BY homework_id`,
+            [tenantId, hwIds]
+        );
+        submittedRows.forEach(r => {
+            const hw = homeworkRows.find(h => (!h.assignment_type || h.assignment_type === 'homework') && Number(h.id) === Number(r.homework_id));
+            if (hw) hw.submitted_count = Number(r.cnt);
+        });
+    }
+
+    // Submissions count for assignments
+    const asgRows = homeworkRows.filter(h => h.assignment_type === 'assignment');
+    const asgIds = [...new Set(asgRows.map(h => Number(h.id)).filter(Boolean))];
+    if (asgIds.length) {
+        const [asgSubRows] = await pool.query(
+            `SELECT assignment_id, COUNT(*) AS cnt
+               FROM assignment_submissions
+              WHERE tenant_id = ? AND deleted_at IS NULL AND assignment_id IN (?)
+              GROUP BY assignment_id`,
+            [tenantId, asgIds]
+        );
+        asgSubRows.forEach(r => {
+            const hw = homeworkRows.find(h => h.assignment_type === 'assignment' && Number(h.id) === Number(r.assignment_id));
+            if (hw) hw.submitted_count = Number(r.cnt);
+        });
+    }
+
+    // Submissions count for exams
+    const examRows = homeworkRows.filter(h => h.assignment_type === 'exam');
+    const examIds = [...new Set(examRows.map(h => Number(h.id)).filter(Boolean))];
+    if (examIds.length) {
+        const [examSubRows] = await pool.query(
+            `SELECT exam_id, COUNT(*) AS cnt
+               FROM exam_marks
+              WHERE tenant_id = ? AND deleted_at IS NULL AND exam_id IN (?)
+              GROUP BY exam_id`,
+            [tenantId, examIds]
+        );
+        examSubRows.forEach(r => {
+            const hw = homeworkRows.find(h => h.assignment_type === 'exam' && Number(h.id) === Number(r.exam_id));
+            if (hw) hw.submitted_count = Number(r.cnt);
+        });
+    }
 
     return homeworkRows;
 };
@@ -419,6 +458,8 @@ const fetchHomeworkRows = async (tenantId, teacherUserId, accessContext, filterA
     const filtered = rows.filter(r => {
         const batchIds = parseJsonArray(r.batch_ids).map(Number).filter(Boolean);
         batchIdsById.set(r.custom_id, batchIds);
+        batchIdsById.set(Number(r.id), batchIds);
+        batchIdsById.set(String(r.id), batchIds);
         if (assignedBatchIds.length && !batchIds.some(id => assignedBatchIds.includes(id))) return false;
         return true;
     });
@@ -460,8 +501,10 @@ const getHomework = async (tenantId, id, teacherUserId, accessContext = null) =>
         ? await pool.query(`SELECT id, name FROM batches WHERE tenant_id = ? AND id IN (?)`, [tenantId, batchIds])
         : [[]];
     const batchNames = batchRows.map(b => b.name);
+    const batchIdsMap = new Map([[String(id), batchIds], [Number(current.id), batchIds]]);
+    const enriched = await enrichCounts(tenantId, [{ ...current, custom_id: String(id) }], batchIdsMap);
     return rowToHomework({
-        ...current,
+        ...enriched[0],
         id: String(id),
         batch_names: batchNames
     });

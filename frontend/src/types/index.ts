@@ -516,6 +516,15 @@ export interface ExamItem {
   recurrenceSummary?: string;
   recurringGroupId?: string;
   recurringInstanceIndex?: number;
+  _batchIds?: number[];
+  _batchNames?: string[];
+  _branchId?: string | number;
+  _academicYearId?: string | number;
+  _subjectId?: string | number;
+  submittedCount?: number;
+  gradedSubmissionsCount?: number;
+  classAveragePercentage?: number | null;
+  totalCount?: number;
 }
 
 export interface FeePlan {

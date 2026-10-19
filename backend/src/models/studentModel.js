@@ -143,8 +143,12 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
 
     if (status !== undefined && status !== 'All' && status !== '') {
         const numStatus = normalizeStudentStatus(status);
-        whereClause += ` AND s.status = ?`;
-        params.push(numStatus);
+        if (numStatus === 0) {
+            whereClause += ` AND s.status != 1`;
+        } else {
+            whereClause += ` AND s.status = ?`;
+            params.push(numStatus);
+        }
     }
 
     if (feeStatus && feeStatus !== 'All') {

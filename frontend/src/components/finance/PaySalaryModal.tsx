@@ -6,6 +6,7 @@ import { Select } from '../ui/Select';
 import { staffSalaryApi, type StaffSalaryStatusItem } from '../../services/staffSalaryApi';
 import { useApp } from '../../context/AppContext';
 import { DollarSign, CheckCircle2, User, Calendar, CreditCard, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { formatDateForInput } from '../../utils/dateFormatter';
 
 interface PaySalaryModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export const PaySalaryModal: React.FC<PaySalaryModalProps> = ({
   const { addToast } = useApp();
   const [amount, setAmount] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('bank_transfer');
-  const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState<string>(() => formatDateForInput(new Date()));
   const [reference, setReference] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -42,7 +43,7 @@ export const PaySalaryModal: React.FC<PaySalaryModalProps> = ({
     if (staff) {
       setAmount(String(staff.salary_amount || 0));
       setPaymentMode('bank_transfer');
-      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setPaymentDate(formatDateForInput(new Date()));
       setReference('');
       setRemarks('');
       setErrorMsg(null);
@@ -81,11 +82,7 @@ export const PaySalaryModal: React.FC<PaySalaryModalProps> = ({
         branchId: staff.branch_id
       });
 
-      addToast({
-        title: 'Payment Recorded',
-        message: `Salary for ${staff.full_name} (${monthName} ${year}) marked as PAID.`,
-        type: 'success'
-      });
+      addToast(`Salary for ${staff.full_name} (${monthName} ${year}) marked as PAID.`, 'success');
 
       onPaymentSuccess();
       onClose();

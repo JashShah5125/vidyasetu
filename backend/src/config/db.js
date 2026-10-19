@@ -77,6 +77,7 @@ const pool = mysql.createPool({
     database: activeConfig.database,
     port: activeConfig.port,
     multipleStatements: true,
+    dateStrings: ['DATE'],
     ...(activeConfig.ssl ? { ssl: activeConfig.ssl } : {}),
     waitForConnections: true,
     connectionLimit: 10,
