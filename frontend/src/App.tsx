@@ -10,6 +10,8 @@ import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
 import { Pagination } from './components/ui/Pagination';
 import { Login } from './pages/Login';
+import { RegisterTenant } from './pages/RegisterTenant';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { ChangePassword } from './pages/ChangePassword';
 import { Dashboard } from './pages/Dashboard';
 import { Institute } from './pages/Institute';
@@ -80,154 +82,7 @@ import { EmailConfiguration } from './pages/saas/EmailConfiguration';
 import { SmsConfiguration } from './pages/saas/SmsConfiguration';
 import { WhatsAppConfiguration } from './pages/saas/WhatsAppConfiguration';
 import { UsersAndRoles } from './pages/saas/UsersAndRoles';
-
-
-const AuditLogsPlaceholder = () => {
-  const { auditLogs: allLogs, currentUser, staff } = useApp();
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedLog, setSelectedLog] = useState<any | null>(null);
-  const itemsPerPage = 5;
-
-  const auditLogs = useMemo(() => {
-    if (currentUser?.role === 'branch-admin') {
-      const branchStaffNames = staff
-        .filter(s => s.branch === currentUser.branch)
-        .map(s => s.name.toLowerCase());
-      if (currentUser.name) {
-        branchStaffNames.push(currentUser.name.toLowerCase());
-      }
-      return allLogs.filter(log =>
-        branchStaffNames.includes(log.actor.toLowerCase())
-      );
-    }
-    return allLogs;
-  }, [allLogs, currentUser, staff]);
-
-  const totalPages = Math.ceil(auditLogs.length / itemsPerPage);
-  const paginatedLogs = auditLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const handleExportCSV = () => {
-    if (auditLogs.length === 0) return;
-    const headers = ['Log ID', 'Timestamp', 'Actor', 'Role', 'Institute', 'IP Address', 'Action', 'Details'];
-    const rows = auditLogs.map(log => [
-      log.id,
-      log.timestamp,
-      log.actor,
-      log.role,
-      log.institute || 'System / Platform',
-      log.ipAddress || '192.168.1.1',
-      log.action,
-      log.details
-    ]);
-    const csv = [headers.join(','), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'audit_logs.csv';
-    a.click();
-  };
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-3">
-        <h3 className="text-lg font-semibold text-slate-900">Platform Audit Registers</h3>
-        <Button variant="secondary" onClick={handleExportCSV}>Export CSV</Button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Timestamp</th>
-              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Actor</th>
-              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Institute</th>
-              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">IP Address</th>
-              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Action</th>
-              <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase">Details</th>
-            </tr>
-          </thead>
-          <tbody className="text-sm text-slate-600 divide-y divide-slate-100">
-            {paginatedLogs.map((log, idx) => (
-              <tr
-                key={idx}
-                onClick={() => setSelectedLog(log)}
-                className="hover:bg-slate-50 cursor-pointer transition-colors"
-              >
-                <td className="px-6 py-4 font-mono text-xs">{log.timestamp}</td>
-                <td className="px-6 py-4 font-semibold text-slate-800">
-                  {log.actor} <span className="text-[10px] text-slate-400 uppercase font-normal">({log.role})</span>
-                </td>
-                <td className="px-6 py-4 text-slate-700 font-semibold">{log.institute || 'System / Platform'}</td>
-                <td className="px-6 py-4 font-mono text-xs text-slate-500">{log.ipAddress || '192.168.1.1'}</td>
-                <td className="px-6 py-4 font-mono text-xs text-blue-600">{log.action}</td>
-                <td className="px-6 py-4 max-w-xs" title={log.details}>
-                  <div className="truncate text-slate-700">{log.details}</div>
-                  <div className="text-blue-600 text-[10px] font-bold mt-1 hover:underline cursor-pointer inline-flex items-center">
-                    View Details &rarr;
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {selectedLog && (
-        <Modal
-          isOpen={true}
-          onClose={() => setSelectedLog(null)}
-          title="Audit Log Entry Details"
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Log Entry ID</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.id}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Timestamp</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.timestamp}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Actor / Operator</span>
-                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.actor}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Operator Role</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.role}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Action Identifier</span>
-                <span className="font-mono text-blue-600 font-bold mt-0.5 block">{selectedLog.action}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Origin IP Address</span>
-                <span className="font-mono text-slate-800 mt-0.5 block">{selectedLog.ipAddress || '192.168.1.1'}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-400 block uppercase">Institute / Tenant</span>
-                <span className="font-semibold text-slate-800 mt-0.5 block">{selectedLog.institute || 'System / Platform'}</span>
-              </div>
-            </div>
-            <div className="border-t border-slate-100 pt-3">
-              <span className="text-xs font-bold text-slate-400 block uppercase">Operation Details</span>
-              <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 mt-1 leading-relaxed whitespace-pre-wrap">{selectedLog.details}</p>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button onClick={() => setSelectedLog(null)}>Close View</Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={auditLogs.length}
-        pageSize={itemsPerPage}
-        onPageChange={setCurrentPage}
-      />
-    </div>
-  );
-};
+import { AuditLogs } from './pages/AuditLogs';
 
 const DoubtChatsPlaceholder = () => {
   const appContext = useApp();
@@ -349,7 +204,7 @@ const ContentRouter = () => {
       <Route path="/saas/system-settings/sms" element={isSaasAdminUser ? <Navigate to="/saas/templates?tab=channel-config" replace /> : <Navigate to={roleDashboard} replace />} />
       <Route path="/saas/system-settings/email" element={isSaasAdminUser ? <Navigate to="/saas/templates?tab=channel-config" replace /> : <Navigate to={roleDashboard} replace />} />
       <Route path="/saas/system-settings/whatsapp" element={isSaasAdminUser ? <Navigate to="/saas/templates?tab=channel-config" replace /> : <Navigate to={roleDashboard} replace />} />
-      <Route path="/saas/audit-logs" element={isSaasAdminUser ? <AuditLogsPlaceholder /> : <Navigate to={roleDashboard} replace />} />
+      <Route path="/saas/audit-logs" element={isSaasAdminUser ? <AuditLogs /> : <Navigate to={roleDashboard} replace />} />
       <Route path="/saas/system-config" element={isSaasAdminUser ? <SystemConfiguration /> : <Navigate to={roleDashboard} replace />} />
 
       {/* ── Institute Admin Routes (/admin/*) ── */}
@@ -392,7 +247,7 @@ const ContentRouter = () => {
       <Route path="/admin/academic-calendar" element={<AcademicCalendarPage />} />
       <Route path="/admin/assignments" element={<TeacherAssignments />} />
       <Route path="/admin/notifications" element={<Notifications />} />
-      <Route path="/admin/audit-logs" element={<AuditLogsPlaceholder />} />
+      <Route path="/admin/audit-logs" element={<AuditLogs />} />
       <Route path="/admin/institute" element={<Institute />} />
       <Route path="/admin/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/admin/institute/checkout/:planId" element={<InstituteCheckout />} />
@@ -441,7 +296,7 @@ const ContentRouter = () => {
       <Route path="/branch/academic-calendar" element={<AcademicCalendarPage />} />
       <Route path="/branch/assignments" element={<TeacherAssignments />} />
       <Route path="/branch/notifications" element={<Notifications />} />
-      <Route path="/branch/audit-logs" element={<AuditLogsPlaceholder />} />
+      <Route path="/branch/audit-logs" element={<AuditLogs />} />
       <Route path="/branch/institute" element={<Institute />} />
       <Route path="/branch/branches" element={<BranchSetup />} />
       <Route path="/branch/branches/:id" element={<BranchDetail />} />
@@ -510,7 +365,7 @@ const ContentRouter = () => {
       <Route path="/institute" element={<Institute />} />
       <Route path="/institute/upgrade" element={<InstituteUpgradePlan />} />
       <Route path="/institute/checkout/:planId" element={<InstituteCheckout />} />
-      <Route path="/audit-logs" element={<AuditLogsPlaceholder />} />
+      <Route path="/audit-logs" element={<AuditLogs />} />
       <Route path="/branches" element={<BranchSetup />} />
       <Route path="/branches/:id" element={<BranchDetail />} />
       <Route path="/courses" element={<CourseSetup />} />
@@ -574,6 +429,9 @@ const MainContent: React.FC = () => {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/register" element={<RegisterTenant />} />
+        <Route path="/register-institute" element={<RegisterTenant />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );

@@ -402,19 +402,19 @@ const impersonateTenant = async (req, res) => {
                 [
                     id,
                     req.user?.userId || req.user?.id,
-                    'IMPERSONATION_STARTED',
+                    'ADMIN_LOGIN_AS_TENANT',
                     'tenant',
                     id,
                     JSON.stringify({
-                        impersonatedUser: targetUser.email,
-                        impersonatedName: targetUser.name,
-                        saasAdminUserId: req.user?.userId || req.user?.id
+                        targetAccountEmail: targetUser.email,
+                        targetAccountName: targetUser.name,
+                        adminUserId: req.user?.userId || req.user?.id
                     }),
                     req.ip || '127.0.0.1'
                 ]
             );
         } catch (auditErr) {
-            console.error('Failed to log impersonation start audit:', auditErr.message);
+            console.error('Failed to log tenant login audit:', auditErr.message);
         }
 
         res.status(200).json({

@@ -45,9 +45,58 @@ const changePasswordSchema = Joi.object({
     })
 });
 
+const forgotPasswordSendOtpSchema = Joi.object({
+    email: Joi.string().trim().email().max(255).required().messages({
+        'string.empty': 'Email is required',
+        'string.email': 'Please provide a valid email address',
+        'string.max': 'Email address must not exceed 255 characters',
+        'any.required': 'Email is required'
+    })
+});
+
+const forgotPasswordVerifyOtpSchema = Joi.object({
+    email: Joi.string().trim().email().max(255).required().messages({
+        'string.empty': 'Email is required',
+        'string.email': 'Please provide a valid email address',
+        'string.max': 'Email address must not exceed 255 characters',
+        'any.required': 'Email is required'
+    }),
+    otp: Joi.string().trim().length(6).pattern(/^[0-9]{6}$/).required().messages({
+        'string.empty': 'Verification code is required',
+        'string.length': 'Verification code must be exactly 6 digits',
+        'string.pattern.base': 'Verification code must contain exactly 6 numbers',
+        'any.required': 'Verification code is required'
+    })
+});
+
+const forgotPasswordResetSchema = Joi.object({
+    email: Joi.string().trim().email().max(255).required().messages({
+        'string.empty': 'Email is required',
+        'string.email': 'Please provide a valid email address',
+        'string.max': 'Email address must not exceed 255 characters',
+        'any.required': 'Email is required'
+    }),
+    resetToken: Joi.string().trim().min(32).max(128).required().messages({
+        'string.empty': 'Reset token is required',
+        'string.min': 'Invalid reset token format',
+        'string.max': 'Invalid reset token format',
+        'any.required': 'Reset token is required'
+    }),
+    newPassword: Joi.string().min(8).max(128).required().messages({
+        'string.empty': 'New password is required',
+        'string.min': 'New password must be at least 8 characters',
+        'string.max': 'New password must not exceed 128 characters',
+        'any.required': 'New password is required'
+    })
+});
+
 module.exports = {
     loginSchema,
     refreshTokenSchema,
     updateProfileSchema,
-    changePasswordSchema
+    changePasswordSchema,
+    forgotPasswordSendOtpSchema,
+    forgotPasswordVerifyOtpSchema,
+    forgotPasswordResetSchema
 };
+

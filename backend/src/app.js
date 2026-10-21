@@ -24,6 +24,10 @@ app.use((req, res, next) => {
     next();
 });
 
+// Auto-Audit Trail Middleware (captures mutating requests)
+const auditMiddleware = require('./middleware/auditMiddleware');
+app.use(auditMiddleware);
+
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
@@ -70,6 +74,8 @@ const lectureRequestRoutes = require('./routes/lectureRequestRoutes');
 const studentDoubtRoutes = require('./routes/studentDoubtRoutes');
 const teacherDoubtRoutes = require('./routes/teacherDoubtRoutes');
 const enquiryRoutes = require('./routes/enquiryRoutes');
+const productAnalyticsRoutes = require('./routes/productAnalyticsRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -77,7 +83,11 @@ app.get('/health', (req, res) => {
 });
 
 // Mount API routes
+const publicRoutes = require('./routes/publicRoutes');
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/admin/audit-logs', auditLogRoutes);
+app.use('/api/branch/audit-logs', auditLogRoutes);
 app.use('/api/admin/tenants', tenantRoutes);
 app.use('/api/admin/leads', leadRoutes);
 app.use('/api/admin/plans', planRoutes);
@@ -87,6 +97,7 @@ app.use('/api/admin/email-templates', emailTemplateRoutes);
 app.use('/api/admin/sms-templates', smsTemplateRoutes);
 app.use('/api/admin/whatsapp-templates', whatsappTemplateRoutes);
 app.use('/api/admin/platform-settings', platformSettingsRoutes);
+app.use('/api/admin/product-analytics', productAnalyticsRoutes);
 app.use('/api/admin/courses', courseRoutes);
 app.use('/api/admin/branches', branchRoutes);
 app.use('/api/v1/branches', branchRoutes);

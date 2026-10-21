@@ -544,110 +544,112 @@ export const CounsellorDashboard: React.FC = () => {
       </div>
 
       {/* ── 5-Phase Lifecycle Workflow Ribbon ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md">
-        <div className="flex items-center justify-between mb-3 px-1">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs">
+        <div className="flex items-center justify-between mb-3.5 px-1">
           <div className="flex items-center gap-2">
-            <Layers size={16} className="text-amber-400" />
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+            <div className="w-6 h-6 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Layers size={14} />
+            </div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Admissions Pipeline Lifecycle Stages
             </h2>
           </div>
           <span className="text-[11px] text-slate-400 font-medium">Click any phase to open CRM view</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* Phase 1 */}
           <div
             onClick={() => navigate('/counsellor/leads')}
-            className="cursor-pointer bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 rounded-xl p-3 transition-all hover:scale-[1.02] flex flex-col justify-between"
+            className="group cursor-pointer bg-slate-50/70 hover:bg-blue-50/50 border border-slate-200/80 hover:border-blue-300 rounded-xl p-3.5 transition-all hover:shadow-xs flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-300">Phase 1</span>
-              <Users size={14} className="text-blue-400" />
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">Phase 1</span>
+              <Users size={14} className="text-blue-500 group-hover:scale-110 transition-transform" />
             </div>
-            <div className="mt-2">
-              <div className="text-xs font-bold text-white">Lead Pipeline</div>
-              <div className="text-[11px] text-slate-300 mt-0.5">{stats.newEnquiries} Inflow Leads</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Lead Pipeline</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">{stats.newEnquiries} Inflow Leads</div>
             </div>
-            <div className="mt-2.5 flex items-center text-[10px] text-blue-300 font-semibold gap-1">
+            <div className="mt-3 flex items-center text-[10px] text-blue-600 font-semibold gap-1">
               <span>View Roster</span>
-              <ArrowUpRight size={11} />
+              <ArrowUpRight size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
           </div>
 
           {/* Phase 2 */}
           <div
             onClick={() => navigate('/counsellor/leads/fee')}
-            className="cursor-pointer bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 rounded-xl p-3 transition-all hover:scale-[1.02] flex flex-col justify-between"
+            className="group cursor-pointer bg-slate-50/70 hover:bg-cyan-50/50 border border-slate-200/80 hover:border-cyan-300 rounded-xl p-3.5 transition-all hover:shadow-xs flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300">Phase 2</span>
-              <DollarSign size={14} className="text-cyan-400" />
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-md border border-cyan-100">Phase 2</span>
+              <DollarSign size={14} className="text-cyan-600 group-hover:scale-110 transition-transform" />
             </div>
-            <div className="mt-2">
-              <div className="text-xs font-bold text-white">Fee Discussion</div>
-              <div className="text-[11px] text-slate-300 mt-0.5">Pricing &amp; Discounts</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-cyan-800 transition-colors">Fee Discussion</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Pricing &amp; Discounts</div>
             </div>
-            <div className="mt-2.5 flex items-center text-[10px] text-cyan-300 font-semibold gap-1">
+            <div className="mt-3 flex items-center text-[10px] text-cyan-700 font-semibold gap-1">
               <span>Configure Fees</span>
-              <ArrowUpRight size={11} />
+              <ArrowUpRight size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
           </div>
 
           {/* Phase 3 */}
           <div
             onClick={() => navigate('/counsellor/leads/admission')}
-            className="cursor-pointer bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 rounded-xl p-3 transition-all hover:scale-[1.02] flex flex-col justify-between"
+            className="group cursor-pointer bg-slate-50/70 hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 rounded-xl p-3.5 transition-all hover:shadow-xs flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-300">Phase 3</span>
-              <ClipboardList size={14} className="text-amber-400" />
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">Phase 3</span>
+              <ClipboardList size={14} className="text-amber-600 group-hover:scale-110 transition-transform" />
             </div>
-            <div className="mt-2">
-              <div className="text-xs font-bold text-white">Admission &amp; Docs</div>
-              <div className="text-[11px] text-slate-300 mt-0.5">Document Audit</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-amber-800 transition-colors">Admission &amp; Docs</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Document Audit</div>
             </div>
-            <div className="mt-2.5 flex items-center text-[10px] text-amber-300 font-semibold gap-1">
+            <div className="mt-3 flex items-center text-[10px] text-amber-700 font-semibold gap-1">
               <span>Verify Docs</span>
-              <ArrowUpRight size={11} />
+              <ArrowUpRight size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
           </div>
 
           {/* Phase 4 */}
           <div
             onClick={() => navigate('/counsellor/leads/batch')}
-            className="cursor-pointer bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 rounded-xl p-3 transition-all hover:scale-[1.02] flex flex-col justify-between"
+            className="group cursor-pointer bg-slate-50/70 hover:bg-indigo-50/50 border border-slate-200/80 hover:border-indigo-300 rounded-xl p-3.5 transition-all hover:shadow-xs flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">Phase 4</span>
-              <Layers size={14} className="text-indigo-400" />
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">Phase 4</span>
+              <Layers size={14} className="text-indigo-600 group-hover:scale-110 transition-transform" />
             </div>
-            <div className="mt-2">
-              <div className="text-xs font-bold text-white">Batch Allocation</div>
-              <div className="text-[11px] text-slate-300 mt-0.5">Classroom &amp; Group</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-800 transition-colors">Batch Allocation</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Classroom &amp; Group</div>
             </div>
-            <div className="mt-2.5 flex items-center text-[10px] text-indigo-300 font-semibold gap-1">
+            <div className="mt-3 flex items-center text-[10px] text-indigo-700 font-semibold gap-1">
               <span>Allocate Batches</span>
-              <ArrowUpRight size={11} />
+              <ArrowUpRight size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
           </div>
 
           {/* Phase 5 */}
           <div
             onClick={() => navigate('/counsellor/leads/payment')}
-            className="cursor-pointer bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 rounded-xl p-3 transition-all hover:scale-[1.02] flex flex-col justify-between"
+            className="group cursor-pointer bg-slate-50/70 hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 rounded-xl p-3.5 transition-all hover:shadow-xs flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300">Phase 5</span>
-              <Zap size={14} className="text-emerald-400" />
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">Phase 5</span>
+              <Zap size={14} className="text-emerald-600 group-hover:scale-110 transition-transform" />
             </div>
-            <div className="mt-2">
-              <div className="text-xs font-bold text-white">Payment &amp; Activation</div>
-              <div className="text-[11px] text-slate-300 mt-0.5">Token Receipt &amp; Roll</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-800 transition-colors">Payment &amp; Activation</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Token Receipt &amp; Roll</div>
             </div>
-            <div className="mt-2.5 flex items-center text-[10px] text-emerald-300 font-semibold gap-1">
+            <div className="mt-3 flex items-center text-[10px] text-emerald-700 font-semibold gap-1">
               <span>Collect &amp; Activate</span>
-              <ArrowUpRight size={11} />
+              <ArrowUpRight size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </div>
           </div>
         </div>

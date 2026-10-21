@@ -26,8 +26,17 @@ const revokeByTokenHash = async (refreshTokenHash) => {
     return result.affectedRows > 0;
 };
 
+const revokeAllByUserId = async (userId) => {
+    const [result] = await pool.query(
+        'UPDATE user_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ? AND revoked_at IS NULL',
+        [userId]
+    );
+    return result.affectedRows;
+};
+
 module.exports = {
     createSession,
     findByTokenHash,
-    revokeByTokenHash
-};
+    revokeByTokenHash,
+    revokeAllByUserId
+};

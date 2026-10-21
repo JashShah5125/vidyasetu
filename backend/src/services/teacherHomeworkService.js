@@ -114,7 +114,7 @@ class TeacherHomeworkService {
         let academicYears = [];
         if (academicYearIds.length > 0) {
             const [yearRows] = await pool.query(
-                `SELECT id, name, start_date, end_date, status
+                `SELECT id, branch_id, name, start_date, end_date, status
                  FROM academic_years
                  WHERE tenant_id = ? AND id IN (?) AND deleted_at IS NULL
                  ORDER BY start_date DESC`,
@@ -162,6 +162,7 @@ class TeacherHomeworkService {
             })),
             academicYears: academicYears.map(ay => ({
                 id: ay.id,
+                branchId: ay.branch_id,
                 name: ay.name,
                 status: ay.status
             }))

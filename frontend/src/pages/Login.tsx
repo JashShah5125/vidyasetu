@@ -133,16 +133,25 @@ export const Login: React.FC = () => {
             </label>
             <button
               type="button"
-              onClick={() => setErrorMessage('Password reset is disabled. Please contact your administrator.')}
-              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
+              onClick={() => navigate('/forgot-password')}
+              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none hover:underline"
             >
               Forgot Password?
             </button>
           </div>
 
           {displayError && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-semibold text-red-600 text-center animate-fade-in">
-              {displayError}
+            <div
+              className={`p-3 rounded-lg text-xs font-medium text-center animate-fade-in flex items-start gap-2 text-left ${
+                displayError.toLowerCase().includes('under review') || displayError.toLowerCase().includes('approved')
+                  ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                  : 'bg-red-50 border border-red-100 text-red-600 justify-center text-center font-semibold'
+              }`}
+            >
+              {(displayError.toLowerCase().includes('under review') || displayError.toLowerCase().includes('approved')) && (
+                <span className="text-base leading-none select-none">⏳</span>
+              )}
+              <div className="flex-1 leading-relaxed">{displayError}</div>
             </div>
           )}
 
@@ -160,8 +169,8 @@ export const Login: React.FC = () => {
             Don't have an account?{' '}
             <button
               type="button"
-              onClick={() => setErrorMessage('Self-registration is disabled. Please contact your administrator.')}
-              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none"
+              onClick={() => navigate('/register-institute')}
+              className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none hover:underline"
             >
               Register your Institute
             </button>

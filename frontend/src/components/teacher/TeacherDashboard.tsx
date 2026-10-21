@@ -168,6 +168,21 @@ export const TeacherDashboard: React.FC = () => {
   }, [loadOptions]);
 
   // 2. Cascade Filter Computations
+  const availableAcademicYears = useMemo(() => {
+    if (!options?.academicYears) return [];
+    if (filterBranch === 'All') {
+      const seen = new Set<string>();
+      return options.academicYears.filter(ay => {
+        if (seen.has(ay.name)) return false;
+        seen.add(ay.name);
+        return true;
+      });
+    }
+    // Filter to selected branch
+    return options.academicYears.filter(ay => !(ay as any).branch_id && !(ay as any).branchId || 
+      String((ay as any).branch_id || (ay as any).branchId) === filterBranch);
+  }, [options.academicYears, filterBranch]);
+
   const availablePrograms = useMemo(() => {
     if (!options?.programs) return [];
     if (filterCourse === 'All') return options.programs;
@@ -1024,7 +1039,7 @@ export const TeacherDashboard: React.FC = () => {
                   className={selectClass}
                 >
                   <option value="All">All Years</option>
-                  {(options.academicYears || []).map(ay => (
+                  {availableAcademicYears.map(ay => (
                     <option key={ay.id} value={String(ay.id)}>{ay.name}</option>
                   ))}
                 </select>

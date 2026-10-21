@@ -17,7 +17,7 @@ import {
   CheckCircle2, Snowflake, MessageSquare, Mail, Phone, ChevronDown,
   ArrowRight, UserCheck, TrendingUp, Calendar, AlertCircle,
   Building, User,
-  Video
+  Video, ExternalLink, FileCheck, Image, ShieldCheck
 } from 'lucide-react';
 import type { SaasLead, SaasLeadFollowup } from '../../types/saas';
 import { LEAD_STATUS_MAP, LEAD_SOURCE_MAP, LEAD_STATUS_OPTIONS, LEAD_SOURCE_OPTIONS } from '../../types/saas';
@@ -751,6 +751,9 @@ export const Leads: React.FC = () => {
   // Quick follow-up modal for any lead from list/kanban
   const [quickFollowupLead, setQuickFollowupLead] = useState<SaasLead | null>(null);
   const [loadingQuickLead, setLoadingQuickLead] = useState(false);
+
+  // Document preview modal state
+  const [previewDoc, setPreviewDoc] = useState<{ title: string; url: string; subtitle?: string } | null>(null);
 
   const starterPlanId = availablePlans.find((p) => p.code === 'STARTER')?.id ||
     (availablePlans.length > 0 ? availablePlans[0].id.toString() : '');
@@ -1607,6 +1610,66 @@ export const Leads: React.FC = () => {
           </div>
         </Modal>
       )}
+      {/* Full Document Viewer Modal */}
+      {previewDoc && (
+        <Modal
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+          title={previewDoc.title}
+          description={previewDoc.subtitle || 'Uploaded Verification Document'}
+          size="4xl"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs text-slate-500 font-mono truncate max-w-sm">
+                {previewDoc.url}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors shadow-2xs"
+                >
+                  <ExternalLink size={14} /> Open in New Tab
+                </a>
+                <a
+                  href={previewDoc.url}
+                  download
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition-colors shadow-xs"
+                >
+                  <Download size={14} /> Download File
+                </a>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setPreviewDoc(null)}
+                  className="text-xs font-semibold px-4"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          <div className="p-2 bg-slate-100 rounded-xl flex items-center justify-center min-h-[480px] max-h-[70vh] overflow-auto">
+            {previewDoc.url.toLowerCase().endsWith('.pdf') ? (
+              <iframe
+                src={`${previewDoc.url}#toolbar=1&navpanes=0`}
+                title={previewDoc.title}
+                className="w-full h-[65vh] rounded-lg border border-slate-200 bg-white"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-4 max-h-[65vh]">
+                <img
+                  src={previewDoc.url}
+                  alt={previewDoc.title}
+                  className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-sm border border-slate-200 bg-white"
+                />
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </>
   );
 
@@ -1827,6 +1890,127 @@ export const Leads: React.FC = () => {
                       } />
                       <DetailField label="City · State · PIN" value={[lead.city, lead.state, lead.pincode].filter(Boolean).join(', ')} />
                       <DetailField label="Record Created" value={formatDate(lead.createdAt)} />
+                    </div>
+                  </SectionCard>
+
+                  {/* Uploaded Documents Section */}
+                  <SectionCard
+                    icon={<FileCheck size={17} />}
+                    title="KYC &amp; Verification Documents"
+                    className="lg:col-span-3"
+                    iconClass="text-emerald-600"
+                    extraHeader={
+                      <span className="text-xs font-semibold text-slate-500">
+                        {[lead.regDocUrl, lead.panDocUrl, lead.adminIdDocUrl, lead.gstDocUrl, lead.logoUrl].filter(Boolean).length} of 5 Submitted
+                      </span>
+                    }
+                  >
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[11px] font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="py-3 px-4">Document</th>
+                            <th className="py-3 px-4">Type</th>
+                            <th className="py-3 px-4">Requirement</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {[
+                            {
+                              name: 'Institution Registration Proof',
+                              url: lead.regDocUrl,
+                              required: true
+                            },
+                            {
+                              name: 'Institute / Owner PAN Card',
+                              url: lead.panDocUrl,
+                              required: true
+                            },
+                            {
+                              name: 'Director / Admin ID Proof',
+                              url: lead.adminIdDocUrl,
+                              required: true
+                            },
+                            {
+                              name: 'GST Certificate',
+                              url: lead.gstDocUrl,
+                              required: false
+                            },
+                            {
+                              name: 'Institute Logo',
+                              url: lead.logoUrl,
+                              required: false
+                            }
+                          ].map((doc, idx) => {
+                            const isSubmitted = Boolean(doc.url);
+                            const isPdf = doc.url ? doc.url.toLowerCase().endsWith('.pdf') : false;
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3 px-4 font-semibold text-slate-800">
+                                  {doc.name}
+                                </td>
+                                <td className="py-3 px-4 text-slate-500">
+                                  {isSubmitted ? (isPdf ? 'PDF' : 'Image') : '—'}
+                                </td>
+                                <td className="py-3 px-4">
+                                  {doc.required ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                      Compulsory
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600">
+                                      Optional
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  {isSubmitted ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <CheckCircle2 size={13} className="text-emerald-600" />
+                                      Submitted
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                      Not Submitted
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  {isSubmitted ? (
+                                    <div className="inline-flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setPreviewDoc({
+                                          title: doc.name,
+                                          url: doc.url!,
+                                          subtitle: lead.instituteName
+                                        })}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
+                                      >
+                                        <Eye size={13} /> View Full
+                                      </button>
+                                      <a
+                                        href={doc.url!}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Open file in new browser tab"
+                                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+                                      >
+                                        <ExternalLink size={13} />
+                                      </a>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </SectionCard>
 

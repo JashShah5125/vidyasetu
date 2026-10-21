@@ -216,6 +216,11 @@ export interface SaasLead {
   planName: string | null;
   preferredSlug: string | null;
   remarks: string | null;
+  regDocUrl?: string | null;
+  panDocUrl?: string | null;
+  adminIdDocUrl?: string | null;
+  gstDocUrl?: string | null;
+  logoUrl?: string | null;
   convertedTenantId: number | null;
   convertedAt: string | null;
   createdAt: string;

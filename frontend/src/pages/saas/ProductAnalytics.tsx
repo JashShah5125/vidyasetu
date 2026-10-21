@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { Pagination } from '../../components/ui/Pagination';
+import api from '../../services/api';
 
 interface ModuleMetric {
   moduleName: string;
   category: string;
   utilizationRate: number;
   status: 'High Adoption' | 'Moderate' | 'Low Utilization';
+  events?: number;
+  activeTenants?: number;
+  activeUsers?: number;
+  totalTenants?: number;
+  lastActivity?: string | null;
 }
 
 // Mock per-tenant data
@@ -28,8 +34,6 @@ const TENANT_USERS: Record<string, { active: number; total: number }> = {
 };
 
 const TOTAL_PLATFORM_GB = 200;
-const TOTAL_PLATFORM_BRANCHES = 50;
-const TOTAL_PLATFORM_USERS = 1500;
 
 const getBarColor = (pct: number) => {
   if (pct >= 80) return 'bg-red-500';
@@ -69,9 +73,10 @@ const FilterChips: React.FC<{ value: FilterVal; onChange: (v: FilterVal) => void
 const TenantRow: React.FC<{
   id: string | number; name: string; status: string | number;
   value: number; max: number; unit: string; decimals?: number;
-}> = ({ id, name, status, value, max, unit, decimals = 0 }) => {
-  const pct = Math.min((value / max) * 100, 100);
-  const badge = getUsageBadge(pct);
+  isUnlimited?: boolean;
+}> = ({ id, name, status, value, max, unit, decimals = 0, isUnlimited = false }) => {
+  const pct = isUnlimited ? Math.min((value / max) * 100, 100) : (max > 0 ? Math.min((value / max) * 100, 100) : 0);
+  const badge = isUnlimited ? { label: 'Unlimited', cls: 'bg-indigo-50 text-indigo-700' } : getUsageBadge(pct);
   const initials = name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
   const isActive = status === 'Active' || status === 1 || status === '1' || status === 'active';
   return (
@@ -92,7 +97,7 @@ const TenantRow: React.FC<{
         </div>
         <div className="flex justify-between text-[10px] text-slate-500 font-medium">
           <span>{decimals > 0 ? value.toFixed(decimals) : value} {unit}</span>
-          <span>{max} {unit} limit</span>
+          <span>{isUnlimited ? 'Unlimited plan' : `${max} ${unit} limit`}</span>
         </div>
       </div>
       <div className="text-sm font-bold text-slate-700 w-10 text-right flex-shrink-0">{pct.toFixed(0)}%</div>
@@ -104,26 +109,102 @@ const TenantRow: React.FC<{
   );
 };
 
+interface TenantBranchMetric {
+  tenantId: number;
+  tenantName: string;
+  tenantStatus: number | string;
+  count: number;
+  limit: number;
+  isUnlimited?: boolean;
+}
+
+interface TenantUserMetric {
+  tenantId: number;
+  tenantName: string;
+  tenantStatus: number | string;
+  active: number;
+  total: number;
+  limit: number;
+  isUnlimited?: boolean;
+}
+
+interface ProductAnalyticsData {
+  branches: {
+    totalBranches: number;
+    growthRate: number;
+    tenants: TenantBranchMetric[];
+  };
+  users: {
+    totalUsers: number;
+    activeUsers: number;
+    slaMetPercentage: number;
+    tenants: TenantUserMetric[];
+  };
+}
+
 export const ProductAnalytics: React.FC = () => {
   const { tenants } = useApp();
 
-  const usageMetrics: ModuleMetric[] = [
-    { moduleName: 'Attendance Manager & Registers', category: 'Core ERP', utilizationRate: 98, status: 'High Adoption' },
-    { moduleName: 'Online Fees Checkout & Ledgers', category: 'Finance', utilizationRate: 85, status: 'High Adoption' },
-    { moduleName: 'Leads CRM Pipeline', category: 'CRM', utilizationRate: 72, status: 'Moderate' },
-    { moduleName: 'Assignments & Doubt Hub', category: 'Academic', utilizationRate: 40, status: 'Moderate' },
-    { moduleName: 'Legacy SMS Broadcast System', category: 'Communication', utilizationRate: 15, status: 'Low Utilization' }
-  ];
+  const [analytics, setAnalytics] = useState<ProductAnalyticsData | null>(null);
+  const [_isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAnalytics = async () => {
+      try {
+        setIsLoading(true);
+        const res = await api.get('/admin/product-analytics/overview');
+        if (res.data?.status === 'success' && isMounted) {
+          setAnalytics(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to load product analytics from database:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    fetchAnalytics();
+    return () => { isMounted = false; };
+  }, []);
+
+  const [usageMetrics, setUsageMetrics] = useState<ModuleMetric[]>([]);
+  const [usageLoading, setUsageLoading] = useState<boolean>(true);
+  const [timeRange, setTimeRange] = useState<'month' | 'year' | 'total'>('month');
+  const [selectedTenant, setSelectedTenant] = useState<string>('all');
+  const [tenantsList, setTenantsList] = useState<{ id: number; name: string }[]>([]);
+
+  // Fetch live module usage from audit logs (with optional timeRange and tenant filter)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUsage = async () => {
+      try {
+        setUsageLoading(true);
+        const res = await api.get(`/admin/product-analytics/module-usage?timeRange=${timeRange}&tenantId=${selectedTenant}`);
+        if (res.data?.status === 'success' && isMounted) {
+          setUsageMetrics(res.data.data.modules || []);
+          if (res.data.data.tenantsList) {
+            setTenantsList(res.data.data.tenantsList);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load module usage analytics:', err);
+      } finally {
+        if (isMounted) setUsageLoading(false);
+      }
+    };
+    fetchUsage();
+    return () => { isMounted = false; };
+  }, [timeRange, selectedTenant]);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-  const totalPages = Math.ceil(usageMetrics.length / itemsPerPage);
+  const itemsPerPage = 6;
+  const totalPages = Math.max(1, Math.ceil(usageMetrics.length / itemsPerPage));
   const paginatedMetrics = usageMetrics.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const statusColors = {
-    'High Adoption': 'bg-emerald-50 text-emerald-700',
-    Moderate: 'bg-blue-50 text-blue-700',
-    'Low Utilization': 'bg-red-50 text-red-700'
+  const statusColors: Record<string, string> = {
+    'High Adoption': 'bg-emerald-50 text-emerald-700 border border-emerald-200/60',
+    Moderate: 'bg-blue-50 text-blue-700 border border-blue-200/60',
+    'Low Utilization': 'bg-slate-100 text-slate-600 border border-slate-200'
   };
 
   // Expanded state for each card
@@ -136,36 +217,64 @@ export const ProductAnalytics: React.FC = () => {
   const [storageFilter, setStorageFilter] = useState<FilterVal>('all');
   const [usersFilter, setUsersFilter] = useState<FilterVal>('all');
 
-  // Build rows
-  const branchRows = tenants.map(t => ({
-    ...t,
-    count: TENANT_BRANCHES[t.id]?.count ?? 1,
-    limit: TENANT_BRANCHES[t.id]?.limit ?? 5,
-  }));
+  // Build rows dynamically from DB analytics when available, with fallback
+  const branchRows = analytics?.branches?.tenants
+    ? analytics.branches.tenants.map(t => ({
+        id: `VS-${String(t.tenantId).padStart(3, '0')}`,
+        name: t.tenantName,
+        status: t.tenantStatus,
+        count: t.count,
+        limit: t.limit,
+        isUnlimited: t.isUnlimited,
+      }))
+    : tenants.map(t => ({
+        ...t,
+        count: TENANT_BRANCHES[t.id]?.count ?? 1,
+        limit: TENANT_BRANCHES[t.id]?.limit ?? 5,
+        isUnlimited: false,
+      }));
+
+  // Storage rows stay unchanged
   const storageRows = tenants.map(t => ({
     ...t,
     used: TENANT_STORAGE[t.id]?.used ?? 3,
     limit: TENANT_STORAGE[t.id]?.limit ?? 20,
   }));
-  const userRows = tenants.map(t => ({
-    ...t,
-    active: TENANT_USERS[t.id]?.active ?? 50,
-    total: TENANT_USERS[t.id]?.total ?? 100,
-  }));
+
+  const userRows = analytics?.users?.tenants
+    ? analytics.users.tenants.map(t => ({
+        id: `VS-${String(t.tenantId).padStart(3, '0')}`,
+        name: t.tenantName,
+        status: t.tenantStatus,
+        active: t.active,
+        total: t.total,
+        limit: t.limit,
+        isUnlimited: t.isUnlimited,
+      }))
+    : tenants.map(t => ({
+        ...t,
+        active: TENANT_USERS[t.id]?.active ?? 50,
+        total: TENANT_USERS[t.id]?.total ?? 100,
+        limit: TENANT_USERS[t.id]?.total ?? 100,
+        isUnlimited: false,
+      }));
 
   const applyFilter = (rows: { count?: number; used?: number; active?: number; limit?: number; total?: number }[], filter: FilterVal, valueKey: string, limitKey: string) =>
     rows.filter(r => {
       const v = (r as any)[valueKey] as number;
       const l = (r as any)[limitKey] as number;
-      const pct = v / l;
+      const pct = l > 0 ? v / l : 0;
       if (filter === 'high') return pct >= 0.6;
       if (filter === 'low') return pct < 0.3;
       return true;
     });
 
-  const totalBranches = branchRows.reduce((a, r) => a + r.count, 0);
+  const totalBranches = analytics?.branches?.totalBranches ?? branchRows.reduce((a, r) => a + r.count, 0);
   const totalUsedGB = storageRows.reduce((a, r) => a + r.used, 0);
-  const totalActiveUsers = userRows.reduce((a, r) => a + r.active, 0);
+  const totalPlatformUsers = analytics?.users?.totalUsers ?? userRows.reduce((a, r) => a + r.total, 0);
+  const totalActiveUsers = analytics?.users?.activeUsers ?? userRows.reduce((a, r) => a + r.active, 0);
+  const branchGrowthRate = analytics?.branches?.growthRate ?? 8.3;
+  const userSla = analytics?.users?.slaMetPercentage ?? 99.98;
 
   const filteredBranchRows = applyFilter(branchRows, branchFilter, 'count', 'limit') as typeof branchRows;
   const filteredStorageRows = applyFilter(storageRows, storageFilter, 'used', 'limit') as typeof storageRows;
@@ -212,7 +321,7 @@ export const ProductAnalytics: React.FC = () => {
               <div className="space-y-1.5 flex-1 min-w-[200px]">
                 <span className="text-3xl font-extrabold text-slate-900 block">{totalBranches} Branches</span>
                 <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                  <span>↑ 8.3% growth rate</span>
+                  <span>↑ {branchGrowthRate}% growth rate</span>
                   <span className="text-slate-400 font-normal">this month</span>
                 </div>
               </div>
@@ -227,10 +336,10 @@ export const ProductAnalytics: React.FC = () => {
               <div className="divide-y divide-slate-100">
                 {filteredBranchRows.length === 0 ? <EmptyBreakdown /> : filteredBranchRows.map(r => (
                   <TenantRow key={r.id} id={r.id} name={r.name} status={r.status}
-                    value={r.count} max={r.limit} unit="branches" />
+                    value={r.count} max={r.limit} unit="branches" isUnlimited={r.isUnlimited} />
                 ))}
               </div>
-              <BreakdownFooter label="Total Branches" value={`${totalBranches}`} total={`${TOTAL_PLATFORM_BRANCHES} capacity`} />
+              <BreakdownFooter label="Total Branches" value={`${totalBranches}`} total={`${totalBranches} registered`} />
             </div>
           )}
         </div>
@@ -274,12 +383,13 @@ export const ProductAnalytics: React.FC = () => {
         {/* --- Active Users / Concurrency Card --- */}
         <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 ${usersOpen ? 'md:col-span-3' : ''}`}>
           <div className="p-5 space-y-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Peak Active Concurrency Load</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Registered Platform Users</span>
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div className="space-y-1.5 flex-1 min-w-[200px]">
-                <span className="text-3xl font-extrabold text-slate-900 block">{totalActiveUsers.toLocaleString()} Active Users</span>
-                <div className="text-xs text-emerald-600 font-semibold">
-                  <span>● 99.98% Service Level Agreement met</span>
+                <span className="text-3xl font-extrabold text-slate-900 block">{totalPlatformUsers.toLocaleString()} Users</span>
+                <div className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
+                  <span>● {totalActiveUsers.toLocaleString()} Active Users</span>
+                  <span className="text-slate-400 font-normal">({userSla}% SLA met)</span>
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0 flex-wrap">
@@ -293,10 +403,10 @@ export const ProductAnalytics: React.FC = () => {
               <div className="divide-y divide-slate-100">
                 {filteredUserRows.length === 0 ? <EmptyBreakdown /> : filteredUserRows.map(r => (
                   <TenantRow key={r.id} id={r.id} name={r.name} status={r.status}
-                    value={r.active} max={r.total} unit="users" />
+                    value={r.total} max={r.limit} unit="users" isUnlimited={r.isUnlimited} />
                 ))}
               </div>
-              <BreakdownFooter label="Total Active Users" value={`${totalActiveUsers.toLocaleString()}`} total={`${TOTAL_PLATFORM_USERS.toLocaleString()} capacity`} />
+              <BreakdownFooter label="Total Users Across Tenants" value={`${totalPlatformUsers.toLocaleString()}`} total={`${totalPlatformUsers.toLocaleString()} registered`} />
             </div>
           )}
         </div>
@@ -305,39 +415,120 @@ export const ProductAnalytics: React.FC = () => {
 
       {/* Feature/Module adoption table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="font-bold text-slate-800 text-sm">Module Usage Analytics</h3>
+        <div className="p-5 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">Module Adoption & Operational Usage</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Live data modifications recorded from audit activity {selectedTenant !== 'all' ? 'for the selected tenant academy' : 'across all tenant academies'}.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Tenant Selector Filter */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Tenant:</span>
+              <select
+                value={selectedTenant}
+                onChange={e => {
+                  setSelectedTenant(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer"
+              >
+                <option value="all">All Tenants (Platform-Wide)</option>
+                {tenantsList.map(t => (
+                  <option key={t.id} value={String(t.id)}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Timeline Filter Chips */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+              {[
+                { label: 'Last Month', val: 'month' as const },
+                { label: 'Last Year', val: 'year' as const },
+                { label: 'Total (All-Time)', val: 'total' as const },
+              ].map(p => (
+                <button
+                  key={p.val}
+                  type="button"
+                  onClick={() => {
+                    setTimeRange(p.val);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                    timeRange === p.val
+                      ? 'bg-white text-blue-600 shadow-sm font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
+              <tr className="bg-slate-50 border-b border-slate-200 whitespace-nowrap">
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Module Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Feature Group</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Usage Index Rate</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Category</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Actions / Events</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Utilization Rate</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Adoption Class</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-              {paginatedMetrics.map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4.5 font-semibold text-slate-900 leading-relaxed">{item.moduleName}</td>
-                  <td className="px-6 py-4.5 text-slate-500 leading-relaxed">{item.category}</td>
-                  <td className="px-6 py-4.5 leading-relaxed">
-                    <div className="flex items-center gap-3">
-                      <div className="w-full max-w-[150px] bg-slate-100 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${item.utilizationRate}%` }} />
-                      </div>
-                      <span className="font-bold text-slate-700 text-xs">{item.utilizationRate}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4.5 leading-relaxed">
-                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColors[item.status]}`}>
-                      {item.status}
-                    </span>
+              {usageLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                    <p className="font-medium animate-pulse">Aggregating live module usage from audit trail...</p>
                   </td>
                 </tr>
-              ))}
+              ) : usageMetrics.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                    <p className="font-medium">No activity recorded yet for this selection.</p>
+                  </td>
+                </tr>
+              ) : (
+                paginatedMetrics.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-slate-900 leading-relaxed whitespace-nowrap">
+                      {item.moduleName}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 leading-relaxed whitespace-nowrap">
+                      <span className="px-2 py-0.5 bg-slate-100 rounded text-xs font-medium text-slate-600">
+                        {item.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-700 leading-relaxed whitespace-nowrap font-mono text-xs font-semibold">
+                      {(item.events ?? 0).toLocaleString()} actions
+                    </td>
+                    <td className="px-6 py-4 leading-relaxed whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-full min-w-[80px] max-w-[130px] bg-slate-100 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              item.utilizationRate >= 60 ? 'bg-emerald-500' : item.utilizationRate >= 30 ? 'bg-blue-600' : 'bg-slate-400'
+                            }`}
+                            style={{ width: `${item.utilizationRate}%` }}
+                          />
+                        </div>
+                        <span className="font-bold text-slate-800 text-xs font-mono">{item.utilizationRate}%</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 leading-relaxed whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${statusColors[item.status]}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

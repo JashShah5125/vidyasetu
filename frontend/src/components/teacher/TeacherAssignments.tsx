@@ -566,6 +566,21 @@ export const TeacherAssignments: React.FC = () => {
     });
   }, [scoping?.batches, hwForm.branchId, hwForm.academicYearId]);
 
+  const filteredAcademicYears = useMemo(() => {
+    if (!scoping?.academicYears) return [];
+    if (!hwForm.branchId || hwForm.branchId === 0) {
+      // If no branch is explicitly selected, deduplicate by name to prevent confusing duplicate year strings
+      const seen = new Set<string>();
+      return scoping.academicYears.filter(ay => {
+        if (seen.has(ay.name)) return false;
+        seen.add(ay.name);
+        return true;
+      });
+    }
+    // Filter specifically to the selected branch
+    return scoping.academicYears.filter(ay => !ay.branchId || Number(ay.branchId) === Number(hwForm.branchId));
+  }, [scoping?.academicYears, hwForm.branchId]);
+
   const subjectOptions = useMemo(() => {
     return scoping?.subjects || [];
   }, [scoping?.subjects]);
@@ -2563,7 +2578,7 @@ export const TeacherAssignments: React.FC = () => {
                     onChange={e => changeAcademicYear(Number(e.target.value))}
                   >
                     <option value={0}>Select academic year...</option>
-                    {(scoping?.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
+                    {filteredAcademicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
                   </select>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 const userModel = require('../models/userModel');
@@ -5,6 +6,8 @@ const sessionModel = require('../models/sessionModel');
 const tenantModel = require('../models/tenantModel');
 const { generateToken, generateRefreshToken, verifyRefreshToken, hashRefreshToken, REFRESH_TTL_SECONDS } = require('../utils/jwt');
 const redisClient = require('../config/redis');
+const AuditService = require('../services/auditService');
+const { sendPasswordResetOtpEmail } = require('../services/mailService');
 
 const MASTER_TENANT_ID = parseInt(process.env.MASTER_TENANT_ID) || 1;
 
@@ -37,6 +40,15 @@ const changePassword = async (req, res) => {
 
         const passwordHash = await bcrypt.hash(newPassword, 10);
         await userModel.updatePassword(userId, passwordHash);
+
+        AuditService.logFromRequest(req, {
+            action: 'PASSWORD_CHANGE',
+            entityType: 'user',
+            entityId: userId,
+            userId,
+            severity: 'info'
+        });
+
         res.status(200).json({ status: 'success', message: 'Password changed successfully. Please use your new password next time you sign in.' });
     } catch (error) {
         console.error('Change password error:', error);
@@ -83,6 +95,46 @@ const login = async (req, res) => {
         const users = await userModel.findUserByEmail(normalizedEmail);
         
         if (!users || users.length === 0) {
+            // Check if this email belongs to a lead in saas_leads
+            const [leads] = await pool.query(
+                `SELECT institute_name, status FROM saas_leads WHERE email = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
+                [normalizedEmail]
+            );
+
+            if (leads && leads.length > 0) {
+                const lead = leads[0];
+                const instName = lead.institute_name || 'your institution';
+
+                if (lead.status === 7) {
+                    // Lost / Cold / Rejected
+                    return res.status(403).json({
+                        status: 'error',
+                        code: 'LEAD_REJECTED',
+                        message: `Your registration request for ${instName} was not approved. Please contact support for more details.`
+                    });
+                } else if (lead.status === 6) {
+                    // Converted, but credentials might need password setup or invite link
+                    return res.status(403).json({
+                        status: 'error',
+                        code: 'LEAD_CONVERTED',
+                        message: `Your account for ${instName} has been approved. Please check your registered email for login setup instructions.`
+                    });
+                } else {
+                    // 1: New Lead, 2: Contacted, 3: Follow-up, 4: Plan Assigned, 5: Hot Lead (all in progress)
+                    return res.status(403).json({
+                        status: 'error',
+                        code: 'LEAD_PENDING',
+                        message: `Your institute registration for ${instName} is currently under review. You will receive your login credentials via email once approved.`
+                    });
+                }
+            }
+
+            AuditService.logFromRequest(req, {
+                action: 'LOGIN_FAILED',
+                entityType: 'auth',
+                severity: 'warning',
+                newValues: { email: normalizedEmail, reason: 'user_not_found' }
+            });
             return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
         }
 
@@ -91,6 +143,15 @@ const login = async (req, res) => {
             user = users[0];
             const isMatch = await bcrypt.compare(password, user.password_hash);
             if (!isMatch) {
+                AuditService.logFromRequest(req, {
+                    action: 'LOGIN_FAILED',
+                    entityType: 'auth',
+                    entityId: user.id,
+                    userId: user.id,
+                    tenantId: user.tenant_id,
+                    severity: 'warning',
+                    newValues: { email: normalizedEmail, reason: 'invalid_password' }
+                });
                 return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
             }
         } else {
@@ -111,11 +172,26 @@ const login = async (req, res) => {
                 // If multiple accounts share both email and password, prioritize SaaS Admin (tenant_id = 1) or first active account
                 user = matchingUsers.find(u => u.tenant_id === MASTER_TENANT_ID || u.tenant_id === 1 || u.user_type === 'saas_admin') || matchingUsers[0];
             } else {
+                AuditService.logFromRequest(req, {
+                    action: 'LOGIN_FAILED',
+                    entityType: 'auth',
+                    severity: 'warning',
+                    newValues: { email: normalizedEmail, reason: 'invalid_credentials_multi_user' }
+                });
                 return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
             }
         }
 
         if (user.status !== 'active') {
+            AuditService.logFromRequest(req, {
+                action: 'LOGIN_FAILED',
+                entityType: 'auth',
+                entityId: user.id,
+                userId: user.id,
+                tenantId: user.tenant_id,
+                severity: 'warning',
+                newValues: { email: normalizedEmail, reason: 'inactive_account' }
+            });
             return res.status(403).json({ status: 'error', message: 'Account is not active' });
         }
 
@@ -212,6 +288,17 @@ const login = async (req, res) => {
             await redisClient.del(`session:${refreshToken}`);
             throw err;
         }
+
+        AuditService.logFromRequest(req, {
+            action: 'LOGIN_SUCCESS',
+            entityType: 'auth',
+            entityId: user.id,
+            userId: user.id,
+            tenantId: user.tenant_id,
+            branchId: branchInfo ? branchInfo.id : null,
+            severity: 'info',
+            newValues: { email: user.email, role: effectiveUserType }
+        });
 
         res.status(200).json({
             status: 'success',
@@ -313,6 +400,25 @@ const logout = async (req, res) => {
             await redisClient.del(`session:${refreshToken}`);
             // Keep the durable row for audit but mark it as ended
             await sessionModel.revokeByTokenHash(hashRefreshToken(refreshToken));
+
+            try {
+                const decoded = verifyRefreshToken(refreshToken);
+                AuditService.logFromRequest(req, {
+                    action: 'LOGOUT',
+                    entityType: 'auth',
+                    entityId: decoded.userId,
+                    userId: decoded.userId,
+                    tenantId: decoded.tenantId,
+                    severity: 'info'
+                });
+            } catch (_) {}
+        } else if (req.user) {
+            AuditService.logFromRequest(req, {
+                action: 'LOGOUT',
+                entityType: 'auth',
+                entityId: req.user.userId || req.user.id,
+                severity: 'info'
+            });
         }
 
         res.status(200).json({
@@ -325,10 +431,263 @@ const logout = async (req, res) => {
     }
 };
 
+const forgotPasswordSendOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const normalizedEmail = (email || '').trim().toLowerCase();
+
+        // 1. Look up active user in users table
+        const [users] = await pool.query(
+            `SELECT id, name, email, status, tenant_id FROM users WHERE email = ? AND deleted_at IS NULL`,
+            [normalizedEmail]
+        );
+
+        if (!users || users.length === 0) {
+            // Check if they are a lead
+            const [leads] = await pool.query(
+                `SELECT institute_name, status FROM saas_leads WHERE email = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
+                [normalizedEmail]
+            );
+            if (leads && leads.length > 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: `This email is associated with a pending registration for ${leads[0].institute_name}. Once approved, your temporary password will be emailed.`
+                });
+            }
+            return res.status(404).json({
+                status: 'error',
+                message: 'No registered user account found with this email address.'
+            });
+        }
+
+        const activeUsers = users.filter(u => u.status === 'active');
+        if (activeUsers.length === 0) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Your account is currently inactive or suspended. Please contact your administrator.'
+            });
+        }
+
+        const targetUser = activeUsers[0];
+
+        // 2. Generate 6-digit OTP
+        const otpCode = String(crypto.randomInt(100000, 999999));
+        const codeHash = crypto.createHash('sha256').update(otpCode).digest('hex');
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+        // 3. Invalidate previous unused password_reset OTPs for this user
+        await pool.query(
+            `UPDATE otp_codes SET used_at = NOW() WHERE user_id = ? AND purpose = 'password_reset' AND used_at IS NULL`,
+            [targetUser.id]
+        );
+
+        // 4. Save new OTP in otp_codes table
+        await pool.query(
+            `INSERT INTO otp_codes (user_id, mobile, code_hash, purpose, expires_at, created_at)
+             VALUES (?, ?, ?, 'password_reset', ?, NOW())`,
+            [targetUser.id, targetUser.mobile || null, codeHash, toMySqlDatetime(expiresAt)]
+        );
+
+        // 5. Send email via mailService
+        try {
+            await sendPasswordResetOtpEmail({
+                recipientEmail: targetUser.email,
+                userName: targetUser.name,
+                otpCode,
+                expiresInMinutes: 5
+            });
+        } catch (mailErr) {
+            console.error('[forgotPasswordSendOtp] Failed to send email via SMTP:', mailErr.message);
+            // In dev/test if SMTP is not fully configured, log the OTP for debugging
+            if (process.env.NODE_ENV !== 'production') {
+                console.warn(`[DEV NOTE] Password reset OTP for ${targetUser.email} is: ${otpCode}`);
+            }
+        }
+
+        AuditService.logFromRequest(req, {
+            action: 'PASSWORD_RESET_REQUESTED',
+            entityType: 'auth',
+            entityId: targetUser.id,
+            userId: targetUser.id,
+            tenantId: targetUser.tenant_id,
+            severity: 'info',
+            newValues: { email: normalizedEmail }
+        });
+
+        res.status(200).json({
+            status: 'success',
+            message: `A 6-digit verification code has been sent to ${normalizedEmail}. It will expire in 5 minutes.`
+        });
+    } catch (error) {
+        console.error('forgotPasswordSendOtp error:', error);
+        res.status(500).json({ status: 'error', message: 'Unable to send verification code. Please try again later.' });
+    }
+};
+
+const forgotPasswordVerifyOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        const normalizedEmail = (email || '').trim().toLowerCase();
+        const cleanOtp = String(otp || '').trim();
+
+        const [users] = await pool.query(
+            `SELECT id, name, email, status FROM users WHERE email = ? AND deleted_at IS NULL`,
+            [normalizedEmail]
+        );
+
+        if (!users || users.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'User not found' });
+        }
+
+        const user = users[0];
+        const codeHash = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+
+        // Check latest unexpired OTP for this user
+        const [rows] = await pool.query(
+            `SELECT * FROM otp_codes 
+             WHERE user_id = ? AND purpose = 'password_reset' AND used_at IS NULL
+             ORDER BY id DESC LIMIT 1`,
+            [user.id]
+        );
+
+        if (!rows || rows.length === 0) {
+            return res.status(400).json({ status: 'error', message: 'No active verification code found. Please request a new one.' });
+        }
+
+        const record = rows[0];
+
+        // Check expiration
+        if (new Date(record.expires_at) < new Date()) {
+            return res.status(400).json({ status: 'error', message: 'Verification code has expired. Please request a new code.' });
+        }
+
+        // Check maximum attempts (limit 5 attempts)
+        if (record.attempt_count >= 5) {
+            await pool.query(`UPDATE otp_codes SET used_at = NOW() WHERE id = ?`, [record.id]);
+            return res.status(400).json({ status: 'error', message: 'Too many incorrect attempts. Please request a new code.' });
+        }
+
+        // Validate hash
+        if (record.code_hash !== codeHash) {
+            await pool.query(`UPDATE otp_codes SET attempt_count = attempt_count + 1 WHERE id = ?`, [record.id]);
+            return res.status(400).json({ status: 'error', message: 'Invalid verification code. Please check your email and try again.' });
+        }
+
+        // 1. Mark OTP as used
+        await pool.query(`UPDATE otp_codes SET used_at = NOW() WHERE id = ?`, [record.id]);
+
+        // 2. Mark email as verified on user record!
+        await pool.query(
+            `UPDATE users SET email_verified = 1, email_verified_at = NOW() WHERE id = ?`,
+            [user.id]
+        );
+
+        // 3. Generate a secure, single-use reset token valid for 15 minutes
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+        const tokenExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+        // Invalidate previous password_resets for this user
+        await pool.query(
+            `UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL`,
+            [user.id]
+        );
+
+        await pool.query(
+            `INSERT INTO password_resets (user_id, token_hash, expires_at, created_at)
+             VALUES (?, ?, ?, NOW())`,
+            [user.id, tokenHash, toMySqlDatetime(tokenExpires)]
+        );
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Email verified successfully. You may now reset your password.',
+            data: {
+                resetToken: rawToken
+            }
+        });
+    } catch (error) {
+        console.error('forgotPasswordVerifyOtp error:', error);
+        res.status(500).json({ status: 'error', message: 'Verification failed. Please try again.' });
+    }
+};
+
+const forgotPasswordReset = async (req, res) => {
+    try {
+        const { email, resetToken, newPassword } = req.body;
+        const normalizedEmail = (email || '').trim().toLowerCase();
+
+        const [users] = await pool.query(
+            `SELECT id, name, email, tenant_id FROM users WHERE email = ? AND deleted_at IS NULL`,
+            [normalizedEmail]
+        );
+
+        if (!users || users.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'User not found' });
+        }
+
+        const user = users[0];
+        const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+        // Check password_resets record
+        const [records] = await pool.query(
+            `SELECT * FROM password_resets 
+             WHERE user_id = ? AND token_hash = ? AND used_at IS NULL 
+             ORDER BY id DESC LIMIT 1`,
+            [user.id, tokenHash]
+        );
+
+        if (!records || records.length === 0) {
+            return res.status(400).json({ status: 'error', message: 'Invalid or already used reset session. Please restart the process.' });
+        }
+
+        const resetRecord = records[0];
+        if (new Date(resetRecord.expires_at) < new Date()) {
+            return res.status(400).json({ status: 'error', message: 'Reset session has expired. Please restart the process.' });
+        }
+
+        // Hash new password and update user
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await pool.query(
+            `UPDATE users 
+             SET password_hash = ?, must_change_password = 0, password_generated_at = NOW(), updated_at = NOW() 
+             WHERE id = ?`,
+            [passwordHash, user.id]
+        );
+
+        // Mark reset token used
+        await pool.query(`UPDATE password_resets SET used_at = NOW() WHERE id = ?`, [resetRecord.id]);
+
+        // Revoke all existing sessions so user logs in afresh with new password
+        await sessionModel.revokeAllByUserId(user.id);
+
+        AuditService.logFromRequest(req, {
+            action: 'PASSWORD_RESET_COMPLETED',
+            entityType: 'user',
+            entityId: user.id,
+            userId: user.id,
+            tenantId: user.tenant_id,
+            severity: 'info'
+        });
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Password has been reset successfully. Please sign in with your new password.'
+        });
+    } catch (error) {
+        console.error('forgotPasswordReset error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to reset password. Please try again.' });
+    }
+};
+
 module.exports = {
     login,
     changePassword,
     updateProfile,
     refresh,
-    logout
+    logout,
+    forgotPasswordSendOtp,
+    forgotPasswordVerifyOtp,
+    forgotPasswordReset
 };
+

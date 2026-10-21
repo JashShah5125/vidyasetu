@@ -249,6 +249,48 @@ const uploadStudentDocuments = multer({
     }
 }).array('files', 10);
 
+const leadDocStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, '../../uploads/leads/documents');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const field = file.fieldname || 'doc';
+        cb(null, field + '-' + uniqueSuffix + path.extname(file.originalname).toLowerCase());
+    }
+});
+
+const uploadLeadDocuments = multer({
+    storage: leadDocStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedDocMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        const allowedLogoMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/svg+xml'];
+
+        if (file.fieldname === 'logo') {
+            if (allowedLogoMimes.includes(file.mimetype)) {
+                return cb(null, true);
+            }
+            return cb(new Error('Invalid logo format. Only JPG, PNG, and SVG are allowed.'));
+        }
+
+        if (allowedDocMimes.includes(file.mimetype)) {
+            return cb(null, true);
+        }
+        return cb(new Error(`Invalid file format for ${file.fieldname}. Only PDF, JPG, and PNG are allowed.`));
+    }
+}).fields([
+    { name: 'reg_doc', maxCount: 1 },
+    { name: 'pan_doc', maxCount: 1 },
+    { name: 'admin_id_doc', maxCount: 1 },
+    { name: 'gst_doc', maxCount: 1 },
+    { name: 'logo', maxCount: 1 }
+]);
+
 module.exports = {
     uploadLogo,
     uploadSupportAttachment,
@@ -258,5 +300,7 @@ module.exports = {
     uploadAttendanceCsv,
     uploadDoubtAttachments,
     uploadStudentDocument,
-    uploadStudentDocuments
+    uploadStudentDocuments,
+    uploadLeadDocuments
 };
+
