@@ -243,7 +243,15 @@ export const RegisterTenant: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error submitting tenant registration:', err);
-      setErrorMessage(err.response?.data?.message || 'Server error occurred. Please try again.');
+      if (err.response?.status === 413) {
+        setErrorMessage('Uploaded files are too large for the server. Please compress the documents and try again.');
+      } else if (err.response?.data?.message) {
+        setErrorMessage(err.response.data.message);
+      } else if (typeof err.response?.data === 'string' && err.response.data.includes('413 Request Entity Too Large')) {
+        setErrorMessage('Uploaded file size exceeds the server limit. Please upload smaller files.');
+      } else {
+        setErrorMessage('Server error occurred. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }

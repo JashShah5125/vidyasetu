@@ -11,8 +11,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from the uploads directory
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+const { PRIMARY_UPLOADS_DIR, FALLBACK_UPLOADS_DIR } = require('./middleware/uploadMiddleware');
+
+// Serve static files from the uploads directory (and fallback if permissions restricted)
+app.use('/uploads', express.static(PRIMARY_UPLOADS_DIR));
+app.use('/uploads', express.static(FALLBACK_UPLOADS_DIR));
 
 // Request Logging Middleware
 app.use((req, res, next) => {

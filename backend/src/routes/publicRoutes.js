@@ -35,6 +35,13 @@ const handleLeadUpload = (req, res, next) => {
         if (err instanceof multer.MulterError) {
             return res.status(400).json({ status: 'error', message: `File upload error: ${err.message}` });
         } else if (err) {
+            console.error('[publicRoutes] File upload error:', err);
+            if (err.code === 'EACCES' || err.code === 'EPERM') {
+                return res.status(500).json({
+                    status: 'error',
+                    message: 'Server storage permission error: Unable to write to the upload directory. Please check file permissions on the server uploads folder.'
+                });
+            }
             return res.status(400).json({ status: 'error', message: err.message || 'File upload failed' });
         }
         next();

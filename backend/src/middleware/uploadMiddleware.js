@@ -1,14 +1,64 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+
+const PRIMARY_UPLOADS_DIR = path.resolve(__dirname, '../../uploads');
+const FALLBACK_UPLOADS_DIR = path.resolve(os.tmpdir(), 'vidyasetu-uploads');
+
+// Check if a directory is writable, or can be created and written to
+const isDirectoryWritable = (dirPath) => {
+    try {
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+        }
+        const testFile = path.join(dirPath, `.perm-test-${process.pid}-${Date.now()}`);
+        fs.writeFileSync(testFile, 'ok');
+        fs.unlinkSync(testFile);
+        return true;
+    } catch (err) {
+        return false;
+    }
+};
+
+// Dynamically resolve the writable upload directory for any subfolder
+const getUploadDir = (subfolder = '') => {
+    const primaryTarget = subfolder ? path.join(PRIMARY_UPLOADS_DIR, subfolder) : PRIMARY_UPLOADS_DIR;
+    if (isDirectoryWritable(primaryTarget)) {
+        return primaryTarget;
+    }
+
+    // When primary location fails with EACCES or is read-only, use system temp directory fallback
+    const fallbackTarget = subfolder ? path.join(FALLBACK_UPLOADS_DIR, subfolder) : FALLBACK_UPLOADS_DIR;
+    try {
+        if (!fs.existsSync(fallbackTarget)) {
+            fs.mkdirSync(fallbackTarget, { recursive: true });
+        }
+        return fallbackTarget;
+    } catch (err) {
+        console.error(`[uploadMiddleware] Failed to create fallback directory "${fallbackTarget}":`, err.message);
+        return primaryTarget;
+    }
+};
+
+// Pre-initialize required upload directories on module load
+const allUploadDirs = [
+    'tenants/logo',
+    'support',
+    'homework',
+    'homework-submissions',
+    'doubts',
+    'documents',
+    'leads/documents'
+];
+
+for (const sub of allUploadDirs) {
+    getUploadDir(sub);
+}
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/tenants/logo');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('tenants/logo'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -34,11 +84,7 @@ const uploadLogo = multer({
 // Supported: images, PDFs, documents, spreadsheets, text/CSV and archives.
 const supportStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/support');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('support'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -70,11 +116,7 @@ const uploadSupportAttachment = multer({
 // Homework attachments (teacher uploads alongside a homework).
 const homeworkStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/homework');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('homework'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -108,11 +150,7 @@ const uploadHomeworkFiles = multer({
 // Student homework submissions.
 const submissionStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/homework-submissions');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('homework-submissions'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -180,11 +218,7 @@ const uploadAttendanceCsv = multer({
 // Doubt attachments (student & teacher doubts/replies, up to 5 files, 10MB each).
 const doubtStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/doubts');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('doubts'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -202,11 +236,7 @@ const uploadDoubtAttachments = multer({
 // Student Registration & KYC Documents (up to 10MB per file: PDF, JPG, PNG, DOCX)
 const studentDocStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/documents');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('documents'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -251,11 +281,7 @@ const uploadStudentDocuments = multer({
 
 const leadDocStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, '../../uploads/leads/documents');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, getUploadDir('leads/documents'));
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -292,6 +318,9 @@ const uploadLeadDocuments = multer({
 ]);
 
 module.exports = {
+    PRIMARY_UPLOADS_DIR,
+    FALLBACK_UPLOADS_DIR,
+    getUploadDir,
     uploadLogo,
     uploadSupportAttachment,
     verifyFileSignature,

@@ -29,7 +29,9 @@ ehthumbs.db
 Thumbs.db
 
 # Uploads & Archives
-backend/uploads/
+backend/uploads/**
+!backend/uploads/**/
+!backend/uploads/**/.gitkeep
 *.zip
 .agents/skills/
 skills-lock.json
