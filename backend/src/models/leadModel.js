@@ -274,7 +274,7 @@ const addFollowup = async (leadId, data, createdBy = null) => {
 
 const lockLeadForConversion = async (id, connection) => {
     const [rows] = await connection.query(
-        `SELECT id, converted_tenant_id, deleted_at FROM saas_leads WHERE id = ? FOR UPDATE`,
+        `SELECT id, converted_tenant_id, deleted_at, reg_doc_url, pan_doc_url, admin_id_doc_url, gst_doc_url, logo_url FROM saas_leads WHERE id = ? FOR UPDATE`,
         [id]
     );
     if (rows.length === 0) return null;

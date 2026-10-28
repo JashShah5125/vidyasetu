@@ -136,6 +136,11 @@ const TenantDetailsWrapper = () => {
   return <TenantsManager initialInspectId={id} />;
 };
 
+const LegacySearchPreservingNavigate: React.FC<{ to: string }> = ({ to }) => {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
+};
+
 const getRoleDashboard = (role?: string) => {
   switch (role) {
     case 'saas-admin':
@@ -343,8 +348,8 @@ const ContentRouter = () => {
       <Route path="/finance" element={<BranchFinancePage />} />
 
       {/* ── General & Fallback Legacy Routes (prevents broken links across the app) ── */}
-      <Route path="/tenants" element={isSaasAdminUser ? <Navigate to="/saas/tenants" replace /> : <Navigate to={roleDashboard} replace />} />
-      <Route path="/tenants/create" element={isSaasAdminUser ? <Navigate to="/saas/tenants/create" replace /> : <Navigate to={roleDashboard} replace />} />
+      <Route path="/tenants" element={isSaasAdminUser ? <LegacySearchPreservingNavigate to="/saas/tenants" /> : <Navigate to={roleDashboard} replace />} />
+      <Route path="/tenants/create" element={isSaasAdminUser ? <LegacySearchPreservingNavigate to="/saas/tenants/create" /> : <Navigate to={roleDashboard} replace />} />
       <Route path="/tenants/:id" element={isSaasAdminUser ? <TenantDetailsWrapper /> : <Navigate to={roleDashboard} replace />} />
       <Route path="/plans" element={isSaasAdminUser ? <Navigate to="/saas/plans" replace /> : <Navigate to={roleDashboard} replace />} />
       <Route path="/feature-flags" element={isSaasAdminUser ? <Navigate to="/saas/feature-flags" replace /> : <Navigate to={roleDashboard} replace />} />

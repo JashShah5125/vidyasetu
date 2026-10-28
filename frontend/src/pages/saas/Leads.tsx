@@ -1120,7 +1120,7 @@ export const Leads: React.FC = () => {
 
   const handleConvert = (lead: SaasLead) => {
     if (lead.status === 6) return;
-    navigate(`/tenants/create?leadId=${lead.id}`);
+    navigate(`/saas/tenants/create?leadId=${lead.id}`, { state: { lead } });
   };
 
   const handleExportCSV = () => {

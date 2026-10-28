@@ -128,12 +128,26 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
         );
         const tenantId = tenantResult.insertId;
 
-        // Link the source lead to the new tenant record
+        // Link the source lead and copy verification documents to the new tenant record
         if (leadId) {
-            await connection.query(
-                'UPDATE tenants SET source_lead_id = ? WHERE id = ?',
-                [leadId, tenantId]
-            );
+            try {
+                await connection.query(
+                    `UPDATE tenants SET 
+                        source_lead_id = ?,
+                        reg_doc_url = COALESCE(?, reg_doc_url),
+                        pan_doc_url = COALESCE(?, pan_doc_url),
+                        admin_id_doc_url = COALESCE(?, admin_id_doc_url),
+                        gst_doc_url = COALESCE(?, gst_doc_url)
+                     WHERE id = ?`,
+                    [leadId, lockedLead?.reg_doc_url || null, lockedLead?.pan_doc_url || null, lockedLead?.admin_id_doc_url || null, lockedLead?.gst_doc_url || null, tenantId]
+                );
+            } catch (err) {
+                // In case older migration columns are not yet applied on some environments, fallback safely
+                await connection.query(
+                    'UPDATE tenants SET source_lead_id = ? WHERE id = ?',
+                    [leadId, tenantId]
+                );
+            }
         }
 
         // 3. Resolve / create the global admin role (flat RBAC: one role

@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Pagination } from '../components/ui/Pagination';
+import { Modal } from '../components/ui/Modal';
 import { 
   Plus, Upload, Trash, Trash2, ArrowLeft, X, 
   Image as ImageIcon, AlertTriangle, Check, Eye, Edit3, ShieldAlert,
@@ -253,25 +254,34 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
   }, [initialOpenCreate, inspectTargetId]);
 
   // ── Lead-based conversion prefill ──
-  const [sourceLead, setSourceLead] = useState<any | null>(null);
+  const [sourceLead, setSourceLead] = useState<any | null>(() => location.state?.lead || null);
   const [leadPrefillApplied, setLeadPrefillApplied] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{ title: string; url: string; subtitle?: string } | null>(null);
 
   React.useEffect(() => {
+    if (location.state?.lead) {
+      setSourceLead(location.state.lead);
+    }
     const leadId = searchParams.get('leadId');
     if (!leadId) return;
     let cancelled = false;
     (async () => {
       try {
         const res = await leadService.getLead(leadId);
-        if (!cancelled && res?.data) setSourceLead(res.data);
-        else if (!cancelled) addToast('Could not load the linked lead', 'error');
+        if (!cancelled && res?.data) {
+          setSourceLead(res.data);
+        } else if (!cancelled && !location.state?.lead) {
+          addToast('Could not load the linked lead', 'error');
+        }
       } catch (e) {
         console.error('Failed to load lead for conversion:', e);
-        if (!cancelled) addToast('Could not load the linked lead for conversion', 'error');
+        if (!cancelled && !location.state?.lead) {
+          addToast('Could not load the linked lead for conversion', 'error');
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [searchParams, addToast]);
+  }, [searchParams, location.state, addToast]);
 
   // Forms states
   const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
@@ -374,9 +384,19 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
       const em = sourceLead.email || '';
       const mob = sourceLead.mobile || '';
       const pId = sourceLead.planId || sourceLead.plan_id;
+      const pan = sourceLead.panNumber || sourceLead.pan_number || '';
+      const gst = sourceLead.gstNumber || sourceLead.gst_number || '';
+      const logo = sourceLead.logoUrl || sourceLead.logo_url || '';
 
       if (instName) setName(instName);
-      if (slug) setCustomSlug(slug);
+      
+      const cleanSlug = (slug || instName)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      if (cleanSlug) setCustomSlug(cleanSlug);
+
       if (addr) setAddress(addr);
       if (cty) setCity(cty);
       if (st) setState(st);
@@ -385,18 +405,22 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
       if (em) setEmail(em);
       if (mob) setMobile(mob);
       if (pId) setPlan(String(pId));
+      if (pan) setPanNo(pan);
+      if (gst) setGstNo(gst);
+      if (logo) setLogoPreview(logo);
       
       setShowAddModal(true);
       setLeadPrefillApplied(true);
     }
   }, [sourceLead, editingTenantId]);
 
-  // All 7 unified tabs with icons (present in BOTH View and Edit modes)
+  // All unified tabs with icons (present in BOTH View and Edit modes)
   const [activeTab, setActiveTab] = useState('profile');
   
   const allTenantTabs = [
     { id: 'profile', label: 'Institute Profile', icon: Building },
     { id: 'admin', label: 'Admin Credentials', icon: Users },
+    { id: 'documents', label: 'KYC Documents', icon: FileText },
     { id: 'plan', label: 'Subscription Plan', icon: CreditCard },
     { id: 'commercial', label: 'Invoices & Billing', icon: Receipt },
     { id: 'students', label: 'Enrolled Students', icon: GraduationCap },
@@ -408,6 +432,10 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
 
   // Validation function per tab/step (enforcing compulsory fields)
   const validateStep = (tabId: string): { isValid: boolean; error?: string } => {
+    if (tabId === 'documents') {
+      return { isValid: true };
+    }
+
     if (tabId === 'profile') {
       if (!name.trim()) {
         return { isValid: false, error: 'Institute / Coaching Name is compulsory. Please enter a name.' };
@@ -473,7 +501,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
     // When viewing or editing an existing tenant, allow free navigation between any tab
     if (isViewOnly || editingTenantId) return { allowed: true };
     
-    const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'students', 'limits', 'activity'];
+    const tabOrder = ['profile', 'admin', 'documents', 'plan', 'commercial', 'students', 'limits', 'activity'];
     const targetIdx = tabOrder.indexOf(targetTabId);
     const currentIdx = tabOrder.indexOf(activeTab);
 
@@ -504,7 +532,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
   };
 
   const handleNextStep = () => {
-    const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'students', 'limits', 'activity'];
+    const tabOrder = ['profile', 'admin', 'documents', 'plan', 'commercial', 'students', 'limits', 'activity'];
     const currentIdx = tabOrder.indexOf(activeTab);
     if (!isViewOnly && !editingTenantId) {
       const currentValidation = validateStep(activeTab);
@@ -520,7 +548,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
   };
 
   const handlePrevStep = () => {
-    const tabOrder = ['profile', 'admin', 'plan', 'commercial', 'students', 'limits', 'activity'];
+    const tabOrder = ['profile', 'admin', 'documents', 'plan', 'commercial', 'students', 'limits', 'activity'];
     const currentIdx = tabOrder.indexOf(activeTab);
     setErrorMsg('');
     if (currentIdx > 0) {
@@ -585,7 +613,7 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
     return Math.max(0, Math.round(base - (base * d / 100))).toString();
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (leadOverride?: any) => {
     setEditingTenantId(null);
     setIsViewOnly(false);
     setViewingTenantData(null);
@@ -594,25 +622,64 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
     
     setActiveTab('profile');
     setDefaultPassword('Generated securely after submission');
-    
-    setName('');
-    setAddress('');
-    setCity('');
-    setState('');
-    setPincode('');
-    setPanNo('');
-    setTimezone('Asia/Kolkata');
-    setBillingCycle('annual');
-    setCustomSlug('');
-    setGstNo('');
-    setOwnerName('');
-    setEmail('');
-    setMobile('');
-    setPlan(availablePlans.length > 0 ? availablePlans[0].id.toString() : '');
+
+    const leadToUse = leadOverride !== undefined ? leadOverride : sourceLead;
+
+    if (leadToUse) {
+      const instName = leadToUse.instituteName || leadToUse.institute_name || '';
+      const slug = leadToUse.preferredSlug || leadToUse.preferred_slug || '';
+      const addr = leadToUse.addressLine1 || leadToUse.address_line1 || '';
+      const cty = leadToUse.city || '';
+      const st = leadToUse.state || '';
+      const pin = leadToUse.pincode || '';
+      const contact = leadToUse.contactPerson || leadToUse.contact_person || '';
+      const em = leadToUse.email || '';
+      const mob = leadToUse.mobile || '';
+      const pId = leadToUse.planId || leadToUse.plan_id;
+      const pan = leadToUse.panNumber || leadToUse.pan_number || '';
+      const gst = leadToUse.gstNumber || leadToUse.gst_number || '';
+      const logo = leadToUse.logoUrl || leadToUse.logo_url || '';
+
+      setName(instName);
+      const cleanSlug = (slug || instName)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      setCustomSlug(cleanSlug);
+      setAddress(addr);
+      setCity(cty);
+      setState(st);
+      setPincode(pin);
+      setOwnerName(contact);
+      setEmail(em);
+      setMobile(mob);
+      if (pId) setPlan(String(pId));
+      else setPlan(availablePlans.length > 0 ? availablePlans[0].id.toString() : '');
+      setPanNo(pan);
+      setGstNo(gst);
+      if (logo) setLogoPreview(logo);
+      else setLogoPreview(null);
+    } else {
+      setName('');
+      setAddress('');
+      setCity('');
+      setState('');
+      setPincode('');
+      setPanNo('');
+      setTimezone('Asia/Kolkata');
+      setBillingCycle('annual');
+      setCustomSlug('');
+      setGstNo('');
+      setOwnerName('');
+      setEmail('');
+      setMobile('');
+      setPlan(availablePlans.length > 0 ? availablePlans[0].id.toString() : '');
+      setLogoPreview(null);
+    }
     setStartDate(new Date().toISOString().split('T')[0]);
     setLogoUploaded(false);
     setLogoFile(null);
-    setLogoPreview(null);
     setLogoError(false);
     setUploadProgress(0);
     setIsUploading(false);
@@ -1356,9 +1423,9 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
             </div>
           )}
 
-          {/* All 7 Unified Executive Horizontal Tabs */}
+          {/* All 8 Unified Executive Horizontal Tabs */}
           <div className="mb-6 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <nav className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 w-full">
+            <nav className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 w-full">
               {formTabs.map((tab, idx) => {
                 const isActive = activeTab === tab.id;
                 const TabIcon = tab.icon;
@@ -1746,7 +1813,152 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
             </div>
             )}
 
-            {/* === TAB 3: Subscription Plan === */}
+            {/* === TAB 3: KYC & Verification Documents === */}
+            {activeTab === 'documents' && (
+            <div className="space-y-6 pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                    <FileText size={16} />
+                    <span>KYC &amp; Verification Documents</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {sourceLead
+                      ? `Documents submitted during lead onboarding for ${sourceLead.instituteName || name || 'Institute'}`
+                      : 'Submitted institute registration, tax, identity and legal credentials'}
+                  </p>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0 self-start sm:self-auto">
+                  {[
+                    (sourceLead?.regDocUrl || sourceLead?.reg_doc_url || viewingTenantData?.reg_doc_url),
+                    (sourceLead?.panDocUrl || sourceLead?.pan_doc_url || viewingTenantData?.pan_doc_url),
+                    (sourceLead?.adminIdDocUrl || sourceLead?.admin_id_doc_url || viewingTenantData?.admin_id_doc_url),
+                    (sourceLead?.gstDocUrl || sourceLead?.gst_doc_url || viewingTenantData?.gst_doc_url),
+                    (sourceLead?.logoUrl || sourceLead?.logo_url || viewingTenantData?.logo_url)
+                  ].filter(Boolean).length} of 5 Submitted
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider text-[11px] font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">Document</th>
+                      <th className="py-3 px-4">Type</th>
+                      <th className="py-3 px-4">Requirement</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {[
+                      {
+                        name: 'Institution Registration Proof',
+                        url: sourceLead?.regDocUrl || sourceLead?.reg_doc_url || viewingTenantData?.reg_doc_url,
+                        required: true
+                      },
+                      {
+                        name: 'Institute / Owner PAN Card',
+                        url: sourceLead?.panDocUrl || sourceLead?.pan_doc_url || viewingTenantData?.pan_doc_url,
+                        required: true
+                      },
+                      {
+                        name: 'Director / Admin ID Proof',
+                        url: sourceLead?.adminIdDocUrl || sourceLead?.admin_id_doc_url || viewingTenantData?.admin_id_doc_url,
+                        required: true
+                      },
+                      {
+                        name: 'GST Certificate',
+                        url: sourceLead?.gstDocUrl || sourceLead?.gst_doc_url || viewingTenantData?.gst_doc_url,
+                        required: false
+                      },
+                      {
+                        name: 'Institute Logo',
+                        url: sourceLead?.logoUrl || sourceLead?.logo_url || viewingTenantData?.logo_url,
+                        required: false
+                      }
+                    ].map((doc, idx) => {
+                      const isSubmitted = Boolean(doc.url);
+                      const isPdf = doc.url ? doc.url.toLowerCase().endsWith('.pdf') : false;
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-slate-800">
+                            {doc.name}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500">
+                            {isSubmitted ? (isPdf ? 'PDF' : 'Image') : '—'}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {doc.required ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Compulsory
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600">
+                                Optional
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {isSubmitted ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 size={13} className="text-emerald-600" />
+                                Submitted
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                Not Submitted
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            {isSubmitted ? (
+                              <div className="inline-flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDoc({
+                                    title: doc.name,
+                                    url: doc.url!,
+                                    subtitle: sourceLead?.instituteName || name || 'Institute Document'
+                                  })}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  <Eye size={13} /> View Full
+                                </button>
+                                <a
+                                  href={doc.url!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Open file in new browser tab"
+                                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+                                >
+                                  <ExternalLink size={13} />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-mono text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {sourceLead && (
+                <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-600 flex items-start gap-2.5">
+                  <ShieldCheck size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-slate-800">Verified Onboarding Documents:</span> These files were attached by <strong>{sourceLead.contactPerson || sourceLead.contact_person || 'the administrator'}</strong> ({sourceLead.email || 'Email registered'}) during lead onboarding. Upon provisioning, these records are linked to the tenant's profile.
+                  </div>
+                </div>
+              )}
+            </div>
+            )}
+
+            {/* === TAB 4: Subscription Plan === */}
             {activeTab === 'plan' && (
             <div className="space-y-4 pt-1">
               <h4 className="text-sm font-extrabold text-blue-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 flex items-center justify-between">
@@ -2994,6 +3206,66 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
             </div>
           </div>,
           document.body
+        )}
+
+        {previewDoc && (
+          <Modal
+            isOpen={!!previewDoc}
+            onClose={() => setPreviewDoc(null)}
+            title={previewDoc.title}
+            description={previewDoc.subtitle || 'Uploaded Verification Document'}
+            size="4xl"
+            footer={
+              <div className="flex items-center justify-between w-full">
+                <span className="text-xs text-slate-500 font-mono truncate max-w-sm">
+                  {previewDoc.url}
+                </span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewDoc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors shadow-2xs"
+                  >
+                    <ExternalLink size={14} /> Open in New Tab
+                  </a>
+                  <a
+                    href={previewDoc.url}
+                    download
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition-colors shadow-xs"
+                  >
+                    <Download size={14} /> Download File
+                  </a>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setPreviewDoc(null)}
+                    className="text-xs font-semibold px-4"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            }
+          >
+            <div className="p-2 bg-slate-100 rounded-xl flex items-center justify-center min-h-[480px] max-h-[70vh] overflow-auto">
+              {previewDoc.url.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={`${previewDoc.url}#toolbar=1&navpanes=0`}
+                  title={previewDoc.title}
+                  className="w-full h-[65vh] rounded-lg border border-slate-200 bg-white"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-4 max-h-[65vh]">
+                  <img
+                    src={previewDoc.url}
+                    alt={previewDoc.title}
+                    className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-sm border border-slate-200 bg-white"
+                  />
+                </div>
+              )}
+            </div>
+          </Modal>
         )}
       </div>
     );
