@@ -360,32 +360,7 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
           </div>
         )}
 
-        {idealPlan && (
-          <div className="mt-6 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-md shadow-blue-100/50 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-            <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-blue-600" /> Plan Fee Summary
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 relative z-10">
-              <div className="text-center bg-white/60 p-3 rounded-lg border border-white/80 shadow-sm backdrop-blur-sm">
-                <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Total Amount</div>
-                <div className="text-xl font-extrabold text-slate-800">₹{idealPlan.fee.toLocaleString()}</div>
-              </div>
-              <div className="text-center bg-white/60 p-3 rounded-lg border border-white/80 shadow-sm backdrop-blur-sm">
-                <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Downpayment</div>
-                <div className="text-xl font-extrabold text-slate-800">₹{idealPlan.downpayment.toLocaleString()}</div>
-              </div>
-              <div className="text-center bg-white/60 p-3 rounded-lg border border-white/80 shadow-sm backdrop-blur-sm">
-                <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Installments</div>
-                <div className="text-xl font-extrabold text-slate-800">{idealPlan.months} <span className="text-sm font-semibold text-slate-500">Months</span></div>
-              </div>
-              <div className="text-center bg-white/60 p-3 rounded-lg border border-white/80 shadow-sm backdrop-blur-sm">
-                <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Installment Amount</div>
-                <div className="text-xl font-extrabold text-blue-700">₹{idealPlan.installment.toLocaleString()}<span className="text-sm font-semibold text-blue-500/70">/mo</span></div>
-              </div>
-            </div>
-          </div>
-        )}
+
       </div>
 
       <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
@@ -400,8 +375,10 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
           <Select label="Payment Mode" value={paymentMode} onChange={e => setPaymentMode(e.target.value)} disabled={readOnly} options={[
             {value: '', label: 'Select (Optional)'},
             {value: 'UPI', label: 'UPI'},
-            {value: 'Bank Transfer', label: 'Bank Transfer'},
             {value: 'Cash', label: 'Cash'},
+            {value: 'Down Payment', label: 'Down Payment'},
+            {value: 'Installment', label: 'Installment'},
+            {value: 'Bank Transfer', label: 'Bank Transfer'},
             {value: 'Card', label: 'Card'},
             {value: 'Cheque', label: 'Cheque'}
           ]} />

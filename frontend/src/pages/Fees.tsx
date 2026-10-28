@@ -8,8 +8,9 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
-import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Pencil, Trash2, Wallet, Plus, SlidersHorizontal, RotateCcw, X, Filter, Search, FileText, CheckCircle2, Calendar, CreditCard, RefreshCw, Download, TrendingUp, Check, Sparkles } from 'lucide-react';
+import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Pencil, Trash2, Wallet, Plus, SlidersHorizontal, RotateCcw, X, Filter, Search, FileText, CheckCircle2, Calendar, CreditCard, RefreshCw, Download, TrendingUp, Check, Sparkles, Printer } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
+import { InvoiceTemplateModal } from '../components/finance/InvoiceTemplateModal';
 import { getStudents, getAcademicOptions, type StudentRosterItem, type AcademicOptions } from '../services/studentApi';
 import {
   getStudentLedger,
@@ -26,8 +27,14 @@ const fmt = (n: number) => '₹' + (Number(n) || 0).toLocaleString('en-IN');
 const MODES = [
   { value: 'UPI', label: 'UPI / GPay' },
   { value: 'Cash', label: 'Cash Payment' },
+  { value: 'Down Payment', label: 'Down Payment' },
+  { value: 'Installment', label: 'Installment' },
+  { value: 'Bank Transfer', label: 'Bank Transfer (NEFT / IMPS)' },
   { value: 'Cheque', label: 'Bank Cheque' },
-  { value: 'Bank Transfer', label: 'NEFT / IMPS' }
+  { value: 'Card', label: 'Debit / Credit Card' },
+  { value: 'Net Banking', label: 'Net Banking' },
+  { value: 'Demand Draft', label: 'Demand Draft (DD)' },
+  { value: 'Other', label: 'Other' }
 ];
 
 const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -363,6 +370,15 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
 
   // ── Invoice detail ──
   const [viewInvoice, setViewInvoice] = useState<StudentLedgerInvoice | null>(null);
+
+  // ── Invoice template modal (Tax / Proforma) ──
+  const [templateInvoice, setTemplateInvoice] = useState<StudentLedgerInvoice | null>(null);
+  const [templateInitialType, setTemplateInitialType] = useState<'tax' | 'proforma'>('tax');
+
+  const openInvoiceTemplate = (inv: StudentLedgerInvoice, type: 'tax' | 'proforma' = 'tax') => {
+    setTemplateInvoice(inv);
+    setTemplateInitialType(type);
+  };
 
   // ── New invoice form ──
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -1373,7 +1389,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                     </span>
                   </div>
                   <Button size="sm" variant="primary" className="flex items-center gap-1.5 font-bold h-8 px-3 text-sm shadow-xs" onClick={openInvoiceModal}>
-                    <Plus size={14} /> New Invoice
+                    <Plus size={14} /> Add Payment
                   </Button>
                 </CardHeader>
                 <Table
@@ -1432,6 +1448,14 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                             <div className="inline-flex items-center justify-end gap-1">
                               <button
                                 type="button"
+                                title="Invoice Template (Tax / Proforma)"
+                                className="p-1 rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                onClick={() => openInvoiceTemplate(inv, inv.status === 'paid' ? 'tax' : 'proforma')}
+                              >
+                                <Printer size={13} />
+                              </button>
+                              <button
+                                type="button"
                                 title="View Details"
                                 className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                                 onClick={() => openViewInvoice(inv)}
@@ -1478,6 +1502,13 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
               <ArrowLeft size={15} /> Back to Student Profile
             </Button>
             <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => openInvoiceTemplate(viewInvoice, viewInvoice.status === 'paid' ? 'tax' : 'proforma')}
+                className="flex items-center gap-1.5 font-bold text-indigo-700 border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/80 cursor-pointer"
+              >
+                <Printer size={14} /> Print / Template
+              </Button>
               <Button
                 variant="primary"
                 onClick={() => openEditInvoice(viewInvoice)}
@@ -1826,11 +1857,11 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
         </div>
       </Modal>
 
-      {/* New Invoice Modal */}
+      {/* Add Payment Modal */}
       <Modal
         isOpen={showInvoiceModal}
         onClose={() => setShowInvoiceModal(false)}
-        title="New Invoice — Record a Collection"
+        title="Add Payment — Record a Collection"
         size="md"
       >
         <form onSubmit={submitInvoice} className="space-y-4 text-sm text-slate-600">
@@ -1881,7 +1912,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
             </Button>
             <Button type="submit" variant="primary" disabled={invSubmitting} className="flex items-center gap-1.5 font-bold">
               {invSubmitting ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-              Create Invoice
+              Add Payment
             </Button>
           </div>
         </form>
@@ -1900,6 +1931,14 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
         onImport={() => {
           addToast('Bulk import is not available yet', 'error');
         }}
+      />
+
+      <InvoiceTemplateModal
+        isOpen={Boolean(templateInvoice)}
+        onClose={() => setTemplateInvoice(null)}
+        invoice={templateInvoice}
+        ledger={ledger}
+        initialType={templateInitialType}
       />
     </div>
   );

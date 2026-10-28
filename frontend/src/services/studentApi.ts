@@ -215,7 +215,7 @@ export const createStudent = async (payload: CreateStudentPayload) => {
   return response.data;
 };
 
-export const updateStudent = async (id: number, payload: Partial<CreateStudentPayload>) => {
+export const updateStudent = async (id: number | string, payload: Partial<CreateStudentPayload>) => {
   const basePath = getStudentBasePath();
   const cleanPayload = { ...payload };
   if (basePath === '/branch/students') {
@@ -225,7 +225,7 @@ export const updateStudent = async (id: number, payload: Partial<CreateStudentPa
   return response.data;
 };
 
-export const patchStudent = async (id: number, partialPayload: Record<string, any>) => {
+export const patchStudent = async (id: number | string, partialPayload: Record<string, any>) => {
   const basePath = getStudentBasePath();
   const cleanPayload = { ...partialPayload };
   if (basePath === '/branch/students') {

@@ -167,7 +167,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Fees Master', label: 'Fee Structures', path: '/admin/fees-master', icon: DollarSign },
               { name: 'Record Fee', label: 'Collect Payments', path: '/admin/fees', icon: DollarSign },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/admin/finance/expenses/salaries', icon: Users }
+              { name: 'Other Income', label: 'Other Income', path: '/admin/finance/income/other', icon: TrendingUp },
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/admin/finance/expenses/salaries', icon: Users },
+              { name: 'Other Expenses', label: 'Other Expenses', path: '/admin/finance/expenses/other', icon: TrendingDown },
+              { name: 'Expense Voucher', label: 'Vouchers', path: '/expense-voucher', icon: FileText },
+              { name: 'Expense Ledger', label: 'Ledger', path: '/expense-ledger', icon: ClipboardList },
+              { name: 'Financial Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
           },
           {

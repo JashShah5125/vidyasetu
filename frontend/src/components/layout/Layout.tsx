@@ -13,7 +13,7 @@ interface LayoutContextType {
 }
 const LayoutContext = createContext<LayoutContextType>({
   isSidebarCollapsed: false,
-  toggleSidebar: () => {},
+  toggleSidebar: () => { },
 });
 export const useLayout = () => useContext(LayoutContext);
 
@@ -45,7 +45,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <LayoutContext.Provider value={{ isSidebarCollapsed, toggleSidebar }}>
       <div className="flex w-screen h-screen overflow-hidden bg-slate-50 flex-col">
-        
+
         {/* Persistent Global Impersonation Banner */}
         {isImpersonating && (
           <div className="bg-slate-900 text-slate-300 px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md z-[999999] border-b border-slate-800">
@@ -109,11 +109,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               key={t.id}
               className="pointer-events-auto bg-slate-900 border border-slate-800/80 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-in"
             >
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                t.type === 'warning' ? 'bg-amber-400' :
-                t.type === 'error' ? 'bg-red-500' :
-                t.type === 'info' ? 'bg-blue-400' : 'bg-emerald-400'
-              } animate-pulse`} />
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.type === 'warning' ? 'bg-amber-400' :
+                  t.type === 'error' ? 'bg-red-500' :
+                    t.type === 'info' ? 'bg-blue-400' : 'bg-emerald-400'
+                } animate-pulse`} />
               <p className="text-xs font-semibold text-slate-100">
                 {typeof t.message === 'string' ? t.message : ((t.message as any)?.message || (t.message as any)?.title || String(t.message))}
               </p>

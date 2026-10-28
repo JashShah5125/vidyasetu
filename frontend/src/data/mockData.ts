@@ -51,6 +51,7 @@ export interface Lead {
   remarks: string;
   followups: { date: string; type: string; outcome: string; nextDate: string }[];
   feeConfig?: any;
+  createdAt?: string;
 }
 
 export interface Parent {
@@ -89,6 +90,7 @@ export interface Student {
   batch?: string;
   branch?: string;
   admissionDate?: string;
+  createdAt?: string;
   parentMobile?: string;
   feePlan?: any;
 }

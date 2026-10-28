@@ -148,8 +148,12 @@ app.use((req, res, next) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ status: 'error', message: 'Internal Server Error' });
+    console.error('[GlobalErrorHandler]', err.stack || err);
+    const statusCode = err.status || err.statusCode || (err.name === 'MulterError' ? 400 : 500);
+    res.status(statusCode).json({
+        status: 'error',
+        message: err.message || 'Internal Server Error'
+    });
 });
 
 module.exports = app;

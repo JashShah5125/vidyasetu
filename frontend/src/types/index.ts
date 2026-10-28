@@ -70,6 +70,7 @@ export interface Lead {
   remarks: string;
   followups: { date: string; type: string; outcome: string; nextDate: string }[];
   feeConfig?: any;
+  createdAt?: string;
 }
 
 export interface Parent {
@@ -102,20 +103,20 @@ export type StudentStatusLabel =
 export interface Student {
   id: string;
   studentId: string;
-  parentId: string;
-  enrollmentIds: string[];
+  parentId?: string;
+  enrollmentIds?: string[];
   name: string;
   mobile: string;
   dob: string;
   gender: string;
   email?: string;
-  address: { street: string; city: string; state: string; pincode: string };
+  address?: { street: string; city: string; state: string; pincode: string };
   category: string;
   schoolName?: string;
-  currentClass: string;
-  board: string;
-  targetExam: string;
-  yearOfAttempt: string;
+  currentClass?: string;
+  board?: string;
+  targetExam?: string;
+  yearOfAttempt?: string;
   status: StudentStatusLabel | string | number;
   statusCode?: StudentStatusCode;
   
@@ -126,8 +127,14 @@ export interface Student {
   batch?: string;
   branch?: string;
   admissionDate?: string;
+  createdAt?: string;
+  parentName?: string;
   parentMobile?: string;
+  parentEmail?: string;
   feePlan?: any;
+  isDocVerified?: boolean;
+  totalDocs?: number;
+  verifiedDocs?: number;
 }
 
 export interface Enrollment {

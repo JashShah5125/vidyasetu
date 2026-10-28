@@ -463,7 +463,14 @@ const getMySQLYearWeek = (date) => {
 const getSaasRevenue = async (req, res) => {
     try {
         const timeRange = req.query.preset || req.query.time_range || 'monthly';
-        const selectedYear = (req.query.year && req.query.year !== 'all') ? Number(req.query.year) : new Date().getFullYear();
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1; // 1-indexed (1=Jan, 10=Oct)
+        const currentAyStartYear = currentMonth >= 4 ? currentYear : currentYear - 1;
+
+        const effectiveYear = (req.query.year && req.query.year !== 'all')
+            ? Number(req.query.year)
+            : currentAyStartYear;
         const selectedMonth = (req.query.month && req.query.month !== 'all') ? Number(req.query.month) : null;
 
         // 1. Daily breakdown: Past 7 days
@@ -490,7 +497,6 @@ const getSaasRevenue = async (req, res) => {
             });
 
             const trend = [];
-            const today = new Date();
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
@@ -529,7 +535,6 @@ const getSaasRevenue = async (req, res) => {
             });
 
             const trend = [];
-            const today = new Date();
             for (let i = 7; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - (i * 7));
@@ -559,15 +564,10 @@ const getSaasRevenue = async (req, res) => {
             GROUP BY YEAR(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at))), MONTH(COALESCE(i.payment_date, i.billing_period_start, DATE(i.created_at)))
         `);
 
-        const isAllYears = !req.query.year || req.query.year === 'all';
         const ayMonthOrder = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
-        const today = new Date();
-        const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth() + 1; // 1-indexed
-
         const trend = ayMonthOrder.map((m) => {
-            const targetYear = m >= 4 ? selectedYear : selectedYear + 1;
+            const targetYear = m >= 4 ? effectiveYear : effectiveYear + 1;
             const monthStr = new Date(2000, m - 1, 1).toLocaleString('en-US', { month: 'short' });
 
             let added = 0;
@@ -575,15 +575,13 @@ const getSaasRevenue = async (req, res) => {
                 const yr = Number(row.yr);
                 const mo = Number(row.mo);
                 const rev = Number(row.rev) || 0;
-                if (isAllYears) {
-                    if (mo === m) added += rev;
-                } else {
-                    if (yr === targetYear && mo === m) added += rev;
-                }
+                // Strictly match the target year and month within the assessment year
+                if (yr === targetYear && mo === m) added += rev;
             });
 
-            const isFuture = isAllYears ? false : (targetYear > currentYear || (targetYear === currentYear && m > currentMonth));
-            const isCurrent = isAllYears ? (m === currentMonth) : (targetYear === currentYear && m === currentMonth);
+            // A month is future if targetYear > currentYear or (targetYear == currentYear and m > currentMonth)
+            const isFuture = (targetYear > currentYear || (targetYear === currentYear && m > currentMonth));
+            const isCurrent = (targetYear === currentYear && m === currentMonth);
 
             // 1. Specific single month selected -> Show value ONLY on that month
             if (selectedMonth !== null) {
@@ -598,7 +596,7 @@ const getSaasRevenue = async (req, res) => {
                 };
             }
 
-            // 2. All months selected -> Monthly collection for each month
+            // 2. All months selected -> Future months must have 0 (nothing)
             if (isFuture) {
                 return {
                     m: monthStr,

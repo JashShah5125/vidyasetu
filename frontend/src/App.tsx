@@ -10,6 +10,7 @@ import { Button } from './components/ui/Button';
 import { Modal } from './components/ui/Modal';
 import { Pagination } from './components/ui/Pagination';
 import { Login } from './pages/Login';
+import { LandingPage } from './pages/LandingPage';
 import { RegisterTenant } from './pages/RegisterTenant';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ChangePassword } from './pages/ChangePassword';
@@ -177,6 +178,7 @@ const ContentRouter = () => {
   return (
     <Routes>
       <Route path="/" element={<Navigate to={roleDashboard} replace />} />
+      <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={<Navigate to={roleDashboard} replace />} />
       <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : currentUser?.role === 'finance' ? <FinanceDashboard /> : <Dashboard />} />
@@ -428,11 +430,13 @@ const MainContent: React.FC = () => {
   if (!currentUser) {
     return (
       <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<RegisterTenant />} />
         <Route path="/register-institute" element={<RegisterTenant />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
@@ -446,7 +450,8 @@ const MainContent: React.FC = () => {
 
 const getPageTitle = (path: string): string => {
   const clean = path.replace(/\/$/, '').toLowerCase();
-  if (!clean || clean === '' || clean === '/login') return 'Vidya Setu | Login';
+  if (!clean || clean === '' || clean === '/landing') return 'VidyaSetu | Multi-Tenant Education SaaS ERP & CRM';
+  if (clean === '/login') return 'Vidya Setu | Login';
   if (clean.includes('/change-password')) return 'Vidya Setu | Change Password';
   if (clean.includes('/dashboard')) return 'Vidya Setu | Dashboard';
   if (clean.includes('/tenants')) return 'Vidya Setu | Tenants';

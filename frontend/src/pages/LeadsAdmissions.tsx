@@ -34,13 +34,17 @@ interface LeadsAdmissionsProps {
   initialTab?: 'all' | 'pipeline' | 'fee' | 'admission' | 'batch' | 'payment';
 }
 
+const pipelineSteps = [
+  { id: 'pipeline', step: 1, label: 'Lead Pipeline', phase: 'Phase 1', description: 'Enquiries & Nurturing', icon: Users },
+  { id: 'fee', step: 2, label: 'Fee Discussion', phase: 'Phase 2', description: 'Quotation & Fee Plan', icon: DollarSign },
+  { id: 'admission', step: 3, label: 'Admission & Docs', phase: 'Phase 3', description: 'Application & Documents', icon: ClipboardList },
+  { id: 'batch', step: 4, label: 'Batch Allocation', phase: 'Phase 4', description: 'Class & Timing Assignment', icon: Layers },
+  { id: 'payment', step: 5, label: 'Payment & Activation', phase: 'Phase 5', description: 'Fee Clearance & Access', icon: Zap },
+] as const;
+
 const phases = [
-  { id: 'all', label: 'All Leads', phase: 'Master', icon: FileText },
-  { id: 'pipeline', label: 'Lead Pipeline', phase: 'Phase 1', icon: Users },
-  { id: 'fee', label: 'Fee Discussion', phase: 'Phase 2', icon: DollarSign },
-  { id: 'admission', label: 'Admission & Docs', phase: 'Phase 3', icon: ClipboardList },
-  { id: 'batch', label: 'Batch Allocation', phase: 'Phase 4', icon: Layers },
-  { id: 'payment', label: 'Payment & Activation', phase: 'Phase 5', icon: Zap },
+  ...pipelineSteps,
+  { id: 'all', step: 0, label: 'All Leads', phase: 'Master', description: 'Complete Master Directory', icon: FileText },
 ] as const;
 
 type TabId = typeof phases[number]['id'];
@@ -101,12 +105,25 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     return {
       id: String(r.id),
       studentId: r.student_code || `STU-${r.id}`,
+      parentId: `P-${r.id}`,
+      enrollmentIds: r.enrollment_id ? [String(r.enrollment_id)] : [],
       name: r.full_name,
       mobile: r.mobile || '',
       email: r.email || '',
       parentName: r.guardian_name || '',
       parentMobile: r.guardian_mobile || '',
       parentEmail: r.guardian_email || '',
+      address: {
+        street: r.street || '',
+        city: r.city || '',
+        state: r.state || '',
+        pincode: r.pincode || ''
+      },
+      currentClass: r.current_class || '',
+      board: '',
+      targetExam: r.target_exam || '',
+      yearOfAttempt: r.year_of_attempt || '',
+      schoolName: r.school_name || '',
       course: (r as any).course_name || r.target_exam || '—',
       program: (r as any).program_name || '',
       level: (r as any).level_name || 'year1',
@@ -114,16 +131,33 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       batch: r.batch_name || '',
       status: r.status,
       admissionDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '',
+      createdAt: r.created_at || '',
       dob: r.dob ? new Date(r.dob).toISOString().split('T')[0] : '',
       gender: r.gender || '',
       category: r.category || 'General',
       feePlan: {
         total: Number(r.total_fees || 0),
         paid: Number(r.fees_paid || 0),
-        pending: Number(r.fees_remaining ?? r.fees_outstanding ?? 0),
+        pending: Number(
+          (r.fees_remaining !== undefined && r.fees_remaining !== null && Number(r.fees_remaining) > 0)
+            ? r.fees_remaining
+            : (r.fees_outstanding !== undefined && r.fees_outstanding !== null && Number(r.fees_outstanding) > 0)
+              ? r.fees_outstanding
+              : Math.max(0, Number(r.total_fees || 0) - Number(r.fees_paid || 0))
+        ),
         installments: Number(r.installment_count || 1),
-        downPayment: Number(r.down_payment || 0)
-      }
+        downPayment: Number(r.down_payment || 0),
+        installmentAmount: Number((r as any).installment_amount || 0)
+      },
+      isDocVerified: Boolean(
+        (r as any).is_doc_verified ||
+        r.status === 5 ||
+        r.status === '5' ||
+        r.status === 'Documents Verified' ||
+        (Number((r as any).total_docs || 0) > 0 && Number((r as any).verified_docs || 0) === Number((r as any).total_docs || 0))
+      ),
+      totalDocs: Number((r as any).total_docs || 0),
+      verifiedDocs: Number((r as any).verified_docs || 0)
     };
   }, []);
 
@@ -176,6 +210,27 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       setRejectingDocId(null);
       setDocRejectionReason('');
       addToast(status === 1 ? 'Document verified successfully!' : status === 2 ? 'Document marked as rejected.' : 'Document status reset.', status === 1 ? 'success' : 'info');
+
+      const allVerified = updated.length > 0 && updated.every(d => d.status === 1);
+      if (allVerified) {
+        setDocModalStudent(prev => prev ? { ...prev, status: 5, isDocVerified: true } : null);
+        if (admissionSubFilter === 'pending') {
+          setAdmissionSubFilter('all');
+        }
+      } else {
+        setDocModalStudent(prev => prev ? { ...prev, isDocVerified: false } : null);
+      }
+
+      setApiStudents(prev => prev.map(st => {
+        const matches = st.id === String(docModalStudent.id) || st.studentId === docModalStudent.studentId;
+        if (!matches) return st;
+        return {
+          ...st,
+          status: allVerified ? 5 : (st.status === 5 ? 4 : st.status),
+          isDocVerified: allVerified
+        };
+      }));
+
       await fetchStudents();
     } catch (err: any) {
       addToast(err?.response?.data?.message || 'Failed to update document status', 'error');
@@ -226,6 +281,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
 
+  // Sub-filter queues for connected pipeline phases
+  const [pipelineSubFilter, setPipelineSubFilter] = useState<'all' | 'new' | 'followup' | 'interested' | 'demo'>('all');
+  const [admissionSubFilter, setAdmissionSubFilter] = useState<'all' | 'pending' | 'verified'>('all');
+  const [batchSubFilter, setBatchSubFilter] = useState<'unassigned' | 'assigned' | 'all'>('unassigned');
+  const [paymentSubFilter, setPaymentSubFilter] = useState<'pending' | 'active' | 'all'>('pending');
+
   // Clear filters on tab change
   useEffect(() => {
     setFilterStatus('All');
@@ -266,6 +327,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     }
     setFilterCourse('All');
     setFilterProgram('All');
+    setPipelineSubFilter('all');
+    setAdmissionSubFilter('all');
+    setBatchSubFilter('unassigned');
+    setPaymentSubFilter('pending');
     setPage(1);
   };
 
@@ -508,6 +573,28 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     }
   };
 
+  const handleQuickAdvanceToFee = async (lead: Lead, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await updateLead(lead.id, { status: 'Fee Discussion' as Lead['status'] });
+      addToast(`"${lead.name}" moved to Phase 2 (Fee Discussion).`, 'success');
+      await fetchLeads();
+    } catch {
+      addToast('Failed to update lead status.', 'error');
+    }
+  };
+
+  const handleQuickRevertToFollowup = async (lead: Lead, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await updateLead(lead.id, { status: 'Follow-up' as Lead['status'] });
+      addToast(`"${lead.name}" returned to Follow-up queue.`, 'info');
+      await fetchLeads();
+    } catch {
+      addToast('Failed to update lead status.', 'error');
+    }
+  };
+
   const handleOpenBatchModal = (s: Student) => {
     setSelectedStudent(s);
     setBatchForm({
@@ -739,14 +826,20 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     return leads.filter(l => {
       if (activeTab === 'all') {
         if (filterStatus !== 'All' && l.status !== filterStatus) return false;
-      } else {
+      } else if (activeTab === 'fee') {
+        if (l.status !== 'Fee Discussion') return false;
+      } else if (activeTab === 'pipeline') {
         if (filterStatus === 'All') {
           if (l.status === 'Converted' || l.status === 'Cancelled' || l.status === 'Lost' || l.status === 'Not Interested') return false;
         } else {
           if (l.status !== filterStatus) return false;
         }
+        // Pipeline sub-filter queues
+        if (pipelineSubFilter === 'new' && l.status !== 'New Enquiry') return false;
+        if (pipelineSubFilter === 'followup' && l.status !== 'Follow-up') return false;
+        if (pipelineSubFilter === 'interested' && l.status !== 'Interested') return false;
+        if (pipelineSubFilter === 'demo' && l.status !== 'Demo Scheduled') return false;
       }
-      if (activeTab === 'fee' && l.status !== 'Fee Discussion') return false;
       const q = search.toLowerCase();
       const matchQ = l.name.toLowerCase().includes(q) || l.course.toLowerCase().includes(q) || l.mobile.includes(q);
       const matchSrc = filterSource === 'All' || l.source === filterSource;
@@ -764,12 +857,48 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         }
       }
       return matchQ && matchSrc && matchBranch && matchCourse && matchProgram;
-    }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, academicData, courses, getProgramsForCourse, currentUser, activeTab]);
+    }).sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA > 0 && timeB > 0 && timeB !== timeA) {
+        return timeB - timeA;
+      }
+      const numA = Number(a.id);
+      const numB = Number(b.id);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numB - numA;
+      }
+      return String(b.id).localeCompare(String(a.id), undefined, { numeric: true });
+    });
+  }, [leads, search, filterStatus, filterSource, filterBranch, filterCourse, filterProgram, academicData, courses, getProgramsForCourse, currentUser, activeTab, pipelineSubFilter]);
 
   const filteredStudents = useMemo(() => {
     const sourceList = apiStudents.length > 0 ? apiStudents : students;
     return sourceList.filter(s => {
+      // Sub-filter by activeTab stage
+      if (activeTab === 'admission') {
+        const isVerified = s.status === 5 || s.status === '5' || s.status === 'Documents Verified' || s.status === 'Active Student' || s.status === 1 || s.status === 7 || Boolean(s.isDocVerified);
+        if (admissionSubFilter === 'pending') {
+          if (isVerified) return false;
+        } else if (admissionSubFilter === 'verified') {
+          if (!isVerified) return false;
+        }
+      } else if (activeTab === 'batch') {
+        const hasNoBatch = !s.batch || s.batch === '—' || s.batch === '' || s.status === 6 || s.status === 'Pending Batch Allocation';
+        if (batchSubFilter === 'unassigned') {
+          if (!hasNoBatch) return false;
+        } else if (batchSubFilter === 'assigned') {
+          if (hasNoBatch) return false;
+        }
+      } else if (activeTab === 'payment') {
+        const isActive = s.status === 1 || s.status === '1' || s.status === 'Active Student';
+        if (paymentSubFilter === 'pending') {
+          if (isActive && (s.feePlan?.pending || 0) <= 0) return false;
+        } else if (paymentSubFilter === 'active') {
+          if (!isActive) return false;
+        }
+      }
+
       const q = search.toLowerCase().trim();
       const matchQ = !q || (
         (s.name && s.name.toLowerCase().includes(q)) ||
@@ -803,11 +932,42 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           if (b && b.program === filterProgram) matchProgram = true;
         }
         const courseObj = (academicData?.courses || courses).find(c => c.name === s.course);
-        if (courseObj?.programs?.includes(filterProgram)) matchProgram = true;
+        if ((courseObj as any)?.programs?.includes(filterProgram)) matchProgram = true;
       }
       return matchQ && matchSt && matchBranch && matchCourse && matchProgram;
+    }).sort((a, b) => {
+      const getStudentTime = (s: Student) => {
+        if (s.createdAt) {
+          const t = new Date(s.createdAt).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+        if (s.admissionDate) {
+          const t = new Date(s.admissionDate).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+        return 0;
+      };
+      const timeA = getStudentTime(a);
+      const timeB = getStudentTime(b);
+      if (timeA > 0 && timeB > 0 && timeB !== timeA) {
+        return timeB - timeA;
+      }
+      const parseId = (item: Student) => {
+        const num = Number(item.id);
+        if (!isNaN(num) && num > 0) return num;
+        const matches = (item.studentId || item.id || '').match(/\d+/g);
+        if (matches && matches.length > 0) {
+          const lastNum = Number(matches[matches.length - 1]);
+          if (!isNaN(lastNum)) return lastNum;
+        }
+        return 0;
+      };
+      const idA = parseId(a);
+      const idB = parseId(b);
+      if (idA !== idB) return idB - idA;
+      return String(b.studentId || b.id).localeCompare(String(a.studentId || a.id), undefined, { numeric: true });
     });
-  }, [apiStudents, students, search, filterStatus, filterBranch, filterCourse, filterProgram, batches, courses, academicData, currentUser]);
+  }, [apiStudents, students, search, filterStatus, filterBranch, filterCourse, filterProgram, batches, courses, academicData, currentUser, activeTab, admissionSubFilter, batchSubFilter, paymentSubFilter]);
 
   // Paginated Slices
   const paginatedLeads = useMemo(() => {
@@ -823,24 +983,50 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     return Math.max(1, Math.ceil(listLen / PER_PAGE));
   }, [activeTab, filteredLeads.length, filteredStudents.length]);
 
-  // Summary statistics
+  // Summary statistics with stage connectivity counts
   const stats = useMemo(() => {
     const activeLeads = leads.filter(l => l.status !== 'Converted' && l.status !== 'Cancelled' && l.status !== 'Lost' && l.status !== 'Not Interested');
     const sourceStudents = apiStudents.length > 0 ? apiStudents : students;
+    const feeDiscussionLeads = leads.filter(l => l.status === 'Fee Discussion');
+    const pipelineLeads = activeLeads.filter(l => l.status !== 'Fee Discussion');
+    const verifiedStudents = sourceStudents.filter(s =>
+      s.status === 5 || s.status === '5' || s.status === 'Documents Verified' || s.status === 'Active Student' || s.status === 1 || s.status === 7 || Boolean(s.isDocVerified)
+    );
+    const needsVerificationStudents = sourceStudents.filter(s =>
+      !verifiedStudents.some(v => v.id === s.id || v.studentId === s.studentId) && (
+        s.status === 0 || s.status === '0' || s.status === 3 || s.status === '3' || s.status === 4 || s.status === '4' ||
+        s.status === 'Verification Pending' || s.status === 'Draft' || s.status === 'Document Pending' || s.status === 'Registration Pending' || s.status === 'Documents Submitted'
+      )
+    );
+    const unassignedBatchStudents = sourceStudents.filter(s =>
+      !s.batch || s.batch === '—' || s.batch === '' || s.status === 6 || s.status === 'Pending Batch Allocation'
+    );
+    const pendingPaymentStudents = sourceStudents.filter(s =>
+      (s.status !== 1 && s.status !== '1' && s.status !== 'Active Student') || (s.feePlan?.pending || 0) > 0
+    );
+    const activeStudentsList = sourceStudents.filter(s =>
+      s.status === 1 || s.status === '1' || s.status === 'Active Student' || s.status === 'Active'
+    );
+
     return {
       totalAllLeads: leads.length,
       convertedCount: leads.filter(l => l.status === 'Converted').length,
       activePipelineCount: activeLeads.length,
+      pipelinePhaseCount: pipelineLeads.length,
+      feeDiscussionCount: feeDiscussionLeads.length,
       closedCount: leads.filter(l => l.status === 'Cancelled' || l.status === 'Lost' || l.status === 'Not Interested').length,
       totalLeads: activeLeads.length,
       newEnquiries: activeLeads.filter(l => l.status === 'New Enquiry').length,
       followUp: activeLeads.filter(l => l.status === 'Follow-up').length,
       interested: activeLeads.filter(l => l.status === 'Interested').length,
+      demoScheduled: activeLeads.filter(l => l.status === 'Demo Scheduled').length,
       totalStudents: sourceStudents.length,
-      pendingDocs: sourceStudents.filter(s => s.status === 0 || s.status === '0' || s.status === 'Verification Pending' || s.status === 'Draft' || s.status === 'Document Pending').length,
-      pendingReview: sourceStudents.filter(s => s.status === 0 || s.status === '0' || s.status === 'Verification Pending' || s.status === 'Document Uploaded').length,
-      verificationPending: sourceStudents.filter(s => s.status === 0 || s.status === '0' || s.status === 'Verification Pending').length,
-      activeStudents: sourceStudents.filter(s => s.status === 1 || s.status === '1' || s.status === 'Active Student' || s.status === 'Active' || s.status === 5).length,
+      pendingDocs: needsVerificationStudents.length,
+      verifiedDocsCount: verifiedStudents.length,
+      unassignedBatchCount: unassignedBatchStudents.length,
+      assignedBatchCount: sourceStudents.length - unassignedBatchStudents.length,
+      pendingPaymentCount: pendingPaymentStudents.length,
+      activeStudents: activeStudentsList.length,
       feeCollected: sourceStudents.reduce((sum, s) => sum + (s.feePlan?.paid || 0), 0),
       feeOutstanding: sourceStudents.reduce((sum, s) => sum + (s.feePlan?.pending || 0), 0)
     };
@@ -963,10 +1149,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         });
       }
       allocateBatch(selectedStudent.id, batchForm.batch, batchForm.course, batchForm.program, batchForm.level);
-      addToast(`Batch ${batchForm.batch} successfully assigned to ${selectedStudent.name}`, 'success');
+      addToast(`Batch ${batchForm.batch} successfully assigned to ${selectedStudent.name}! Next Step: Fee Payment & Activation`, 'success');
       await fetchStudents();
       setShowBatchModal(false);
       setBatchForm({ course: '', program: '', level: 'year1', batch: '', type: 'Standard Enrollment' });
+      navigate(`${basePath}/payment`);
     } catch (err: any) {
       addToast(err?.response?.data?.message || 'Failed to allocate batch on server.', 'error');
     }
@@ -1379,6 +1566,46 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 className="flex items-center gap-1.5 cursor-pointer font-semibold text-xs text-slate-700 bg-white hover:bg-slate-50 border border-slate-200"
               >
                 <Eye size={14} className="text-blue-600" /> Switch to View
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Connected Lead Stage Progression Tracker */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Current Pipeline Stage:</span>
+            <StatusBadge status={fStatus} />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {fStatus !== 'Fee Discussion' && fStatus !== 'Converted' && (
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                onClick={async () => {
+                  if (!selectedLead) return;
+                  await handleQuickAdvanceToFee(selectedLead);
+                  setFStatus('Fee Discussion');
+                  setModalTab('fee');
+                }}
+                className="text-xs font-semibold flex items-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white cursor-pointer"
+              >
+                <DollarSign size={13} /> Advance to Fee Discussion →
+              </Button>
+            )}
+            {fStatus !== 'Converted' && (
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  if (!selectedLead) return;
+                  navigate(`/leads/${selectedLead.id}/convert`, { state: { prefilledFeeData: leadFeeData || selectedLead.feeConfig } });
+                }}
+                className="text-xs font-semibold flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              >
+                <UserCheck size={13} /> Direct Admission & Convert →
               </Button>
             )}
           </div>
@@ -2170,11 +2397,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div>
                   <span className="text-emerald-700/80 block font-medium">Enrollment Type</span>
-                  <span className="text-slate-900 font-bold mt-0.5 block">{batchForm.type}</span>
+                  <span className="text-slate-900 font-bold mt-0.5 block">{batchForm.type || 'Standard Enrollment'}</span>
                 </div>
                 <div>
                   <span className="text-emerald-700/80 block font-medium">Total Course Fee</span>
-                  <span className="text-slate-900 font-bold text-sm mt-0.5 block">₹{(selectedStudent.feePlan?.total || 120000).toLocaleString()}</span>
+                  <span className="text-slate-900 font-bold text-sm mt-0.5 block">₹{(selectedStudent.feePlan?.total || 0).toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-emerald-700/80 block font-medium">Amount Paid</span>
@@ -2182,9 +2409,21 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 </div>
                 <div>
                   <span className="text-emerald-700/80 block font-medium">Outstanding Balance</span>
-                  <span className="text-red-600 font-bold text-sm mt-0.5 block">₹{(selectedStudent.feePlan?.pending || 0).toLocaleString()}</span>
+                  <span className="text-red-600 font-bold text-sm mt-0.5 block">
+                    ₹{(
+                      (selectedStudent.feePlan?.pending !== undefined && selectedStudent.feePlan?.pending !== null && selectedStudent.feePlan.pending > 0)
+                        ? selectedStudent.feePlan.pending
+                        : Math.max(0, (selectedStudent.feePlan?.total || 0) - (selectedStudent.feePlan?.paid || 0))
+                    ).toLocaleString()}
+                  </span>
                 </div>
               </div>
+              {Boolean((selectedStudent.feePlan?.downPayment || 0) > 0 || (selectedStudent.feePlan?.installments || 1) > 1) && (
+                <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] text-emerald-800/80">
+                  <span>Downpayment: <strong>₹{(selectedStudent.feePlan?.downPayment || 0).toLocaleString()}</strong></span>
+                  <span>Agreed Plan: <strong>{selectedStudent.feePlan?.installments || 1} Months Installments</strong></span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2351,10 +2590,18 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           </Button>
           <Button variant="primary" onClick={() => {
             setLeadForm({
-              name: '', mobile: '', parentMobile: '',
+              name: '',
+              email: '',
+              mobile: '',
+              parentName: '',
+              parentMobile: '',
+              parentEmail: '',
               course: courses[0]?.name || '',
               program: courses[0]?.programs?.[0] || '',
-              level: 'year1', source: 'Walk-in', remarks: '',
+              level: 'year1',
+              academicYear: '2024-2025',
+              source: 'Walk-in',
+              remarks: '',
               branch: branches[0]?.name || '',
               counsellor: currentUser?.name || 'Admin'
             });
@@ -2365,32 +2612,123 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       </div>
 
-      {/* Tabs Timeline Stepper */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex overflow-x-auto">
-          {phases.map((p, idx) => {
-            const Icon = p.icon;
-            const isActive = activeTab === p.id;
-            return (
-              <button
-                key={p.id}
-                onClick={() => navigate(tabRouteMap[p.id])}
-                className={`flex-1 min-w-[150px] flex flex-col items-center gap-1.5 px-4 py-4 text-center transition-all border-b-2 cursor-pointer relative ${isActive ? 'border-blue-600 bg-blue-50/60 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+      {/* 5-Phase Admissions Lifecycle Pipeline Stepper */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2.5 overflow-hidden">
+        <div className="flex flex-col lg:flex-row items-stretch gap-2">
+          {/* Active 5-Step Connected Funnel */}
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {pipelineSteps.map((p, idx) => {
+              const Icon = p.icon;
+              const isActive = activeTab === p.id;
+              const count = p.id === 'pipeline' ? stats.pipelinePhaseCount
+                : p.id === 'fee' ? stats.feeDiscussionCount
+                : p.id === 'admission' ? stats.pendingDocs
+                : p.id === 'batch' ? stats.unassignedBatchCount
+                : stats.pendingPaymentCount;
+
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => navigate(tabRouteMap[p.id])}
+                  className={`flex flex-col text-left p-3 rounded-xl transition-all cursor-pointer relative group border ${
+                    isActive
+                      ? 'bg-blue-50/90 border-blue-500 shadow-xs ring-2 ring-blue-500/20'
+                      : 'bg-slate-50/60 hover:bg-slate-100/80 border-slate-200/80'
                   }`}
-              >
-                {idx < phases.length - 1 && (
-                  <span className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-200 hidden md:block">
-                    <ChevronRight size={14} />
+                >
+                  {/* Forward arrow indicator to next phase */}
+                  {idx < pipelineSteps.length - 1 && (
+                    <span className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 hidden lg:flex w-4 h-4 rounded-full bg-white border border-slate-200 items-center justify-center text-slate-400 shadow-2xs pointer-events-none">
+                      <ChevronRight size={10} />
+                    </span>
+                  )}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      Step {p.step}
+                    </span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      isActive ? 'bg-blue-200/80 text-blue-900' : 'bg-white text-slate-700 border border-slate-200'
+                    }`}>
+                      {count}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Icon size={14} className={isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                    <span className={`text-xs font-bold leading-tight truncate ${isActive ? 'text-blue-900' : 'text-slate-800'}`}>
+                      {p.label}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-0.5 leading-tight truncate">
+                    {p.description}
                   </span>
-                )}
-                <Icon size={16} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
-                <span className="text-[11px] font-bold leading-tight">{p.label}</span>
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'
-                  }`}>{p.phase}</span>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Master Directory Quick Tab */}
+          <div className="lg:w-48 flex shrink-0">
+            <button
+              onClick={() => navigate(tabRouteMap['all'])}
+              className={`w-full flex flex-col justify-between p-3 rounded-xl transition-all cursor-pointer border text-left group ${
+                activeTab === 'all'
+                  ? 'bg-blue-50/40 border-2 border-blue-600 shadow-xs ring-2 ring-blue-500/10'
+                  : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                  activeTab === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  Master Registry
+                </span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  activeTab === 'all' ? 'bg-blue-200/80 text-blue-900' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {stats.totalAllLeads}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-2">
+                <FileText size={14} className={activeTab === 'all' ? 'text-blue-600' : 'text-slate-400'} />
+                <span className={`text-xs font-bold ${activeTab === 'all' ? 'text-blue-900' : 'text-slate-800'}`}>
+                  All Leads Directory
+                </span>
+              </div>
+              <span className="text-[10px] mt-0.5 text-slate-500">
+                Search all historical leads
+              </span>
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Connected Workflow Stage Guidance Banner */}
+      <div className="p-3.5 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-slate-50 border border-blue-100/80 rounded-xl text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+            {activeTab === 'all' ? '★' : activeTab === 'pipeline' ? '1' : activeTab === 'fee' ? '2' : activeTab === 'admission' ? '3' : activeTab === 'batch' ? '4' : '5'}
+          </div>
+          <div>
+            <span className="font-bold text-slate-900 mr-1.5">
+              {activeTab === 'all' ? 'Master Registry' : activeTab === 'pipeline' ? 'Step 1: Enquiries & Nurturing' : activeTab === 'fee' ? 'Step 2: Fee Discussion & Plan' : activeTab === 'admission' ? 'Step 3: Admission & Verification' : activeTab === 'batch' ? 'Step 4: Batch Allocation' : 'Step 5: Fee Payment & Activation'}:
+            </span>
+            <span className="text-slate-600">
+              {activeTab === 'all' && 'Comprehensive historical directory of all leads across every stage in the institution.'}
+              {activeTab === 'pipeline' && 'Qualify incoming leads, schedule demos, and log follow-ups. Click "Move to Fee Discussion →" to advance candidates to Step 2, or "Direct Admission" to enroll immediately.'}
+              {activeTab === 'fee' && 'Negotiate course fees, apply scholarships, and finalize installments. Click "Proceed to Admission →" to convert this lead to a registered student.'}
+              {activeTab === 'admission' && 'Review student registration profiles and verify submitted KYC/academic documents. When approved, proceed to assign their class batch.'}
+              {activeTab === 'batch' && 'Assign admitted students to available course batches and time slots. When assigned, advance student to fee payment & activation.'}
+              {activeTab === 'payment' && 'Collect initial admission down payments or full fees. Recording payment activates LMS portal access and marks student as Active.'}
+            </span>
+          </div>
+        </div>
+        {activeTab !== 'all' && (
+          <span className="text-[11px] font-semibold text-blue-700 shrink-0 self-end sm:self-center bg-blue-100/60 px-2.5 py-1 rounded-md">
+            Sequential Workflow
+          </span>
+        )}
       </div>
 
       {/* ── Active Filters Tag Strip (when collapsed) ──────────────────────────── */}
@@ -2651,7 +2989,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             </CardHeader>
             <Table
               dense
-              minWidth="1100px"
+              minWidth="1140px"
+              colWidths={['60px', '210px', '160px', '170px', '130px', '120px', '140px', '130px']}
               headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
             >
               {paginatedLeads.map(l => (
@@ -2727,15 +3066,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 1: LEAD PIPELINE */}
+      {/* TAB CONTENT 1: LEAD PIPELINE (Step 1) */}
       {activeTab === 'pipeline' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Leads', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
+              { label: 'Total Active in Pipeline', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
               { label: 'New Enquiries', value: stats.newEnquiries, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Follow-up', value: stats.followUp, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Interested', value: stats.interested, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Follow-up Needed', value: stats.followUp, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Interested / Demo', value: stats.interested + stats.demoScheduled, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -2744,14 +3083,48 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             ))}
           </div>
 
+          {/* Pipeline Stage Queue Chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Queue View:</span>
+            {[
+              { id: 'all', label: `All Active (${stats.totalLeads})` },
+              { id: 'new', label: `New Enquiries (${stats.newEnquiries})` },
+              { id: 'followup', label: `In Follow-up (${stats.followUp})` },
+              { id: 'interested', label: `Interested (${stats.interested})` },
+              { id: 'demo', label: `Demo Scheduled (${stats.demoScheduled})` },
+            ].map(pill => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => { setPipelineSubFilter(pill.id as any); setPage(1); }}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  pipelineSubFilter === pill.id
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
           <Card>
-            <CardHeader>
-              <CardTitle>Active Lead Registrations</CardTitle>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>Active Lead Registrations</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Step 1 queue — qualify leads and advance ready candidates to Step 2 (Fee Discussion) or direct admission.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
+                Showing {filteredLeads.length} active leads
+              </span>
             </CardHeader>
             <Table
               dense
-              minWidth="1100px"
-              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
+              minWidth="1210px"
+              colWidths={['60px', '210px', '160px', '170px', '130px', '120px', '140px', '220px']}
+              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Pipeline Action', align: 'center', minWidth: '220px' }]}
             >
               {paginatedLeads.map(l => (
                 <tr
@@ -2760,7 +3133,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.name}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">
+                    <div>{l.name}</div>
+                    {l.email && <div className="text-xs text-slate-400 font-normal">{l.email}</div>}
+                  </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <div className="text-slate-800 font-medium">{l.mobile || '—'}</div>
                     {l.parentMobile && (
@@ -2781,7 +3157,33 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.counsellor || 'Unassigned'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {l.status === 'Fee Discussion' ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`${basePath}/fee`)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <DollarSign size={13} /> Fee Queue <ChevronRight size={12} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => handleQuickAdvanceToFee(l, e)}
+                          title="Advance lead to Step 2: Fee Discussion"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <DollarSign size={13} /> Advance to Fee <ChevronRight size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/leads/${l.id}/convert`, { state: { prefilledFeeData: l.feeConfig } })}
+                        title="Direct Admission / Enroll Student"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer shrink-0"
+                      >
+                        <UserCheck size={16} />
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleOpenLeadDetail(l, 'profile', false)}
@@ -2823,22 +3225,40 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 2: FEE DISCUSSION */}
+      {/* TAB CONTENT 2: FEE DISCUSSION (Step 2) */}
       {activeTab === 'fee' && (
         <div className="space-y-4">
-          <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800 flex items-center gap-2">
-            <Clock size={14} className="text-blue-500" />
-            <span><strong>Phase 2 — Fee Discussion:</strong> Track and manage fees negotiations for active leads.</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'In Fee Discussion', value: stats.feeDiscussionCount, color: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-800' },
+              { label: 'Active in Nurture (Step 1)', value: stats.pipelinePhaseCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Pending Docs (Step 3)', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Active Students (Step 5)', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+            ].map(s => (
+              <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
+                <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
+                <div className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</div>
+              </div>
+            ))}
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Fee Discussion Queue</CardTitle>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>Fee Discussion Queue</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Step 2 queue — review quotations and payment structures with parents. Click "Proceed to Admission" to convert candidate.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-cyan-50 text-cyan-800 rounded-lg self-start sm:self-center border border-cyan-200">
+                {filteredLeads.length} candidates in fee discussion
+              </span>
             </CardHeader>
             <Table
               dense
-              minWidth="1200px"
-              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', 'Next Follow-up', { label: 'Actions', align: 'center' }]}
+              minWidth="1260px"
+              colWidths={['60px', '200px', '160px', '170px', '130px', '170px', '130px', '240px']}
+              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Fee Plan Status', 'Next Follow-up', { label: 'Pipeline Action', align: 'center', minWidth: '220px' }]}
             >
               {paginatedLeads.map(l => (
                 <tr
@@ -2847,7 +3267,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   className="hover:bg-slate-50 cursor-pointer transition-colors"
                 >
                   <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.name}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">
+                    <div>{l.name}</div>
+                    {l.email && <div className="text-xs text-slate-400 font-normal">{l.email}</div>}
+                  </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <div className="text-slate-800 font-medium">{l.mobile || '—'}</div>
                     {l.parentMobile && (
@@ -2864,23 +3287,46 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   </td>
                   <td className="px-4 py-3 text-slate-700 text-sm whitespace-nowrap">{l.branch || 'N/A'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <StatusBadge status={l.status} />
+                    {l.feeConfig ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        ₹{(l.feeConfig.netFee || l.feeConfig.totalFee || 0).toLocaleString()} (Configured)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200">
+                        <Clock size={11} /> Needs Fee Plan
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{l.counsellor || 'Unassigned'}</td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <span className="font-mono text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                       {l.nextFollowUp || '—'}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/leads/${l.id}/convert`, { state: { prefilledFeeData: l.feeConfig } })}
+                        title="Proceed to Step 3: Student Registration"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                      >
+                        Proceed to Admission <ChevronRight size={13} />
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleOpenLeadDetail(l, 'fee', false)}
                         title="Configure Fee Plan"
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer shrink-0"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
                       >
-                        <DollarSign size={16} />
+                        <DollarSign size={13} /> Fee Plan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleQuickRevertToFollowup(l, e)}
+                        title="Return to Step 1: Follow-up queue"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer shrink-0"
+                      >
+                        <RotateCcw size={15} />
                       </button>
                       <button
                         type="button"
@@ -2904,7 +3350,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               ))}
               {filteredLeads.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
                     {leadsLoading ? 'Loading leads...' : 'No leads currently in fee discussion phase.'}
                   </td>
                 </tr>
@@ -2915,15 +3361,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 3: ADMISSION CONFIRMATION */}
+      {/* TAB CONTENT 3: ADMISSION CONFIRMATION & DOCS (Step 3) */}
       {activeTab === 'admission' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Enquiries', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
-              { label: 'Pending Docs', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Pending Verification', value: stats.pendingReview, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Active Students', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Pending Docs Verification', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Documents Verified', value: stats.verifiedDocsCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Needs Batch (Step 4)', value: stats.unassignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Active Students (Step 5)', value: stats.activeStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -2932,37 +3378,97 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             ))}
           </div>
 
+          {/* Admission Verification Sub-filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Verification Queue:</span>
+            {[
+              { id: 'all', label: `All Registered Students (${stats.totalStudents})` },
+              { id: 'pending', label: `Pending Verification (${stats.pendingDocs})` },
+              { id: 'verified', label: `Documents Verified (${stats.verifiedDocsCount})` },
+            ].map(pill => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => { setAdmissionSubFilter(pill.id as any); setPage(1); }}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  admissionSubFilter === pill.id
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
           <Card>
-            <CardHeader>
-              <CardTitle>Admission & Verification Queue</CardTitle>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>Admission & Verification Queue</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Step 3 queue — verify KYC and academic records. Once verified, click "Allocate Batch" to assign classroom.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
+                Showing {filteredStudents.length} students
+              </span>
             </CardHeader>
             <Table
               dense
               minWidth="1120px"
-              colWidths={['160px', '180px', '130px', '140px', '170px', '170px', '140px']}
-              headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', { label: 'Actions', align: 'center' }]}
+              colWidths={['150px', '180px', '130px', '140px', '160px', '150px', '200px']}
+              headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', { label: 'Pipeline Action', align: 'center', minWidth: '200px' }]}
             >
-              {paginatedStudents.map(s => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
-                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenDocModal(s)}>{s.name}</td>
-                  <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.mobile || '—'}</td>
-                  <td className="px-3.5 py-3 text-xs text-slate-700 font-medium whitespace-nowrap">{s.course}</td>
-                  <td className="px-3.5 py-3 whitespace-nowrap">
-                    {s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 ? (
-                      <span className="text-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5"><CheckCircle size={12} /> Verified</span>
-                    ) : (
-                      <span className="text-amber-600 text-xs font-semibold inline-flex items-center gap-1.5"><Clock size={12} /> Verification Pending</span>
-                    )}
-                  </td>
-                  <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
-                  <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                    <Button variant="primary" size="sm" onClick={() => handleOpenDocModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1" style={{ backgroundColor: '#2563eb', color: 'white' }}>
-                      Review Docs <ChevronRight size={12} className="ml-1" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {paginatedStudents.map(s => {
+                const isVerified = s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 || s.status === 7 || Boolean(s.isDocVerified);
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                    <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenDocModal(s)}>
+                      {s.name}
+                    </td>
+                    <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.mobile || '—'}</td>
+                    <td className="px-3.5 py-3 text-xs text-slate-700 font-medium whitespace-nowrap">{s.course}</td>
+                    <td className="px-3.5 py-3 whitespace-nowrap">
+                      {isVerified ? (
+                        <span className="text-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5"><CheckCircle size={12} /> Verified</span>
+                      ) : (
+                        <span className="text-amber-600 text-xs font-semibold inline-flex items-center gap-1.5"><Clock size={12} /> Verification Pending</span>
+                      )}
+                    </td>
+                    <td className="px-3.5 py-3 whitespace-nowrap">
+                      <StatusBadge status={isVerified && (s.status === 0 || s.status === 3 || s.status === 4) ? 5 : s.status} />
+                    </td>
+                    <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {isVerified ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBatchModal(s)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <Layers size={13} /> Allocate Batch <ChevronRight size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDocModal(s)}
+                              title="View Verified Documents"
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Eye size={15} />
+                            </button>
+                          </>
+                        ) : (
+                          <Button variant="primary" size="sm" onClick={() => handleOpenDocModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1" style={{ backgroundColor: '#2563eb', color: 'white' }}>
+                            Review Docs <ChevronRight size={12} className="ml-1" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredStudents.length === 0 && (
                 <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
               )}
@@ -2972,47 +3478,122 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 4: BATCH ALLOCATION */}
+      {/* TAB CONTENT 4: BATCH ALLOCATION (Step 4) */}
       {activeTab === 'batch' && (
         <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Needs Batch Allocation', value: stats.unassignedBatchCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
+              { label: 'Batch Allocated', value: stats.assignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Pending Payment (Step 5)', value: stats.pendingPaymentCount, color: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-800' },
+              { label: 'Active Students (Step 5)', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+            ].map(s => (
+              <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
+                <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
+                <div className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Batch Sub-filter chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Batch Queue:</span>
+            {[
+              { id: 'unassigned', label: `Needs Batch Allocation (${stats.unassignedBatchCount})` },
+              { id: 'assigned', label: `Batch Allocated (${stats.assignedBatchCount})` },
+              { id: 'all', label: `All Students (${stats.totalStudents})` },
+            ].map(pill => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => { setBatchSubFilter(pill.id as any); setPage(1); }}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  batchSubFilter === pill.id
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
           <Card>
-            <CardHeader>
-              <CardTitle>Batch Allocation Queue</CardTitle>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>Batch Allocation Queue</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Step 4 queue — assign course batch and timing. Once batch is assigned, advance student to fee activation.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
+                Showing {filteredStudents.length} students
+              </span>
             </CardHeader>
             <Table
               dense
               minWidth="1180px"
-              colWidths={['140px', '160px', '120px', '130px', '130px', '150px', '160px', '170px']}
-              headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', { label: 'Actions', align: 'center', minWidth: '160px' }]}
+              colWidths={['140px', '160px', '120px', '130px', '130px', '150px', '160px', '220px']}
+              headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', { label: 'Pipeline Action', align: 'center', minWidth: '220px' }]}
             >
-              {paginatedStudents.map(s => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
-                  <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenBatchModal(s)}>
-                    {s.name}
-                  </td>
-                  <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
-                  <td className="px-3.5 py-3 text-xs text-slate-600 whitespace-nowrap">{s.branch || '—'}</td>
-                  <td className="px-3.5 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{s.admissionDate || '—'}</td>
-                  <td className="px-3.5 py-3 whitespace-nowrap">
-                    {s.batch ? (
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
-                        {s.batch}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-amber-700 font-semibold inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                        <Clock size={12} /> Unassigned
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
-                  <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                    <Button variant="secondary" size="sm" onClick={() => handleOpenBatchModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap">
-                      <Layers size={13} /> Allocate Batch
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {paginatedStudents.map(s => {
+                const hasBatch = Boolean(s.batch && s.batch !== '—' && s.batch.trim() !== '');
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                    <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenBatchModal(s)}>
+                      {s.name}
+                    </td>
+                    <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
+                    <td className="px-3.5 py-3 text-xs text-slate-600 whitespace-nowrap">{s.branch || '—'}</td>
+                    <td className="px-3.5 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{s.admissionDate || '—'}</td>
+                    <td className="px-3.5 py-3 whitespace-nowrap">
+                      {hasBatch ? (
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
+                          {s.batch}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-700 font-semibold inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                          <Clock size={12} /> Needs Batch
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
+                    <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {!hasBatch ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleOpenBatchModal(s)}
+                            className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <Layers size={13} /> Allocate Batch <ChevronRight size={12} />
+                          </Button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`${basePath}/payment`)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <Zap size={13} /> Proceed to Payment <ChevronRight size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenBatchModal(s)}
+                              title="Change Batch"
+                              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Edit3 size={15} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredStudents.length === 0 && (
                 <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
               )}
@@ -3022,15 +3603,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 5: PAYMENT & ACTIVATION */}
+      {/* TAB CONTENT 5: PAYMENT & ACTIVATION (Step 5) */}
       {activeTab === 'payment' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Registered', value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-700' },
-              { label: 'Active Students', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Pending Payment / Activation', value: stats.pendingPaymentCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
+              { label: 'Active Students Enrolled', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
               { label: 'Fee Collected', value: `₹${stats.feeCollected.toLocaleString()}`, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Outstanding', value: `₹${stats.feeOutstanding.toLocaleString()}`, color: 'bg-red-50 border-red-200', text: 'text-red-600' },
+              { label: 'Outstanding Balance', value: `₹${stats.feeOutstanding.toLocaleString()}`, color: 'bg-red-50 border-red-200', text: 'text-red-600' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -3039,70 +3620,112 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             ))}
           </div>
 
+          {/* Payment Activation Sub-filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Activation Queue:</span>
+            {[
+              { id: 'pending', label: `Pending Activation (${stats.pendingPaymentCount})` },
+              { id: 'active', label: `Active Students (${stats.activeStudents})` },
+              { id: 'all', label: `All Students (${stats.totalStudents})` },
+            ].map(pill => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => { setPaymentSubFilter(pill.id as any); setPage(1); }}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  paymentSubFilter === pill.id
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
+          </div>
+
           <Card>
-            <CardHeader>
-              <CardTitle>Fee Activation & Status Ledger</CardTitle>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>Fee Activation & Status Ledger</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Step 5 final gate — collect down payment or full fee installment to activate student LMS portal and registration.
+                </p>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
+                Showing {filteredStudents.length} students
+              </span>
             </CardHeader>
             <Table
               dense
               minWidth="1220px"
-              colWidths={['140px', '160px', '120px', '150px', '100px', '100px', '110px', '150px', '160px']}
-              headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Actions', align: 'center', minWidth: '150px' }]}
+              colWidths={['140px', '160px', '120px', '150px', '100px', '100px', '110px', '150px', '200px']}
+              headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Pipeline Action', align: 'center', minWidth: '200px' }]}
             >
-              {paginatedStudents.map(s => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
-                  <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">{s.name}</td>
-                  <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
-                  <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.batch || '—'}</td>
-                  <td className="px-3.5 py-3 text-xs font-semibold text-slate-800 whitespace-nowrap">₹{(s.feePlan?.total || 0).toLocaleString()}</td>
-                  <td className="px-3.5 py-3 text-xs font-bold text-emerald-600 whitespace-nowrap">₹{(s.feePlan?.paid || 0).toLocaleString()}</td>
-                  <td className="px-3.5 py-3 text-xs font-bold text-red-500 whitespace-nowrap">₹{(s.feePlan?.pending || 0).toLocaleString()}</td>
-                  <td className="px-3.5 py-3 whitespace-nowrap">
-                    {s.status === 'Active Student' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold rounded-md uppercase tracking-wider select-none">
-                        <Zap size={10} className="fill-emerald-500 text-emerald-500" /> Active
-                      </span>
-                    ) : (
-                      <StatusBadge status={s.status} />
-                    )}
-                  </td>
-                  <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                    <button
-                      onClick={async () => {
-                        const pendingAmount = (s.feePlan?.pending && s.feePlan.pending > 0) ? s.feePlan.pending : (s.feePlan?.downPayment || 10000);
-                        try {
-                          try {
-                            await apiRecordPayment({
-                              student_id: Number(s.id),
-                              amount: pendingAmount,
-                              payment_mode: 'Cash',
-                              remarks: 'Admissions Down Payment & Activation'
-                            });
-                          } catch (payErr) {
-                            console.warn('apiRecordPayment warning:', payErr);
-                          }
-                          await updateStudent(s.id, { status: 1 });
-                          recordPayment(s.id, pendingAmount, 'Cash');
-                          addToast(`Collected fee downpayment of ₹${pendingAmount.toLocaleString()}. Student ${s.name} status activated.`, 'success');
-                          await fetchStudents();
-                        } catch (err: any) {
-                          recordPayment(s.id, pendingAmount, 'Cash');
-                          addToast(`Recorded fee payment of ₹${pendingAmount.toLocaleString()} for ${s.name}.`, 'success');
-                          await fetchStudents();
-                        }
-                      }}
-                      disabled={s.status === 'Active Student'}
-                      className={`inline-flex items-center justify-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-colors select-none whitespace-nowrap ${s.status !== 'Active Student'
-                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 cursor-pointer shadow-xs'
-                          : 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
-                        }`}
-                    >
-                      {s.status === 'Active Student' ? 'Activated' : 'Record Payment'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {paginatedStudents.map(s => {
+                const isActive = s.status === 'Active Student' || s.status === 1 || s.status === '1';
+                return (
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                    <td className="px-3.5 py-3 font-semibold text-slate-900 whitespace-nowrap">{s.name}</td>
+                    <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
+                    <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.batch || '—'}</td>
+                    <td className="px-3.5 py-3 text-xs font-semibold text-slate-800 whitespace-nowrap">₹{(s.feePlan?.total || 0).toLocaleString()}</td>
+                    <td className="px-3.5 py-3 text-xs font-bold text-emerald-600 whitespace-nowrap">₹{(s.feePlan?.paid || 0).toLocaleString()}</td>
+                    <td className="px-3.5 py-3 text-xs font-bold text-red-500 whitespace-nowrap">₹{(s.feePlan?.pending || 0).toLocaleString()}</td>
+                    <td className="px-3.5 py-3 whitespace-nowrap">
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold rounded-md uppercase tracking-wider select-none">
+                          <Zap size={10} className="fill-emerald-500 text-emerald-500" /> Active Student
+                        </span>
+                      ) : (
+                        <StatusBadge status={s.status} />
+                      )}
+                    </td>
+                    <td className="px-3.5 py-3 whitespace-nowrap text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {!isActive ? (
+                          <button
+                            onClick={async () => {
+                              const pendingAmount = (s.feePlan?.pending && s.feePlan.pending > 0) ? s.feePlan.pending : (s.feePlan?.downPayment || 10000);
+                              try {
+                                try {
+                                  await apiRecordPayment({
+                                    student_id: Number(s.id),
+                                    amount: pendingAmount,
+                                    payment_mode: 'Cash',
+                                    remarks: 'Admissions Down Payment & Activation'
+                                  });
+                                } catch (payErr) {
+                                  console.warn('apiRecordPayment warning:', payErr);
+                                }
+                                await updateStudent(s.id, { status: 1 });
+                                recordPayment(s.id, pendingAmount, 'Cash');
+                                addToast(`Collected fee downpayment of ₹${pendingAmount.toLocaleString()}! ${s.name} status is now Active.`, 'success');
+                                await fetchStudents();
+                              } catch (err: any) {
+                                recordPayment(s.id, pendingAmount, 'Cash');
+                                addToast(`Recorded fee payment of ₹${pendingAmount.toLocaleString()} for ${s.name}.`, 'success');
+                                await fetchStudents();
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
+                          >
+                            <Zap size={13} /> Collect Fee & Activate
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => navigate(currentUser?.role === 'counsellor' ? '/counsellor/students' : isBranchAdmin ? '/branch/students' : '/admin/students')}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
+                          >
+                            <CheckCircle size={13} className="text-emerald-600" /> View in Roster <ChevronRight size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredStudents.length === 0 && (
                 <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
               )}
@@ -3297,10 +3920,35 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               </div>
             )}
 
-            <div className="flex justify-end pt-3 border-t border-slate-200">
-              <Button variant="secondary" onClick={() => setDocModalStudent(null)}>
-                Close
-              </Button>
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200 w-full">
+              <div className="text-xs text-slate-500 font-medium">
+                {studentDocList.length > 0 && studentDocList.every(d => d.status === 1) ? (
+                  <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
+                    <CheckCircle size={14} /> All documents verified. Ready for batch allocation.
+                  </span>
+                ) : (
+                  <span>Verify required student documents to proceed to Batch Allocation.</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => setDocModalStudent(null)}>
+                  Close
+                </Button>
+                {studentDocList.length > 0 && studentDocList.every(d => d.status === 1) && (
+                  <Button
+                    variant="primary"
+                    style={{ backgroundColor: '#2563eb', color: 'white' }}
+                    onClick={() => {
+                      const st = docModalStudent;
+                      setDocModalStudent(null);
+                      handleOpenBatchModal(st);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                  >
+                    Proceed to Batch Allocation <ChevronRight size={14} />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </Modal>

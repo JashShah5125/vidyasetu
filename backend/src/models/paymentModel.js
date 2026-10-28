@@ -10,7 +10,19 @@ const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 const INVOICE_STATUSES = ['unpaid', 'paid'];
 const FEE_STATUSES = ['unpaid', 'partial', 'paid'];
-const PAYMENT_MODES = ['UPI', 'Cash', 'Cheque', 'Bank Transfer'];
+const PAYMENT_MODES = [
+    'UPI',
+    'Cash',
+    'Down Payment',
+    'Downpayment',
+    'Installment',
+    'Cheque',
+    'Bank Transfer',
+    'Card',
+    'Net Banking',
+    'Demand Draft',
+    'Other'
+];
 
 /**
  * Loads a student's fee ledger: base student info, the master fee assignment,
@@ -235,10 +247,14 @@ const validateAndPlan = async (tenantId, studentId, amount, installmentIds) => {
 };
 
 const validateAdditionalFields = (data) => {
-    const mode = String(data.payment_mode || '').trim();
-    if (!PAYMENT_MODES.includes(mode)) {
+    const rawMode = String(data.payment_mode || '').trim();
+    const matchedMode = PAYMENT_MODES.find(
+        (m) => m.toLowerCase() === rawMode.toLowerCase() || m.toLowerCase().replace(/\s+/g, '_') === rawMode.toLowerCase()
+    );
+    if (!matchedMode) {
         throw httpError(400, `Invalid payment mode. Expected one of: ${PAYMENT_MODES.join(', ')}`);
     }
+    data.payment_mode = matchedMode;
     if (data.transaction_reference !== undefined && data.transaction_reference !== null) {
         const ref = String(data.transaction_reference).trim();
         if (ref.length > 100) throw httpError(400, 'Transaction reference cannot exceed 100 characters');
@@ -268,7 +284,8 @@ const recordPayment = async ({
 }) => {
     const tid = Number(tenantId);
     const validator = await validateAndPlan(tid, studentId, amount, installmentIds);
-    validateAdditionalFields({ payment_mode: paymentMode, transaction_reference: transactionReference, remarks });
+    const fieldsToValidate = { payment_mode: paymentMode, transaction_reference: transactionReference, remarks };
+    validateAdditionalFields(fieldsToValidate);
 
     const {
         ledger,
@@ -277,7 +294,7 @@ const recordPayment = async ({
     } = validator;
 
     const amountNum = round2(Number(amount) || 0);
-    const mode = String(paymentMode).trim();
+    const mode = fieldsToValidate.payment_mode || String(paymentMode).trim();
     const reference = transactionReference ? String(transactionReference).trim() : null;
     const note = remarks ? String(remarks).trim() : null;
 
@@ -390,13 +407,17 @@ const recordPayment = async ({
             [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
         );
 
-        // Activate student status in students table and admissions table upon downpayment/fee payment
+        // Activate student status in students table, admissions table, and student user account upon payment
         await conn.query(
             `UPDATE students SET status = 1, updated_at = NOW() WHERE id = ? AND tenant_id = ?`,
             [Number(studentId), tid]
         );
         await conn.query(
             `UPDATE admissions SET status = 1, activated_at = NOW(), updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+            [Number(studentId), tid]
+        );
+        await conn.query(
+            `UPDATE users u JOIN students s ON s.user_id = u.id SET u.status = 'active', u.updated_at = NOW() WHERE s.id = ? AND s.tenant_id = ?`,
             [Number(studentId), tid]
         );
 
@@ -574,8 +595,9 @@ const collectBranchPayment = async ({
         throw httpError(400, 'Payment amount must be greater than zero');
     }
 
-    validateAdditionalFields({ payment_mode: paymentMode, transaction_reference: transactionReference, remarks });
-    const mode = String(paymentMode).trim();
+    const fieldsToValidate = { payment_mode: paymentMode, transaction_reference: transactionReference, remarks };
+    validateAdditionalFields(fieldsToValidate);
+    const mode = fieldsToValidate.payment_mode || String(paymentMode).trim();
     const reference = transactionReference ? String(transactionReference).trim() : null;
     const note = remarks ? String(remarks).trim() : null;
     const today = new Date().toISOString().split('T')[0];
@@ -655,6 +677,20 @@ const collectBranchPayment = async ({
                 updated_by = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
+        );
+
+        // Activate student status in students table, admissions table, and student user account upon payment
+        await conn.query(
+            `UPDATE students SET status = 1, updated_at = NOW() WHERE id = ? AND tenant_id = ?`,
+            [sid, tid]
+        );
+        await conn.query(
+            `UPDATE admissions SET status = 1, activated_at = NOW(), updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+            [sid, tid]
+        );
+        await conn.query(
+            `UPDATE users u JOIN students s ON s.user_id = u.id SET u.status = 'active', u.updated_at = NOW() WHERE s.id = ? AND s.tenant_id = ?`,
+            [sid, tid]
         );
 
         await conn.commit();
@@ -994,6 +1030,20 @@ const updateCollectionInvoice = async ({
                 status = 'paid', updated_by = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [newAmount, newAmount, mode, ref, desc, note, iDate, dDate, pDate, updatedBy, invId]
+        );
+
+        // Activate student status in students table, admissions table, and student user account upon payment
+        await conn.query(
+            `UPDATE students SET status = 1, updated_at = NOW() WHERE id = ? AND tenant_id = ?`,
+            [Number(inv.student_id), tid]
+        );
+        await conn.query(
+            `UPDATE admissions SET status = 1, activated_at = NOW(), updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+            [Number(inv.student_id), tid]
+        );
+        await conn.query(
+            `UPDATE users u JOIN students s ON s.user_id = u.id SET u.status = 'active', u.updated_at = NOW() WHERE s.id = ? AND s.tenant_id = ?`,
+            [Number(inv.student_id), tid]
         );
 
         await conn.commit();

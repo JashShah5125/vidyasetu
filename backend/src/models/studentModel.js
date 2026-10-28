@@ -135,6 +135,37 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         LEFT JOIN courses c ON (l.course_id = c.id OR p.course_id = c.id) AND c.tenant_id = s.tenant_id
     `;
 
+    const docJoin = `
+        LEFT JOIN (
+            SELECT student_id, tenant_id,
+                   COUNT(*) AS total_docs,
+                   SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS verified_docs,
+                   SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END) AS rejected_docs,
+                   SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) AS pending_docs
+            FROM student_documents
+            WHERE deleted_at IS NULL
+            GROUP BY student_id, tenant_id
+        ) docs ON docs.student_id = s.id AND docs.tenant_id = s.tenant_id
+    `;
+
+    const enqFeeJoin = `
+        LEFT JOIN (
+            SELECT 
+                converted_student_id,
+                tenant_id,
+                actual_price,
+                concession_amount,
+                final_price,
+                down_payment,
+                installment_months,
+                installment_amount,
+                created_at,
+                ROW_NUMBER() OVER (PARTITION BY converted_student_id ORDER BY id DESC) AS rn
+            FROM enquiries
+            WHERE converted_student_id IS NOT NULL AND deleted_at IS NULL
+        ) enq_fee ON enq_fee.converted_student_id = s.id AND enq_fee.tenant_id = s.tenant_id AND enq_fee.rn = 1
+    `;
+
     if (search && search.trim() !== '') {
         const term = `%${search.trim()}%`;
         whereClause += ` AND (s.full_name LIKE ? OR s.student_code LIKE ? OR s.mobile LIKE ? OR s.email LIKE ?)`;
@@ -184,17 +215,18 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
     // Calculate aggregate financial summary across the entire filtered population
     const summaryDataQuery = `
         SELECT 
-            fa.net_amount,
-            fa.paid_amount,
-            fa.balance_amount,
-            fa.down_payment,
-            fa.installment_count,
-            fa.installment_amount,
+            COALESCE(fa.net_amount, enq_fee.final_price, enq_fee.actual_price, 0) AS net_amount,
+            COALESCE(fa.paid_amount, 0) AS paid_amount,
+            COALESCE(fa.balance_amount, enq_fee.final_price, enq_fee.actual_price, 0) AS balance_amount,
+            COALESCE(fa.down_payment, enq_fee.down_payment, 0) AS down_payment,
+            COALESCE(fa.installment_count, enq_fee.installment_months, 1) AS installment_count,
+            COALESCE(fa.installment_amount, enq_fee.installment_amount, 0) AS installment_amount,
             COALESCE(se.enrolled_date, fa.created_at, s.created_at) AS start_date
         FROM students s
         LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
         ${academicJoins}
         ${faJoin}
+        ${enqFeeJoin}
         ${whereClause}
     `;
 
@@ -278,16 +310,20 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             g.mobile AS guardian_mobile,
             g.relation AS guardian_relation,
             g.email AS guardian_email,
-            fa.gross_amount AS total_fees_gross,
-            fa.total_concession AS total_concession,
-            fa.net_amount AS total_fees,
-            fa.down_payment AS down_payment,
-            fa.installment_count AS installment_count,
-            fa.installment_amount AS installment_amount,
-            fa.paid_amount AS fees_paid,
-            fa.balance_amount AS fees_outstanding,
-            fa.status AS fee_status,
-            fa.created_at AS fee_created_at
+            COALESCE(fa.gross_amount, enq_fee.actual_price, enq_fee.final_price, 0) AS total_fees_gross,
+            COALESCE(fa.total_concession, enq_fee.concession_amount, 0) AS total_concession,
+            COALESCE(fa.net_amount, enq_fee.final_price, enq_fee.actual_price, 0) AS total_fees,
+            COALESCE(fa.down_payment, enq_fee.down_payment, 0) AS down_payment,
+            COALESCE(fa.installment_count, enq_fee.installment_months, 1) AS installment_count,
+            COALESCE(fa.installment_amount, enq_fee.installment_amount, 0) AS installment_amount,
+            COALESCE(fa.paid_amount, 0) AS fees_paid,
+            COALESCE(fa.balance_amount, enq_fee.final_price, enq_fee.actual_price, 0) AS fees_outstanding,
+            COALESCE(fa.status, 'unpaid') AS fee_status,
+            COALESCE(fa.created_at, enq_fee.created_at) AS fee_created_at,
+            COALESCE(docs.total_docs, 0) AS total_docs,
+            COALESCE(docs.verified_docs, 0) AS verified_docs,
+            COALESCE(docs.rejected_docs, 0) AS rejected_docs,
+            COALESCE(docs.pending_docs, 0) AS pending_docs
         FROM students s
         LEFT JOIN branches b ON s.primary_branch_id = b.id AND b.tenant_id = s.tenant_id
         LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
@@ -296,8 +332,10 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         LEFT JOIN student_guardians sg ON s.id = sg.student_id AND sg.tenant_id = s.tenant_id AND sg.is_primary = 1
         LEFT JOIN guardians g ON sg.guardian_id = g.id AND g.tenant_id = s.tenant_id
         ${faJoin}
+        ${enqFeeJoin}
+        ${docJoin}
         ${whereClause}
-        ORDER BY s.id DESC 
+        ORDER BY s.created_at DESC, s.id DESC 
         LIMIT ? OFFSET ?
     `;
 
@@ -324,6 +362,10 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
         expectedDue = Math.min(net, expectedDue);
         const overdue = Math.max(0, expectedDue - paid);
 
+        const totalDocs = Number(row.total_docs) || 0;
+        const verifiedDocs = Number(row.verified_docs) || 0;
+        const isDocVerified = row.status === 5 || row.status === 1 || row.status === 7 || (totalDocs > 0 && verifiedDocs === totalDocs);
+
         return {
             ...row,
             course_name: row.course_name || row.target_exam || '—',
@@ -335,7 +377,10 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             expected_due_till_date: Math.round(expectedDue),
             fees_overdue: Math.round(overdue),
             is_defaulter: overdue > 0,
-            fee_status: row.fee_status || (balance <= 0 ? 'paid' : (paid > 0 ? 'partial' : 'unpaid'))
+            fee_status: row.fee_status || (balance <= 0 ? 'paid' : (paid > 0 ? 'partial' : 'unpaid')),
+            total_docs: totalDocs,
+            verified_docs: verifiedDocs,
+            is_doc_verified: isDocVerified
         };
     });
 
@@ -501,6 +546,37 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
             [id, tenantId]
         );
         invoicesList = invRows;
+    } else {
+        // Fallback to enquiry agreed fee structure if fee assignment is not created yet
+        const [enqFee] = await pool.query(
+            `SELECT actual_price, concession_amount, final_price, down_payment, installment_months, installment_amount
+             FROM enquiries
+             WHERE converted_student_id = ? AND tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
+            [id, tenantId]
+        );
+        if (enqFee.length > 0) {
+            const enq = enqFee[0];
+            const gross = Number(enq.actual_price || enq.final_price || 0);
+            const disc = Number(enq.concession_amount || 0);
+            const net = Math.max(0, gross - disc);
+            const down = Number(enq.down_payment || 0);
+            const instCount = Math.max(1, Number(enq.installment_months || 1));
+            const instAmount = Number(enq.installment_amount || Math.round((net - down) / instCount));
+            feeAssignment = {
+                gross_amount: gross,
+                discount_amount: disc,
+                total_concession: disc,
+                net_amount: net,
+                downpayment_amount: down,
+                down_payment: down,
+                installment_count: instCount,
+                installment_amount: instAmount,
+                paid_amount: 0,
+                balance_amount: net,
+                balance_due: net,
+                status: 'pending'
+            };
+        }
     }
 
     return {
@@ -573,6 +649,10 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
             [studentEmail]
         );
 
+        // Status should be inactive (0) for new students until there is at least one payment entry.
+        const hasInitialPayment = Number(studentData.downpayment_amount || 0) > 0 || Number(studentData.paid_amount || 0) > 0;
+        const studentStatus = hasInitialPayment ? 1 : 0;
+
         if (existingStudentUsers.length > 0) {
             const matchedTenantUser = existingStudentUsers.find(u => u.tenant_id === tenantId);
             if (matchedTenantUser) {
@@ -586,13 +666,14 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
             const [userRes] = await connection.query(`
                 INSERT INTO users (
                     tenant_id, name, email, mobile, password_hash, user_type, status
-                ) VALUES (?, ?, ?, ?, ?, 'student', 'active')
+                ) VALUES (?, ?, ?, ?, ?, 'student', ?)
             `, [
                 tenantId,
                 studentData.full_name,
                 studentEmail,
                 studentData.mobile || null,
-                studentPasswordHash
+                studentPasswordHash,
+                studentStatus === 1 ? 'active' : 'inactive'
             ]);
 
             studentUserId = userRes.insertId;
@@ -603,8 +684,6 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
                 VALUES (?, 8, ?)
             `, [studentUserId, createdBy]);
         }
-
-        const studentStatus = normalizeStudentStatus(studentData.status);
 
         // 2. Insert into students table
         const [studentResult] = await connection.query(`
@@ -906,8 +985,25 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
         }
 
         if (updateData.status !== undefined) {
-            studentSets.push(`status = ?`);
-            studentVals.push(normalizeStudentStatus(updateData.status));
+            const requestedStatus = normalizeStudentStatus(updateData.status);
+            if (requestedStatus === 1) {
+                const [payCount] = await connection.query(
+                    `SELECT COUNT(*) as count FROM student_invoices WHERE student_id = ? AND tenant_id = ? AND status = 'paid' AND deleted_at IS NULL`,
+                    [id, tenantId]
+                );
+                const hasPayment = (payCount[0]?.count || 0) > 0;
+                studentSets.push(`status = ?`);
+                studentVals.push(hasPayment ? 1 : 0);
+                if (hasPayment) {
+                    await connection.query(
+                        `UPDATE users u JOIN students s ON s.user_id = u.id SET u.status = 'active' WHERE s.id = ? AND s.tenant_id = ?`,
+                        [id, tenantId]
+                    );
+                }
+            } else {
+                studentSets.push(`status = ?`);
+                studentVals.push(requestedStatus);
+            }
         }
 
         if (studentSets.length > 0) {
@@ -1590,6 +1686,17 @@ const getStudentDocuments = async (tenantId, studentId) => {
 };
 
 const updateStudentDocumentStatus = async (tenantId, studentId, documentId, status, rejectionReason = null, verifiedBy = 1) => {
+    let resolvedStudentId = Number(studentId);
+    if (isNaN(resolvedStudentId) || resolvedStudentId <= 0) {
+        const [stRows] = await pool.query(
+            `SELECT id FROM students WHERE tenant_id = ? AND student_code = ? AND deleted_at IS NULL`,
+            [tenantId, studentId]
+        );
+        if (stRows.length > 0) {
+            resolvedStudentId = stRows[0].id;
+        }
+    }
+
     const numStatus = Number(status);
     await pool.query(`
         UPDATE student_documents
@@ -1601,30 +1708,49 @@ const updateStudentDocumentStatus = async (tenantId, studentId, documentId, stat
         numStatus === 2 ? rejectionReason : null,
         verifiedBy,
         tenantId,
-        Number(studentId),
+        resolvedStudentId,
         Number(documentId)
     ]);
 
-    // Check if all required documents for this student are now verified
-    const [counts] = await pool.query(`
+    // Check all documents for this student
+    const [allDocs] = await pool.query(`
         SELECT 
-            COUNT(DISTINCT dt.id) as total_required,
-            SUM(CASE WHEN sd.status = 1 THEN 1 ELSE 0 END) as verified_count
-        FROM student_documents sd
-        JOIN document_types dt ON sd.document_type_id = dt.id
-        WHERE sd.tenant_id = ? AND sd.student_id = ? AND sd.deleted_at IS NULL AND dt.is_required = 1
-    `, [tenantId, Number(studentId)]);
+            COUNT(*) as total_docs,
+            SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as verified_count,
+            SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END) as rejected_count,
+            SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as pending_count
+        FROM student_documents
+        WHERE tenant_id = ? AND student_id = ? AND deleted_at IS NULL
+    `, [tenantId, resolvedStudentId]);
 
-    if (counts[0] && counts[0].total_required > 0 && Number(counts[0].verified_count) >= Number(counts[0].total_required)) {
-        // Automatically mark student as Documents Verified (status = 5)
+    const totalDocs = Number(allDocs[0]?.total_docs || 0);
+    const verifiedDocs = Number(allDocs[0]?.verified_count || 0);
+    const rejectedDocs = Number(allDocs[0]?.rejected_count || 0);
+
+    if (totalDocs > 0 && verifiedDocs === totalDocs) {
+        // Automatically mark student as Documents Verified (status = 5) if not already active or allocated
         await pool.query(`
             UPDATE students
             SET status = 5, updated_by = ?
-            WHERE tenant_id = ? AND id = ? AND status IN (3, 4)
-        `, [verifiedBy, tenantId, Number(studentId)]);
+            WHERE tenant_id = ? AND id = ? AND status IN (0, 3, 4)
+        `, [verifiedBy, tenantId, resolvedStudentId]);
+    } else if (rejectedDocs > 0) {
+        // Revert student status if previously marked verified
+        await pool.query(`
+            UPDATE students
+            SET status = 4, updated_by = ?
+            WHERE tenant_id = ? AND id = ? AND status = 5
+        `, [verifiedBy, tenantId, resolvedStudentId]);
+    } else {
+        // Some documents still pending verification
+        await pool.query(`
+            UPDATE students
+            SET status = 4, updated_by = ?
+            WHERE tenant_id = ? AND id = ? AND status = 5
+        `, [verifiedBy, tenantId, resolvedStudentId]);
     }
 
-    return getStudentDocuments(tenantId, studentId);
+    return getStudentDocuments(tenantId, resolvedStudentId);
 };
 
 module.exports = {

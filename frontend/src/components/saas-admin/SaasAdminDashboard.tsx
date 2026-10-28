@@ -158,6 +158,13 @@ const userStatusChartConfig: ChartConfig = {
   expired: { label: 'Expired', color: '#f59e0b' },
 };
 
+const getCurrentAyStartYear = (): string => {
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1; // 1-12
+  const currentYear = today.getFullYear();
+  return String(currentMonth >= 4 ? currentYear : currentYear - 1);
+};
+
 export const SaasAdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [preset, setPreset] = useState<DatePreset>('monthly');
@@ -168,7 +175,7 @@ export const SaasAdminDashboard: React.FC = () => {
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [revenueTrend, setRevenueTrend] = useState<RevenueTrendItem[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
-  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>(getCurrentAyStartYear());
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [expiringLimit, setExpiringLimit] = useState<string>('5');
   const [loading, setLoading] = useState(true);
@@ -205,6 +212,11 @@ export const SaasAdminDashboard: React.FC = () => {
         const { data } = await api.get('/admin/dashboard/academic-years');
         if (data.status === 'success' && Array.isArray(data.data)) {
           setAcademicYears(data.data);
+          const currentAy = getCurrentAyStartYear();
+          const match = data.data.find((ay: AcademicYearOption) => String(ay.start_year) === currentAy);
+          if (match) {
+            setSelectedYear(String(match.start_year));
+          }
         }
       } catch (err) {
         console.error('Failed to load academic years:', err);
@@ -237,14 +249,15 @@ export const SaasAdminDashboard: React.FC = () => {
   const fetchBillingData = async () => {
     try {
       const dates = computeDates(preset);
+      const isCustomPeriod = preset === 'daily' || preset === 'weekly';
       const { data: billingData } = await api.get('/admin/billing/summary', {
         params: {
           year: selectedYear,
           month: selectedMonth,
           preset,
           time_range: preset,
-          startDate: dates.from,
-          endDate: dates.to
+          startDate: isCustomPeriod ? dates.from : undefined,
+          endDate: isCustomPeriod ? dates.to : undefined
         }
       });
       if (billingData.status === 'success') setBilling(billingData.data);
@@ -581,7 +594,10 @@ export const SaasAdminDashboard: React.FC = () => {
                     ? 'Daily Revenue Trajectory (7 Days)'
                     : preset === 'weekly'
                       ? 'Weekly Revenue Trajectory (8 Weeks)'
-                      : `Revenue Collection Trend (${selectedYear === 'all' ? 'All-Time / ' + new Date().getFullYear() : selectedYear})`}
+                      : `Revenue Collection Trend (AY ${
+                          academicYears.find(ay => String(ay.start_year) === selectedYear)?.name ||
+                          (selectedYear && selectedYear !== 'all' ? `${selectedYear}-${String(Number(selectedYear) + 1).slice(-2)}` : `${getCurrentAyStartYear()}-${String(Number(getCurrentAyStartYear()) + 1).slice(-2)}`)
+                        })`}
                 </h3>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">Real-time paid invoice receipts aggregated by period</p>
@@ -594,21 +610,20 @@ export const SaasAdminDashboard: React.FC = () => {
                 onChange={(e) => setSelectedYear(e.target.value)}
                 className="h-7 text-[11px] font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 text-slate-800 outline-none cursor-pointer hover:bg-slate-100/80"
               >
-                <option value="all">All AY</option>
-                {academicYears.length > 0
-                  ? academicYears.map((ay) => (
-                    <option key={ay.id} value={String(ay.start_year || ay.value)}>
-                      {ay.name} ({ay.start_year})
-                    </option>
-                  ))
-                  : (billing?.available_years && billing.available_years.length > 0
-                    ? billing.available_years
-                    : [new Date().getFullYear()]
-                  ).map((yr) => (
-                    <option key={yr} value={String(yr)}>
-                      {yr}
-                    </option>
-                  ))}
+                {academicYears.length > 0 ? (
+                  academicYears.map((ay) => {
+                    const isCurrent = String(ay.start_year) === getCurrentAyStartYear();
+                    return (
+                      <option key={ay.id} value={String(ay.start_year || ay.value)}>
+                        AY {ay.name} {isCurrent ? '(Current)' : ''}
+                      </option>
+                    );
+                  })
+                ) : (
+                  <option value={getCurrentAyStartYear()}>
+                    AY {getCurrentAyStartYear()}-{String(Number(getCurrentAyStartYear()) + 1).slice(-2)} (Current)
+                  </option>
+                )}
               </select>
 
               <select
@@ -617,18 +632,34 @@ export const SaasAdminDashboard: React.FC = () => {
                 className="h-7 text-[11px] font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 text-slate-800 outline-none cursor-pointer hover:bg-slate-100/80"
               >
                 <option value="all">All Months</option>
-                <option value="4">Apr</option>
-                <option value="5">May</option>
-                <option value="6">Jun</option>
-                <option value="7">Jul</option>
-                <option value="8">Aug</option>
-                <option value="9">Sep</option>
-                <option value="10">Oct</option>
-                <option value="11">Nov</option>
-                <option value="12">Dec</option>
-                <option value="1">Jan</option>
-                <option value="2">Feb</option>
-                <option value="3">Mar</option>
+                {[
+                  { val: '4', label: 'Apr' },
+                  { val: '5', label: 'May' },
+                  { val: '6', label: 'Jun' },
+                  { val: '7', label: 'Jul' },
+                  { val: '8', label: 'Aug' },
+                  { val: '9', label: 'Sep' },
+                  { val: '10', label: 'Oct' },
+                  { val: '11', label: 'Nov' },
+                  { val: '12', label: 'Dec' },
+                  { val: '1', label: 'Jan' },
+                  { val: '2', label: 'Feb' },
+                  { val: '3', label: 'Mar' },
+                ].map(({ val, label }) => {
+                  const mNum = Number(val);
+                  const isCurrentAy = selectedYear === getCurrentAyStartYear();
+                  const now = new Date();
+                  const cYear = now.getFullYear();
+                  const cMonth = now.getMonth() + 1;
+                  const tYear = mNum >= 4 ? Number(selectedYear) : Number(selectedYear) + 1;
+                  const isFuture = isCurrentAy && (tYear > cYear || (tYear === cYear && mNum > cMonth));
+
+                  return (
+                    <option key={val} value={val} disabled={isFuture}>
+                      {label} {isFuture ? '(Upcoming)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -646,7 +677,12 @@ export const SaasAdminDashboard: React.FC = () => {
             ) : (
               <ResponsiveContainer width="100%" height="100%" style={{ outline: 'none' }}>
                 <AreaChart
-                  data={revenueTrend.map(t => ({ month: t.m, revenue: t.raw_val, isCurrent: t.isCurrent }))}
+                  data={revenueTrend.map(t => ({
+                    month: t.m,
+                    revenue: t.raw_val,
+                    isCurrent: t.isCurrent,
+                    isFuture: (t as any).isFuture
+                  }))}
                   margin={{ top: 10, right: 30, left: 10, bottom: 26 }}
                   style={{ outline: 'none' }}
                 >
@@ -718,7 +754,12 @@ export const SaasAdminDashboard: React.FC = () => {
                       fontWeight: 700,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
                     }}
-                    formatter={(val) => [Number(val) > 0 ? formatINR(Number(val)) : '—', 'Collected']}
+                    formatter={(val: any, _name: any, item: any) => {
+                      if (item?.payload?.isFuture) {
+                        return ['— (Upcoming / No collection)', 'Status'];
+                      }
+                      return [Number(val) > 0 ? formatINR(Number(val)) : '₹0', 'Collected'];
+                    }}
                   />
                   <Area
                     type="monotone"

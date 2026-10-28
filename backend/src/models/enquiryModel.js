@@ -119,7 +119,7 @@ const getEnquiries = async (tenantId, filters = {}, accessContext = null) => {
         LEFT JOIN branches ab ON ab.id = e.assigned_branch_id AND ab.tenant_id = e.tenant_id
         LEFT JOIN users u ON u.id = e.counsellor_id AND u.tenant_id = e.tenant_id
         ${whereClause}
-        ORDER BY e.created_at DESC
+        ORDER BY e.created_at DESC, e.id DESC
         LIMIT ? OFFSET ?
     `, [...params, Number(limit), Number(offset)]);
 

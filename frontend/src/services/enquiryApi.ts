@@ -265,7 +265,8 @@ export const toLead = (row: EnquiryRow): Lead => {
     nextFollowUp: isoDay(row.next_followup_at),
     remarks: row.remarks || '',
     followups: [],
-    feeConfig
+    feeConfig,
+    createdAt: row.created_at || ''
   };
 };
 

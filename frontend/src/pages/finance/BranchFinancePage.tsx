@@ -1860,9 +1860,11 @@ export const BranchFinancePage: React.FC = () => {
               value={formPaymentMode}
               onChange={(e) => setFormPaymentMode(e.target.value)}
               options={[
-                { value: 'bank_transfer', label: 'Bank Transfer (NEFT/RTGS)' },
                 { value: 'upi', label: 'UPI / GPay' },
                 { value: 'cash', label: 'Cash' },
+                { value: 'down_payment', label: 'Down Payment' },
+                { value: 'installment', label: 'Installment' },
+                { value: 'bank_transfer', label: 'Bank Transfer (NEFT/RTGS)' },
                 { value: 'cheque', label: 'Cheque' },
                 { value: 'card', label: 'Debit / Credit Card' }
               ]}

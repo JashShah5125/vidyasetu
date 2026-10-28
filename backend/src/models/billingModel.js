@@ -556,8 +556,12 @@ const syncTenantSubscriptionFromInvoice = async (tenantId) => {
             LIMIT 1
         `, [tenantId]);
 
-        if (invoices.length === 0) return;
-        const inv = invoices[0];
+        // Check if tenant has AT LEAST ONE paid payment/invoice entry
+        const [paidCountRows] = await pool.query(
+            'SELECT COUNT(*) as count FROM saas_invoices WHERE tenant_id = ? AND status = "paid" AND deleted_at IS NULL',
+            [tenantId]
+        );
+        const hasPaidInvoice = (paidCountRows[0]?.count || 0) > 0;
 
         const finalPrice = inv.subtotal !== null ? Number(inv.subtotal) : (Number(inv.plan_amount) || 0);
 
@@ -584,11 +588,13 @@ const syncTenantSubscriptionFromInvoice = async (tenantId) => {
             Number(inv.tax_rate) || 0,
             finalPrice,
             inv.invoice_number,
-            inv.status === 'paid' ? 'active' : (inv.status === 'overdue' ? 'expired' : 'active')
+            hasPaidInvoice ? 'active' : (inv.status === 'overdue' ? 'expired' : 'inactive')
         ];
 
-        if (inv.status === 'paid') {
+        if (hasPaidInvoice) {
             updateFields.push('status = CASE WHEN status = 3 THEN 3 ELSE 1 END');
+        } else {
+            updateFields.push('status = CASE WHEN status = 3 THEN 3 ELSE 0 END');
         }
 
         await pool.query(`
@@ -596,6 +602,15 @@ const syncTenantSubscriptionFromInvoice = async (tenantId) => {
             SET ${updateFields.join(', ')}
             WHERE id = ?
         `, [...updateParams, tenantId]);
+
+        // When institute has paid invoice and becomes active, automatically activate institute admin user as well
+        if (hasPaidInvoice) {
+            await pool.query(`
+                UPDATE users
+                SET status = 'active', updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = ? AND user_type = 'inst_admin' AND status = 'inactive'
+            `, [tenantId]);
+        }
     } catch (err) {
         console.error('Error syncing tenant subscription from invoice:', err);
     }

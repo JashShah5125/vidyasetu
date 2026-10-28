@@ -96,6 +96,7 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
         }
 
         // 1. Create Tenant (including profile and subscription)
+        // New institutes start inactive (status: 0, subscription_status: 'inactive') until first payment is completed
         const [tenantResult] = await connection.query(
             `INSERT INTO tenants (
                 name, slug, code, tenant_type, status, owner_name, primary_email, owner_mobile, plan_id, 
@@ -106,8 +107,8 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
                 override_max_sms_credits, override_max_whatsapp_msgs
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                name, slug, code, 'customer', 1, legal_name || name, adminEmail, mobile || '', planId || null, 
-                'active', finalStartDate, finalEndDate, finalRenewalDate, address || null, city || null, state || null, pincode || null, panNo || null, gstNo || null,
+                name, slug, code, 'customer', 0, legal_name || name, adminEmail, mobile || '', planId || null, 
+                'inactive', finalStartDate, finalEndDate, finalRenewalDate, address || null, city || null, state || null, pincode || null, panNo || null, gstNo || null,
                 timezone || 'Asia/Kolkata', billingCycle || 'annual', logoUrl || null, 
                 alternateEmails ? JSON.stringify(alternateEmails) : null,
                 discount !== undefined ? discount : null, 
@@ -149,12 +150,11 @@ const createTenantWithAdmin = async (tenantData, leadId = null) => {
         const roleId = roles[0].id;
         const roleCode = roles[0].code;
 
-        // 4. Create Admin User (user_type mirrors the assigned role code so the
-        //    users.user_type column stays consistent for listings/indexes).
+        // 4. Create Admin User (starts inactive until institute payment is recorded)
         const passwordHash = await bcrypt.hash(temporaryPassword, 10);
         const [userResult] = await connection.query(
             'INSERT INTO users (tenant_id, name, email, password_hash, user_type, status, must_change_password, password_generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-            [tenantId, legal_name || 'Tenant Admin', adminEmail, passwordHash, roleCode, 'active', 1]
+            [tenantId, legal_name || 'Tenant Admin', adminEmail, passwordHash, roleCode, 'inactive', 1]
         );
         const adminUserId = userResult.insertId;
 

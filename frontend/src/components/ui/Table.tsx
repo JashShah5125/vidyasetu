@@ -54,11 +54,11 @@ export const Table: React.FC<TableProps> = ({
     <div className={`w-full overflow-x-auto ${className}`}>
       <div 
         style={minWidth ? { minWidth } : undefined}
-        className={borderless ? "w-full" : "w-full border border-slate-200/80 rounded-xl bg-white shadow-sm overflow-hidden"}
+        className={borderless ? "min-w-full inline-block align-middle" : "min-w-full inline-block align-middle border border-slate-200/80 rounded-xl bg-white shadow-sm overflow-hidden"}
       >
         <table 
           style={minWidth ? { minWidth } : undefined}
-          className={`w-full ${colWidths ? 'table-fixed' : 'table-auto'} border-collapse tabular-nums font-sans text-sm break-words [word-break:break-word]`}
+          className={`min-w-full ${colWidths ? 'table-fixed' : 'table-auto'} border-collapse tabular-nums font-sans text-sm break-words [word-break:break-word]`}
         >
           {colWidths && (
             <colgroup>

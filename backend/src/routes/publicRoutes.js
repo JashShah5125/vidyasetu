@@ -27,13 +27,25 @@ router.get('/subscription-plans', async (req, res) => {
     }
 });
 
+const multer = require('multer');
 const { uploadLeadDocuments } = require('../middleware/uploadMiddleware');
+
+const handleLeadUpload = (req, res, next) => {
+    uploadLeadDocuments(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({ status: 'error', message: `File upload error: ${err.message}` });
+        } else if (err) {
+            return res.status(400).json({ status: 'error', message: err.message || 'File upload failed' });
+        }
+        next();
+    });
+};
 
 /**
  * POST /api/public/leads
  * Public endpoint to register an institute lead with required documents from landing / registration page
  */
-router.post('/leads', uploadLeadDocuments, async (req, res) => {
+router.post('/leads', handleLeadUpload, async (req, res) => {
     try {
         const {
             instituteName,
