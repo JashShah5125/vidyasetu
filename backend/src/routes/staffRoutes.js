@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const staffController = require('../controllers/staffController');
-// Temporarily bypassed until Auth Integration is complete
-// router.use(requireAuth);
+const { requireAuth } = require('../middleware/authMiddleware');
+
+router.use(requireAuth);
 
 router.get('/leave-requests', staffController.getAdminLeaveRequests);
 router.put('/leave-requests/:id/status', staffController.updateAdminLeaveStatus);

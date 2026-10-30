@@ -1,9 +1,11 @@
 const staffModel = require('../models/staffModel');
 const pool = require('../config/db');
 
+const resolveTenantId = (req) => req.user?.tenantId || req.user?.tenant_id || req.headers['x-tenant-id'] || 2;
+
 const createStaff = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || 2;
+        const tenantId = resolveTenantId(req);
         const creatorUserId = req.user?.userId || 201;
         const staffData = req.body;
 
@@ -31,7 +33,7 @@ const createStaff = async (req, res) => {
 
 const getStaffList = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || 2;
+        const tenantId = resolveTenantId(req);
         const { page = 1, limit = 50, search, branchId, employeeType, department, role, status } = req.query;
 
         const filters = {
@@ -65,7 +67,7 @@ const getStaffList = async (req, res) => {
 
 const getStaffById = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || 2;
+        const tenantId = resolveTenantId(req);
         const staffId = req.params.id;
 
         const staff = await staffModel.getStaffById(tenantId, staffId);
@@ -85,7 +87,7 @@ const getStaffById = async (req, res) => {
 
 const updateStaff = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || 2;
+        const tenantId = resolveTenantId(req);
         const staffId = req.params.id;
         const staffData = req.body;
 
@@ -106,7 +108,7 @@ const updateStaff = async (req, res) => {
 
 const deleteStaff = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || 2;
+        const tenantId = resolveTenantId(req);
         const staffId = req.params.id;
 
         const result = await staffModel.deleteStaff(tenantId, staffId);
@@ -122,7 +124,7 @@ const deleteStaff = async (req, res) => {
 
 const getAdminLeaveRequests = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || req.user?.tenant_id || 2;
+        const tenantId = resolveTenantId(req);
         const { branchId, status } = req.query;
         let query = `
             SELECT lr.id, lr.tenant_id, lr.branch_id, lr.staff_id,
@@ -167,7 +169,7 @@ const getAdminLeaveRequests = async (req, res) => {
 
 const updateAdminLeaveStatus = async (req, res) => {
     try {
-        const tenantId = req.user?.tenantId || req.user?.tenant_id || 2;
+        const tenantId = resolveTenantId(req);
         const approverId = req.user?.userId || req.user?.id;
         const { id } = req.params;
         const { status } = req.body;
