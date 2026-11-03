@@ -79,6 +79,7 @@ const teacherDoubtRoutes = require('./routes/teacherDoubtRoutes');
 const enquiryRoutes = require('./routes/enquiryRoutes');
 const productAnalyticsRoutes = require('./routes/productAnalyticsRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
+const examRoutes = require('./routes/examRoutes');
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
@@ -143,6 +144,10 @@ app.use('/api/admin/roles', roleRoutes);
 app.use('/api/institute', instituteRoutes);
 app.use('/api/academic-events', academicEventRoutes);
 app.use('/api/institute/academic-events', academicEventRoutes);
+app.use('/api/admin/exams', examRoutes);
+app.use('/api/branch/exams', examRoutes);
+app.use('/api/teacher/exams', examRoutes);
+app.use('/api/exams', examRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

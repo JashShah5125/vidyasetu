@@ -600,7 +600,7 @@ export const UsersAndRoles: React.FC = () => {
   const [formMobile, setFormMobile] = useState('');
   const [formUserType, setFormUserType] = useState('saas-admin');
   const [formRoleId, setFormRoleId] = useState<number | ''>('');
-  const [formUserStatus, setFormUserStatus] = useState<'active' | 'inactive'>('active');
+  const [formUserStatus, setFormUserStatus] = useState<'active' | 'inactive' | ''>('active');
   const [formPassword, setFormPassword] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [createUserError, setCreateUserError] = useState<string | null>(null);

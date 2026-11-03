@@ -204,6 +204,45 @@ const saveStaffLectureAttendance = async (req, res) => {
     }
 };
 
+const getDailyStudents = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { branchId, batchId, date } = req.query;
+        if (!date) {
+            return res.status(400).json({ status: 'error', message: 'date is required' });
+        }
+        const records = await attendanceModel.getDailyStudentAttendance(tenantId, { branchId, batchId, date });
+        res.status(200).json({ status: 'success', data: records });
+    } catch (error) {
+        console.error('Error fetching daily student attendance:', error);
+        res.status(500).json({ status: 'error', message: error.message || 'Failed to fetch student attendance' });
+    }
+};
+
+const saveDailyStudents = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { branchId, batchId, date, records } = req.body;
+        if (!date) {
+            return res.status(400).json({ status: 'error', message: 'date is required' });
+        }
+        if (!Array.isArray(records)) {
+            return res.status(400).json({ status: 'error', message: 'records array is required' });
+        }
+        const result = await attendanceModel.saveDailyStudentAttendance(tenantId, {
+            branchId,
+            batchId,
+            date,
+            records,
+            userId: resolveUserId(req)
+        });
+        res.status(200).json({ status: 'success', message: 'Student daily attendance saved successfully', data: result });
+    } catch (error) {
+        console.error('Error saving daily student attendance:', error);
+        res.status(500).json({ status: 'error', message: error.message || 'Failed to save student attendance' });
+    }
+};
+
 module.exports = {
     getAttendanceOptions,
     getTodayLectures,
@@ -217,5 +256,7 @@ module.exports = {
     getStudentReport,
     getStaffAttendance,
     saveStaffAttendance,
-    saveStaffLectureAttendance
+    saveStaffLectureAttendance,
+    getDailyStudents,
+    saveDailyStudents
 };

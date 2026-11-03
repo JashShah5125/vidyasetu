@@ -75,8 +75,8 @@ export const TeacherDoubts: React.FC = () => {
       ]);
 
       if (scoping) {
-        setTeacherBatches(scoping.batches || []);
-        setTeacherSubjects(scoping.subjects || []);
+        setTeacherBatches((scoping.batches || []).map((b: any) => ({ ...b, id: Number(b.id) })));
+        setTeacherSubjects((scoping.subjects || []).map((s: any) => ({ ...s, id: Number(s.id) })));
       }
       setDoubts(data);
 

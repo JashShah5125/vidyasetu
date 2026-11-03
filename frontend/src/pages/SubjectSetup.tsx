@@ -22,7 +22,7 @@ import { courseApi } from '../services/courseApi';
 
 export const SubjectSetup: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, addToast } = useApp();
+  const { currentUser, branches = [], addToast } = useApp();
   const isBranchAdmin = currentUser?.role === 'branch-admin';
   
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -59,9 +59,17 @@ export const SubjectSetup: React.FC = () => {
   const [isBundleModalOpen, setIsBundleModalOpen] = useState(false);
   const [isBundleSaving, setIsBundleSaving] = useState(false);
   const [editingBundle, setEditingBundle] = useState<SubjectBundle | null>(null);
+
+  // Dedicated creation & edit state inside the bundle modal
+  const [modalCourseCode, setModalCourseCode] = useState('');
+  const [modalCourseData, setModalCourseData] = useState<any>(null);
+  const [modalProgramId, setModalProgramId] = useState('');
+  const [modalLevelId, setModalLevelId] = useState('');
+  const [modalBranchId, setModalBranchId] = useState('');
   const [bundleForm, setBundleForm] = useState({
     name: '',
     description: '',
+    feeAmount: '' as string | number,
     is_active: true,
     subjectIds: [] as string[]
   });
@@ -122,6 +130,62 @@ export const SubjectSetup: React.FC = () => {
 
   const levelSubjects: any[] = selectedLevel?.subjects || [];
   const courseBranchId = selectedCourseData?.branches?.[0];
+
+  // Derived options for modal selections
+  const modalPrograms = useMemo(() => {
+    return modalCourseData?.programs || [];
+  }, [modalCourseData]);
+
+  const modalLevels = useMemo(() => {
+    if (!modalProgramId) return [];
+    const prog = modalPrograms.find((p: any) => String(p.id) === modalProgramId);
+    return prog?.levels || [];
+  }, [modalPrograms, modalProgramId]);
+
+  const modalLevelSubjects = useMemo(() => {
+    if (!modalLevelId) return [];
+    const lvl = modalLevels.find((l: any) => String(l.id) === modalLevelId);
+    return lvl?.subjects || [];
+  }, [modalLevels, modalLevelId]);
+
+  const handleModalCourseChange = async (code: string) => {
+    setModalCourseCode(code);
+    setModalProgramId('');
+    setModalLevelId('');
+    setBundleForm(prev => ({ ...prev, subjectIds: [] }));
+    if (!code) {
+      setModalCourseData(null);
+      setModalBranchId('');
+      return;
+    }
+    try {
+      const res = await courseApi.getByCode(code);
+      if (res?.status === 'success' && res.data) {
+        setModalCourseData(res.data);
+        const branch = res.data.branches?.[0] || branches[0]?.id || '';
+        setModalBranchId(String(branch));
+        if (res.data.programs?.length > 0) {
+          const firstProg = res.data.programs[0];
+          setModalProgramId(String(firstProg.id));
+          if (firstProg.levels?.length > 0) {
+            setModalLevelId(String(firstProg.levels[0].id));
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleModalProgramChange = (progId: string) => {
+    setModalProgramId(progId);
+    setModalLevelId('');
+    setBundleForm(prev => ({ ...prev, subjectIds: [] }));
+    const prog = modalPrograms.find((p: any) => String(p.id) === progId);
+    if (prog?.levels?.length > 0) {
+      setModalLevelId(String(prog.levels[0].id));
+    }
+  };
 
   // 3. Fetch Subjects based on filters
   const fetchSubjects = async () => {
@@ -241,6 +305,7 @@ export const SubjectSetup: React.FC = () => {
         'Subject Name': s.name,
         'Code': s.code,
         'Type': s.type || 'Theory',
+        'Fee': s.fee_amount || s.base_fee || 0,
         'Status': s.status
       }));
       const headers = Object.keys(rows[0]);
@@ -269,23 +334,67 @@ export const SubjectSetup: React.FC = () => {
 
   // ─── Bundle handlers ───────────────────────────────────────────────────────
   const openCreateBundle = () => {
-    if (!selectedLevelId) {
-      addToast('Please select a level in the filters first.', 'error');
-      return;
-    }
     setEditingBundle(null);
-    setBundleForm({ name: '', description: '', is_active: true, subjectIds: [] });
+    setBundleForm({
+      name: '',
+      description: '',
+      feeAmount: '',
+      is_active: true,
+      subjectIds: []
+    });
+
+    const initCode = selectedCourseCode || (courses[0]?.code ?? '');
+    setModalCourseCode(initCode);
+    setModalProgramId(selectedProgramId || '');
+    setModalLevelId(selectedLevelId || '');
+
+    if (initCode) {
+      courseApi.getByCode(initCode).then(res => {
+        if (res?.status === 'success' && res.data) {
+          setModalCourseData(res.data);
+          const branch = res.data.branches?.[0] || branches[0]?.id || '';
+          setModalBranchId(String(branch));
+          if (!selectedProgramId && res.data.programs?.length > 0) {
+            const firstProg = res.data.programs[0];
+            setModalProgramId(String(firstProg.id));
+            if (!selectedLevelId && firstProg.levels?.length > 0) {
+              setModalLevelId(String(firstProg.levels[0].id));
+            }
+          }
+        }
+      }).catch(() => {});
+    }
+
     setIsBundleModalOpen(true);
   };
 
-  const openEditBundle = (bundle: SubjectBundle) => {
+  const openEditBundle = async (bundle: SubjectBundle) => {
     setEditingBundle(bundle);
     setBundleForm({
       name: bundle.name,
       description: bundle.description || '',
+      feeAmount: bundle.fee_amount !== null && bundle.fee_amount !== undefined ? bundle.fee_amount : '',
       is_active: bundle.is_active !== false,
       subjectIds: (bundle.subjects || []).map(s => String(s.id))
     });
+    setModalLevelId(String(bundle.level_id));
+    setModalBranchId(String(bundle.branch_id || ''));
+
+    if (bundle.course_id) {
+      const course = courses.find(c => String(c.id) === String(bundle.course_id));
+      if (course) {
+        setModalCourseCode(course.code);
+        try {
+          const res = await courseApi.getByCode(course.code);
+          if (res?.status === 'success' && res.data) {
+            setModalCourseData(res.data);
+            if (bundle.program_id) {
+              setModalProgramId(String(bundle.program_id));
+            }
+          }
+        } catch {}
+      }
+    }
     setIsBundleModalOpen(true);
   };
 
@@ -303,8 +412,13 @@ export const SubjectSetup: React.FC = () => {
       addToast('Bundle name is required.', 'error');
       return;
     }
-    if (!courseBranchId) {
-      addToast('Please assign at least one branch to this course before creating a bundle.', 'error');
+    if (!modalLevelId) {
+      addToast('Please select a course, program, and academic level for this bundle.', 'error');
+      return;
+    }
+    const resolvedBranch = modalBranchId || modalCourseData?.branches?.[0] || branches[0]?.id;
+    if (!resolvedBranch) {
+      addToast('Please select or assign a branch for this bundle.', 'error');
       return;
     }
     if (bundleForm.subjectIds.length === 0) {
@@ -313,12 +427,13 @@ export const SubjectSetup: React.FC = () => {
     }
 
     const payload = {
-      levelId: selectedLevelId,
-      branchId: courseBranchId,
+      levelId: modalLevelId,
+      branchId: resolvedBranch,
       name: bundleForm.name.trim(),
       description: bundleForm.description.trim(),
       is_active: bundleForm.is_active,
-      subjectIds: bundleForm.subjectIds
+      subjectIds: bundleForm.subjectIds,
+      feeAmount: bundleForm.feeAmount !== '' ? Number(bundleForm.feeAmount) : null
     };
 
     try {
@@ -414,7 +529,7 @@ export const SubjectSetup: React.FC = () => {
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-4 bg-white border border-slate-200 p-4 rounded-xl shadow-sm items-end justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 flex-1 w-full items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-6 gap-3 flex-1 w-full items-end">
           <Input
             label="Search"
             placeholder={activeTab === 'bundles' ? 'Search by bundle name...' : 'Search by subject name or code...'}
@@ -452,6 +567,19 @@ export const SubjectSetup: React.FC = () => {
               fetchBundles('', 1);
             }}
             disabled={!selectedCourseCode}
+          />
+
+          <Select
+            label="Level"
+            options={levelOptions}
+            value={selectedLevelId}
+            onChange={e => {
+              setSelectedLevelId(e.target.value);
+              setCurrentPage(1);
+              setBundleCurrentPage(1);
+              fetchBundles(e.target.value, 1);
+            }}
+            disabled={!selectedProgramId}
           />
 
           <Select
@@ -509,7 +637,7 @@ export const SubjectSetup: React.FC = () => {
             </div>
           ) : (
             <>
-              <Table headers={['Subject Name', 'Subject Code', 'Type', 'Status', 'Actions']} dense>
+              <Table headers={['Subject Name', 'Subject Code', 'Type', 'Fee', 'Status', 'Actions']} dense>
                 {paginated.map(subject => (
                   <tr key={subject.code} className="hover:bg-slate-50 transition-all duration-200">
                     <td className="px-3 py-3.5 font-bold text-slate-900 text-sm whitespace-nowrap min-w-[200px]">
@@ -522,6 +650,15 @@ export const SubjectSetup: React.FC = () => {
                       <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[10px] font-bold uppercase">
                         {subject.type || 'Theory'}
                       </span>
+                    </td>
+                    <td className="px-3 py-3.5 whitespace-nowrap font-mono font-bold text-slate-800 text-xs">
+                      {subject.fee_amount || subject.base_fee ? (
+                        <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                          ₹{Number(subject.fee_amount || subject.base_fee).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-normal italic">₹0 / By Level</span>
+                      )}
                     </td>
                     <td className="px-3 py-3.5 whitespace-nowrap">
                       {subject.status === 'active' || (subject as any).is_active !== false ? (
@@ -602,7 +739,7 @@ export const SubjectSetup: React.FC = () => {
             </div>
           ) : (
             <>
-              <Table headers={['Bundle Name', 'Level', 'Branch', 'Mapped Subjects', 'Status', 'Actions']} dense>
+              <Table headers={['Bundle Name', 'Level', 'Branch', 'Bundle Fee', 'Mapped Subjects', 'Status', 'Actions']} dense>
                 {filteredBundles.map(bundle => (
                   <tr key={bundle.id} className="hover:bg-slate-50 transition-all duration-200">
                     <td className="px-3 py-3.5 font-bold text-slate-900 text-sm whitespace-nowrap min-w-[180px]">
@@ -616,6 +753,15 @@ export const SubjectSetup: React.FC = () => {
                     </td>
                     <td className="px-3 py-3.5 text-xs font-medium text-slate-700 whitespace-nowrap">
                       {bundle.branch_name || bundle.branch_id || '-'}
+                    </td>
+                    <td className="px-3 py-3.5 whitespace-nowrap font-bold text-slate-800 text-xs">
+                      {bundle.fee_amount ? (
+                        <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                          ₹{Number(bundle.fee_amount).toLocaleString('en-IN')}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-normal italic">Included</span>
+                      )}
                     </td>
                     <td className="px-3 py-3.5">
                       {(bundle.subjects || []).length > 0 ? (
@@ -707,24 +853,87 @@ export const SubjectSetup: React.FC = () => {
         }
       >
         <div className="space-y-5">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">
-              <Layers size={14} className="text-indigo-600" /> Selected Level
+          {/* Academic Placement Row */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide">
+              <Layers size={15} className="text-indigo-600" /> Academic Placement
             </div>
-            <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700">
-              {selectedLevel?.name || 'No level selected'}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Select
+                label="Course *"
+                options={[
+                  { value: '', label: 'Select Course' },
+                  ...courses.map(c => ({ value: c.code, label: c.name }))
+                ]}
+                value={modalCourseCode}
+                onChange={e => handleModalCourseChange(e.target.value)}
+              />
+              <Select
+                label="Program *"
+                options={[
+                  { value: '', label: 'Select Program' },
+                  ...modalPrograms.map((p: any) => ({ value: String(p.id), label: p.name }))
+                ]}
+                value={modalProgramId}
+                onChange={e => handleModalProgramChange(e.target.value)}
+                disabled={!modalCourseCode}
+              />
+              <Select
+                label="Academic Level *"
+                options={[
+                  { value: '', label: 'Select Level' },
+                  ...modalLevels.map((l: any) => ({ value: String(l.id), label: l.name }))
+                ]}
+                value={modalLevelId}
+                onChange={e => {
+                  setModalLevelId(e.target.value);
+                  setBundleForm(prev => ({ ...prev, subjectIds: [] }));
+                }}
+                disabled={!modalProgramId}
+              />
             </div>
+            {branches.length > 1 && (
+              <div className="pt-2 border-t border-slate-200/60">
+                <Select
+                  label="Branch Offering *"
+                  options={branches.map((b: any) => ({ value: String(b.id), label: b.name }))}
+                  value={modalBranchId}
+                  onChange={e => setModalBranchId(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
+          {/* Bundle Info Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Bundle Name *"
               value={bundleForm.name}
-              placeholder="e.g. PCM, PCB, Science Combo"
+              placeholder="e.g. PCM, PCB, Group 1 Specialization"
               onChange={e => setBundleForm(prev => ({ ...prev, name: e.target.value }))}
               required
             />
-            <div className="flex items-end pb-1">
+            <Input
+              label="Bundle Fee (₹)"
+              type="number"
+              min="0"
+              step="100"
+              value={bundleForm.feeAmount}
+              placeholder="e.g. 35000 (optional standalone price)"
+              onChange={e => setBundleForm(prev => ({ ...prev, feeAmount: e.target.value }))}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div className="md:col-span-2">
+              <Input
+                label="Description"
+                value={bundleForm.description}
+                placeholder="Brief description (e.g. Physics, Chemistry and Math bundle with mock tests)"
+                onChange={e => setBundleForm(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center md:justify-center pt-2 md:pt-4">
               <Toggle
                 checked={bundleForm.is_active}
                 onChange={checked => setBundleForm(prev => ({ ...prev, is_active: checked }))}
@@ -733,58 +942,76 @@ export const SubjectSetup: React.FC = () => {
             </div>
           </div>
 
-          <Input
-            label="Description"
-            value={bundleForm.description}
-            placeholder="Optional description (e.g. Physics, Chemistry and Mathematics combined)"
-            onChange={e => setBundleForm(prev => ({ ...prev, description: e.target.value }))}
-          />
-
+          {/* Subjects Selection */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                Select Subjects from this Level ({levelSubjects.length})
-              </span>
-              {bundleForm.subjectIds.length > 0 && (
-                <span className="text-xs font-semibold text-blue-600">{bundleForm.subjectIds.length} selected</span>
-              )}
-            </div>
+            {(() => {
+              const candidateSubjects = modalLevelSubjects.length > 0 ? modalLevelSubjects : subjects;
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Select Bundle Subjects ({candidateSubjects.length})
+                    </span>
+                    {bundleForm.subjectIds.length > 0 && (
+                      <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                        {bundleForm.subjectIds.length} subjects selected
+                      </span>
+                    )}
+                  </div>
 
-            {levelSubjects.length === 0 ? (
-              <div className="p-6 text-center text-xs font-semibold text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                No subjects are mapped to this level yet. Map subjects to the level before creating a bundle.
-              </div>
-            ) : (
-              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white">
-                {levelSubjects.map((subject: any) => {
-                  const checked = bundleForm.subjectIds.includes(String(subject.id));
-                  return (
-                    <button
-                      key={subject.id}
-                      type="button"
-                      onClick={() => toggleBundleSubject(String(subject.id))}
-                      className={`w-full p-3 flex items-center justify-between hover:bg-slate-50 transition text-left ${
-                        checked ? 'bg-indigo-50/60' : ''
-                      }`}
-                    >
-                      <div>
-                        <div className={`font-bold text-sm ${checked ? 'text-indigo-800' : 'text-slate-900'}`}>{subject.name}</div>
-                        <div className="font-mono text-[10px] font-bold text-slate-400 uppercase">Code: {subject.code}</div>
+                  {!modalLevelId ? (
+                    <div className="p-6 text-center text-xs font-semibold text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                      Please select an Academic Level above to view and map bundle subjects.
+                    </div>
+                  ) : candidateSubjects.length === 0 ? (
+                    <div className="p-6 text-center text-xs font-semibold text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                      No subjects available. Please add master subjects or map them to this level first.
+                    </div>
+                  ) : (
+                    <>
+                      {modalLevelSubjects.length === 0 && (
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg mb-2">
+                          Note: Showing master subjects pool. Selected subjects will be mapped to this academic level automatically.
+                        </p>
+                      )}
+                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white shadow-inner">
+                        {candidateSubjects.map((subject: any) => {
+                          const checked = bundleForm.subjectIds.includes(String(subject.id));
+                          return (
+                            <button
+                              key={subject.id}
+                              type="button"
+                              onClick={() => toggleBundleSubject(String(subject.id))}
+                              className={`w-full p-3 flex items-center justify-between hover:bg-slate-50 transition text-left cursor-pointer ${
+                                checked ? 'bg-indigo-50/70' : ''
+                              }`}
+                            >
+                              <div>
+                                <div className={`font-bold text-sm ${checked ? 'text-indigo-900' : 'text-slate-900'}`}>
+                                  {subject.name}
+                                </div>
+                                <div className="font-mono text-[10px] font-bold text-slate-400 uppercase">
+                                  Code: {subject.code}
+                                </div>
+                              </div>
+                              <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                                checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                              }`}>
+                                {checked && (
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                                    <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
-                        checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
-                      }`}>
-                        {checked && (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </Modal>

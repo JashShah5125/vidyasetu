@@ -241,7 +241,7 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
     for (const r of summaryRows) {
         const net = Number(r.net_amount) || 0;
         const paid = Number(r.paid_amount) || 0;
-        const balance = Number(r.balance_amount) !== undefined && r.balance_amount !== null ? Number(r.balance_amount) : Math.max(0, net - paid);
+        const balance = r.balance_amount !== undefined && r.balance_amount !== null ? Number(r.balance_amount) : Math.max(0, net - paid);
         const down = Number(r.down_payment) || 0;
         const instCount = Math.max(1, Number(r.installment_count) || 1);
         const instAmount = Number(r.installment_amount) || 0;
@@ -345,7 +345,7 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
     const formattedData = rows.map(row => {
         const net = Number(row.total_fees) || 0;
         const paid = Number(row.fees_paid) || 0;
-        const balance = Number(row.fees_outstanding) !== undefined && row.fees_outstanding !== null ? Number(row.fees_outstanding) : Math.max(0, net - paid);
+        const balance = row.fees_outstanding !== undefined && row.fees_outstanding !== null ? Number(row.fees_outstanding) : Math.max(0, net - paid);
         const down = Number(row.down_payment) || 0;
         const instCount = Math.max(1, Number(row.installment_count) || 1);
         const instAmount = Number(row.installment_amount) || 0;
@@ -463,7 +463,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
         let customIds = [];
         try {
             customIds = typeof student.custom_subject_ids === 'string' ? JSON.parse(student.custom_subject_ids) : student.custom_subject_ids;
-        } catch (e) {
+        } catch {
             customIds = [];
         }
         if (Array.isArray(customIds) && customIds.length > 0) {
@@ -483,7 +483,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
             let subIds = [];
             try {
                 subIds = typeof subjectBundle.subject_ids === 'string' ? JSON.parse(subjectBundle.subject_ids) : subjectBundle.subject_ids;
-            } catch (e) {
+            } catch {
                 subIds = [];
             }
             if (Array.isArray(subIds) && subIds.length > 0) {
@@ -510,7 +510,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
                 let subIds = [];
                 try {
                     subIds = typeof subjectBundle.subject_ids === 'string' ? JSON.parse(subjectBundle.subject_ids) : subjectBundle.subject_ids;
-                } catch (e) {
+                } catch {
                     subIds = [];
                 }
                 if (Array.isArray(subIds) && subIds.length > 0) {
@@ -1436,7 +1436,9 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
     let courses = [];
     if (isBranchScope) {
         courses = await safeQuery('courses',
-            `SELECT DISTINCT c.id, c.name, c.code 
+            `SELECT DISTINCT c.id, c.name, c.code,
+                    COALESCE(c.fees, c.total_fee, 0) AS fees,
+                    COALESCE(c.total_fee, c.fees, 0) AS total_fee
              FROM courses c
              JOIN course_branches cb ON cb.course_id = c.id
              WHERE c.tenant_id = ? AND cb.branch_id = ? AND c.deleted_at IS NULL AND c.is_active = 1
@@ -1445,7 +1447,10 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
         );
     } else {
         courses = await safeQuery('courses',
-            `SELECT id, name, code FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            `SELECT id, name, code,
+                    COALESCE(fees, total_fee, 0) AS fees,
+                    COALESCE(total_fee, fees, 0) AS total_fee
+             FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
             [tid]
         );
     }
@@ -1454,7 +1459,10 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
     let programs = [];
     if (isBranchScope) {
         programs = await safeQuery('programs',
-            `SELECT DISTINCT p.id, p.course_id, p.name, p.code 
+            `SELECT DISTINCT p.id, p.course_id, p.name, p.code,
+                    COALESCE(p.total_fee, 0) AS total_fee,
+                    COALESCE(p.down_payment, 0) AS down_payment,
+                    COALESCE(p.installment_months, 0) AS installment_months
              FROM programs p
              JOIN branch_programs bp ON bp.program_id = p.id
              WHERE p.tenant_id = ? AND bp.branch_id = ? AND p.deleted_at IS NULL AND p.is_active = 1
@@ -1463,7 +1471,11 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
         );
     } else {
         programs = await safeQuery('programs',
-            `SELECT id, course_id, name, code FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
+            `SELECT id, course_id, name, code,
+                    COALESCE(total_fee, 0) AS total_fee,
+                    COALESCE(down_payment, 0) AS down_payment,
+                    COALESCE(installment_months, 0) AS installment_months
+             FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`,
             [tid]
         );
     }
@@ -1554,7 +1566,7 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
             s.name, 
             s.code, 
             s.type,
-            COALESCE(sf.fee_amount, 0) AS fee_amount
+            COALESCE(sf.fee_amount, s.base_fee, s.fee_amount, 0) AS fee_amount
          FROM level_subjects ls
          JOIN subjects s ON s.id = ls.subject_id AND s.deleted_at IS NULL
          JOIN levels l ON l.id = ls.level_id AND l.deleted_at IS NULL
@@ -1574,7 +1586,7 @@ const getAcademicOptions = async (tenantId, accessContext = null) => {
         let sIds = [];
         try {
             sIds = typeof b.subject_ids === 'string' ? JSON.parse(b.subject_ids) : (b.subject_ids || []);
-        } catch (e) {
+        } catch {
             sIds = [];
         }
         return {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { courseApi } from '../services/courseApi';
@@ -13,7 +13,7 @@ import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { AssignCoursesDrawer } from '../components/branch/AssignCoursesDrawer';
 import { UnassignCourseModal } from '../components/branch/UnassignCourseModal';
 import {
-  BookOpen, Plus, ArrowRight, Download, Upload, Loader2, RotateCcw, Eye, EyeOff, GraduationCap, Layers, BookOpenCheck, ChevronRight, ChevronUp, Clock, Settings, Trash2, CheckCircle2
+  BookOpen, Plus, ArrowRight, Download, Upload, Loader2, RotateCcw, Eye, EyeOff, GraduationCap, Layers, BookOpenCheck, ChevronRight, ChevronUp, Clock, Settings, Trash2
 } from 'lucide-react';
 
 export const CourseSetup: React.FC = () => {
@@ -42,7 +42,7 @@ export const CourseSetup: React.FC = () => {
   const [selectedProgramIdx, setSelectedProgramIdx] = useState<number | null>(null);
   const [selectedLevelIdx, setSelectedLevelIdx] = useState<number | null>(null);
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       setIsLoading(true);
       if (isBranchAdmin && resolvedBranchId) {
@@ -66,24 +66,13 @@ export const CourseSetup: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isBranchAdmin, resolvedBranchId, filterStatus, addToast]);
 
   useEffect(() => {
     fetchCourses();
-  }, [filterStatus, isBranchAdmin, resolvedBranchId]);
+  }, [fetchCourses]);
 
-  // Fetch complete course details when a row is expanded below
-  useEffect(() => {
-    if (selectedCourseCode) {
-      fetchInspectorCourseDetails(selectedCourseCode);
-    } else {
-      setInspectorCourse(null);
-      setSelectedProgramIdx(null);
-      setSelectedLevelIdx(null);
-    }
-  }, [selectedCourseCode]);
-
-  const fetchInspectorCourseDetails = async (code: string) => {
+  const fetchInspectorCourseDetails = useCallback(async (code: string) => {
     try {
       setIsInspectorLoading(true);
       const res = await courseApi.getByCode(code);
@@ -97,7 +86,18 @@ export const CourseSetup: React.FC = () => {
     } finally {
       setIsInspectorLoading(false);
     }
-  };
+  }, [addToast]);
+
+  // Fetch complete course details when a row is expanded below
+  useEffect(() => {
+    if (selectedCourseCode) {
+      fetchInspectorCourseDetails(selectedCourseCode);
+    } else {
+      setInspectorCourse(null);
+      setSelectedProgramIdx(null);
+      setSelectedLevelIdx(null);
+    }
+  }, [selectedCourseCode, fetchInspectorCourseDetails]);
 
   const handleUnassignCourse = async () => {
     if (!unassignTargetCourse || !resolvedBranchId) return;
@@ -305,8 +305,8 @@ export const CourseSetup: React.FC = () => {
             <Table
               headers={
                 isBranchAdmin
-                  ? ['Course Name', 'Code', 'Assigned Programs', 'Branch Status', 'Actions']
-                  : ['Course Name', 'Code', 'Programs', 'Status', 'Actions']
+                  ? ['Course Name', 'Code', 'Course Fee', 'Assigned Programs', 'Branch Status', 'Actions']
+                  : ['Course Name', 'Code', 'Course Fee', 'Programs', 'Status', 'Actions']
               }
               dense
             >
@@ -332,6 +332,15 @@ export const CourseSetup: React.FC = () => {
                       </td>
                       <td className="px-3 py-3.5 font-mono font-bold text-blue-600 text-xs whitespace-nowrap uppercase">
                         {course.code}
+                      </td>
+                      <td className="px-3 py-3.5 whitespace-nowrap font-bold text-slate-800 text-xs">
+                        {course.fees || course.total_fee ? (
+                          <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                            ₹{Number(course.fees || course.total_fee).toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-normal italic">Not set</span>
+                        )}
                       </td>
                       <td className="px-3 py-3.5">
                         <div className="flex flex-wrap gap-1">
@@ -420,6 +429,11 @@ export const CourseSetup: React.FC = () => {
                                     <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-md text-xs font-mono font-semibold uppercase">
                                       {course.code}
                                     </span>
+                                    {(inspectorCourse?.fees || inspectorCourse?.total_fee || course.fees || course.total_fee) ? (
+                                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-xs font-bold">
+                                        Fee: ₹{Number(inspectorCourse?.fees || inspectorCourse?.total_fee || course.fees || course.total_fee).toLocaleString('en-IN')}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <p className="text-xs text-slate-600 mt-0.5 font-medium">
                                     {isBranchAdmin

@@ -49,13 +49,13 @@ const getCourseByCode = async (req, res) => {
 
 const createCourse = async (req, res) => {
     try {
-        const { name, code, description, is_active, branches, programs } = req.body;
+        const { name, code, description, fees, total_fee, is_active, branches, programs } = req.body;
 
         if (!name || !code) {
             return res.status(400).json({ status: 'error', message: 'Missing required fields (name, code)' });
         }
         const result = await courseModel.createCourse(resolveTenantId(req), {
-            name, code, description, is_active, branches, programs
+            name, code, description, fees, total_fee, is_active, branches, programs
         }, req.user.userId);
 
         res.status(201).json({ status: 'success', message: 'Course created successfully', data: result });
@@ -71,10 +71,10 @@ const createCourse = async (req, res) => {
 const updateCourse = async (req, res) => {
     try {
         const { code } = req.params;
-        const { name, description, is_active, branches, programs } = req.body;
+        const { name, description, fees, total_fee, is_active, branches, programs } = req.body;
 
         const result = await courseModel.updateCourse(resolveTenantId(req), code, {
-            name, description, is_active, branches, programs
+            name, description, fees, total_fee, is_active, branches, programs
         }, req.user.userId);
 
         if (!result) {

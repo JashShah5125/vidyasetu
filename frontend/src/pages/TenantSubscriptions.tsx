@@ -67,7 +67,7 @@ export const TenantSubscriptions: React.FC = () => {
   });
 
   // Auto-populate final price when plan or discount changes
-  const selectedPlan: SubscriptionPlan | undefined = plans.find(p => p.id === planId);
+  const selectedPlan = plans.find(p => p.id === planId);
 
   const autoFinalPrice = () => {
     if (!selectedPlan) return '';
@@ -427,7 +427,7 @@ export const TenantSubscriptions: React.FC = () => {
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
               <Button variant="secondary" onClick={() => { setShowView(false); setViewingItem(null); }}>Back to Tenants</Button>
               <Button variant="primary" style={{ gap: '6px' }} onClick={() => { setShowView(false); handleOpenEdit(viewingItem); }}>
-                <Edit size={14} /> Edit Subscription
+                <Edit3 size={14} /> Edit Subscription
               </Button>
             </div>
         </div>

@@ -75,7 +75,7 @@ export const OtherExpenseFormPage: React.FC = () => {
 
     try {
       setSubmitting(true);
-      const chosenBranch = formBranchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
+      const chosenBranch = formBranchId || currentUser?.branchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
       const created = await otherExpenseApi.createOtherExpense({
         branchId: Number(chosenBranch),
         title: formTitle.trim(),

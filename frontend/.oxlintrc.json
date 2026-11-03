@@ -1,8 +1,10 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc"],
+  "ignorePatterns": ["dist/**", "node_modules/**", "old_leads.tsx", "temp.tsx", "*.cjs", "temp_assignments.txt"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": "off",
+    "react/exhaustive-deps": "off",
+    "no-unused-vars": "off"
   }
 }

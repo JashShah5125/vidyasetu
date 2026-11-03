@@ -40,7 +40,8 @@ import {
   Megaphone,
   Truck,
   Phone,
-  Wrench
+  Wrench,
+  Award
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -145,115 +146,94 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
         return [
           { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard }] },
           {
-            title: 'Core Academics',
+            title: 'Admissions & Students',
+            links: [
+              { name: 'Leads & Admissions', label: 'Leads CRM', path: '/admin/leads', icon: Users },
+              { name: 'Students Roster', label: 'Students Directory', path: '/admin/students', icon: GraduationCap }
+            ]
+          },
+          {
+            title: 'Academic Setup',
             links: [
               { name: 'Courses', label: 'Courses', path: '/admin/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subjects', path: '/admin/subjects', icon: BookOpen },
               { name: 'Batch Management', label: 'Batches', path: '/admin/batches', icon: Layers },
+              { name: 'Subject Management', label: 'Subjects', path: '/admin/subjects', icon: BookOpen },
               { name: 'Classrooms', label: 'Classrooms', path: '/admin/classrooms', icon: DoorOpen }
-            ]
-          },
-          {
-            title: 'ERP & Admissions',
-            links: [
-              { name: 'All Leads', label: 'All Leads', path: '/admin/leads/all', icon: FileText },
-              { name: 'Leads & Admissions', label: 'Lead Pipeline', path: '/admin/leads', icon: Users },
-              { name: 'Students Roster', label: 'Students Roster', path: '/admin/students', icon: GraduationCap },
-              { name: 'Staff & Roles', label: 'Staff Directory', path: '/admin/staff', icon: ShieldCheck }
-            ]
-          },
-          {
-            title: 'Finance Hub',
-            links: [
-              { name: 'Fees Master', label: 'Fee Structures', path: '/admin/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Collect Payments', path: '/admin/fees', icon: DollarSign },
-              { name: 'Other Income', label: 'Other Income', path: '/admin/finance/income/other', icon: TrendingUp },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/admin/finance/expenses/salaries', icon: Users },
-              { name: 'Other Expenses', label: 'Other Expenses', path: '/admin/finance/expenses/other', icon: TrendingDown },
-              { name: 'Expense Voucher', label: 'Vouchers', path: '/expense-voucher', icon: FileText },
-              { name: 'Expense Ledger', label: 'Ledger', path: '/expense-ledger', icon: ClipboardList },
-              { name: 'Financial Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
           },
           {
             title: 'Classroom Operations',
             links: [
+              { name: 'Lecture Schedule', label: 'Lecture Timetable', path: '/admin/timetable', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/admin/attendance', icon: CheckSquare },
-              { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/admin/timetable', icon: Calendar },
               { name: 'Academic Calendar', label: 'Academic Calendar', path: '/admin/academic-calendar', icon: CalendarDays },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/admin/assignments', icon: BookOpen }
+              { name: 'Assignment and Exams', label: 'Homework & Tasks', path: '/admin/assignments', icon: BookOpen },
+              { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/admin/exams', icon: Award }
             ]
           },
           {
-            title: 'Reports & Auditing',
+            title: 'Finance & Collections',
             links: [
-              { name: 'Broadcast Notification', label: 'Broadcast', path: '/admin/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Audit Logs', path: '/admin/audit-logs', icon: ClipboardList }
+              { name: 'Record Fee', label: 'Fee Collections & Dues', path: '/admin/fees', icon: DollarSign },
+              { name: 'Fees Master', label: 'Fee Structures', path: '/admin/fees-master', icon: Tag },
+              { name: 'Staff Salaries', label: 'Expenses & Payroll', path: '/admin/finance/expenses/salaries', icon: CreditCard },
+              { name: 'Financial Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
           },
           {
-            title: 'Organization Setup',
+            title: 'Administration',
             links: [
-              { name: 'Institute Setup', label: 'Institute Profile', path: '/admin/institute', icon: Settings },
+              { name: 'Staff & Roles', label: 'Staff Directory', path: '/admin/staff', icon: ShieldCheck },
+              { name: 'Broadcast Notification', label: 'Broadcast Notices', path: '/admin/notifications', icon: Bell },
               { name: 'Branches Manager', label: 'Branches Setup', path: '/admin/branches', icon: Building2 },
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/admin/support', icon: Ticket },
-              { name: 'Settings', label: 'Global Settings', path: '/admin/settings', icon: Settings }
+              { name: 'Settings', label: 'Institute Settings', path: '/admin/settings', icon: Settings }
             ]
           }
         ];
 
       case 'branch-admin':
         return [
-          { links: [{ name: 'Dashboard', label: 'Dashboard', path: '/branch/dashboard', icon: LayoutDashboard }] },
+          { links: [{ name: 'Dashboard', label: 'Branch Dashboard', path: '/branch/dashboard', icon: LayoutDashboard }] },
           {
-            title: 'Core Academics',
+            title: 'Admissions & Students',
             links: [
-              { name: 'Courses', label: 'Courses', path: '/branch/courses', icon: BookOpen },
-              { name: 'Subject Management', label: 'Subjects', path: '/branch/subjects', icon: BookOpen },
+              { name: 'Leads & Admissions', label: 'Admissions CRM', path: '/branch/leads', icon: Users },
+              { name: 'Students Roster', label: 'Students Directory', path: '/branch/students', icon: GraduationCap }
+            ]
+          },
+          {
+            title: 'Academic Setup',
+            links: [
+              { name: 'Courses', label: 'Courses & Curriculum', path: '/branch/courses', icon: BookOpen },
               { name: 'Batch Management', label: 'Batches', path: '/branch/batches', icon: Layers },
+              { name: 'Subject Management', label: 'Subjects', path: '/branch/subjects', icon: BookOpen },
               { name: 'Classrooms', label: 'Classrooms', path: '/branch/classrooms', icon: DoorOpen }
-            ]
-          },
-          {
-            title: 'ERP & Admissions',
-            links: [
-              { name: 'All Leads', label: 'All Leads', path: '/branch/leads/all', icon: FileText },
-              { name: 'Leads & Admissions', label: 'Lead Pipeline', path: '/branch/leads', icon: Users },
-              { name: 'Students Roster', label: 'Students Roster', path: '/branch/students', icon: GraduationCap },
-              { name: 'Staff & Roles', label: 'Staff Directory', path: '/branch/staff', icon: ShieldCheck }
-            ]
-          },
-          {
-            title: 'Finance Hub',
-            links: [
-              { name: 'Fees Master', label: 'Fee Structures', path: '/branch/fees-master', icon: DollarSign },
-              { name: 'Record Fee', label: 'Collect Payments', path: '/branch/fees', icon: DollarSign },
-              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/branch/finance/expenses/salaries', icon: Users }
             ]
           },
           {
             title: 'Classroom Operations',
             links: [
+              { name: 'Lecture Schedule', label: 'Lecture Timetable', path: '/branch/timetable', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/branch/attendance', icon: CheckSquare },
-              { name: 'Lecture Schedule', label: 'Lecture Schedule', path: '/branch/timetable', icon: Calendar },
               { name: 'Academic Calendar', label: 'Academic Calendar', path: '/branch/academic-calendar', icon: CalendarDays },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/branch/assignments', icon: BookOpen }
+              { name: 'Assignment and Exams', label: 'Homework & Tasks', path: '/branch/assignments', icon: BookOpen },
+              { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/branch/exams', icon: Award }
             ]
           },
           {
-            title: 'Reports & Auditing',
+            title: 'Finance Hub',
             links: [
-              { name: 'Broadcast Notification', label: 'Broadcast', path: '/branch/notifications', icon: Bell },
-              { name: 'Audit Logs', label: 'Audit Logs', path: '/branch/audit-logs', icon: ClipboardList }
+              { name: 'Record Fee', label: 'Fee Collections & Dues', path: '/branch/fees', icon: DollarSign },
+              { name: 'Fees Master', label: 'Fee Structures', path: '/branch/fees-master', icon: Tag },
+              { name: 'Staff Salaries', label: 'Staff Salaries', path: '/branch/finance/expenses/salaries', icon: CreditCard }
             ]
           },
           {
-            title: 'Organization Setup',
+            title: 'Administration',
             links: [
-              { name: 'Institute Setup', label: 'Institute Profile', path: '/branch/institute', icon: Settings },
-              { name: 'Branches Manager', label: 'Branches Setup', path: '/branch/branches', icon: Building2 },
-              { name: 'Support Tickets', label: 'Support Tickets', path: '/branch/support', icon: Ticket },
-              { name: 'Settings', label: 'Global Settings', path: '/branch/settings', icon: Settings }
+              { name: 'Staff & Roles', label: 'Staff Directory', path: '/branch/staff', icon: ShieldCheck },
+              { name: 'Broadcast Notification', label: 'Broadcast Notices', path: '/branch/notifications', icon: Bell },
+              { name: 'Settings', label: 'Branch Settings', path: '/branch/settings', icon: Settings }
             ]
           }
         ];
@@ -283,7 +263,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'My Schedule', label: 'Lecture Schedule', path: '/teacher/schedule', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance', path: '/teacher/attendance', icon: CheckSquare },
-              { name: 'Assignment and Exams', label: 'Homework & Exams', path: '/teacher/assignments', icon: BookOpen },
+              { name: 'Assignment and Exams', label: 'Homework & Tasks', path: '/teacher/assignments', icon: BookOpen },
+              { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/teacher/exams', icon: Award },
               { name: 'Students Roster', label: 'My Students', path: '/teacher/students', icon: GraduationCap }
             ]
           },
@@ -376,9 +357,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
     const isLeadsRoot = path === '/leads' || path === '/counsellor/leads' || path === '/admin/leads' || path === '/branch/leads';
     const isExactOrChild = location.pathname === path || location.pathname.startsWith(`${path}/`);
     const isActive = isLeadsRoot
-      ? (location.pathname === path || location.pathname === `${path}/pipeline`)
+      ? (location.pathname === path || location.pathname.startsWith(`${path}/`) || location.pathname.includes('/leads') || location.pathname.includes('/admission'))
       : isSalariesPath
-        ? isExactOrChild || location.pathname.startsWith('/finance/payroll') || location.pathname.startsWith('/finance/payables/salaries')
+        ? isExactOrChild || location.pathname.includes('/finance/expenses') || location.pathname.includes('/finance/income') || location.pathname.includes('/expense-')
         : isExactOrChild;
     return (
       <div

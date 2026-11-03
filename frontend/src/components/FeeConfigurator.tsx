@@ -49,22 +49,38 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
   const [feeSelectedBundle, setFeeSelectedBundle] = useState(initialState?.feeSelectedBundle || '');
   const [feeSelectedSubjects, setFeeSelectedSubjects] = useState<string[]>(initialState?.feeSelectedSubjects || []);
 
+  const [selectedPlan, setSelectedPlan] = useState<string>(() => {
+    if (initialState?.feeSelectedBundle) return `bundle_${initialState.feeSelectedBundle}`;
+    if (initialState?.feeSelectedStandard) return `std_${initialState.feeSelectedStandard}`;
+    if (initialState?.selectedPlan) return initialState.selectedPlan;
+    return '';
+  });
+
   const [customTotalFee, setCustomTotalFee] = useState<number | ''>(initialState?.totalFee ?? 0);
   const [customDownpayment, setCustomDownpayment] = useState<number | ''>(initialState?.downpayment ?? 0);
   const [customMonths, setCustomMonths] = useState<number | ''>(initialState?.installments ?? 1);
   const [customDiscount, setCustomDiscount] = useState<number | ''>(initialState?.discount ?? 0);
   const [paymentMode, setPaymentMode] = useState<string>(initialState?.paymentMode || '');
 
-  const [enrollType, setEnrollType] = useState<'Standard' | 'Custom Combo' | 'Subject-wise'>(initialState?.enrollType || 'Standard');
+  const [enrollType, setEnrollType] = useState<'Standard' | 'Subject-wise'>(
+    initialState?.enrollType === 'Subject-wise' ? 'Subject-wise' : 'Standard'
+  );
 
   useEffect(() => {
     if (initialState) {
       if (initialState.course) setFCourse(initialState.course);
       if (initialState.program) setFProgram(initialState.program);
       if (initialState.level) setFLevel(initialState.level);
-      if (initialState.enrollType) setEnrollType(initialState.enrollType);
-      if (initialState.feeSelectedStandard) setFeeSelectedStandard(initialState.feeSelectedStandard);
-      if (initialState.feeSelectedBundle) setFeeSelectedBundle(initialState.feeSelectedBundle);
+      if (initialState.enrollType) setEnrollType(initialState.enrollType === 'Subject-wise' ? 'Subject-wise' : 'Standard');
+      if (initialState.feeSelectedBundle) {
+        setSelectedPlan(`bundle_${initialState.feeSelectedBundle}`);
+        setFeeSelectedBundle(initialState.feeSelectedBundle);
+      } else if (initialState.feeSelectedStandard) {
+        setSelectedPlan(`std_${initialState.feeSelectedStandard}`);
+        setFeeSelectedStandard(initialState.feeSelectedStandard);
+      } else if (initialState.selectedPlan) {
+        setSelectedPlan(initialState.selectedPlan);
+      }
       if (initialState.feeSelectedSubjects) setFeeSelectedSubjects(initialState.feeSelectedSubjects);
       if (initialState.totalFee !== undefined) setCustomTotalFee(initialState.totalFee);
       if (initialState.downpayment !== undefined) setCustomDownpayment(initialState.downpayment);
@@ -138,18 +154,81 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
     );
   }, [academicData, fLevel]);
 
-  // Live Subject Bundles for selected Level
+  // Live Subject Bundles for selected Level or Course
   const availableBundles = useMemo(() => {
-    if (academicData?.bundles) {
+    if (academicData?.bundles && academicData.bundles.length > 0) {
       if (selectedLevelObj) {
-        const matched = academicData.bundles.filter((b: any) => Number(b.level_id) === Number(selectedLevelObj.id));
-        if (matched.length > 0) return matched;
+        const byLevel = academicData.bundles.filter((b: any) => Number(b.level_id) === Number(selectedLevelObj.id));
+        if (byLevel.length > 0) return byLevel;
+      }
+      if (selectedCourseObj) {
+        const courseLevelIds = (academicData.levels || [])
+          .filter((l: any) => Number(l.course_id) === Number(selectedCourseObj.id))
+          .map((l: any) => Number(l.id));
+        const byCourse = academicData.bundles.filter((b: any) => 
+          Number(b.course_id) === Number(selectedCourseObj.id) || courseLevelIds.includes(Number(b.level_id))
+        );
+        if (byCourse.length > 0) return byCourse;
       }
       return academicData.bundles;
     }
     const mapKey = selectedCourseObj ? `${selectedCourseObj.code}-${fProgram}-${fLevel}` : '';
-    return INITIAL_BUNDLES_MAP[mapKey] || [];
+    if (INITIAL_BUNDLES_MAP[mapKey] && INITIAL_BUNDLES_MAP[mapKey].length > 0) return INITIAL_BUNDLES_MAP[mapKey];
+    const allCourseBundles = Object.entries(INITIAL_BUNDLES_MAP)
+      .filter(([k]) => selectedCourseObj && k.startsWith(selectedCourseObj.code))
+      .flatMap(([_, v]) => v);
+    if (allCourseBundles.length > 0) return allCourseBundles;
+    return [];
   }, [academicData, selectedLevelObj, selectedCourseObj, fProgram, fLevel]);
+
+  // Combined Plans: All Standard Course Plans + Custom Bundles for that particular course
+  const allCoursePlans = useMemo(() => {
+    const list: Array<{ value: string; label: string; type: 'standard' | 'bundle'; data: any }> = [];
+
+    // 1. Standard Program / Course Plans
+    let progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse && (!fProgram || p.program === fProgram));
+    if (progPlans.length === 0 && fCourse) {
+      progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse);
+    }
+
+    if (progPlans.length > 0) {
+      progPlans.forEach(p => {
+        list.push({
+          value: `std_${p.id}`,
+          label: `${p.program || fCourse} Base Plan - ₹${p.totalFees.toLocaleString()}`,
+          type: 'standard',
+          data: p
+        });
+      });
+    } else if (selectedCourseObj?.fees) {
+      list.push({
+        value: `std_course`,
+        label: `${fCourse} Full Course Plan - ₹${Number(selectedCourseObj.fees).toLocaleString()}`,
+        type: 'standard',
+        data: { totalFees: Number(selectedCourseObj.fees), downPayment: Math.round(Number(selectedCourseObj.fees) * 0.3), months: 6 }
+      });
+    } else if (fCourse) {
+      list.push({
+        value: `std_default`,
+        label: `${fCourse} Standard Base Plan`,
+        type: 'standard',
+        data: { totalFees: 50000, downPayment: 15000, months: 6 }
+      });
+    }
+
+    // 2. Custom Bundles for this course / level
+    availableBundles.forEach((b: any) => {
+      const fee = Number(b.fee_amount || b.fee || 0);
+      list.push({
+        value: `bundle_${b.id}`,
+        label: `Custom Bundle • ${b.name} - ₹${fee.toLocaleString()}`,
+        type: 'bundle',
+        data: b
+      });
+    });
+
+    return list;
+  }, [fCourse, fProgram, selectedCourseObj, availableBundles]);
 
   // Live Subjects for selected Level
   const availableSubjects = useMemo(() => {
@@ -173,38 +252,53 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
 
   // Calculate base fee based on selection
   useEffect(() => {
-    let calculatedBase = 0;
     if (enrollType === 'Standard') {
-      const plan = INITIAL_FEE_PLANS.find(p => p.id === feeSelectedStandard);
-      if (plan) {
-        calculatedBase = plan.totalFees;
-        if (!initialState || customDownpayment === 0) setCustomDownpayment(plan.downPayment);
-        if (!initialState || customMonths === 1) setCustomMonths(plan.months);
-      } else if (selectedCourseObj?.fees) {
-        calculatedBase = Number(selectedCourseObj.fees);
+      if (!selectedPlan) {
+        if (allCoursePlans.length > 0) {
+          setSelectedPlan(allCoursePlans[0].value);
+        }
+        return;
       }
-    } else if (enrollType === 'Custom Combo') {
-      const bundle = availableBundles.find((b: any) => String(b.id) === String(feeSelectedBundle));
-      if (bundle) {
-        calculatedBase = Number(bundle.fee_amount || bundle.fee || 0);
-        if (!initialState || customDownpayment === 0) setCustomDownpayment(bundle.downPayment || Math.round(calculatedBase * 0.3));
-        if (!initialState || customMonths === 1) setCustomMonths(bundle.months || 6);
+      const matched = allCoursePlans.find(p => p.value === selectedPlan);
+      if (matched) {
+        let calculatedBase = 0;
+        let dp = 0;
+        let months = 1;
+
+        if (matched.type === 'bundle') {
+          calculatedBase = Number(matched.data.fee_amount || matched.data.fee || 0);
+          dp = matched.data.downPayment || Math.round(calculatedBase * 0.3);
+          months = matched.data.months || 6;
+          setFeeSelectedBundle(String(matched.data.id));
+          setFeeSelectedStandard('');
+        } else {
+          calculatedBase = Number(matched.data.totalFees || 0);
+          dp = matched.data.downPayment || Math.round(calculatedBase * 0.3);
+          months = matched.data.months || 6;
+          setFeeSelectedStandard(String(matched.data.id || matched.data.course || 'std'));
+          setFeeSelectedBundle('');
+        }
+
+        if (calculatedBase > 0) {
+          setCustomTotalFee(calculatedBase);
+          if (!initialState || customDownpayment === 0) setCustomDownpayment(dp);
+          if (!initialState || customMonths === 1) setCustomMonths(months);
+        }
       }
     } else if (enrollType === 'Subject-wise') {
-      calculatedBase = availableSubjects
+      const calculatedBase = availableSubjects
         .filter((s: any) => feeSelectedSubjects.includes(String(s.id)) || feeSelectedSubjects.includes(Number(s.id) as any))
         .reduce((acc: number, s: any) => acc + Number(s.fee_amount || s.fee || 0), 0);
+      if (calculatedBase > 0) {
+        setCustomTotalFee(calculatedBase);
+      }
     }
-    if (calculatedBase > 0) {
-      setCustomTotalFee(calculatedBase);
-    }
-  }, [enrollType, feeSelectedStandard, feeSelectedBundle, feeSelectedSubjects, availableBundles, availableSubjects, selectedCourseObj, initialState]);
+  }, [enrollType, selectedPlan, allCoursePlans, feeSelectedSubjects, availableSubjects, initialState]);
 
   // Report changes back to parent
   useEffect(() => {
     const isComplete =
-      (enrollType === 'Standard' && (feeSelectedStandard !== '' || Number(customTotalFee) > 0)) ||
-      (enrollType === 'Custom Combo' && feeSelectedBundle !== '') ||
+      (enrollType === 'Standard' && (selectedPlan !== '' || Number(customTotalFee) > 0)) ||
       (enrollType === 'Subject-wise' && feeSelectedSubjects.length > 0);
 
     onChange({
@@ -214,6 +308,7 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
       level: fLevel,
       feeSelectedStandard,
       feeSelectedBundle,
+      selectedPlan,
       feeSelectedSubjects,
       totalFee: customTotalFee,
       discount: customDiscount,
@@ -223,20 +318,23 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
       paymentMode,
       installmentAmount
     }, !!isComplete);
-  }, [enrollType, fCourse, fProgram, fLevel, customTotalFee, customDiscount, netFee, customDownpayment, customMonths, paymentMode, installmentAmount, feeSelectedStandard, feeSelectedBundle, feeSelectedSubjects]);
+  }, [enrollType, fCourse, fProgram, fLevel, customTotalFee, customDiscount, netFee, customDownpayment, customMonths, paymentMode, installmentAmount, feeSelectedStandard, feeSelectedBundle, selectedPlan, feeSelectedSubjects]);
 
   const idealPlan = useMemo(() => {
-    if (enrollType === 'Standard' && feeSelectedStandard) {
-      const plan = INITIAL_FEE_PLANS.find(p => p.id === feeSelectedStandard);
-      if (plan) return { fee: plan.totalFees, downpayment: plan.downPayment, months: plan.months, installment: plan.installment };
-    }
-    if (enrollType === 'Custom Combo' && feeSelectedBundle) {
-      const bundle = availableBundles.find((b: any) => String(b.id) === String(feeSelectedBundle));
-      if (bundle) {
-        const fee = Number(bundle.fee_amount || bundle.fee || 0);
-        const downpayment = bundle.downPayment || Math.round(fee * 0.3);
-        const months = bundle.months || 6;
-        return { fee, downpayment, months, installment: months > 0 ? Math.floor((fee - downpayment) / months) : 0 };
+    if (enrollType === 'Standard' && selectedPlan) {
+      const matched = allCoursePlans.find(p => p.value === selectedPlan);
+      if (matched) {
+        if (matched.type === 'bundle') {
+          const fee = Number(matched.data.fee_amount || matched.data.fee || 0);
+          const downpayment = matched.data.downPayment || Math.round(fee * 0.3);
+          const months = matched.data.months || 6;
+          return { fee, downpayment, months, installment: months > 0 ? Math.floor((fee - downpayment) / months) : 0 };
+        } else {
+          const fee = Number(matched.data.totalFees || 0);
+          const downpayment = matched.data.downPayment || Math.round(fee * 0.3);
+          const months = matched.data.months || 6;
+          return { fee, downpayment, months, installment: months > 0 ? Math.floor((fee - downpayment) / months) : 0 };
+        }
       }
     }
     if (enrollType === 'Subject-wise' && feeSelectedSubjects.length > 0) {
@@ -246,7 +344,7 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
       return { fee: total, downpayment: Math.round(total * 0.3), months: 4, installment: Math.floor((total * 0.7) / 4) };
     }
     return null;
-  }, [enrollType, feeSelectedStandard, feeSelectedBundle, feeSelectedSubjects, availableBundles, availableSubjects]);
+  }, [enrollType, selectedPlan, allCoursePlans, feeSelectedSubjects, availableSubjects]);
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -254,21 +352,21 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
         <Select 
           label="Select Course" 
           value={fCourse} 
-          onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); }} 
+          onChange={e => { setFCourse(e.target.value); setFProgram(''); setFLevel(''); setSelectedPlan(''); }} 
           options={[{ value: '', label: 'Select Course' }, ...availableCourses.map((c: any) => ({ value: c.name, label: c.name }))]} 
           disabled={readOnly} 
         />
         <Select 
           label="Select Program" 
           value={fProgram} 
-          onChange={e => { setFProgram(e.target.value); setFLevel(''); }} 
+          onChange={e => { setFProgram(e.target.value); setFLevel(''); setSelectedPlan(''); }} 
           options={[{ value: '', label: 'Select Program' }, ...availablePrograms.map((p: any) => ({ value: p, label: p }))]} 
           disabled={readOnly || !fCourse} 
         />
         <Select 
           label="Select Level" 
           value={fLevel} 
-          onChange={e => setFLevel(e.target.value)} 
+          onChange={e => { setFLevel(e.target.value); setSelectedPlan(''); }} 
           options={[{ value: '', label: 'Select Level' }, ...availableLevels]} 
           disabled={readOnly || (!fProgram && !fCourse)} 
         />
@@ -276,50 +374,30 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
 
       <div className="p-4 bg-white border border-slate-200 rounded-lg space-y-4 shadow-sm">
         <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Enrollment Type</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {['Standard', 'Custom Combo', 'Subject-wise'].map(et => (
-            <label key={et} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'} ${readOnly ? 'opacity-70 pointer-events-none' : ''}`}>
-              <input type="radio" name="enrollType" value={et} checked={enrollType === et} onChange={() => setEnrollType(et as any)} className="text-blue-600" disabled={readOnly} />
-              <span className="text-sm font-semibold text-slate-700">{et}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { id: 'Standard', label: 'Plans' },
+            { id: 'Subject-wise', label: 'Subject-wise' }
+          ].map(et => (
+            <label key={et.id} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${enrollType === et.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'} ${readOnly ? 'opacity-70 pointer-events-none' : ''}`}>
+              <input type="radio" name="enrollType" value={et.id} checked={enrollType === et.id} onChange={() => setEnrollType(et.id as any)} className="text-blue-600" disabled={readOnly} />
+              <span className="text-sm font-semibold text-slate-700">{et.label}</span>
             </label>
           ))}
         </div>
 
         {enrollType === 'Standard' && (
           <div className="mt-4 space-y-4 animate-fade-in">
-            {(() => {
-              const progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse && p.program === fProgram);
-              return (
-                <Select label="Select Standard Plan" value={feeSelectedStandard} onChange={e => setFeeSelectedStandard(e.target.value)} disabled={readOnly} options={[
-                  { value: '', label: progPlans.length > 0 ? 'Choose a plan...' : `Standard Base Plan (${fCourse || 'Course'})` },
-                  ...progPlans.map((p: any) => ({ value: p.id, label: `${p.program} Base Plan - ₹${p.totalFees.toLocaleString()}` }))
-                ]} />
-              );
-            })()}
-          </div>
-        )}
-
-        {enrollType === 'Custom Combo' && (
-          <div className="mt-4 space-y-4 animate-fade-in">
-            {availableBundles.length === 0 ? (
-              <div className="text-sm text-amber-600 mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                No custom bundles configured for this level. You can configure bundles in Fee Structures or select Subject-wise.
-              </div>
-            ) : (
-              <Select 
-                label="Select Subject Bundle" 
-                value={feeSelectedBundle} 
-                onChange={e => setFeeSelectedBundle(e.target.value)} 
-                disabled={readOnly} 
-                options={[
-                  { value: '', label: 'Choose a bundle...' },
-                  ...availableBundles.map((b: any) => ({ 
-                    value: String(b.id), 
-                    label: `${b.name} - ₹${Number(b.fee_amount || b.fee || 0).toLocaleString()}` 
-                  }))
-                ]} 
-              />
-            )}
+            <Select 
+              label="Select Plan" 
+              value={selectedPlan} 
+              onChange={e => setSelectedPlan(e.target.value)} 
+              disabled={readOnly} 
+              options={[
+                { value: '', label: allCoursePlans.length > 0 ? 'Choose a plan...' : `No plans configured for ${fCourse || 'this course'}` },
+                ...allCoursePlans.map(p => ({ value: p.value, label: p.label }))
+              ]} 
+            />
           </div>
         )}
 

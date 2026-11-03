@@ -188,7 +188,7 @@ export const StaffSalaryMasterView: React.FC<StaffSalaryMasterViewProps> = ({
           if (typeof toast === 'string') {
             addToast(toast);
           } else {
-            addToast(toast.message, toast.type);
+            addToast(toast.message || '', toast.type);
           }
         }}
       />

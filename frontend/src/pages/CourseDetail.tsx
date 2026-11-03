@@ -11,12 +11,20 @@ import { Select } from '../components/ui/Select';
 import { Toggle } from '../components/ui/Toggle';
 import { Modal } from '../components/ui/Modal';
 import {
-  BookOpen, GraduationCap, Layers, Plus, Trash2, ShieldAlert, Loader2, ArrowRight, ArrowLeft, BookOpenCheck, AlertTriangle
+  BookOpen, GraduationCap, Layers, Plus, Trash2, ShieldAlert, Loader2, ArrowRight, ArrowLeft, BookOpenCheck, AlertTriangle, CreditCard
 } from 'lucide-react';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 
 const newLevel = (): CourseApiProgramLevel => ({ id: `l-${Date.now()}`, name: '', duration: '', subjects: [] });
-const newProgram = (): CourseApiProgram => ({ id: `p-${Date.now()}`, name: '', code: '', is_active: true, levels: [] });
+const newProgram = (defaultFee?: number): CourseApiProgram => ({
+  id: `p-${Date.now()}`,
+  name: '',
+  code: '',
+  total_fee: defaultFee,
+  totalFees: defaultFee,
+  is_active: true,
+  levels: []
+});
 
 // ─── Level Card Component ──────────────────────────────────────────────────
 const LevelCard: React.FC<{
@@ -124,6 +132,8 @@ export const CourseDetail: React.FC = () => {
     name: '',
     code: '',
     description: '',
+    fees: undefined,
+    total_fee: undefined,
     is_active: true,
     programs: [],
     branches: []
@@ -145,10 +155,15 @@ export const CourseDetail: React.FC = () => {
       setIsLoading(true);
       const res = await courseApi.getByCode(courseCode);
       if (res?.status === 'success' && res.data) {
+        const feeVal = res.data.fees !== null && res.data.fees !== undefined
+          ? Number(res.data.fees)
+          : (res.data.total_fee !== null && res.data.total_fee !== undefined ? Number(res.data.total_fee) : undefined);
         setFormData({
           name: res.data.name || '',
           code: res.data.code || '',
           description: res.data.description || '',
+          fees: feeVal,
+          total_fee: feeVal,
           is_active: res.data.is_active ?? true,
           branches: res.data.branches || [],
           programs: res.data.programs || []
@@ -432,6 +447,80 @@ export const CourseDetail: React.FC = () => {
                     disabled={disableInputs}
                   />
                 </div>
+
+                {/* Course Fee Structure */}
+                <div className="md:col-span-2 pt-4 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard size={18} className="text-blue-600" />
+                      <h4 className="font-bold text-slate-800 text-sm">Course Fee Structure</h4>
+                    </div>
+                    <span className="text-xs text-slate-400 font-medium">
+                      Standard base pricing used across admissions & enrollment
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+                    <div>
+                      <Input
+                        label="Course Fee (₹) *"
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={formData.fees !== undefined && formData.fees !== null ? formData.fees : ''}
+                        placeholder="e.g. 60000"
+                        onChange={e => {
+                          const val = e.target.value === '' ? undefined : Number(e.target.value);
+                          setFormData({ ...formData, fees: val, total_fee: val });
+                        }}
+                        disabled={disableInputs}
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">Total standard course fee</p>
+                    </div>
+
+                    <div>
+                      <Input
+                        label="Default Down Payment (₹)"
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={formData.programs?.[0]?.down_payment !== undefined && formData.programs?.[0]?.down_payment !== null ? formData.programs[0].down_payment : ''}
+                        placeholder="e.g. 15000"
+                        onChange={e => {
+                          const val = e.target.value === '' ? undefined : Number(e.target.value);
+                          const progs = [...(formData.programs || [])];
+                          if (progs.length > 0) {
+                            progs[0] = { ...progs[0], down_payment: val, downPayment: val };
+                          }
+                          setFormData({ ...formData, programs: progs });
+                        }}
+                        disabled={disableInputs}
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">Initial deposit on enrollment (optional)</p>
+                    </div>
+
+                    <div>
+                      <Input
+                        label="Default Installments (Months)"
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={formData.programs?.[0]?.installment_months !== undefined && formData.programs?.[0]?.installment_months !== null ? formData.programs[0].installment_months : ''}
+                        placeholder="e.g. 6 or 12"
+                        onChange={e => {
+                          const val = e.target.value === '' ? undefined : Number(e.target.value);
+                          const progs = [...(formData.programs || [])];
+                          if (progs.length > 0) {
+                            progs[0] = { ...progs[0], installment_months: val, months: val };
+                          }
+                          setFormData({ ...formData, programs: progs });
+                        }}
+                        disabled={disableInputs}
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">Number of monthly EMI payments</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </Card>
           )}
@@ -449,7 +538,7 @@ export const CourseDetail: React.FC = () => {
                 {!disableInputs && (
                   <Button
                     variant="primary"
-                    onClick={() => setFormData({ ...formData, programs: [...(formData.programs || []), newProgram()] })}
+                    onClick={() => setFormData({ ...formData, programs: [...(formData.programs || []), newProgram(formData.fees)] })}
                     className="px-4 py-2 text-sm font-bold gap-1.5"
                   >
                     <Plus size={16} /> Add Program
@@ -465,7 +554,7 @@ export const CourseDetail: React.FC = () => {
                   {!disableInputs && (
                     <Button
                       variant="primary"
-                      onClick={() => setFormData({ ...formData, programs: [...(formData.programs || []), newProgram()] })}
+                      onClick={() => setFormData({ ...formData, programs: [...(formData.programs || []), newProgram(formData.fees)] })}
                       className="px-4 py-2 text-xs font-bold gap-1.5"
                     >
                       <Plus size={15} /> Add First Program
@@ -535,6 +624,67 @@ export const CourseDetail: React.FC = () => {
                               }}
                               disabled={disableInputs}
                             />
+                          </div>
+
+                          {/* Program Fee Structure */}
+                          <div className="pt-2 border-t border-slate-100">
+                            <div className="flex items-center gap-2 mb-2.5">
+                              <CreditCard size={15} className="text-indigo-600" />
+                              <span className="text-xs font-bold text-slate-700">Program Fee Structure (Override or inherit from course fee)</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                              <div>
+                                <Input
+                                  label="Program Total Fee (₹)"
+                                  type="number"
+                                  min="0"
+                                  step="100"
+                                  value={program.total_fee !== undefined && program.total_fee !== null ? program.total_fee : (program.totalFees !== undefined && program.totalFees !== null ? program.totalFees : '')}
+                                  placeholder={formData.fees ? `Default: ₹${formData.fees}` : 'e.g. 60000'}
+                                  onChange={e => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    const programs = [...(formData.programs || [])];
+                                    programs[pi] = { ...program, total_fee: val, totalFees: val };
+                                    setFormData({ ...formData, programs });
+                                  }}
+                                  disabled={disableInputs}
+                                />
+                              </div>
+                              <div>
+                                <Input
+                                  label="Down Payment (₹)"
+                                  type="number"
+                                  min="0"
+                                  step="100"
+                                  value={program.down_payment !== undefined && program.down_payment !== null ? program.down_payment : (program.downPayment !== undefined && program.downPayment !== null ? program.downPayment : '')}
+                                  placeholder="e.g. 15000"
+                                  onChange={e => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    const programs = [...(formData.programs || [])];
+                                    programs[pi] = { ...program, down_payment: val, downPayment: val };
+                                    setFormData({ ...formData, programs });
+                                  }}
+                                  disabled={disableInputs}
+                                />
+                              </div>
+                              <div>
+                                <Input
+                                  label="Installments (Months)"
+                                  type="number"
+                                  min="1"
+                                  max="60"
+                                  value={program.installment_months !== undefined && program.installment_months !== null ? program.installment_months : (program.months !== undefined && program.months !== null ? program.months : '')}
+                                  placeholder="e.g. 6 or 12"
+                                  onChange={e => {
+                                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                    const programs = [...(formData.programs || [])];
+                                    programs[pi] = { ...program, installment_months: val, months: val };
+                                    setFormData({ ...formData, programs });
+                                  }}
+                                  disabled={disableInputs}
+                                />
+                              </div>
+                            </div>
                           </div>
 
                           {/* Setup Levels Button */}

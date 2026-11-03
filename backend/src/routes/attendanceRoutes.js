@@ -24,6 +24,10 @@ router.post('/bulk-upload/:lectureId', requirePermission('attendance.mark'), upl
 router.get('/report/batch/:batchId', requirePermission('attendance.view'), attendanceController.getBatchReport);
 router.get('/report/student/:studentId', requirePermission('attendance.view'), attendanceController.getStudentReport);
 
+// Daily student attendance roster
+router.get('/daily-students', requirePermission('attendance.view'), attendanceController.getDailyStudents);
+router.post('/daily-students', requirePermission('attendance.mark'), attendanceController.saveDailyStudents);
+
 // Staff attendance (day sheet + teacher lecture-wise)
 router.get('/staff', requirePermission('attendance.view'), attendanceController.getStaffAttendance);
 router.post('/staff/save', requirePermission('attendance.mark'), attendanceController.saveStaffAttendance);

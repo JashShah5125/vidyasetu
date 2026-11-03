@@ -91,14 +91,14 @@ export const BranchDetail: React.FC = () => {
         name: typeof p === 'string' ? p : (p.name || ''),
         code: typeof p === 'string' ? '' : (p.code || ''),
         id: String(typeof p === 'string' ? p : (p.id || p.code || p.name || idx))
-      })).filter(p => Boolean(p.name));
+      })).filter((p: any) => Boolean(p.name));
     }
     if (Array.isArray(course.programs) && course.programs.length > 0) {
       return course.programs.map((p: any, idx: number) => ({
         name: typeof p === 'string' ? p : (p.name || ''),
         code: typeof p === 'string' ? '' : (p.code || ''),
         id: String(typeof p === 'string' ? p : (p.id || p.code || p.name || idx))
-      })).filter(p => Boolean(p.name));
+      })).filter((p: any) => Boolean(p.name));
     }
     return [];
   };

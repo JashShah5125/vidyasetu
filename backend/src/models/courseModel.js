@@ -75,7 +75,7 @@ const getCourses = async (tenantId, { search = '', branchId = null, status = 'al
     }
 
     const [rows] = await pool.query(
-        `SELECT c.id, c.name, c.code, c.description, c.is_active,
+        `SELECT c.id, c.name, c.code, c.description, c.total_fee, c.fees, c.is_active,
                 c.created_at, c.updated_at
          FROM courses c
          WHERE ${where}
@@ -93,13 +93,20 @@ const getCourses = async (tenantId, { search = '', branchId = null, status = 'al
     const branchMap = await getCoursesBranchMap(courseIds);
     const programMap = await getCoursesProgramMap(courseIds);
 
-    const data = rows.map(row => ({
-        ...row,
-        id: String(row.id),
-        is_active: !!row.is_active,
-        branches: branchMap[row.id] || [],
-        programs: programMap[row.id] || []
-    }));
+    const data = rows.map(row => {
+        const feeVal = row.fees !== null && row.fees !== undefined 
+            ? Number(row.fees) 
+            : (row.total_fee !== null && row.total_fee !== undefined ? Number(row.total_fee) : 0);
+        return {
+            ...row,
+            id: String(row.id),
+            is_active: !!row.is_active,
+            total_fee: feeVal,
+            fees: feeVal,
+            branches: branchMap[row.id] || [],
+            programs: programMap[row.id] || []
+        };
+    });
 
     return { data, total: countRows[0].total };
 };
@@ -113,8 +120,14 @@ const getCourseByCode = async (tenantId, code) => {
     const course = courseRows[0];
     if (!course) return null;
 
+    const feeVal = course.fees !== null && course.fees !== undefined 
+        ? Number(course.fees) 
+        : (course.total_fee !== null && course.total_fee !== undefined ? Number(course.total_fee) : 0);
+
     course.id = String(course.id);
     course.is_active = !!course.is_active;
+    course.total_fee = feeVal;
+    course.fees = feeVal;
     course.branches = await getCourseBranchIds(course.id);
     course.programs = await getProgramsForCourse(course.id);
 
@@ -123,20 +136,31 @@ const getCourseByCode = async (tenantId, code) => {
 
 const getProgramsForCourse = async (courseId) => {
     const [rows] = await pool.query(
-        `SELECT id, name, code, duration, is_active FROM programs
+        `SELECT id, name, code, duration, total_fee, down_payment, installment_months, is_active FROM programs
          WHERE course_id = ? AND deleted_at IS NULL
          ORDER BY id ASC`,
         [courseId]
     );
 
-    const programs = rows.map(row => ({
-        id: String(row.id),
-        name: row.name,
-        code: row.code,
-        duration: row.duration,
-        is_active: !!row.is_active,
-        levels: []
-    }));
+    const programs = rows.map(row => {
+        const totalFee = row.total_fee !== null && row.total_fee !== undefined ? Number(row.total_fee) : 0;
+        const downPayment = row.down_payment !== null && row.down_payment !== undefined ? Number(row.down_payment) : 0;
+        const installmentMonths = row.installment_months !== null && row.installment_months !== undefined ? Number(row.installment_months) : 0;
+        return {
+            id: String(row.id),
+            name: row.name,
+            code: row.code,
+            duration: row.duration,
+            total_fee: totalFee,
+            totalFees: totalFee,
+            down_payment: downPayment,
+            downPayment: downPayment,
+            installment_months: installmentMonths,
+            months: installmentMonths,
+            is_active: !!row.is_active,
+            levels: []
+        };
+    });
 
     if (programs.length === 0) return programs;
 
@@ -198,14 +222,6 @@ const getProgramsForCourse = async (courseId) => {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
-const rowToCourseId = async (tenantId, code) => {
-    const [rows] = await pool.query(
-        `SELECT id FROM courses WHERE code = ? AND tenant_id = ? AND deleted_at IS NULL`,
-        [code, tenantId]
-    );
-    return rows[0] ? rows[0].id : null;
-};
-
 // Replace the offered branches of a course (only the ones that exist).
 const syncCourseBranches = async (conn, courseId, branchIds = []) => {
     await conn.query('DELETE FROM course_branches WHERE course_id = ?', [courseId]);
@@ -221,6 +237,9 @@ const syncCourseBranches = async (conn, courseId, branchIds = []) => {
 
 const createCourse = async (tenantId, data, userId) => {
     const { name, code, description, is_active = true, branches = [], programs = [] } = data;
+    const courseFee = data.fees !== undefined && data.fees !== null && data.fees !== ''
+        ? Number(data.fees)
+        : (data.total_fee !== undefined && data.total_fee !== null && data.total_fee !== '' ? Number(data.total_fee) : null);
 
     const conn = await pool.getConnection();
     try {
@@ -238,14 +257,14 @@ const createCourse = async (tenantId, data, userId) => {
         }
 
         const [insert] = await conn.query(
-            `INSERT INTO courses (tenant_id, name, code, description, is_active, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [tenantId, name, code, description, is_active ? 1 : 0, userId, userId]
+            `INSERT INTO courses (tenant_id, name, code, description, total_fee, fees, is_active, created_by, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [tenantId, name, code, description, courseFee, courseFee, is_active ? 1 : 0, userId, userId]
         );
         const courseId = insert.insertId;
 
         await syncCourseBranches(conn, courseId, branches);
-        await insertPrograms(conn, courseId, tenantId, programs, userId);
+        await insertPrograms(conn, courseId, tenantId, programs, userId, courseFee);
 
         await conn.commit();
         return { id: String(courseId) };
@@ -259,6 +278,9 @@ const createCourse = async (tenantId, data, userId) => {
 
 const updateCourse = async (tenantId, code, data, userId) => {
     const { name, description, is_active = true, branches, programs } = data;
+    const courseFee = data.fees !== undefined
+        ? (data.fees !== null && data.fees !== '' ? Number(data.fees) : null)
+        : (data.total_fee !== undefined ? (data.total_fee !== null && data.total_fee !== '' ? Number(data.total_fee) : null) : undefined);
 
     const conn = await pool.getConnection();
     try {
@@ -286,11 +308,19 @@ const updateCourse = async (tenantId, code, data, userId) => {
             }
         }
 
-        await conn.query(
-            `UPDATE courses SET name = ?, description = ?, is_active = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?`,
-            [name, description, is_active ? 1 : 0, userId, courseId]
-        );
+        if (courseFee !== undefined) {
+            await conn.query(
+                `UPDATE courses SET name = ?, description = ?, total_fee = ?, fees = ?, is_active = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [name, description, courseFee, courseFee, is_active ? 1 : 0, userId, courseId]
+            );
+        } else {
+            await conn.query(
+                `UPDATE courses SET name = ?, description = ?, is_active = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [name, description, is_active ? 1 : 0, userId, courseId]
+            );
+        }
 
         if (branches !== undefined) {
             await syncCourseBranches(conn, courseId, branches);
@@ -324,17 +354,35 @@ const updateCourse = async (tenantId, code, data, userId) => {
             // Upsert the submitted programs.
             for (const program of programs) {
                 let programId = Number(program.id);
+                const pTotalFee = program.total_fee !== undefined && program.total_fee !== null && program.total_fee !== ''
+                    ? Number(program.total_fee)
+                    : (program.totalFees !== undefined && program.totalFees !== null && program.totalFees !== ''
+                        ? Number(program.totalFees)
+                        : (courseFee !== undefined && courseFee !== null ? Number(courseFee) : null));
+
+                const pDownPayment = program.down_payment !== undefined && program.down_payment !== null && program.down_payment !== ''
+                    ? Number(program.down_payment)
+                    : (program.downPayment !== undefined && program.downPayment !== null && program.downPayment !== ''
+                        ? Number(program.downPayment)
+                        : null);
+
+                const pInstallmentMonths = program.installment_months !== undefined && program.installment_months !== null && program.installment_months !== ''
+                    ? Number(program.installment_months)
+                    : (program.months !== undefined && program.months !== null && program.months !== ''
+                        ? Number(program.months)
+                        : null);
+
                 if (programId && existingIds.includes(programId)) {
                     await conn.query(
-                        `UPDATE programs SET name = ?, code = ?, duration = ?, is_active = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+                        `UPDATE programs SET name = ?, code = ?, duration = ?, total_fee = ?, down_payment = ?, installment_months = ?, is_active = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
                          WHERE id = ? AND deleted_at IS NULL`,
-                        [program.name, program.code, program.duration, program.is_active ? 1 : 0, userId, programId]
+                        [program.name, program.code, program.duration, pTotalFee, pDownPayment, pInstallmentMonths, program.is_active ? 1 : 0, userId, programId]
                     );
                 } else {
                     const [pInsert] = await conn.query(
-                        `INSERT INTO programs (tenant_id, course_id, name, code, duration, is_active, created_by, updated_by)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [tenantId, courseId, program.name, program.code, program.duration, program.is_active ? 1 : 0, userId, userId]
+                        `INSERT INTO programs (tenant_id, course_id, name, code, duration, total_fee, down_payment, installment_months, is_active, created_by, updated_by)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [tenantId, courseId, program.name, program.code, program.duration, pTotalFee, pDownPayment, pInstallmentMonths, program.is_active ? 1 : 0, userId, userId]
                     );
                     programId = pInsert.insertId;
                 }
@@ -366,21 +414,38 @@ const syncLevelSubjects = async (conn, tenantId, levelId, subjects = []) => {
     }
 };
 
-const insertPrograms = async (conn, courseId, tenantId, programs, userId) => {
+const insertPrograms = async (conn, courseId, tenantId, programs, userId, defaultFee = null) => {
     for (const program of programs) {
+        const pTotalFee = program.total_fee !== undefined && program.total_fee !== null && program.total_fee !== ''
+            ? Number(program.total_fee)
+            : (program.totalFees !== undefined && program.totalFees !== null && program.totalFees !== ''
+                ? Number(program.totalFees)
+                : (defaultFee !== null ? Number(defaultFee) : null));
+
+        const pDownPayment = program.down_payment !== undefined && program.down_payment !== null && program.down_payment !== ''
+            ? Number(program.down_payment)
+            : (program.downPayment !== undefined && program.downPayment !== null && program.downPayment !== ''
+                ? Number(program.downPayment)
+                : null);
+
+        const pInstallmentMonths = program.installment_months !== undefined && program.installment_months !== null && program.installment_months !== ''
+            ? Number(program.installment_months)
+            : (program.months !== undefined && program.months !== null && program.months !== ''
+                ? Number(program.months)
+                : null);
+
         const [pInsert] = await conn.query(
-            `INSERT INTO programs (tenant_id, course_id, name, code, duration, is_active, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [tenantId, courseId, program.name, program.code, program.duration, program.is_active ? 1 : 0, userId, userId]
+            `INSERT INTO programs (tenant_id, course_id, name, code, duration, total_fee, down_payment, installment_months, is_active, created_by, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [tenantId, courseId, program.name, program.code, program.duration, pTotalFee, pDownPayment, pInstallmentMonths, program.is_active ? 1 : 0, userId, userId]
         );
         const programId = pInsert.insertId;
-        const programActive = program.is_active === undefined ? 1 : (program.is_active ? 1 : 0);
         if (program.levels && program.levels.length > 0) {
             for (const level of program.levels) {
                 const levelActive = level.is_active === undefined ? 1 : (level.is_active ? 1 : 0);
                 const [lInsert] = await conn.query(
                     `INSERT INTO levels (tenant_id, course_id, program_id, name, code, duration, is_active, created_by, updated_by)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [tenantId, courseId, programId, level.name, level.code, level.duration, levelActive, userId, userId]
                 );
                 await syncLevelSubjects(conn, tenantId, lInsert.insertId, level.subjects);
@@ -423,7 +488,7 @@ const upsertProgramLevels = async (conn, programId, tenantId, levels, userId) =>
         } else {
             const [lInsert] = await conn.query(
                 `INSERT INTO levels (tenant_id, course_id, program_id, name, code, duration, is_active, created_by, updated_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [tenantId, courseId, programId, level.name, level.code, level.duration, levelActive, userId, userId]
             );
             targetLevelId = lInsert.insertId;

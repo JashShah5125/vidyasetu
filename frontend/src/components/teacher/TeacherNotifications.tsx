@@ -279,7 +279,7 @@ export const TeacherNotifications: React.FC = () => {
                       {n.message}
                     </div>
                     <div className="text-[10px] font-bold text-slate-400">
-                      {activeTab === 'inbox' ? `From: ${n.sender}` : `To: ${n.recipients.map(r => r.name).join(', ')}`}
+                      {activeTab === 'inbox' ? `From: ${n.sender}` : `To: ${n.recipients?.map(r => r.name).join(', ') || 'Recipients'}`}
                     </div>
                   </button>
                 ))}
@@ -427,7 +427,7 @@ export const TeacherNotifications: React.FC = () => {
                        </div>
                     ) : (
                        <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1 rounded-md text-slate-700">
-                          <span className="text-slate-400 uppercase">Recipients:</span> {selectedNotification.recipients.map(r => r.name).join(', ')} <span className="opacity-50 font-normal">({selectedNotification.recipientCount} students)</span>
+                          <span className="text-slate-400 uppercase">Recipients:</span> {selectedNotification.recipients?.map(r => r.name).join(', ') || 'All'} <span className="opacity-50 font-normal">({selectedNotification.recipientCount || 0} students)</span>
                        </div>
                     )}
                  </div>
@@ -442,7 +442,7 @@ export const TeacherNotifications: React.FC = () => {
                   <div className="mt-8 pt-6 border-t border-slate-100 space-y-3">
                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Attachments</h4>
                     <div className="flex gap-3">
-                      {selectedNotification.attachments.map((att, idx) => (
+                      {selectedNotification.attachments.map((att: string, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-colors group">
                            <Paperclip size={14} className="text-slate-400 group-hover:text-blue-500" />
                            <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-700">{att}</span>

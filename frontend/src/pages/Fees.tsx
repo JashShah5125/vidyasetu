@@ -1418,71 +1418,105 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       </td>
                     </tr>
                   ) : (
-                    ledger.invoices.map(inv => {
-                      const st = statusBadge(inv.status);
-                      const isInvOverdue = inv.balance_due > 0 && inv.due_date && new Date(inv.due_date) < new Date();
-                      return (
-                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-2.5 py-2 text-xs sm:text-sm font-semibold text-slate-900 whitespace-nowrap">{inv.invoice_number}</td>
-                          <td className="px-2.5 py-2 text-left">
-                            <div className="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">{inv.description || (inv.installment_number === 0 ? 'Downpayment' : `Installment ${inv.installment_number}`)}</div>
-                            <div className="text-[11px] text-slate-500 mt-0.5">{fmtDate(inv.issue_date)} → {fmtDate(inv.due_date)}</div>
-                          </td>
-                          <td className="px-2 py-2 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">{fmt(inv.amount)}</td>
-                          <td className="px-2 py-2 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">{fmt(inv.paid_amount)}</td>
-                          <td className="px-2 py-2 text-right text-xs sm:text-sm tabular-nums whitespace-nowrap">
-                            {inv.balance_due > 0 ? (
+                    <>
+                      {ledger.invoices.map(inv => {
+                        const st = statusBadge(inv.status);
+                        const isInvOverdue = inv.balance_due > 0 && inv.due_date && new Date(inv.due_date) < new Date();
+                        const isBalInvoice = inv.invoice_number?.endsWith('-BAL') || inv.description?.includes('Pending Balance');
+                        return (
+                          <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-2.5 py-2 text-xs sm:text-sm font-semibold text-slate-900 whitespace-nowrap">{inv.invoice_number}</td>
+                            <td className="px-2.5 py-2 text-left">
+                              <div className="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">{inv.description || (inv.installment_number === 0 ? 'Downpayment' : `Installment ${inv.installment_number}`)}</div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">{fmtDate(inv.issue_date)} → {fmtDate(inv.due_date)}</div>
+                            </td>
+                            <td className="px-2 py-2 text-right text-xs sm:text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">{fmt(inv.amount)}</td>
+                            <td className="px-2 py-2 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">{fmt(inv.paid_amount)}</td>
+                            <td className="px-2 py-2 text-right text-xs sm:text-sm tabular-nums whitespace-nowrap">
+                              {inv.balance_due > 0 ? (
+                                <span className="inline-block text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
+                                  {fmt(inv.balance_due)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-normal text-xs sm:text-sm">₹0</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-center text-xs text-slate-600 whitespace-nowrap">{fmtDate(inv.payment_date)}</td>
+                            <td className="px-2 py-2 text-center text-xs text-slate-600 whitespace-nowrap">{inv.payment_mode || '—'}</td>
+                            <td className="px-2 py-2 text-center whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>{st.label}</span>
+                            </td>
+                            <td className="px-2 py-2 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  title="Invoice Template (Tax / Proforma)"
+                                  className="p-1 rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                  onClick={() => openInvoiceTemplate(inv, inv.status === 'paid' ? 'tax' : 'proforma')}
+                                >
+                                  <Printer size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="View Details"
+                                  className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
+                                  onClick={() => openViewInvoice(inv)}
+                                >
+                                  <Eye size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Edit Invoice"
+                                  className="p-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  onClick={() => openEditInvoice(inv)}
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                {!isBalInvoice && (
+                                  <button
+                                    type="button"
+                                    title="Delete Invoice"
+                                    className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    onClick={() => openDeleteInvoiceModal(inv)}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900">
+                        <td className="px-2.5 py-3 text-xs sm:text-sm font-bold text-slate-900 whitespace-nowrap">
+                          Total ({ledger.invoices.length})
+                        </td>
+                        <td className="px-2.5 py-3 text-xs text-slate-600 font-medium">
+                          All account entries
+                        </td>
+                        <td className="px-2 py-3 text-right text-xs sm:text-sm font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                          {fmt(ledger.invoices.reduce((s, i) => s + (Number(i.amount) || 0), 0))}
+                        </td>
+                        <td className="px-2 py-3 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
+                          {fmt(ledger.invoices.reduce((s, i) => s + (Number(i.paid_amount) || 0), 0))}
+                        </td>
+                        <td className="px-2 py-3 text-right text-xs sm:text-sm font-bold tabular-nums whitespace-nowrap">
+                          {(() => {
+                            const totBal = ledger.invoices.reduce((s, i) => s + (Number(i.balance_due) || 0), 0);
+                            return totBal > 0 ? (
                               <span className="inline-block text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
-                                {fmt(inv.balance_due)}
+                                {fmt(totBal)}
                               </span>
                             ) : (
-                              <span className="text-slate-400 font-normal text-xs sm:text-sm">₹0</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-2 text-center text-xs text-slate-600 whitespace-nowrap">{fmtDate(inv.payment_date)}</td>
-                          <td className="px-2 py-2 text-center text-xs text-slate-600 whitespace-nowrap">{inv.payment_mode || '—'}</td>
-                          <td className="px-2 py-2 text-center whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${st.cls}`}>{st.label}</span>
-                          </td>
-                          <td className="px-2 py-2 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                title="Invoice Template (Tax / Proforma)"
-                                className="p-1 rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                onClick={() => openInvoiceTemplate(inv, inv.status === 'paid' ? 'tax' : 'proforma')}
-                              >
-                                <Printer size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                title="View Details"
-                                className="p-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
-                                onClick={() => openViewInvoice(inv)}
-                              >
-                                <Eye size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                title="Edit Invoice"
-                                className="p-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                                onClick={() => openEditInvoice(inv)}
-                              >
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                type="button"
-                                title="Delete Invoice"
-                                className="p-1 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                onClick={() => openDeleteInvoiceModal(inv)}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                              <span className="text-slate-500 font-semibold text-xs sm:text-sm">₹0</span>
+                            );
+                          })()}
+                        </td>
+                        <td colSpan={4} className="px-2 py-3 text-center text-xs text-slate-500 font-medium">
+                          Reconciled with Fee Assignment
+                        </td>
+                      </tr>
+                    </>
                   )}
                 </Table>
               </Card>

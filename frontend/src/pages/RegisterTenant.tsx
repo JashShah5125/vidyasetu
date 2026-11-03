@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   Building2, Users, TrendingUp, CheckCircle2,
   ArrowRight, ArrowLeft, Loader2, Phone, Mail,
-  MapPin, AlertCircle, FileText, Upload, Check, X
+  MapPin, AlertCircle, FileText, Upload, Check, X, ChevronDown
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
@@ -26,6 +26,47 @@ const INDIAN_STATES = [
   'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Chandigarh'
 ];
 
+const DESIGNATION_OPTIONS = [
+  'Director',
+  'Owner',
+  'Principal',
+  'Managing Director',
+  'Founder / Co-Founder',
+  'Head of Institute',
+  'Administrator',
+  'Branch Manager',
+  'Dean / Academic Head',
+  'Partner',
+  'Other'
+];
+
+const ADDITIONAL_DOC_TYPES = [
+  {
+    key: 'regDoc' as const,
+    label: 'Institution Registration Proof',
+    desc: 'Trust deed, Gumasta, Incorporation certificate, or MSME (PDF, JPG, PNG • Max 5MB)',
+    accept: '.pdf,image/jpeg,image/png,image/jpg',
+  },
+  {
+    key: 'adminIdDoc' as const,
+    label: 'Director / Admin ID Proof',
+    desc: 'Aadhaar card, Passport, or Voter ID of the contact person (PDF, JPG, PNG • Max 5MB)',
+    accept: '.pdf,image/jpeg,image/png,image/jpg',
+  },
+  {
+    key: 'gstDoc' as const,
+    label: 'GST Certificate',
+    desc: 'GST registration certificate for tax invoices (PDF, JPG, PNG • Max 5MB)',
+    accept: '.pdf,image/jpeg,image/png,image/jpg',
+  },
+  {
+    key: 'logo' as const,
+    label: 'Institution Logo',
+    desc: 'Used on your portal header and student fee receipts (JPG, PNG, SVG • Max 2MB)',
+    accept: 'image/jpeg,image/png,image/jpg,image/svg+xml',
+  },
+];
+
 export const RegisterTenant: React.FC = () => {
   const navigate = useNavigate();
 
@@ -35,6 +76,8 @@ export const RegisterTenant: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isOtherDesignation, setIsOtherDesignation] = useState<boolean>(false);
+  const [selectedDocType, setSelectedDocType] = useState<'regDoc' | 'adminIdDoc' | 'gstDoc' | 'logo'>('regDoc');
 
   // Form State: Strictly fields that map 1:1 to saas_leads columns
   const [formData, setFormData] = useState({
@@ -166,18 +209,10 @@ export const RegisterTenant: React.FC = () => {
     return true;
   };
 
-  // Step 3 Validation (Documents)
+  // Step 3 Validation (Documents - Only PAN Card is compulsory)
   const validateStep3 = (): boolean => {
-    if (!docFiles.regDoc) {
-      setErrorMessage('Please upload the Institution Registration Proof (Trust deed / Gumasta / Incorporation / MSME)');
-      return false;
-    }
     if (!docFiles.panDoc) {
       setErrorMessage('Please upload the Institute / Owner PAN Card');
-      return false;
-    }
-    if (!docFiles.adminIdDoc) {
-      setErrorMessage('Please upload the Director / Admin ID Proof (Aadhaar Card or Passport)');
       return false;
     }
     return true;
@@ -552,13 +587,35 @@ export const RegisterTenant: React.FC = () => {
                         <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                           Designation
                         </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Director / Owner / Principal"
-                          value={formData.designation}
-                          onChange={e => handleChange('designation', e.target.value)}
-                          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
-                        />
+                        <select
+                          value={isOtherDesignation ? 'Other' : (formData.designation || '')}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === 'Other') {
+                              setIsOtherDesignation(true);
+                              handleChange('designation', '');
+                            } else {
+                              setIsOtherDesignation(false);
+                              handleChange('designation', val);
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium cursor-pointer"
+                        >
+                          <option value="">Select Designation</option>
+                          {DESIGNATION_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                        {isOtherDesignation && (
+                          <input
+                            type="text"
+                            placeholder="Please specify your designation"
+                            value={formData.designation}
+                            onChange={e => handleChange('designation', e.target.value)}
+                            className="mt-2 w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                            autoFocus
+                          />
+                        )}
                       </div>
 
                       {/* Mobile & Alt Mobile */}
@@ -620,287 +677,207 @@ export const RegisterTenant: React.FC = () => {
                     <div>
                       <h3 className="text-sm font-bold text-slate-900">Institution Verification Documents</h3>
                       <p className="text-xs text-slate-500">
-                        Upload required legal KYC documents for your academy's verification and approval.
+                        Upload KYC verification documents for your academy. Only the PAN card is compulsory.
                       </p>
                     </div>
 
-                    <div className="space-y-3 text-xs">
-                      {/* Document 1: Registration Proof (Mandatory) */}
-                      <div className={`p-3 rounded-xl border transition-all ${
-                        docFiles.regDoc ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                              docFiles.regDoc ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              <FileText size={16} />
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span>Institution Registration Proof</span>
-                                <span className="text-red-500">*</span>
-                                {docFiles.regDoc && (
-                                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
-                                    <Check size={10} /> Selected
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Trust deed, Gumasta, Incorporation certificate, or MSME (PDF, JPG, PNG &bull; Max 5MB)
-                              </p>
-                              {docFiles.regDoc && (
-                                <p className="text-[11px] text-emerald-700 font-medium mt-1 truncate max-w-[280px]">
-                                  {docFiles.regDoc.name} ({(docFiles.regDoc.size / (1024 * 1024)).toFixed(2)} MB)
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            {docFiles.regDoc ? (
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange('regDoc', null)}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded-md transition"
-                              >
-                                <X size={16} />
-                              </button>
-                            ) : (
-                              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-500 rounded-lg text-xs font-semibold text-slate-700 shadow-sm hover:text-blue-600 transition">
-                                <Upload size={13} />
-                                <span>Upload</span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,image/jpeg,image/png,image/jpg"
-                                  className="hidden"
-                                  onChange={e => handleFileChange('regDoc', e.target.files?.[0] || null)}
-                                />
-                              </label>
-                            )}
-                          </div>
+                    <div className="space-y-4 text-xs">
+                      {/* COMPULSORY DOCUMENT: Institute / Owner PAN Card */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>Mandatory Document</span>
+                            <span className="text-red-500 font-extrabold text-sm">*</span>
+                          </label>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
+                            1 Required
+                          </span>
                         </div>
-                      </div>
 
-                      {/* Document 2: PAN Card (Mandatory) */}
-                      <div className={`p-3 rounded-xl border transition-all ${
-                        docFiles.panDoc ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                              docFiles.panDoc ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              <FileText size={16} />
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span>Institute / Owner PAN Card</span>
-                                <span className="text-red-500">*</span>
+                        <div className={`p-4 rounded-2xl border transition-all ${
+                          docFiles.panDoc
+                            ? 'bg-emerald-50/60 border-emerald-300 shadow-sm'
+                            : 'bg-white border-blue-200 shadow-sm ring-2 ring-blue-500/10'
+                        }`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                docFiles.panDoc ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                              }`}>
+                                <FileText size={20} />
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                  <span>Institute / Owner PAN Card</span>
+                                  <span className="text-red-500 font-bold">*</span>
+                                  {docFiles.panDoc && (
+                                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                      <Check size={11} /> Attached
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  Official institution PAN or Owner/Director PAN (PDF, JPG, PNG &bull; Max 5MB)
+                                </p>
                                 {docFiles.panDoc && (
-                                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
-                                    <Check size={10} /> Selected
-                                  </span>
+                                  <p className="text-xs text-emerald-700 font-semibold mt-1 truncate max-w-[320px]">
+                                    {docFiles.panDoc.name} ({(docFiles.panDoc.size / (1024 * 1024)).toFixed(2)} MB)
+                                  </p>
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Official institution PAN or Owner/Director PAN (PDF, JPG, PNG &bull; Max 5MB)
-                              </p>
-                              {docFiles.panDoc && (
-                                <p className="text-[11px] text-emerald-700 font-medium mt-1 truncate max-w-[280px]">
-                                  {docFiles.panDoc.name} ({(docFiles.panDoc.size / (1024 * 1024)).toFixed(2)} MB)
-                                </p>
+                            </div>
+
+                            <div className="shrink-0 self-end sm:self-auto">
+                              {docFiles.panDoc ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleFileChange('panDoc', null)}
+                                  className="text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-red-200 hover:bg-red-50 text-xs font-semibold flex items-center gap-1.5 transition"
+                                  title="Remove file"
+                                >
+                                  <X size={14} />
+                                  <span>Remove</span>
+                                </button>
+                              ) : (
+                                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl text-xs font-bold text-white shadow-sm transition">
+                                  <Upload size={14} />
+                                  <span>Upload PAN Card *</span>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,image/jpeg,image/png,image/jpg"
+                                    className="hidden"
+                                    onChange={e => {
+                                      handleFileChange('panDoc', e.target.files?.[0] || null);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
                               )}
                             </div>
-                          </div>
-                          <div>
-                            {docFiles.panDoc ? (
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange('panDoc', null)}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded-md transition"
-                              >
-                                <X size={16} />
-                              </button>
-                            ) : (
-                              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-500 rounded-lg text-xs font-semibold text-slate-700 shadow-sm hover:text-blue-600 transition">
-                                <Upload size={13} />
-                                <span>Upload</span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,image/jpeg,image/png,image/jpg"
-                                  className="hidden"
-                                  onChange={e => handleFileChange('panDoc', e.target.files?.[0] || null)}
-                                />
-                              </label>
-                            )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Document 3: Admin ID Proof (Mandatory) */}
-                      <div className={`p-3 rounded-xl border transition-all ${
-                        docFiles.adminIdDoc ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                              docFiles.adminIdDoc ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              <FileText size={16} />
-                            </div>
+                      {/* ADDITIONAL DOCUMENTS (OPTIONAL) - REDESIGNED */}
+                      <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                        {/* Header & Quick Selector */}
+                        <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-100 rounded-2xl p-4 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                             <div>
-                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span>Director / Admin ID Proof</span>
-                                <span className="text-red-500">*</span>
-                                {docFiles.adminIdDoc && (
-                                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
-                                    <Check size={10} /> Selected
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Aadhaar card, Passport, or Voter ID of the contact person (PDF, JPG, PNG &bull; Max 5MB)
-                              </p>
-                              {docFiles.adminIdDoc && (
-                                <p className="text-[11px] text-emerald-700 font-medium mt-1 truncate max-w-[280px]">
-                                  {docFiles.adminIdDoc.name} ({(docFiles.adminIdDoc.size / (1024 * 1024)).toFixed(2)} MB)
-                                </p>
-                              )}
+                              <span className="text-xs font-bold text-slate-800">Add Optional Documents</span>
+                              <p className="text-[11px] text-slate-500">Select document category and attach file</p>
                             </div>
+                            <span className="text-[10px] font-semibold text-blue-700 bg-blue-100/70 px-2.5 py-0.5 rounded-full self-start sm:self-auto">
+                              Optional • Skip anytime
+                            </span>
                           </div>
-                          <div>
-                            {docFiles.adminIdDoc ? (
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange('adminIdDoc', null)}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded-md transition"
+
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <div className="relative flex-1">
+                              <select
+                                value={selectedDocType}
+                                onChange={e => setSelectedDocType(e.target.value as any)}
+                                className="w-full h-10 pl-3.5 pr-8 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition cursor-pointer appearance-none shadow-sm"
                               >
-                                <X size={16} />
-                              </button>
-                            ) : (
-                              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-500 rounded-lg text-xs font-semibold text-slate-700 shadow-sm hover:text-blue-600 transition">
-                                <Upload size={13} />
-                                <span>Upload</span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,image/jpeg,image/png,image/jpg"
-                                  className="hidden"
-                                  onChange={e => handleFileChange('adminIdDoc', e.target.files?.[0] || null)}
-                                />
-                              </label>
-                            )}
+                                {ADDITIONAL_DOC_TYPES.map(doc => (
+                                  <option key={doc.key} value={doc.key}>
+                                    {doc.label} {docFiles[doc.key] ? '✓ (Uploaded)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            </div>
+
+                            <label className="h-10 px-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center justify-center gap-2 cursor-pointer shrink-0">
+                              <Upload size={14} />
+                              <span>{docFiles[selectedDocType] ? 'Replace File' : 'Attach Document'}</span>
+                              <input
+                                type="file"
+                                accept={ADDITIONAL_DOC_TYPES.find(d => d.key === selectedDocType)?.accept}
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0] || null;
+                                  if (file) handleFileChange(selectedDocType, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Document 4: GST Certificate (Optional) */}
-                      <div className={`p-3 rounded-xl border transition-all ${
-                        docFiles.gstDoc ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                              docFiles.gstDoc ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                            }`}>
-                              <FileText size={16} />
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span>GST Certificate</span>
-                                <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
-                                {docFiles.gstDoc && (
-                                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
-                                    <Check size={10} /> Selected
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                GST registration certificate for tax invoices (PDF, JPG, PNG &bull; Max 5MB)
-                              </p>
-                              {docFiles.gstDoc && (
-                                <p className="text-[11px] text-emerald-700 font-medium mt-1 truncate max-w-[280px]">
-                                  {docFiles.gstDoc.name} ({(docFiles.gstDoc.size / (1024 * 1024)).toFixed(2)} MB)
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            {docFiles.gstDoc ? (
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange('gstDoc', null)}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded-md transition"
-                              >
-                                <X size={16} />
-                              </button>
-                            ) : (
-                              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-500 rounded-lg text-xs font-semibold text-slate-700 shadow-sm hover:text-blue-600 transition">
-                                <Upload size={13} />
-                                <span>Upload</span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,image/jpeg,image/png,image/jpg"
-                                  className="hidden"
-                                  onChange={e => handleFileChange('gstDoc', e.target.files?.[0] || null)}
-                                />
-                              </label>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                        {/* Bento Grid: 4 Optional Documents with Clean Live Status */}
+                        <div className="space-y-1.5 pt-1">
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                            Document Slots
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {ADDITIONAL_DOC_TYPES.map(doc => {
+                              const isUploaded = Boolean(docFiles[doc.key]);
+                              const file = docFiles[doc.key];
+                              return (
+                                <div
+                                  key={doc.key}
+                                  className={`p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between ${
+                                    isUploaded
+                                      ? 'bg-emerald-50/70 border-emerald-200 shadow-sm'
+                                      : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                        isUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                      }`}>
+                                        {doc.key === 'logo' ? <Upload size={13} /> : <FileText size={13} />}
+                                      </div>
+                                      <span className="font-bold text-xs text-slate-800 truncate" title={doc.label}>
+                                        {doc.label}
+                                      </span>
+                                    </div>
 
-                      {/* Document 5: Institution Logo (Optional) */}
-                      <div className={`p-3 rounded-xl border transition-all ${
-                        docFiles.logo ? 'bg-emerald-50/50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                              docFiles.logo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                            }`}>
-                              <Upload size={16} />
-                            </div>
-                            <div>
-                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                <span>Institution Logo</span>
-                                <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
-                                {docFiles.logo && (
-                                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-semibold flex items-center gap-0.5">
-                                    <Check size={10} /> Selected
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Used on your portal header and student fee receipts (JPG, PNG, SVG &bull; Max 2MB)
-                              </p>
-                              {docFiles.logo && (
-                                <p className="text-[11px] text-emerald-700 font-medium mt-1 truncate max-w-[280px]">
-                                  {docFiles.logo.name} ({(docFiles.logo.size / (1024 * 1024)).toFixed(2)} MB)
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            {docFiles.logo ? (
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange('logo', null)}
-                                className="text-slate-400 hover:text-red-600 p-1 rounded-md transition"
-                              >
-                                <X size={16} />
-                              </button>
-                            ) : (
-                              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-500 rounded-lg text-xs font-semibold text-slate-700 shadow-sm hover:text-blue-600 transition">
-                                <Upload size={13} />
-                                <span>Upload</span>
-                                <input
-                                  type="file"
-                                  accept="image/jpeg,image/png,image/jpg,image/svg+xml"
-                                  className="hidden"
-                                  onChange={e => handleFileChange('logo', e.target.files?.[0] || null)}
-                                />
-                              </label>
-                            )}
+                                    {isUploaded ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleFileChange(doc.key, null)}
+                                        className="text-slate-400 hover:text-red-600 p-1 rounded transition shrink-0"
+                                        title="Remove file"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-medium shrink-0">Optional</span>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                    {isUploaded && file ? (
+                                      <div className="flex items-center gap-1.5 text-emerald-700 font-medium truncate max-w-[160px]">
+                                        <Check size={12} className="shrink-0" />
+                                        <span className="truncate">{file.name}</span>
+                                        <span className="text-[10px] text-emerald-600 font-normal shrink-0">
+                                          ({(file.size / (1024 * 1024)).toFixed(1)}M)
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 italic">Not attached</span>
+                                    )}
+
+                                    <label className="cursor-pointer text-blue-600 hover:text-blue-800 font-bold text-[11px] inline-flex items-center gap-1">
+                                      <span>{isUploaded ? 'Change' : '+ Upload'}</span>
+                                      <input
+                                        type="file"
+                                        accept={doc.accept}
+                                        className="hidden"
+                                        onChange={e => {
+                                          handleFileChange(doc.key, e.target.files?.[0] || null);
+                                          e.target.value = '';
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -929,11 +906,15 @@ export const RegisterTenant: React.FC = () => {
                           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium cursor-pointer"
                         >
                           <option value="">No preference / Let team recommend</option>
-                          {plans.map(p => (
-                            <option key={p.id} value={String(p.id)}>
-                              {p.name} {p.monthly_price ? `(₹${Number(p.monthly_price).toLocaleString('en-IN')}/mo)` : ''}
-                            </option>
-                          ))}
+                          {plans.map(p => {
+                            const price = Number(p.monthly_price || 0);
+                            const priceTag = price > 0 ? `(₹${price.toLocaleString('en-IN')}/mo)` : '(Free Trial)';
+                            return (
+                              <option key={p.id} value={String(p.id)}>
+                                {p.name} {priceTag}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 

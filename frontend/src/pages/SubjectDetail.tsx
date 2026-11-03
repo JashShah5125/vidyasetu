@@ -27,6 +27,8 @@ export const SubjectDetail: React.FC = () => {
     code: '',
     type: 'core',
     description: '',
+    base_fee: null,
+    fee_amount: null,
     status: 'active'
   });
 
@@ -52,6 +54,8 @@ export const SubjectDetail: React.FC = () => {
           code: res.data.code,
           type: res.data.type,
           description: res.data.description || '',
+          base_fee: res.data.fee_amount ?? res.data.base_fee ?? null,
+          fee_amount: res.data.fee_amount ?? res.data.base_fee ?? null,
           status: res.data.status
         });
       }
@@ -235,6 +239,20 @@ export const SubjectDetail: React.FC = () => {
               ]}
               value={formData.status}
               onChange={e => handleChange('status', e.target.value)}
+              disabled={isBranchAdmin}
+            />
+            <Input
+              label="Subject Fee (₹)"
+              type="number"
+              min="0"
+              step="100"
+              placeholder="e.g. 15000 (standard subject fee)"
+              value={formData.fee_amount ?? formData.base_fee ?? ''}
+              onChange={e => {
+                const val = e.target.value === '' ? null : Number(e.target.value);
+                handleChange('fee_amount', val);
+                handleChange('base_fee', val);
+              }}
               disabled={isBranchAdmin}
             />
             <div className="md:col-span-2 flex flex-col gap-1.5">

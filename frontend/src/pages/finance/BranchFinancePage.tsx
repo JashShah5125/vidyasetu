@@ -163,9 +163,9 @@ export const BranchFinancePage: React.FC = () => {
             value: String(b.id),
             label: b.name
           }));
-          
+
           const userBranchId = currentUser?.branchId ? String(currentUser.branchId) : null;
-          
+
           setBranchOptions([{ value: 'All', label: 'All Branches' }, ...bOpts]);
 
           if (userBranchId) {
@@ -598,6 +598,8 @@ export const BranchFinancePage: React.FC = () => {
 
     try {
       setSubmittingForm(true);
+      const chosenBranch = formBranchId || currentUser?.branchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
+
       if (isOtherIncome) {
         if (editingRecord) {
           const updated = await otherIncomeApi.updateOtherIncome(editingRecord.id, {
@@ -612,7 +614,6 @@ export const BranchFinancePage: React.FC = () => {
           addToast(`Income record ${updated.income_record_number} updated successfully`, 'success');
           setEditingRecord(null);
         } else {
-          const chosenBranch = formBranchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
           const created = await otherIncomeApi.createOtherIncome({
             branchId: Number(chosenBranch),
             title: formTitle.trim(),
@@ -627,7 +628,6 @@ export const BranchFinancePage: React.FC = () => {
         }
         await fetchOtherIncomes(otherIncomePage);
       } else if (isOtherExpense) {
-        const chosenBranch = formBranchId || currentUser?.branch_id || (currentUser?.branch as any)?.id || 1;
         const created = await otherExpenseApi.createOtherExpense({
           branchId: Number(chosenBranch),
           title: formTitle.trim(),
@@ -899,11 +899,10 @@ export const BranchFinancePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/finance/payroll/structure')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
-                  isSalaryStructure
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${isSalaryStructure
                     ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/60'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
+                  }`}
               >
                 <Briefcase size={14} className={isSalaryStructure ? 'text-indigo-600' : 'text-slate-400'} />
                 Salary Structure (Master)
@@ -911,11 +910,10 @@ export const BranchFinancePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/finance/expenses/salaries')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
-                  isSalaryStatus
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${isSalaryStatus
                     ? 'bg-white text-indigo-700 shadow-2xs border border-slate-200/60'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
+                  }`}
               >
                 <Calendar size={14} className={isSalaryStatus ? 'text-indigo-600' : 'text-slate-400'} />
                 Monthly Salary Operations
@@ -951,13 +949,12 @@ export const BranchFinancePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-              isOtherIncome
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${isOtherIncome
                 ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
                 : isOtherExpense
-                ? 'text-rose-700 bg-rose-50 border-rose-200/80'
-                : 'text-indigo-700 bg-indigo-50 border-indigo-200/80'
-            }`}>
+                  ? 'text-rose-700 bg-rose-50 border-rose-200/80'
+                  : 'text-indigo-700 bg-indigo-50 border-indigo-200/80'
+              }`}>
               {isOtherIncome ? (
                 <TrendingUp size={12} className="text-emerald-600 shrink-0" />
               ) : isOtherExpense ? (
@@ -1319,13 +1316,12 @@ export const BranchFinancePage: React.FC = () => {
       <Card className="p-0 overflow-hidden border border-slate-200/90 rounded-2xl shadow-xs bg-white">
         <CardHeader className="p-4 sm:p-5 bg-slate-50/70 border-b border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs ${
-              isOtherIncome
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs ${isOtherIncome
                 ? 'bg-emerald-50 text-emerald-600 border-emerald-100/80'
                 : isOtherExpense
-                ? 'bg-rose-50 text-rose-600 border-rose-100/80'
-                : 'bg-indigo-50 text-indigo-600 border-indigo-100/80'
-            }`}>
+                  ? 'bg-rose-50 text-rose-600 border-rose-100/80'
+                  : 'bg-indigo-50 text-indigo-600 border-indigo-100/80'
+              }`}>
               {isOtherIncome ? <DollarSign size={17} /> : isOtherExpense ? <TrendingDown size={17} /> : <FileText size={17} />}
             </div>
             <div>
@@ -1597,12 +1593,11 @@ export const BranchFinancePage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-3.5 py-3 text-center whitespace-nowrap">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          statusInfo.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          statusInfo.color === 'blue' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                          statusInfo.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                          'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusInfo.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            statusInfo.color === 'blue' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                              statusInfo.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
                           {statusInfo.label}
                         </span>
                       </td>
@@ -1735,13 +1730,12 @@ export const BranchFinancePage: React.FC = () => {
                   </td>
                   <td className="px-3.5 py-3 text-center whitespace-nowrap">
                     <span
-                      className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        rec.status === 'Paid'
+                      className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${rec.status === 'Paid'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : rec.status === 'Pending'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}
                     >
                       {rec.status}
                     </span>

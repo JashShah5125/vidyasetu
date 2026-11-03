@@ -35,16 +35,16 @@ interface LeadsAdmissionsProps {
 }
 
 const pipelineSteps = [
-  { id: 'pipeline', step: 1, label: 'Lead Pipeline', phase: 'Phase 1', description: 'Enquiries & Nurturing', icon: Users },
-  { id: 'fee', step: 2, label: 'Fee Discussion', phase: 'Phase 2', description: 'Quotation & Fee Plan', icon: DollarSign },
-  { id: 'admission', step: 3, label: 'Admission & Docs', phase: 'Phase 3', description: 'Application & Documents', icon: ClipboardList },
-  { id: 'batch', step: 4, label: 'Batch Allocation', phase: 'Phase 4', description: 'Class & Timing Assignment', icon: Layers },
-  { id: 'payment', step: 5, label: 'Payment & Activation', phase: 'Phase 5', description: 'Fee Clearance & Access', icon: Zap },
+  { id: 'pipeline', step: 1, label: 'Leads & Enquiries', phase: 'Step 1', description: 'Enquiries, Demos & Fee Plans', icon: Users },
+  { id: 'admission', step: 2, label: 'Admission & Batching', phase: 'Step 2', description: 'KYC Verification & Class Batches', icon: Layers },
+  { id: 'payment', step: 3, label: 'Payment & Activation', phase: 'Step 3', description: 'Fee Clearance & Access', icon: Zap },
 ] as const;
 
 const phases = [
   ...pipelineSteps,
   { id: 'all', step: 0, label: 'All Leads', phase: 'Master', description: 'Complete Master Directory', icon: FileText },
+  { id: 'fee', step: 1, label: 'Fee Discussion', phase: 'Step 1', description: 'Quotation & Fee Plan', icon: DollarSign },
+  { id: 'batch', step: 2, label: 'Batch Allocation', phase: 'Step 2', description: 'Class & Timing Assignment', icon: Layers },
 ] as const;
 
 type TabId = typeof phases[number]['id'];
@@ -83,7 +83,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [activeTab, setActiveTab] = useState<TabId>(
+    initialTab === 'fee' ? 'pipeline' : initialTab === 'batch' ? 'admission' : (initialTab || 'pipeline')
+  );
 
   const [academicData, setAcademicData] = useState<{
     branches: Array<{ id: number | string; name: string }>;
@@ -257,14 +259,22 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const tabRouteMap: Record<TabId, string> = {
     all: `${basePath}/all`,
     pipeline: `${basePath}`,
-    fee: `${basePath}/fee`,
+    fee: `${basePath}`,
     admission: `${basePath}/admission`,
-    batch: `${basePath}/batch`,
+    batch: `${basePath}/admission`,
     payment: `${basePath}/payment`
   };
 
   useEffect(() => {
-    setActiveTab(initialTab || 'pipeline');
+    if (initialTab === 'fee') {
+      setActiveTab('pipeline');
+      setPipelineSubFilter('fee');
+    } else if (initialTab === 'batch') {
+      setActiveTab('admission');
+      setAdmissionSubFilter('unassigned');
+    } else {
+      setActiveTab(initialTab || 'pipeline');
+    }
   }, [initialTab]);
 
   // Filters State
@@ -282,8 +292,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
   const PER_PAGE = 10;
 
   // Sub-filter queues for connected pipeline phases
-  const [pipelineSubFilter, setPipelineSubFilter] = useState<'all' | 'new' | 'followup' | 'interested' | 'demo'>('all');
-  const [admissionSubFilter, setAdmissionSubFilter] = useState<'all' | 'pending' | 'verified'>('all');
+  const [pipelineSubFilter, setPipelineSubFilter] = useState<'all' | 'new' | 'followup' | 'interested' | 'demo' | 'fee'>(
+    initialTab === 'fee' ? 'fee' : 'all'
+  );
+  const [admissionSubFilter, setAdmissionSubFilter] = useState<'all' | 'unassigned' | 'pending' | 'verified'>(
+    initialTab === 'batch' ? 'unassigned' : 'all'
+  );
   const [batchSubFilter, setBatchSubFilter] = useState<'unassigned' | 'assigned' | 'all'>('unassigned');
   const [paymentSubFilter, setPaymentSubFilter] = useState<'pending' | 'active' | 'all'>('pending');
 
@@ -461,7 +475,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
     const hierarchyBatches: string[] = lvlData?.batches || [];
     const contextBatches = batches
-      .filter(b => (!cName || b.course.toLowerCase() === cName))
+      .filter(b => (!cName || b.course?.toLowerCase() === cName))
       .map(b => b.name);
 
     const combined = Array.from(new Set([...hierarchyBatches, ...contextBatches]));
@@ -835,10 +849,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           if (l.status !== filterStatus) return false;
         }
         // Pipeline sub-filter queues
-        if (pipelineSubFilter === 'new' && l.status !== 'New Enquiry') return false;
-        if (pipelineSubFilter === 'followup' && l.status !== 'Follow-up') return false;
+        if (pipelineSubFilter === 'new' && l.status !== 'New Enquiry' && l.status !== 'Assigned') return false;
+        if (pipelineSubFilter === 'followup' && l.status !== 'Follow-up' && l.status !== 'Contacted') return false;
         if (pipelineSubFilter === 'interested' && l.status !== 'Interested') return false;
         if (pipelineSubFilter === 'demo' && l.status !== 'Demo Scheduled') return false;
+        if (pipelineSubFilter === 'fee' && l.status !== 'Fee Discussion') return false;
       }
       const q = search.toLowerCase();
       const matchQ = l.name.toLowerCase().includes(q) || l.course.toLowerCase().includes(q) || l.mobile.includes(q);
@@ -878,10 +893,13 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       // Sub-filter by activeTab stage
       if (activeTab === 'admission') {
         const isVerified = s.status === 5 || s.status === '5' || s.status === 'Documents Verified' || s.status === 'Active Student' || s.status === 1 || s.status === 7 || Boolean(s.isDocVerified);
+        const hasNoBatch = !s.batch || s.batch === '—' || s.batch === '' || s.status === 6 || s.status === 'Pending Batch Allocation';
         if (admissionSubFilter === 'pending') {
           if (isVerified) return false;
         } else if (admissionSubFilter === 'verified') {
           if (!isVerified) return false;
+        } else if (admissionSubFilter === 'unassigned') {
+          if (!hasNoBatch) return false;
         }
       } else if (activeTab === 'batch') {
         const hasNoBatch = !s.batch || s.batch === '—' || s.batch === '' || s.status === 6 || s.status === 'Pending Batch Allocation';
@@ -2612,18 +2630,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       </div>
 
-      {/* 5-Phase Admissions Lifecycle Pipeline Stepper */}
+      {/* 3-Phase Admissions Lifecycle Pipeline Stepper */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2.5 overflow-hidden">
         <div className="flex flex-col lg:flex-row items-stretch gap-2">
-          {/* Active 5-Step Connected Funnel */}
-          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {/* Active 3-Step Connected Funnel */}
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
             {pipelineSteps.map((p, idx) => {
               const Icon = p.icon;
               const isActive = activeTab === p.id;
-              const count = p.id === 'pipeline' ? stats.pipelinePhaseCount
-                : p.id === 'fee' ? stats.feeDiscussionCount
-                : p.id === 'admission' ? stats.pendingDocs
-                : p.id === 'batch' ? stats.unassignedBatchCount
+              const count = p.id === 'pipeline' ? stats.totalLeads
+                : p.id === 'admission' ? stats.totalStudents
                 : stats.pendingPaymentCount;
 
               return (
@@ -2638,7 +2654,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 >
                   {/* Forward arrow indicator to next phase */}
                   {idx < pipelineSteps.length - 1 && (
-                    <span className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 hidden lg:flex w-4 h-4 rounded-full bg-white border border-slate-200 items-center justify-center text-slate-400 shadow-2xs pointer-events-none">
+                    <span className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 hidden sm:flex w-4 h-4 rounded-full bg-white border border-slate-200 items-center justify-center text-slate-400 shadow-2xs pointer-events-none">
                       <ChevronRight size={10} />
                     </span>
                   )}
@@ -2708,19 +2724,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       <div className="p-3.5 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-slate-50 border border-blue-100/80 rounded-xl text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
         <div className="flex items-center gap-2.5">
           <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-            {activeTab === 'all' ? '★' : activeTab === 'pipeline' ? '1' : activeTab === 'fee' ? '2' : activeTab === 'admission' ? '3' : activeTab === 'batch' ? '4' : '5'}
+            {activeTab === 'all' ? '★' : activeTab === 'pipeline' ? '1' : activeTab === 'admission' ? '2' : '3'}
           </div>
           <div>
             <span className="font-bold text-slate-900 mr-1.5">
-              {activeTab === 'all' ? 'Master Registry' : activeTab === 'pipeline' ? 'Step 1: Enquiries & Nurturing' : activeTab === 'fee' ? 'Step 2: Fee Discussion & Plan' : activeTab === 'admission' ? 'Step 3: Admission & Verification' : activeTab === 'batch' ? 'Step 4: Batch Allocation' : 'Step 5: Fee Payment & Activation'}:
+              {activeTab === 'all' ? 'Master Registry' : activeTab === 'pipeline' ? 'Step 1: Enquiries & Nurturing' : activeTab === 'admission' ? 'Step 2: Admission & Batching' : 'Step 3: Fee Payment & Activation'}:
             </span>
             <span className="text-slate-600">
               {activeTab === 'all' && 'Comprehensive historical directory of all leads across every stage in the institution.'}
-              {activeTab === 'pipeline' && 'Qualify incoming leads, schedule demos, and log follow-ups. Click "Move to Fee Discussion →" to advance candidates to Step 2, or "Direct Admission" to enroll immediately.'}
-              {activeTab === 'fee' && 'Negotiate course fees, apply scholarships, and finalize installments. Click "Proceed to Admission →" to convert this lead to a registered student.'}
-              {activeTab === 'admission' && 'Review student registration profiles and verify submitted KYC/academic documents. When approved, proceed to assign their class batch.'}
-              {activeTab === 'batch' && 'Assign admitted students to available course batches and time slots. When assigned, advance student to fee payment & activation.'}
-              {activeTab === 'payment' && 'Collect initial admission down payments or full fees. Recording payment activates LMS portal access and marks student as Active.'}
+              {activeTab === 'pipeline' && 'Qualify incoming leads, schedule demos, log follow-ups, and finalize fee proposals. Click "Enroll Student →" to register immediately.'}
+              {activeTab === 'admission' && 'Review registered students, verify submitted KYC documents, and assign class batches all in one unified onboarding step.'}
+              {activeTab === 'payment' && 'Collect admission fee downpayments or full fees. Recording payment activates LMS portal access and marks student as Active.'}
             </span>
           </div>
         </div>
@@ -3090,8 +3104,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               { id: 'all', label: `All Active (${stats.totalLeads})` },
               { id: 'new', label: `New Enquiries (${stats.newEnquiries})` },
               { id: 'followup', label: `In Follow-up (${stats.followUp})` },
-              { id: 'interested', label: `Interested (${stats.interested})` },
               { id: 'demo', label: `Demo Scheduled (${stats.demoScheduled})` },
+              { id: 'interested', label: `Interested (${stats.interested})` },
+              { id: 'fee', label: `Fee Discussion (${stats.feeDiscussionCount})` },
             ].map(pill => (
               <button
                 key={pill.id}
@@ -3159,21 +3174,32 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   <td className="px-4 py-3 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {l.status === 'Fee Discussion' ? (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`${basePath}/fee`)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                        >
-                          <DollarSign size={13} /> Fee Queue <ChevronRight size={12} />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/leads/${l.id}/convert`, { state: { prefilledFeeData: l.feeConfig } })}
+                            title="Direct Admission / Enroll Student"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            <UserCheck size={13} /> Enroll Student <ChevronRight size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenLeadDetail(l, 'fee', false)}
+                            title="Configure Fee Plan"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 transition-colors cursor-pointer shrink-0"
+                          >
+                            <DollarSign size={13} /> Plan
+                          </button>
+                        </>
                       ) : (
                         <button
                           type="button"
                           onClick={(e) => handleQuickAdvanceToFee(l, e)}
-                          title="Advance lead to Step 2: Fee Discussion"
+                          title="Advance lead to Fee Discussion"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
                         >
-                          <DollarSign size={13} /> Advance to Fee <ChevronRight size={12} />
+                          <DollarSign size={13} /> To Fee <ChevronRight size={12} />
                         </button>
                       )}
                       <button
@@ -3225,151 +3251,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 2: FEE DISCUSSION (Step 2) */}
-      {activeTab === 'fee' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: 'In Fee Discussion', value: stats.feeDiscussionCount, color: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-800' },
-              { label: 'Active in Nurture (Step 1)', value: stats.pipelinePhaseCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Pending Docs (Step 3)', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Active Students (Step 5)', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-            ].map(s => (
-              <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
-                <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
-                <div className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
 
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>Fee Discussion Queue</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Step 2 queue — review quotations and payment structures with parents. Click "Proceed to Admission" to convert candidate.
-                </p>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 bg-cyan-50 text-cyan-800 rounded-lg self-start sm:self-center border border-cyan-200">
-                {filteredLeads.length} candidates in fee discussion
-              </span>
-            </CardHeader>
-            <Table
-              dense
-              minWidth="1260px"
-              colWidths={['60px', '200px', '160px', '170px', '130px', '170px', '130px', '240px']}
-              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Fee Plan Status', 'Next Follow-up', { label: 'Pipeline Action', align: 'center', minWidth: '220px' }]}
-            >
-              {paginatedLeads.map(l => (
-                <tr
-                  key={l.id}
-                  onClick={() => handleOpenLeadDetail(l, 'fee', true)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">{l.id}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900 text-sm whitespace-nowrap">
-                    <div>{l.name}</div>
-                    {l.email && <div className="text-xs text-slate-400 font-normal">{l.email}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <div className="text-slate-800 font-medium">{l.mobile || '—'}</div>
-                    {l.parentMobile && (
-                      <div className="text-xs text-slate-500 mt-0.5">Parent: {l.parentMobile}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded text-xs font-semibold">
-                      {l.course || '—'}
-                    </span>
-                    {l.program && (
-                      <div className="text-xs text-slate-500 mt-0.5">{l.program}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-700 text-sm whitespace-nowrap">{l.branch || 'N/A'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {l.feeConfig ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        ₹{(l.feeConfig.netFee || l.feeConfig.totalFee || 0).toLocaleString()} (Configured)
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200">
-                        <Clock size={11} /> Needs Fee Plan
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    <span className="font-mono text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                      {l.nextFollowUp || '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/leads/${l.id}/convert`, { state: { prefilledFeeData: l.feeConfig } })}
-                        title="Proceed to Step 3: Student Registration"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                      >
-                        Proceed to Admission <ChevronRight size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenLeadDetail(l, 'fee', false)}
-                        title="Configure Fee Plan"
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
-                      >
-                        <DollarSign size={13} /> Fee Plan
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleQuickRevertToFollowup(l, e)}
-                        title="Return to Step 1: Follow-up queue"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer shrink-0"
-                      >
-                        <RotateCcw size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenLeadDetail(l, 'history', true)}
-                        title="Call Log / Follow-ups"
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer shrink-0"
-                      >
-                        <PhoneCall size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setLeadToDelete(l)}
-                        title="Delete Lead"
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredLeads.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
-                    {leadsLoading ? 'Loading leads...' : 'No leads currently in fee discussion phase.'}
-                  </td>
-                </tr>
-              )}
-            </Table>
-            <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredLeads.length} pageSize={PER_PAGE} onPageChange={setPage} />
-          </Card>
-        </div>
-      )}
 
-      {/* TAB CONTENT 3: ADMISSION CONFIRMATION & DOCS (Step 3) */}
+      {/* TAB CONTENT 2: ADMISSION & BATCHING (Step 2 - Combined KYC Verification & Batch Allocation) */}
       {activeTab === 'admission' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Pending Docs Verification', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Documents Verified', value: stats.verifiedDocsCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-              { label: 'Needs Batch (Step 4)', value: stats.unassignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Active Students (Step 5)', value: stats.activeStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
+              { label: 'All Admitted Students', value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
+              { label: 'Needs Batch Allocation', value: stats.unassignedBatchCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Pending KYC Docs', value: stats.pendingDocs, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'KYC Verified & Ready', value: stats.verifiedDocsCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -3378,13 +3270,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             ))}
           </div>
 
-          {/* Admission Verification Sub-filters */}
+          {/* Admission & Batching Sub-filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Verification Queue:</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Queue View:</span>
             {[
-              { id: 'all', label: `All Registered Students (${stats.totalStudents})` },
-              { id: 'pending', label: `Pending Verification (${stats.pendingDocs})` },
-              { id: 'verified', label: `Documents Verified (${stats.verifiedDocsCount})` },
+              { id: 'all', label: `All Admitted (${stats.totalStudents})` },
+              { id: 'unassigned', label: `Needs Batch (${stats.unassignedBatchCount})` },
+              { id: 'pending', label: `Pending KYC Docs (${stats.pendingDocs})` },
+              { id: 'verified', label: `KYC Verified (${stats.verifiedDocsCount})` },
             ].map(pill => (
               <button
                 key={pill.id}
@@ -3404,9 +3297,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <CardTitle>Admission & Verification Queue</CardTitle>
+                <CardTitle>Admission & Batching Management</CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Step 3 queue — verify KYC and academic records. Once verified, click "Allocate Batch" to assign classroom.
+                  Step 2 queue — verify KYC documents and assign class batches. Both actions are managed in this single onboarding hub.
                 </p>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
@@ -3415,55 +3308,100 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             </CardHeader>
             <Table
               dense
-              minWidth="1120px"
-              colWidths={['150px', '180px', '130px', '140px', '160px', '150px', '200px']}
-              headers={['Student ID', 'Student Name', 'Mobile', 'Course Interest', 'Documents Status', 'Verification Status', { label: 'Pipeline Action', align: 'center', minWidth: '200px' }]}
+              minWidth="1180px"
+              colWidths={['130px', '200px', '130px', '150px', '160px', '160px', '230px']}
+              headers={['Student ID', 'Student Name', 'Mobile', 'Course & Branch', 'KYC Documents', 'Assigned Batch', { label: 'Pipeline Action', align: 'center', minWidth: '230px' }]}
             >
               {paginatedStudents.map(s => {
                 const isVerified = s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 || s.status === 7 || Boolean(s.isDocVerified);
+                const hasBatch = Boolean(s.batch && s.batch !== '—' && s.batch.trim() !== '');
+
                 return (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
-                    <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenDocModal(s)}>
-                      {s.name}
+                    <td className="px-3.5 py-3 whitespace-nowrap">
+                      <div
+                        className="font-semibold text-slate-900 hover:text-blue-600 cursor-pointer text-sm"
+                        onClick={() => handleOpenDocModal(s)}
+                      >
+                        {s.name}
+                      </div>
+                      {s.email && <div className="text-[11px] text-slate-400 font-normal">{s.email}</div>}
                     </td>
                     <td className="px-3.5 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{s.mobile || '—'}</td>
-                    <td className="px-3.5 py-3 text-xs text-slate-700 font-medium whitespace-nowrap">{s.course}</td>
+                    <td className="px-3.5 py-3 text-xs whitespace-nowrap">
+                      <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-semibold text-xs">
+                        {s.course || '—'}
+                      </span>
+                      {s.branch && <div className="text-[11px] text-slate-500 mt-0.5">{s.branch}</div>}
+                    </td>
                     <td className="px-3.5 py-3 whitespace-nowrap">
                       {isVerified ? (
-                        <span className="text-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5"><CheckCircle size={12} /> Verified</span>
+                        <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs font-semibold inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full">
+                          <CheckCircle size={12} /> KYC Verified
+                        </span>
                       ) : (
-                        <span className="text-amber-600 text-xs font-semibold inline-flex items-center gap-1.5"><Clock size={12} /> Verification Pending</span>
+                        <span className="text-amber-700 bg-amber-50 border border-amber-200 text-xs font-semibold inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full">
+                          <Clock size={12} /> Pending Verification
+                        </span>
                       )}
                     </td>
                     <td className="px-3.5 py-3 whitespace-nowrap">
-                      <StatusBadge status={isVerified && (s.status === 0 || s.status === 3 || s.status === 4) ? 5 : s.status} />
+                      {hasBatch ? (
+                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
+                          {s.batch}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-700 font-semibold inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                          <AlertTriangle size={12} /> Needs Batch
+                        </span>
+                      )}
                     </td>
                     <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {isVerified ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenBatchModal(s)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer"
-                            >
-                              <Layers size={13} /> Allocate Batch <ChevronRight size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDocModal(s)}
-                              title="View Verified Documents"
-                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Eye size={15} />
-                            </button>
-                          </>
+                      <div className="flex items-center justify-center gap-1.5">
+                        {!hasBatch ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBatchModal(s)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            <Layers size={13} /> Allocate Batch <ChevronRight size={11} />
+                          </button>
+                        ) : !isVerified ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocModal(s)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            Review Docs <ChevronRight size={11} />
+                          </button>
                         ) : (
-                          <Button variant="primary" size="sm" onClick={() => handleOpenDocModal(s)} className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1" style={{ backgroundColor: '#2563eb', color: 'white' }}>
-                            Review Docs <ChevronRight size={12} className="ml-1" />
-                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(tabRouteMap['payment'])}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            <Zap size={12} /> To Payment <ChevronRight size={11} />
+                          </button>
                         )}
+
+                        {/* Quick action buttons */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDocModal(s)}
+                          title="View / Verify Documents"
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBatchModal(s)}
+                          title={hasBatch ? "Change Batch" : "Allocate Batch"}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        >
+                          <Edit3 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -3478,132 +3416,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         </div>
       )}
 
-      {/* TAB CONTENT 4: BATCH ALLOCATION (Step 4) */}
-      {activeTab === 'batch' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: 'Needs Batch Allocation', value: stats.unassignedBatchCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
-              { label: 'Batch Allocated', value: stats.assignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Pending Payment (Step 5)', value: stats.pendingPaymentCount, color: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-800' },
-              { label: 'Active Students (Step 5)', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-            ].map(s => (
-              <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
-                <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
-                <div className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Batch Sub-filter chips */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Batch Queue:</span>
-            {[
-              { id: 'unassigned', label: `Needs Batch Allocation (${stats.unassignedBatchCount})` },
-              { id: 'assigned', label: `Batch Allocated (${stats.assignedBatchCount})` },
-              { id: 'all', label: `All Students (${stats.totalStudents})` },
-            ].map(pill => (
-              <button
-                key={pill.id}
-                type="button"
-                onClick={() => { setBatchSubFilter(pill.id as any); setPage(1); }}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  batchSubFilter === pill.id
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
-                }`}
-              >
-                {pill.label}
-              </button>
-            ))}
-          </div>
-
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>Batch Allocation Queue</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Step 4 queue — assign course batch and timing. Once batch is assigned, advance student to fee activation.
-                </p>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
-                Showing {filteredStudents.length} students
-              </span>
-            </CardHeader>
-            <Table
-              dense
-              minWidth="1180px"
-              colWidths={['140px', '160px', '120px', '130px', '130px', '150px', '160px', '220px']}
-              headers={['Student ID', 'Student Name', 'Course', 'Branch', 'Admission Date', 'Current Batch', 'Status', { label: 'Pipeline Action', align: 'center', minWidth: '220px' }]}
-            >
-              {paginatedStudents.map(s => {
-                const hasBatch = Boolean(s.batch && s.batch !== '—' && s.batch.trim() !== '');
-                return (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
-                    <td className="px-3.5 py-3 font-semibold text-blue-600 hover:underline cursor-pointer whitespace-nowrap" onClick={() => handleOpenBatchModal(s)}>
-                      {s.name}
-                    </td>
-                    <td className="px-3.5 py-3 text-xs text-slate-700 whitespace-nowrap font-medium">{s.course || '—'}</td>
-                    <td className="px-3.5 py-3 text-xs text-slate-600 whitespace-nowrap">{s.branch || '—'}</td>
-                    <td className="px-3.5 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{s.admissionDate || '—'}</td>
-                    <td className="px-3.5 py-3 whitespace-nowrap">
-                      {hasBatch ? (
-                        <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
-                          {s.batch}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-amber-700 font-semibold inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                          <Clock size={12} /> Needs Batch
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3.5 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
-                    <td className="px-3.5 py-3 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {!hasBatch ? (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleOpenBatchModal(s)}
-                            className="cursor-pointer text-xs font-semibold inline-flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <Layers size={13} /> Allocate Batch <ChevronRight size={12} />
-                          </Button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`${basePath}/payment`)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
-                            >
-                              <Zap size={13} /> Proceed to Payment <ChevronRight size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenBatchModal(s)}
-                              title="Change Batch"
-                              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Edit3 size={15} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredStudents.length === 0 && (
-                <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
-              )}
-            </Table>
-            <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredStudents.length} pageSize={PER_PAGE} onPageChange={setPage} />
-          </Card>
-        </div>
-      )}
-
-      {/* TAB CONTENT 5: PAYMENT & ACTIVATION (Step 5) */}
+      {/* TAB CONTENT 3: PAYMENT & ACTIVATION (Step 3) */}
       {activeTab === 'payment' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -3648,7 +3461,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               <div>
                 <CardTitle>Fee Activation & Status Ledger</CardTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Step 5 final gate — collect down payment or full fee installment to activate student LMS portal and registration.
+                  Step 3 final gate — collect down payment or full fee installment to activate student LMS portal and registration.
                 </p>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">

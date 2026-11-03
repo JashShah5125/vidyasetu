@@ -250,7 +250,7 @@ const createBundle = async (tenantId, data, userId) => {
         if (branchRows.length === 0) throw { code: 'INVALID_BRANCH' };
 
         // Validate subjects belong to the level
-        const validSubjectIds = await validateSubjectsForLevel(conn, levelId, subjectIds);
+        const validSubjectIds = await validateSubjectsForLevel(conn, levelId, subjectIds, tenantId);
 
         const [result] = await conn.query(
             `INSERT INTO subject_bundles (tenant_id, branch_id, level_id, name, description, subject_ids, fee_amount, is_active, created_by, updated_by)
@@ -296,7 +296,7 @@ const updateBundle = async (tenantId, id, data, userId) => {
 
         let subjectIdsToStore;
         if (subjectIds !== undefined) {
-            subjectIdsToStore = await validateSubjectsForLevel(conn, targetLevelId, subjectIds);
+            subjectIdsToStore = await validateSubjectsForLevel(conn, targetLevelId, subjectIds, tenantId);
         }
 
         await conn.query(
@@ -338,7 +338,7 @@ const deleteBundle = async (tenantId, id, userId) => {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const validateSubjectsForLevel = async (conn, levelId, subjectIds = []) => {
+const validateSubjectsForLevel = async (conn, levelId, subjectIds = [], tenantId = null) => {
     if (!subjectIds || subjectIds.length === 0) return [];
 
     const numericIds = [...new Set(subjectIds.map(Number).filter(Boolean))];
@@ -350,7 +350,26 @@ const validateSubjectsForLevel = async (conn, levelId, subjectIds = []) => {
          WHERE level_id = ? AND subject_id IN (${placeholders})`,
         [levelId, ...numericIds]
     );
-    return validRows.map(r => r.subject_id);
+    const existingMapped = new Set(validRows.map(r => r.subject_id));
+
+    // If any subjectIds are not yet in level_subjects, ensure they exist in subjects table and auto-map them
+    const unmapped = numericIds.filter(id => !existingMapped.has(id));
+    if (unmapped.length > 0 && tenantId) {
+        const uPlaceholders = unmapped.map(() => '?').join(',');
+        const [subRows] = await conn.query(
+            `SELECT id FROM subjects WHERE id IN (${uPlaceholders}) AND tenant_id = ? AND deleted_at IS NULL`,
+            [...unmapped, tenantId]
+        );
+        for (const s of subRows) {
+            await conn.query(
+                `INSERT IGNORE INTO level_subjects (tenant_id, level_id, subject_id) VALUES (?, ?, ?)`,
+                [tenantId, levelId, s.id]
+            );
+            existingMapped.add(s.id);
+        }
+    }
+
+    return [...existingMapped];
 };
 
 module.exports = {

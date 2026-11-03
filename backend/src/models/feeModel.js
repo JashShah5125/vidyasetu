@@ -153,7 +153,7 @@ const getLevelSubjectFees = async (tenantId, levelId, accessContext = null) => {
             s.name,
             s.code,
             s.type,
-            COALESCE(sf.fee_amount, 0) AS fee_amount
+            COALESCE(sf.fee_amount, s.base_fee, s.fee_amount, 0) AS fee_amount
          FROM level_subjects ls
          JOIN levels l ON l.id = ls.level_id
          JOIN subjects s ON s.id = ls.subject_id

@@ -309,9 +309,17 @@ export const LandingPage: React.FC = () => {
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const navContainerRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<{ [key: string]: HTMLAnchorElement | null }>({});
-  const [pillIndicator, setPillIndicator] = useState<{ left: number; width: number; ready: boolean }>({
+  const [pillIndicator, setPillIndicator] = useState<{
+    left: number;
+    width: number;
+    top: number;
+    height: number;
+    ready: boolean;
+  }>({
     left: 0,
     width: 0,
+    top: 0,
+    height: 0,
     ready: false
   });
 
@@ -324,6 +332,8 @@ export const LandingPage: React.FC = () => {
       setPillIndicator({
         left: activeRect.left - containerRect.left,
         width: activeRect.width,
+        top: activeRect.top - containerRect.top,
+        height: activeRect.height,
         ready: true
       });
     }
@@ -331,8 +341,12 @@ export const LandingPage: React.FC = () => {
 
   useEffect(() => {
     updatePillPosition();
+    const rafId = requestAnimationFrame(updatePillPosition);
     window.addEventListener('resize', updatePillPosition);
-    return () => window.removeEventListener('resize', updatePillPosition);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', updatePillPosition);
+    };
   }, [activeNavSection]);
 
   // Scroll to top when clicking VidyaSetu brand logo
@@ -431,35 +445,182 @@ export const LandingPage: React.FC = () => {
       ref={mainContainerRef}
       className="fixed inset-0 overflow-y-auto overflow-x-hidden scroll-smooth bg-[#F8FAFC] text-slate-800 selection:bg-blue-600 selection:text-white font-sans antialiased"
     >
-      {/* ── CRISP LIGHT ATMOSPHERIC ACCENTS ── */}
+      {/* ── FLOWING 3D "SETU" GRADIENT RIBBON WAVES BACKGROUND ── */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-blue-100/60 via-indigo-50/40 to-transparent rounded-full blur-[120px] opacity-80" />
-        <div className="absolute top-[25%] -left-[160px] w-[500px] h-[500px] bg-sky-100/60 rounded-full blur-[140px] opacity-70" />
-        <div className="absolute top-[50%] -right-[160px] w-[600px] h-[600px] bg-blue-50/70 rounded-full blur-[160px] opacity-70" />
+        {/* Luminous Ambient Backlights & Glow Orbs */}
+        <div className="absolute -top-[100px] left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-gradient-to-b from-blue-500/25 via-indigo-500/15 to-transparent rounded-full blur-[120px]" />
+        <div className="absolute top-[18%] left-[10%] w-[550px] h-[450px] bg-sky-400/20 rounded-full blur-[110px]" />
+        <div className="absolute top-[12%] right-[8%] w-[600px] h-[500px] bg-indigo-500/20 rounded-full blur-[120px]" />
+        <div className="absolute top-[45%] left-[30%] w-[500px] h-[400px] bg-cyan-300/15 rounded-full blur-[130px]" />
+
+        {/* Dynamic Architectural "Setu" Wave Mesh SVG */}
+        <svg
+          className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-700"
+          viewBox="0 0 1440 900"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="xMidYMin slice"
+        >
+          <defs>
+            {/* Primary Blue to Indigo to Cyan Ribbon Gradient */}
+            <linearGradient id="setu-ribbon-1" x1="0%" y1="0%" x2="100%" y2="80%">
+              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
+              <stop offset="35%" stopColor="#4f46e5" stopOpacity="0.18" />
+              <stop offset="70%" stopColor="#0284c7" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.05" />
+            </linearGradient>
+
+            {/* Secondary Translucent Sky & Violet Ribbon */}
+            <linearGradient id="setu-ribbon-2" x1="100%" y1="20%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#818cf8" stopOpacity="0.2" />
+              <stop offset="45%" stopColor="#38bdf8" stopOpacity="0.16" />
+              <stop offset="85%" stopColor="#3b82f6" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#c084fc" stopOpacity="0.04" />
+            </linearGradient>
+
+            {/* High-Definition Stroke Line Gradients */}
+            <linearGradient id="setu-stroke-primary" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+              <stop offset="25%" stopColor="#2563eb" stopOpacity="0.75" />
+              <stop offset="55%" stopColor="#6366f1" stopOpacity="0.85" />
+              <stop offset="80%" stopColor="#0ea5e9" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.15" />
+            </linearGradient>
+
+            <linearGradient id="setu-stroke-cyan" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.1" />
+              <stop offset="30%" stopColor="#38bdf8" stopOpacity="0.8" />
+              <stop offset="70%" stopColor="#818cf8" stopOpacity="0.75" />
+              <stop offset="100%" stopColor="#a855f7" stopOpacity="0.1" />
+            </linearGradient>
+
+            <linearGradient id="setu-stroke-accent" x1="100%" y1="0%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.1" />
+              <stop offset="40%" stopColor="#4f46e5" stopOpacity="0.65" />
+              <stop offset="70%" stopColor="#0284c7" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" />
+            </linearGradient>
+
+            {/* Fading Vignette Mask for Natural Blend */}
+            <linearGradient id="setu-vertical-fade" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="white" stopOpacity="0.95" />
+              <stop offset="65%" stopColor="white" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="white" stopOpacity="0" />
+            </linearGradient>
+            <mask id="setu-mask">
+              <rect width="1440" height="900" fill="url(#setu-vertical-fade)" />
+            </mask>
+          </defs>
+
+          <g mask="url(#setu-mask)">
+            {/* Base Translucent Ribbon Fills */}
+            <path
+              d="M-80,540 C220,680 440,360 740,420 C1040,480 1220,300 1520,390 L1520,900 L-80,900 Z"
+              fill="url(#setu-ribbon-1)"
+            />
+            <path
+              d="M-100,430 C280,310 510,490 820,360 C1130,230 1310,440 1540,310 L1540,900 L-100,900 Z"
+              fill="url(#setu-ribbon-2)"
+            />
+
+            {/* Primary Flowing "Setu" Wave Ribbons (Cables/Contours) */}
+            <path
+              d="M-60,510 C240,370 500,490 820,330 C1140,170 1320,320 1520,220"
+              fill="none"
+              stroke="url(#setu-stroke-primary)"
+              strokeWidth="2.5"
+            />
+            <path
+              d="M-60,540 C240,400 500,520 820,360 C1140,200 1320,350 1520,250"
+              fill="none"
+              stroke="url(#setu-stroke-cyan)"
+              strokeWidth="1.75"
+            />
+            <path
+              d="M-60,570 C240,430 500,550 820,390 C1140,230 1320,380 1520,280"
+              fill="none"
+              stroke="url(#setu-stroke-primary)"
+              strokeWidth="1.25"
+              strokeDasharray="8 6"
+              opacity="0.8"
+            />
+            <path
+              d="M-60,600 C240,460 500,580 820,420 C1140,260 1320,410 1520,310"
+              fill="none"
+              stroke="url(#setu-stroke-accent)"
+              strokeWidth="1"
+              opacity="0.6"
+            />
+            <path
+              d="M-60,480 C240,340 500,460 820,300 C1140,140 1320,290 1520,190"
+              fill="none"
+              stroke="url(#setu-stroke-cyan)"
+              strokeWidth="1"
+              opacity="0.5"
+            />
+
+            {/* Counter Arching "Setu" Waves (Interconnecting Bridge Geometry) */}
+            <path
+              d="M-80,310 C300,440 600,270 910,400 C1220,530 1390,340 1530,430"
+              fill="none"
+              stroke="url(#setu-stroke-accent)"
+              strokeWidth="2"
+            />
+            <path
+              d="M-80,340 C300,470 600,300 910,430 C1220,560 1390,370 1530,460"
+              fill="none"
+              stroke="url(#setu-stroke-primary)"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M-80,370 C300,500 600,330 910,460 C1220,590 1390,400 1530,490"
+              fill="none"
+              stroke="url(#setu-stroke-cyan)"
+              strokeWidth="1"
+              strokeDasharray="6 4"
+              opacity="0.7"
+            />
+            <path
+              d="M-80,280 C300,410 600,240 910,370 C1220,500 1390,310 1530,400"
+              fill="none"
+              stroke="url(#setu-stroke-primary)"
+              strokeWidth="1"
+              opacity="0.45"
+            />
+          </g>
+        </svg>
+
+        {/* Gentle Micro-Dot Ambient Texture Overlay */}
         <div
-          className="absolute inset-0 opacity-[0.035]"
+          className="absolute inset-0 opacity-[0.4]"
           style={{
             backgroundImage:
-              'linear-gradient(to right, #0f172a 1px, transparent 1px), linear-gradient(to bottom, #0f172a 1px, transparent 1px)',
-            backgroundSize: '40px 40px'
+              'radial-gradient(circle, rgba(59, 130, 246, 0.16) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+            WebkitMaskImage:
+              'radial-gradient(ellipse 70% 60% at 50% 25%, black 20%, transparent 80%)',
+            maskImage:
+              'radial-gradient(ellipse 70% 60% at 50% 25%, black 20%, transparent 80%)'
           }}
         />
+
+        {/* Faint Horizon Accent below Navbar */}
       </div>
 
-      {/* ── FLOATING GRADIENT GLASS PILL NAVBAR (Landing Page Color Scheme) ── */}
-      <header className="sticky top-4 z-40 px-4 sm:px-6 max-w-5xl mx-auto">
-        <nav className="relative bg-gradient-to-r from-blue-700/90 via-blue-600/85 to-indigo-600/90 backdrop-blur-2xl border border-white/25 rounded-full px-3.5 sm:px-4 py-2 flex items-center justify-between shadow-[0_12px_36px_rgba(37,99,235,0.25),inset_0_1px_1px_rgba(255,255,255,0.35)] ring-1 ring-white/10 transition-all duration-300">
+      {/* ── FULL-WIDTH GRADIENT NAVBAR (Landing Page Color Scheme) ── */}
+      <header className="sticky top-0 z-40 w-full bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 backdrop-blur-2xl border-b border-white/20 shadow-[0_4px_24px_rgba(37,99,235,0.2)] transition-all duration-300">
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[70px] flex items-center justify-between">
           {/* Brand Logo & Name (Click to Scroll to Top) */}
           <Link
             to="/"
             onClick={handleScrollToTop}
-            className="flex items-center gap-2.5 group shrink-0 pl-1 cursor-pointer"
+            className="flex items-center gap-2.5 group shrink-0 cursor-pointer"
             title="Scroll to top"
           >
-            <div className="w-7 h-7 rounded-full bg-white p-1 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
-              <img src="/logo.png" alt="VidyaSetu" className="w-full h-full object-contain" />
+            <div className="w-8 h-8 rounded-full bg-white p-1 flex items-center justify-center shadow-sm overflow-hidden group-hover:scale-105 transition-transform duration-200">
+              <img src="/logo.png" alt="VidyaSetu" className="w-full h-full object-contain rounded-full" />
             </div>
-            <span className="font-display font-bold text-base tracking-tight text-white group-hover:text-blue-100 transition-colors">
+            <span className="font-display font-bold text-lg sm:text-xl tracking-tight text-white group-hover:text-blue-100 transition-colors">
               VidyaSetu
             </span>
           </Link>
@@ -468,12 +629,14 @@ export const LandingPage: React.FC = () => {
           <div ref={navContainerRef} className="relative hidden lg:flex items-center gap-1 p-0.5">
             {/* Sliding Pill Indicator */}
             <div
-              className={`absolute top-1/2 -translate-y-1/2 h-8 bg-white/20 backdrop-blur-md border border-white/25 rounded-full shadow-inner pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] ${
+              className={`absolute bg-white/20 backdrop-blur-md border border-white/25 rounded-full shadow-inner pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] ${
                 pillIndicator.ready ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
                 left: `${pillIndicator.left}px`,
-                width: `${pillIndicator.width}px`
+                width: `${pillIndicator.width}px`,
+                top: `${pillIndicator.top}px`,
+                height: `${pillIndicator.height}px`
               }}
             />
 
@@ -487,7 +650,7 @@ export const LandingPage: React.FC = () => {
                   }}
                   href={`#${item.id}`}
                   onClick={(e) => handleNavClick(e, item.id)}
-                  className={`relative z-10 px-3.5 py-1.5 rounded-full text-xs select-none transition-colors duration-250 ease-out ${
+                  className={`relative z-10 px-4 py-2 rounded-full text-xs font-semibold select-none transition-colors duration-250 ease-out ${
                     isActive
                       ? 'text-white font-bold'
                       : 'text-white/80 hover:text-white font-medium'
@@ -500,26 +663,26 @@ export const LandingPage: React.FC = () => {
           </div>
 
           {/* Right Action Controls (White Pill CTA) */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
             {currentUser ? (
               <button
                 onClick={() => navigate('/dashboard')}
-                className="group inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white hover:bg-slate-50 text-blue-700 hover:text-blue-800 text-xs font-bold shadow-md shadow-blue-950/20 transition-all active:scale-[0.98]"
+                className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white hover:bg-slate-50 text-blue-700 hover:text-blue-800 text-xs sm:text-sm font-bold shadow-md shadow-blue-950/20 transition-all active:scale-[0.98]"
               >
                 <span>Dashboard</span>
-                <ArrowRight size={13} className="text-blue-700 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight size={14} className="text-blue-700 group-hover:translate-x-0.5 transition-transform" />
               </button>
             ) : (
               <>
                 <Link
                   to="/login"
-                  className="hidden sm:inline-flex px-3 py-1.5 rounded-full text-xs font-medium text-white/90 hover:text-white transition-colors"
+                  className="hidden sm:inline-flex px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold text-white/90 hover:text-white transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register-institute"
-                  className="px-5 py-2 rounded-full bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-800 font-bold text-xs tracking-wide shadow-md shadow-blue-950/20 hover:shadow-lg hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-full bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-800 font-bold text-xs sm:text-sm tracking-wide shadow-md shadow-blue-950/20 hover:shadow-lg hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1.5"
                 >
                   <span>Register Institute</span>
                 </Link>
@@ -530,17 +693,17 @@ export const LandingPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-full text-white/90 hover:text-white hover:bg-white/10 transition-colors"
+              className="lg:hidden p-2 rounded-full text-white/90 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
         </nav>
 
         {/* Mobile Dropdown Menu (Gradient Glass) */}
         {mobileMenuOpen && (
-          <div className="lg:hidden mt-2 p-3 bg-gradient-to-b from-blue-900/95 via-indigo-900/95 to-slate-900/95 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="lg:hidden border-t border-white/15 bg-gradient-to-b from-blue-800/98 via-indigo-900/98 to-slate-900/98 backdrop-blur-2xl px-4 py-3 space-y-1 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
             {NAV_LINKS.map((item) => {
               const isActive = activeNavSection === item.id;
               return (
@@ -548,7 +711,7 @@ export const LandingPage: React.FC = () => {
                   key={item.id}
                   href={`#${item.id}`}
                   onClick={(e) => handleMobileNavClick(e, item.id)}
-                  className={`block px-3.5 py-2 rounded-xl text-xs transition-all duration-200 ${
+                  className={`block px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
                     isActive
                       ? 'font-bold text-white bg-white/20 border border-white/10 shadow-inner'
                       : 'font-medium text-white/85 hover:bg-white/10 hover:text-white'
@@ -613,18 +776,10 @@ export const LandingPage: React.FC = () => {
               <ArrowRight size={13} />
             </div>
           </Link>
-
-          <button
-            onClick={() => setIsDemoModalOpen(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-sm font-bold shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <Clock size={16} className="text-blue-600" />
-            <span>Book Live 1-on-1 Walkthrough</span>
-          </button>
         </div>
 
         {/* Metric Badges Strip (Defensible Software Guarantees & Capabilities) */}
-        <div className="mt-12 sm:mt-16 pt-8 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto text-left">
+        <div className="mt-12 sm:mt-16 pt-8 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl mx-auto text-left">
           <div className="space-y-1">
             <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">100%</div>
             <div className="text-xs text-slate-500 font-semibold">Tenant Data Scoping Guarantee</div>
@@ -657,7 +812,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── THE MARKET THESIS: THE BROKEN LEGACY STACK VS VIDYASETU (scroll-mt-28) ── */}
-      <section id="why-vidyasetu" className="relative z-10 py-20 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto border-t border-slate-200/80 scroll-mt-28">
+      <section id="why-vidyasetu" className="relative z-10 py-20 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-28">
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-bold tracking-wider uppercase">
             <span>The Strategic Upgrade</span>
@@ -822,7 +977,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── CORE MVPS SECTION (With scroll-mt-28 to prevent navbar clipping) ── */}
-      <section id="mvps" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto border-t border-slate-200/80 scroll-mt-28">
+      <section id="mvps" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-28">
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold tracking-wider uppercase">
             <span>Core Deliverables</span>
@@ -1350,7 +1505,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── ROLE WORKSPACE MATRIX (Showcase for All 6 Roles, scroll-mt-28) ── */}
-      <section id="roles" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto border-t border-slate-200/80 scroll-mt-28">
+      <section id="roles" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-28">
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold tracking-wider uppercase">
             <span>Tailored User Experiences</span>
@@ -1441,7 +1596,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── ARCHITECTURAL TRANSPARENCY & DATA PRIVACY BENTO (scroll-mt-28) ── */}
-      <section id="architecture" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto border-t border-slate-200/80 scroll-mt-28">
+      <section id="architecture" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-28">
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-bold tracking-wider uppercase">
             <span>Safety & Reliability</span>
@@ -1499,7 +1654,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── PRICING SECTION (Transparent & Legible, scroll-mt-28) ── */}
-      <section id="pricing" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto border-t border-slate-200/80 scroll-mt-28">
+      <section id="pricing" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-28">
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold tracking-wider uppercase">
             <span>Predictable Investment</span>
@@ -1597,7 +1752,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── FREQUENTLY ASKED QUESTIONS (Accordion, scroll-mt-28) ── */}
-      <section id="faq" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-4xl mx-auto border-t border-slate-200/80 scroll-mt-28">
+      <section id="faq" className="relative z-10 py-20 sm:py-28 px-4 sm:px-6 max-w-4xl mx-auto scroll-mt-28">
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold tracking-wider uppercase">
             <span>Got Questions?</span>
@@ -1685,8 +1840,8 @@ export const LandingPage: React.FC = () => {
           {/* Brand Info */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 p-1 flex items-center justify-center shadow-sm">
-                <img src="/logo.png" alt="VidyaSetu" className="w-full h-full object-contain" />
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 p-1 flex items-center justify-center shadow-sm overflow-hidden">
+                <img src="/logo.png" alt="VidyaSetu" className="w-full h-full object-contain rounded-md" />
               </div>
               <span className="font-display font-extrabold text-lg text-slate-900">VidyaSetu</span>
             </div>

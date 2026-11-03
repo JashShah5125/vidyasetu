@@ -2004,7 +2004,7 @@ export const TeacherSchedule: React.FC = () => {
           }}
           onSubmit={async (payload) => {
             try {
-              await lectureRequestApi.createRequest(payload);
+              await lectureRequestApi.createRequest(payload as any);
 
               // Refresh changes list from DB
               const updated = await teacherScheduleApi.getChanges();

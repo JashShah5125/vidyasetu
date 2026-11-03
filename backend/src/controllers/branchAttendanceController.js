@@ -450,6 +450,67 @@ const getStudentReport = async (req, res) => {
     }
 };
 
+/**
+ * 11. GET /api/branch/attendance/daily-students
+ * Fetch saved daily student attendance records for branch/batch/date
+ */
+const getDailyStudents = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const branchId = accessContext.authorizedBranchId || req.query.branchId;
+        const { batchId, date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ status: 'error', message: 'date is required' });
+        }
+
+        if (batchId && batchId !== 'All' && accessContext.authorizedBranchId) {
+            await timetableAccessService.validateBatchInBranch(tenantId, accessContext.authorizedBranchId, batchId);
+        }
+
+        const records = await attendanceModel.getDailyStudentAttendance(tenantId, { branchId, batchId, date });
+        res.status(200).json({ status: 'success', data: records });
+    } catch (error) {
+        handleError(res, error, 'Error fetching daily student attendance:');
+    }
+};
+
+/**
+ * 12. POST /api/branch/attendance/daily-students
+ * Save daily student attendance for branch/batch/date
+ */
+const saveDailyStudents = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const branchId = accessContext.authorizedBranchId || req.body.branchId;
+        const { batchId, date, records } = req.body;
+
+        if (!date) {
+            return res.status(400).json({ status: 'error', message: 'date is required' });
+        }
+        if (!Array.isArray(records)) {
+            return res.status(400).json({ status: 'error', message: 'records array is required' });
+        }
+
+        if (batchId && batchId !== 'All' && accessContext.authorizedBranchId) {
+            await timetableAccessService.validateBatchInBranch(tenantId, accessContext.authorizedBranchId, batchId);
+        }
+
+        const result = await attendanceModel.saveDailyStudentAttendance(tenantId, {
+            branchId,
+            batchId,
+            date,
+            records,
+            userId: resolveUserId(req)
+        });
+        res.status(200).json({ status: 'success', message: 'Student daily attendance saved successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error saving daily student attendance:');
+    }
+};
+
 module.exports = {
     getAttendanceOptions,
     getDailyLectures,
@@ -462,5 +523,7 @@ module.exports = {
     saveStaffAttendance,
     saveStaffLectureAttendance,
     getBatchReport,
-    getStudentReport
+    getStudentReport,
+    getDailyStudents,
+    saveDailyStudents
 };

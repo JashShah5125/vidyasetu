@@ -241,7 +241,11 @@ export const LectureFormModal: React.FC<LectureFormModalProps> = ({
 
     // Fallback: All teachers
     return options.teachers.map(t => formatTeacherOpt(t));
-  }, [options, resolvedBatchId, formData.subjectId, teachersList]);
+  }, [
+	options,
+	resolvedBatchId,
+	formData.subjectId
+]);
 
   // Available classrooms from backend options or scheduler rooms
   const availableRooms = useMemo(() => {

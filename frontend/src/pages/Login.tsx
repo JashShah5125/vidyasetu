@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -79,9 +79,15 @@ export const Login: React.FC = () => {
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-xl space-y-6">
 
         {/* Header */}
-        <div className="text-center space-y-3">
-          <img src="/logo.png" alt="Vidya Setu Logo" className="w-full h-28 object-cover" />
-          <p className="text-sm text-slate-500 font-semibold">
+        <div className="text-center space-y-2">
+          <Link to="/" className="inline-block group mb-1" title="Back to Home">
+            <img
+              src="/logo.png"
+              alt="Vidya Setu Logo"
+              className="h-28 sm:h-32 w-auto max-w-[280px] object-contain mx-auto transition-transform group-hover:scale-105"
+            />
+          </Link>
+          <p className="text-xs text-slate-500 font-semibold tracking-wide">
             Multi-Tenant Coaching Management Platform
           </p>
         </div>

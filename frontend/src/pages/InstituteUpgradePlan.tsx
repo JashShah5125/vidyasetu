@@ -37,7 +37,7 @@ export const InstituteUpgradePlan: React.FC = () => {
           } else if (profileRes?.plan?.id) {
             setCurrentPlanId(String(profileRes.plan.id));
           } else if ((profileRes?.tenant as any)?.plan_id) {
-            setCurrentPlanId(String((profileRes.tenant as any).plan_id));
+            setCurrentPlanId(String((profileRes?.tenant as any)?.plan_id || ''));
           }
         }
       } catch (err: any) {

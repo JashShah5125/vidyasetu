@@ -20,9 +20,9 @@ import {
 } from 'lucide-react';
 
 export const AuditLogs: React.FC = () => {
-  const { user } = useAuth();
+  const { currentUser: user } = useAuth();
   const isSaasAdmin = Boolean(user?.isSaasAdmin);
-  const isBranchAdmin = user?.userType === 'branch_admin' || (user as any)?.role === 'branch_admin' || user?.userType === 'branch-admin';
+  const isBranchAdmin = (user as any)?.userType === 'branch_admin' || (user as any)?.role === 'branch_admin' || (user as any)?.userType === 'branch-admin' || user?.role === 'branch-admin';
 
   // Data & Pagination
   const [logs, setLogs] = useState<AuditLogItem[]>([]);

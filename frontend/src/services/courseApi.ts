@@ -14,6 +14,12 @@ export interface CourseApiProgram {
   name?: string;
   code?: string;
   duration?: string;
+  total_fee?: number;
+  totalFees?: number;
+  down_payment?: number;
+  downPayment?: number;
+  installment_months?: number;
+  months?: number;
   is_active?: boolean;
   levels?: CourseApiProgramLevel[];
 }
@@ -22,6 +28,8 @@ export interface CourseCreatePayload {
   name: string;
   code: string;
   description?: string;
+  total_fee?: number;
+  fees?: number;
   is_active?: boolean;
   branches: Array<number | string>;
   programs?: CourseApiProgram[];

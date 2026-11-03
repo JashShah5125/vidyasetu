@@ -594,7 +594,7 @@ export const StaffSalaryStatusView: React.FC<StaffSalaryStatusViewProps> = ({
                     <td className="px-3.5 py-3 text-left text-xs whitespace-nowrap">
                       {isPaid ? (
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          {renderPaymentModeBadge(item.payment_mode)}
+                          {renderPaymentModeBadge(item.payment_mode || undefined)}
                           <span className="text-slate-700 font-medium">
                             Paid on {formatDate(item.paid_date!)}
                           </span>

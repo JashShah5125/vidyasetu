@@ -667,6 +667,230 @@ const attendanceModel = {
             connection.release();
             throw error;
         }
+    },
+
+    /**
+     * Ensure student_daily_attendance table exists (self-healing migration).
+     */
+    async ensureDailyStudentTable() {
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS student_daily_attendance (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    tenant_id INT NOT NULL,
+                    branch_id INT NULL,
+                    batch_id INT NULL,
+                    student_id INT NOT NULL,
+                    attendance_date DATE NOT NULL,
+                    status TINYINT NOT NULL DEFAULT 1 COMMENT '0=absent, 1=present, 2=late',
+                    remarks VARCHAR(255) NULL,
+                    marked_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_tenant_student_date (tenant_id, student_id, attendance_date),
+                    INDEX idx_tenant_date (tenant_id, attendance_date),
+                    INDEX idx_tenant_batch_date (tenant_id, batch_id, attendance_date),
+                    INDEX idx_tenant_branch_date (tenant_id, branch_id, attendance_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            `);
+        } catch (err) {
+            // Note: table may already exist or pool is connecting
+        }
+    },
+
+    /**
+     * Fetch saved daily attendance records for students on a given date.
+     */
+    async getDailyStudentAttendance(tenantId, { branchId, batchId, date } = {}) {
+        await this.ensureDailyStudentTable();
+        if (!date) return [];
+
+        let query = `
+            SELECT 
+                sda.student_id,
+                s.student_code,
+                sda.status,
+                sda.remarks,
+                DATE_FORMAT(sda.attendance_date, '%Y-%m-%d') AS attendance_date
+            FROM student_daily_attendance sda
+            JOIN students s ON sda.student_id = s.id AND s.deleted_at IS NULL
+            WHERE sda.tenant_id = ? AND sda.attendance_date = ?
+        `;
+        const params = [tenantId, date];
+
+        if (batchId && batchId !== 'All') {
+            query += ` AND (sda.batch_id = ? OR sda.student_id IN (
+                SELECT se.student_id FROM student_enrollments se 
+                WHERE se.batch_id = ? AND se.tenant_id = ? AND se.deleted_at IS NULL
+            ))`;
+            params.push(batchId, batchId, tenantId);
+        }
+
+        if (branchId && branchId !== 'All') {
+            query += ` AND (sda.branch_id = ? OR sda.student_id IN (
+                SELECT st.id FROM students st 
+                WHERE st.tenant_id = ? AND (
+                    st.primary_branch_id = ? OR 
+                    st.primary_branch_id = (SELECT id FROM branches WHERE (name = ? OR code = ?) AND tenant_id = ? LIMIT 1)
+                )
+            ))`;
+            params.push(branchId, tenantId, branchId, branchId, branchId, tenantId);
+        }
+
+        query += ` ORDER BY s.full_name ASC`;
+        const [rows] = await pool.query(query, params);
+
+        if (rows.length > 0) {
+            return rows;
+        }
+
+        // Fallback: check if attendance was marked in lecture rosters for that date
+        let lecQuery = `
+            SELECT 
+                ar.student_id,
+                s.student_code,
+                ar.status,
+                ar.remarks,
+                DATE_FORMAT(l.lecture_date, '%Y-%m-%d') AS attendance_date
+            FROM attendance_records ar
+            JOIN lectures l ON ar.lecture_id = l.id AND l.deleted_at IS NULL
+            JOIN students s ON ar.student_id = s.id AND s.deleted_at IS NULL
+            WHERE ar.tenant_id = ? AND l.lecture_date = ?
+        `;
+        const lecParams = [tenantId, date];
+
+        if (batchId && batchId !== 'All') {
+            lecQuery += ` AND l.batch_id = ?`;
+            lecParams.push(batchId);
+        }
+
+        lecQuery += ` GROUP BY ar.student_id, s.student_code, ar.status, ar.remarks, l.lecture_date`;
+        const [lecRows] = await pool.query(lecQuery, lecParams);
+        return lecRows;
+    },
+
+    /**
+     * Save/upsert daily student attendance records and sync with lectures if applicable.
+     */
+    async saveDailyStudentAttendance(tenantId, { branchId, batchId, date, records = [], userId } = {}) {
+        await this.ensureDailyStudentTable();
+        if (!date) throw new Error('date is required');
+        if (!Array.isArray(records) || records.length === 0) {
+            return { success: true, count: 0 };
+        }
+
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            let resolvedBranchId = null;
+            if (branchId && branchId !== 'All') {
+                if (typeof branchId === 'number' || /^\d+$/.test(branchId)) {
+                    resolvedBranchId = Number(branchId);
+                } else {
+                    const [bRows] = await connection.query(
+                        `SELECT id FROM branches WHERE (name = ? OR code = ?) AND tenant_id = ? LIMIT 1`,
+                        [branchId, branchId, tenantId]
+                    );
+                    if (bRows.length > 0) resolvedBranchId = bRows[0].id;
+                }
+            }
+
+            let resolvedBatchId = null;
+            if (batchId && batchId !== 'All') {
+                if (typeof batchId === 'number' || /^\d+$/.test(batchId)) {
+                    resolvedBatchId = Number(batchId);
+                } else {
+                    const [batchRows] = await connection.query(
+                        `SELECT id FROM batches WHERE (name = ? OR code = ?) AND tenant_id = ? LIMIT 1`,
+                        [batchId, batchId, tenantId]
+                    );
+                    if (batchRows.length > 0) resolvedBatchId = batchRows[0].id;
+                }
+            }
+
+            let count = 0;
+            for (const rec of records) {
+                const studentId = Number(rec.student_id);
+                if (!studentId) continue;
+                const status = Number(rec.status);
+                if (![0, 1, 2].includes(status)) continue;
+
+                let bId = rec.branch_id ? Number(rec.branch_id) : resolvedBranchId;
+                let btId = rec.batch_id ? Number(rec.batch_id) : resolvedBatchId;
+                const remarks = rec.remarks || null;
+
+                // If branch_id or batch_id still null, resolve from student's active enrollment
+                if (!bId || !btId) {
+                    const [seRows] = await connection.query(
+                        `SELECT se.batch_id, s.primary_branch_id 
+                         FROM students s
+                         LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.status = 'active' AND se.deleted_at IS NULL
+                         WHERE s.id = ? AND s.tenant_id = ? LIMIT 1`,
+                        [studentId, tenantId]
+                    );
+                    if (seRows.length > 0) {
+                        if (!bId) bId = seRows[0].primary_branch_id;
+                        if (!btId) btId = seRows[0].batch_id;
+                    }
+                }
+
+                await connection.query(
+                    `INSERT INTO student_daily_attendance
+                        (tenant_id, branch_id, batch_id, student_id, attendance_date, status, remarks, marked_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                        branch_id = COALESCE(VALUES(branch_id), branch_id),
+                        batch_id = COALESCE(VALUES(batch_id), batch_id),
+                        status = VALUES(status),
+                        remarks = VALUES(remarks),
+                        marked_by = VALUES(marked_by),
+                        updated_at = CURRENT_TIMESTAMP`,
+                    [tenantId, bId || null, btId || null, studentId, date, status, remarks, userId || null]
+                );
+                count++;
+            }
+
+            // Sync with any batch lectures scheduled on that date
+            if (resolvedBatchId) {
+                const [batchLectures] = await connection.query(
+                    `SELECT id FROM lectures 
+                     WHERE tenant_id = ? AND batch_id = ? AND lecture_date = ? 
+                       AND deleted_at IS NULL AND status NOT IN ('cancelled')`,
+                    [tenantId, resolvedBatchId, date]
+                );
+                for (const lec of batchLectures) {
+                    for (const rec of records) {
+                        const studentId = Number(rec.student_id);
+                        const status = Number(rec.status);
+                        if (!studentId || ![0, 1, 2].includes(status)) continue;
+                        await connection.query(
+                            `INSERT INTO attendance_records
+                                (tenant_id, lecture_id, student_id, status, remarks, created_by, updated_by)
+                             VALUES (?, ?, ?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE
+                                status = VALUES(status),
+                                remarks = VALUES(remarks),
+                                updated_by = VALUES(updated_by),
+                                updated_at = CURRENT_TIMESTAMP`,
+                            [tenantId, lec.id, studentId, status, rec.remarks || null, userId || null, userId || null]
+                        );
+                    }
+                    await connection.query(
+                        `UPDATE lectures SET attendance_taken = 1, updated_by = ? WHERE id = ? AND tenant_id = ?`,
+                        [userId || null, lec.id, tenantId]
+                    );
+                }
+            }
+
+            await connection.commit();
+            connection.release();
+            return { success: true, count };
+        } catch (error) {
+            await connection.rollback();
+            connection.release();
+            throw error;
+        }
     }
 };
 

@@ -6,6 +6,8 @@ export interface Subject {
   code: string;
   type: string;
   description?: string;
+  base_fee?: number | null;
+  fee_amount?: number | null;
   status: string;
   created_at?: string;
   updated_at?: string;
@@ -16,6 +18,8 @@ export interface SubjectCreatePayload {
   code: string;
   type?: string;
   description?: string;
+  base_fee?: number | null;
+  fee_amount?: number | null;
   status?: string;
 }
 

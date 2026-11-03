@@ -23,6 +23,10 @@ router.post('/bulk-upload/:lectureId', uploadAttendanceCsv, branchAttendanceCont
 router.get('/report/batch/:batchId', branchAttendanceController.getBatchReport);
 router.get('/report/student/:studentId', branchAttendanceController.getStudentReport);
 
+// Daily student attendance roster
+router.get('/daily-students', branchAttendanceController.getDailyStudents);
+router.post('/daily-students', branchAttendanceController.saveDailyStudents);
+
 // Staff Attendance
 router.get('/staff', branchAttendanceController.getStaffAttendance);
 router.post('/staff/save', branchAttendanceController.saveStaffAttendance);

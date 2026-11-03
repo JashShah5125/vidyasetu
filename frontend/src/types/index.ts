@@ -8,6 +8,7 @@ export interface UserProfile {
   roles?: string[];
   branch?: string;
   branchId?: string;
+  branch_id?: string | number;
   branchCode?: string;
   tenantId?: string;
   tenantName?: string;
@@ -372,6 +373,8 @@ export interface AppNotification {
   direction: 'Incoming' | 'Outgoing';
   status: 'Unread' | 'Read';
   recipients?: NotificationRecipient[];
+  recipientCount?: number;
+  attachments?: string[];
   attachmentName?: string;
 }
 

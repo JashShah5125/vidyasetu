@@ -277,7 +277,7 @@ export const LectureAttendance: React.FC = () => {
                 </span>
               )}
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs font-medium text-slate-500 mt-2">
               <span><strong>Batch:</strong> {lectureInfo?.batch_name || navState?.lecture?.batch_name || 'Batch'}</span>
               <span>•</span>
@@ -307,7 +307,7 @@ export const LectureAttendance: React.FC = () => {
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-1.5 text-xs font-bold cursor-pointer"
           >
-            <Upload size={14} /> Bulk Import <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200">UI Only</span>
+            <Upload size={14} /> Bulk Import <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200"></span>
           </Button>
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5 text-xs font-bold">
             <Download size={14} /> Export CSV
@@ -326,260 +326,256 @@ export const LectureAttendance: React.FC = () => {
 
       {/* Summary KPI Cards - Students */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-2xs">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase">
-                <Users size={14} className="text-slate-400" /> Total Students
-              </div>
-              <div className="text-2xl font-extrabold text-slate-900 mt-1">{totalStudents}</div>
+        <div className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase">
+            <Users size={14} className="text-slate-400" /> Total Students
+          </div>
+          <div className="text-2xl font-extrabold text-slate-900 mt-1">{totalStudents}</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase">
+            <RefreshCw size={14} className="text-blue-500" /> Marked / Total
+          </div>
+          <div className="text-2xl font-extrabold text-blue-600 mt-1">
+            {markedCount} <span className="text-xs text-slate-400 font-bold">/ {totalStudents}</span>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 uppercase">
+            <UserCheck size={14} className="text-emerald-600" /> Present
+          </div>
+          <div className="text-2xl font-extrabold text-emerald-700 mt-1">{presentCount}</div>
+        </div>
+
+        <div className="bg-red-50/70 border border-red-200/80 p-3.5 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-red-800 uppercase">
+            <UserX size={14} className="text-red-600" /> Absent
+          </div>
+          <div className="text-2xl font-extrabold text-red-700 mt-1">{absentCount}</div>
+        </div>
+
+        <div className="bg-amber-50/70 border border-amber-200/80 p-3.5 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 uppercase">
+            <Clock size={14} className="text-amber-600" /> Late
+          </div>
+          <div className="text-2xl font-extrabold text-amber-700 mt-1">{lateCount}</div>
+        </div>
+
+        <div className="bg-indigo-50/70 border border-indigo-200/80 p-3.5 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-800 uppercase">
+            <CheckCircle2 size={14} className="text-indigo-600" /> Attendance Rate
+          </div>
+          <div className="text-2xl font-extrabold text-indigo-700 mt-1">{attendancePercentage}%</div>
+        </div>
+      </div>
+
+      {/* Student Roster Card */}
+      <Card className="shadow-sm border border-slate-200 overflow-hidden">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
+            <div>
+              <CardTitle>Enrolled Students Roster ({filteredRoster.length})</CardTitle>
+              <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                Mark attendance parameters for each enrolled student in this lecture session.
+              </p>
             </div>
 
-            <div className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-2xs">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase">
-                <RefreshCw size={14} className="text-blue-500" /> Marked / Total
-              </div>
-              <div className="text-2xl font-extrabold text-blue-600 mt-1">
-                {markedCount} <span className="text-xs text-slate-400 font-bold">/ {totalStudents}</span>
-              </div>
-            </div>
-
-            <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-xl shadow-2xs">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 uppercase">
-                <UserCheck size={14} className="text-emerald-600" /> Present
-              </div>
-              <div className="text-2xl font-extrabold text-emerald-700 mt-1">{presentCount}</div>
-            </div>
-
-            <div className="bg-red-50/70 border border-red-200/80 p-3.5 rounded-xl shadow-2xs">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-red-800 uppercase">
-                <UserX size={14} className="text-red-600" /> Absent
-              </div>
-              <div className="text-2xl font-extrabold text-red-700 mt-1">{absentCount}</div>
-            </div>
-
-            <div className="bg-amber-50/70 border border-amber-200/80 p-3.5 rounded-xl shadow-2xs">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 uppercase">
-                <Clock size={14} className="text-amber-600" /> Late
-              </div>
-              <div className="text-2xl font-extrabold text-amber-700 mt-1">{lateCount}</div>
-            </div>
-
-            <div className="bg-indigo-50/70 border border-indigo-200/80 p-3.5 rounded-xl shadow-2xs">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-800 uppercase">
-                <CheckCircle2 size={14} className="text-indigo-600" /> Attendance Rate
-              </div>
-              <div className="text-2xl font-extrabold text-indigo-700 mt-1">{attendancePercentage}%</div>
+            {/* Quick Bulk Marking Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 mr-1">Quick Mark:</span>
+              <button
+                type="button"
+                onClick={() => handleMarkAll(1)}
+                className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+              >
+                All Present
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMarkAll(0)}
+                className="px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
+              >
+                All Absent
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="px-2.5 py-1 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                Clear Marks
+              </button>
             </div>
           </div>
+        </CardHeader>
 
-          {/* Student Roster Card */}
-          <Card className="shadow-sm border border-slate-200 overflow-hidden">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
-                <div>
-                  <CardTitle>Enrolled Students Roster ({filteredRoster.length})</CardTitle>
-                  <p className="text-xs text-slate-500 mt-0.5 font-normal">
-                    Mark attendance parameters for each enrolled student in this lecture session.
-                  </p>
-                </div>
+        {/* Filter / Search Bar */}
+        <div className="p-4 bg-slate-50/70 border-b border-slate-200/80 flex flex-col sm:flex-row gap-3 items-center justify-between">
+          <div className="relative w-full sm:w-80">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search student name, code, or mobile..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 bg-white shadow-2xs"
+            />
+          </div>
 
-                {/* Quick Bulk Marking Actions */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 mr-1">Quick Mark:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkAll(1)}
-                    className="px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
-                  >
-                    All Present
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkAll(0)}
-                    className="px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
-                  >
-                    All Absent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClearAll}
-                    className="px-2.5 py-1 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                  >
-                    Clear Marks
-                  </button>
-                </div>
-              </div>
-            </CardHeader>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter:</span>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white outline-none focus:border-indigo-500 shadow-2xs"
+            >
+              <option value="all">All Students ({rosterRows.length})</option>
+              <option value="present">Present Only ({presentCount})</option>
+              <option value="absent">Absent Only ({absentCount})</option>
+              <option value="late">Late Only ({lateCount})</option>
+              <option value="unmarked">Unmarked Only ({unmarkedCount})</option>
+            </select>
+          </div>
+        </div>
 
-            {/* Filter / Search Bar */}
-            <div className="p-4 bg-slate-50/70 border-b border-slate-200/80 flex flex-col sm:flex-row gap-3 items-center justify-between">
-              <div className="relative w-full sm:w-80">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search student name, code, or mobile..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 bg-white shadow-2xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Filter:</span>
-                <select
-                  value={filterStatus}
-                  onChange={e => setFilterStatus(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white outline-none focus:border-indigo-500 shadow-2xs"
-                >
-                  <option value="all">All Students ({rosterRows.length})</option>
-                  <option value="present">Present Only ({presentCount})</option>
-                  <option value="absent">Absent Only ({absentCount})</option>
-                  <option value="late">Late Only ({lateCount})</option>
-                  <option value="unmarked">Unmarked Only ({unmarkedCount})</option>
-                </select>
-              </div>
+        {/* Student Table */}
+        {filteredRoster.length === 0 ? (
+          <div className="py-16 text-center flex flex-col items-center justify-center">
+            <div className="bg-slate-100 p-3.5 rounded-full mb-2.5">
+              <Users size={32} className="text-slate-400" />
             </div>
+            <h3 className="text-sm font-bold text-slate-800">No students found</h3>
+            <p className="text-xs text-slate-500 max-w-sm mt-0.5">
+              {rosterRows.length === 0
+                ? 'No students are currently enrolled in this batch.'
+                : 'No students matched the active search and filter conditions.'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  <th className="px-4 py-3.5 w-12 text-center">#</th>
+                  <th className="px-4 py-3.5 min-w-[220px]">Student Name &amp; Code</th>
+                  <th className="px-4 py-3.5 min-w-[140px]">Mobile Contact</th>
+                  <th className="px-4 py-3.5 min-w-[260px] text-center">Attendance Status</th>
+                  <th className="px-4 py-3.5 min-w-[220px]">Remarks / Note</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRoster.map((student, idx) => {
+                  const mark = rosterMarks[student.student_id];
+                  const currentStatus = mark?.status;
 
-            {/* Student Table */}
-            {filteredRoster.length === 0 ? (
-              <div className="py-16 text-center flex flex-col items-center justify-center">
-                <div className="bg-slate-100 p-3.5 rounded-full mb-2.5">
-                  <Users size={32} className="text-slate-400" />
-                </div>
-                <h3 className="text-sm font-bold text-slate-800">No students found</h3>
-                <p className="text-xs text-slate-500 max-w-sm mt-0.5">
-                  {rosterRows.length === 0
-                    ? 'No students are currently enrolled in this batch.'
-                    : 'No students matched the active search and filter conditions.'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      <th className="px-4 py-3.5 w-12 text-center">#</th>
-                      <th className="px-4 py-3.5 min-w-[220px]">Student Name &amp; Code</th>
-                      <th className="px-4 py-3.5 min-w-[140px]">Mobile Contact</th>
-                      <th className="px-4 py-3.5 min-w-[260px] text-center">Attendance Status</th>
-                      <th className="px-4 py-3.5 min-w-[220px]">Remarks / Note</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredRoster.map((student, idx) => {
-                      const mark = rosterMarks[student.student_id];
-                      const currentStatus = mark?.status;
-
-                      return (
-                        <tr
-                          key={student.student_id}
-                          className={`hover:bg-slate-50/80 transition-colors ${
-                            currentStatus === 0
-                              ? 'bg-red-50/20'
-                              : currentStatus === 1
-                              ? 'bg-emerald-50/20'
-                              : currentStatus === 2
+                  return (
+                    <tr
+                      key={student.student_id}
+                      className={`hover:bg-slate-50/80 transition-colors ${currentStatus === 0
+                          ? 'bg-red-50/20'
+                          : currentStatus === 1
+                            ? 'bg-emerald-50/20'
+                            : currentStatus === 2
                               ? 'bg-amber-50/20'
                               : ''
-                          }`}
-                        >
-                          <td className="px-4 py-3.5 text-xs font-bold text-slate-400 text-center">
-                            {idx + 1}
-                          </td>
+                        }`}
+                    >
+                      <td className="px-4 py-3.5 text-xs font-bold text-slate-400 text-center">
+                        {idx + 1}
+                      </td>
 
-                          <td className="px-4 py-3.5">
-                            <div className="font-bold text-slate-900 text-sm">{student.full_name}</div>
-                            <div className="font-mono text-xs font-semibold text-indigo-600 uppercase mt-0.5">
-                              {student.student_code}
-                            </div>
-                          </td>
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-slate-900 text-sm">{student.full_name}</div>
+                        <div className="font-mono text-xs font-semibold text-indigo-600 uppercase mt-0.5">
+                          {student.student_code}
+                        </div>
+                      </td>
 
-                          <td className="px-4 py-3.5 text-xs font-medium text-slate-600 whitespace-nowrap">
-                            {student.mobile ? (
-                              <span className="font-mono">{student.mobile}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">N/A</span>
-                            )}
-                          </td>
+                      <td className="px-4 py-3.5 text-xs font-medium text-slate-600 whitespace-nowrap">
+                        {student.mobile ? (
+                          <span className="font-mono">{student.mobile}</span>
+                        ) : (
+                          <span className="text-slate-400 italic">N/A</span>
+                        )}
+                      </td>
 
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleMarkStatus(student.student_id, 1)}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
-                                  currentStatus === 1
-                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-                                }`}
-                              >
-                                <CheckCircle2 size={14} /> Present
-                              </button>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStatus(student.student_id, 1)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${currentStatus === 1
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                              }`}
+                          >
+                            <CheckCircle2 size={14} /> Present
+                          </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleMarkStatus(student.student_id, 0)}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
-                                  currentStatus === 0
-                                    ? 'bg-red-600 text-white border-red-600 shadow-sm'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                                }`}
-                              >
-                                <XCircle size={14} /> Absent
-                              </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStatus(student.student_id, 0)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${currentStatus === 0
+                                ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                              }`}
+                          >
+                            <XCircle size={14} /> Absent
+                          </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleMarkStatus(student.student_id, 2)}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
-                                  currentStatus === 2
-                                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200'
-                                }`}
-                              >
-                                <Clock size={14} /> Late
-                              </button>
-                            </div>
-                          </td>
+                          <button
+                            type="button"
+                            onClick={() => handleMarkStatus(student.student_id, 2)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${currentStatus === 2
+                                ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200'
+                              }`}
+                          >
+                            <Clock size={14} /> Late
+                          </button>
+                        </div>
+                      </td>
 
-                          <td className="px-4 py-3.5">
-                            <input
-                              type="text"
-                              placeholder="Optional remarks (e.g. sick leave, informed)..."
-                              value={mark?.remarks || ''}
-                              onChange={e => handleRemarkChange(student.student_id, e.target.value)}
-                              className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white placeholder:text-slate-300 shadow-2xs"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      <td className="px-4 py-3.5">
+                        <input
+                          type="text"
+                          placeholder="Optional remarks (e.g. sick leave, informed)..."
+                          value={mark?.remarks || ''}
+                          onChange={e => handleRemarkChange(student.student_id, e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white placeholder:text-slate-300 shadow-2xs"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Bottom Footer Actions */}
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div className="text-xs font-medium text-slate-500">
+            Marked: <strong className="text-slate-800 font-bold">{markedCount} of {totalStudents} students</strong>
+            {unmarkedCount > 0 && (
+              <span className="text-amber-600 ml-1.5 font-semibold">({unmarkedCount} unmarked)</span>
             )}
+          </div>
 
-            {/* Bottom Footer Actions */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
-              <div className="text-xs font-medium text-slate-500">
-                Marked: <strong className="text-slate-800 font-bold">{markedCount} of {totalStudents} students</strong>
-                {unmarkedCount > 0 && (
-                  <span className="text-amber-600 ml-1.5 font-semibold">({unmarkedCount} unmarked)</span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="primary"
-                  onClick={handleSubmitAndLock}
-                  disabled={isSaving || markedCount === 0}
-                  className="text-xs font-bold shadow-sm"
-                >
-                  {isSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Lock size={14} className="mr-1" />}
-                  Submit &amp; Lock Attendance
-                </Button>
-              </div>
-            </div>
-          </Card>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="primary"
+              onClick={handleSubmitAndLock}
+              disabled={isSaving || markedCount === 0}
+              className="text-xs font-bold shadow-sm"
+            >
+              {isSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Lock size={14} className="mr-1" />}
+              Submit &amp; Lock Attendance
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Bulk Import Attendance Modal (UI Only) */}
       <BulkImportModal
@@ -602,7 +598,7 @@ export const LectureAttendance: React.FC = () => {
             const statusStr = (row['Status (Present/Absent/Late)'] || row['Status'] || row['status'] || '').trim().toLowerCase();
             const remarks = row['Remarks'] || row['remarks'] || '';
 
-            const matchedStudent = rosterRows.find(r => 
+            const matchedStudent = rosterRows.find(r =>
               (code && r.student_code?.toLowerCase() === code) ||
               (name && r.full_name?.toLowerCase() === name)
             );

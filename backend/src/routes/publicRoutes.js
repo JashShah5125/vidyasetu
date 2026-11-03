@@ -118,23 +118,21 @@ router.post('/leads', handleLeadUpload, async (req, res) => {
             }
         }
 
-        // Document Validations (Mandatory: reg_doc, pan_doc, admin_id_doc)
+        // Document Validations (Mandatory: Institute / Owner PAN Card only)
         const files = req.files || {};
 
-        if (!files.reg_doc || files.reg_doc.length === 0) {
-            return res.status(400).json({ status: 'error', message: 'Institution Registration Proof is required (PDF, JPG, or PNG)' });
-        }
         if (!files.pan_doc || files.pan_doc.length === 0) {
             return res.status(400).json({ status: 'error', message: 'Institute / Owner PAN Card is required (PDF, JPG, or PNG)' });
         }
-        if (!files.admin_id_doc || files.admin_id_doc.length === 0) {
-            return res.status(400).json({ status: 'error', message: 'Director / Admin ID Proof is required (PDF, JPG, or PNG)' });
-        }
 
         // Extract relative URLs
-        const regDocUrl = `/uploads/leads/documents/${files.reg_doc[0].filename}`;
         const panDocUrl = `/uploads/leads/documents/${files.pan_doc[0].filename}`;
-        const adminIdDocUrl = `/uploads/leads/documents/${files.admin_id_doc[0].filename}`;
+        const regDocUrl = files.reg_doc && files.reg_doc.length > 0
+            ? `/uploads/leads/documents/${files.reg_doc[0].filename}`
+            : null;
+        const adminIdDocUrl = files.admin_id_doc && files.admin_id_doc.length > 0
+            ? `/uploads/leads/documents/${files.admin_id_doc[0].filename}`
+            : null;
         const gstDocUrl = files.gst_doc && files.gst_doc.length > 0
             ? `/uploads/leads/documents/${files.gst_doc[0].filename}`
             : null;

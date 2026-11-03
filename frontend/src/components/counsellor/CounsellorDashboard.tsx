@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Button } from '../ui/Button';
@@ -415,11 +416,10 @@ export const CounsellorDashboard: React.FC = () => {
                     key={preset}
                     type="button"
                     onClick={() => setDatePreset(preset)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${
-                      datePreset === preset
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95 ${datePreset === preset
                         ? 'bg-slate-900 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     {preset === 'all' ? 'All Time' : preset === 'today' ? 'Today' : preset === 'weekly' ? 'This Week' : 'This Month'}
                   </button>
@@ -446,8 +446,8 @@ export const CounsellorDashboard: React.FC = () => {
                 const leadsRoute = currentUser?.role === 'branch-admin'
                   ? '/branch/leads'
                   : currentUser?.role === 'inst-admin'
-                  ? '/admin/leads'
-                  : '/counsellor/leads';
+                    ? '/admin/leads'
+                    : '/counsellor/leads';
                 navigate(`${leadsRoute}?action=new`, { state: { openAddLead: true, fromDashboard: true } });
               }}
               className="flex items-center gap-1.5 cursor-pointer h-9 px-3.5 text-xs font-bold rounded-xl shadow-xs transition-transform active:scale-95"
@@ -678,33 +678,30 @@ export const CounsellorDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setFunnelTab('funnel')}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    funnelTab === 'funnel'
+                  className={`px-2.5 py-1 rounded-lg transition-all ${funnelTab === 'funnel'
                       ? 'bg-white text-slate-900 font-bold shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   Funnel Stages
                 </button>
                 <button
                   type="button"
                   onClick={() => setFunnelTab('trend')}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    funnelTab === 'trend'
+                  className={`px-2.5 py-1 rounded-lg transition-all ${funnelTab === 'trend'
                       ? 'bg-white text-slate-900 font-bold shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   Monthly Trend (Apr–Mar)
                 </button>
                 <button
                   type="button"
                   onClick={() => setFunnelTab('courses')}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    funnelTab === 'courses'
+                  className={`px-2.5 py-1 rounded-lg transition-all ${funnelTab === 'courses'
                       ? 'bg-white text-slate-900 font-bold shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   Course Demand
                 </button>
@@ -886,7 +883,7 @@ export const CounsellorDashboard: React.FC = () => {
                           className="cursor-pointer"
                           onClick={(data) => {
                             if (data?.name) {
-                              setSourceFilter((prev) => (prev === data.name ? 'All' : data.name));
+                              setSourceFilter((prev) => (prev === data.name ? 'All' : String(data.name || '')));
                             }
                           }}
                         >
@@ -927,11 +924,10 @@ export const CounsellorDashboard: React.FC = () => {
                       onClick={() => {
                         setSourceFilter(isSelected ? 'All' : item.source);
                       }}
-                      className={`cursor-pointer px-2.5 py-1 rounded-lg border transition-all flex items-center justify-between text-xs ${
-                        isSelected
+                      className={`cursor-pointer px-2.5 py-1 rounded-lg border transition-all flex items-center justify-between text-xs ${isSelected
                           ? 'border-indigo-500 bg-indigo-50/70 shadow-xs'
                           : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50/70'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span

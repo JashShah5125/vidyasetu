@@ -209,7 +209,7 @@ export const Masters: React.FC<MastersProps> = ({ initialSubTab = 'courses' }) =
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedBatches = batches
-    .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()) || b.course.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()) || (b.course || '').toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredAndSortedSubjects = subjects

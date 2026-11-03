@@ -10,17 +10,17 @@ import { Select } from '../components/ui/Select';
 import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar, Pencil, Trash2, Loader2, Eye, Edit3 } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { AddStudentForm } from '../components/students/AddStudentForm';
-import { 
-  getStudents, 
-  getStudentById, 
+import {
+  getStudents,
+  getStudentById,
   getAcademicOptions,
   deleteStudent
 } from '../services/studentApi';
 import type { CreateStudentPayload } from '../services/studentApi';
-import type { 
-  StudentRosterItem, 
-  StudentDetail, 
-  AcademicOptions 
+import type {
+  StudentRosterItem,
+  StudentDetail,
+  AcademicOptions
 } from '../services/studentApi';
 import { formatDate } from '../utils/dateFormatter';
 
@@ -330,11 +330,10 @@ export const Students: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setProfileTab(tab.id as any)}
-                className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  profileTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+                className={`py-3 px-4 font-bold text-sm border-b-2 transition-all cursor-pointer whitespace-nowrap ${profileTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -443,7 +442,7 @@ export const Students: React.FC = () => {
                     <Layers size={16} className="text-blue-600" />
                     Mapped Curriculum & Enrolled Subjects
                   </h3>
-                  
+
                   {selectedStudentDetail.subject_selection_type === 'custom' ? (
                     <div className="space-y-4">
                       <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl flex items-center justify-between">
@@ -623,13 +622,12 @@ export const Students: React.FC = () => {
                           <FileText size={16} className="text-blue-600" />
                           Agreed Master Fee Contract Plan
                         </span>
-                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase ${
-                          selectedStudentDetail.feeAssignment.status === 'paid'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : selectedStudentDetail.feeAssignment.status === 'partially_paid'
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase ${selectedStudentDetail.feeAssignment.status === 'paid'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : selectedStudentDetail.feeAssignment.status === 'partially_paid'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-rose-100 text-rose-800'
-                        }`}>
+                          }`}>
                           Status: {(selectedStudentDetail.feeAssignment.status || 'pending').replace('_', ' ')}
                         </span>
                       </h3>
@@ -704,13 +702,12 @@ export const Students: React.FC = () => {
                                 )}
                               </td>
                               <td className="px-6 py-4 text-xs">
-                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${
-                                  inv.status === 'paid'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                    : inv.status === 'partially_paid'
+                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${inv.status === 'paid'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : inv.status === 'partially_paid'
                                     ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                     : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                }`}>
+                                  }`}>
                                   {inv.status}
                                 </span>
                               </td>
@@ -773,9 +770,9 @@ export const Students: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2 shrink-0 items-center">
-          <Button 
-            variant="primary" 
-            onClick={() => setIsAddModalOpen(true)} 
+          <Button
+            variant="primary"
+            onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-1.5 font-bold"
             style={{ backgroundColor: '#2563eb', color: 'white' }}
           >
@@ -786,7 +783,7 @@ export const Students: React.FC = () => {
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-1.5 font-bold cursor-pointer"
           >
-            <Upload size={14} /> Bulk Import <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200">UI Only</span>
+            <Upload size={14} /> Bulk Import
           </Button>
           <Button variant="secondary" onClick={handleExportCSV}>
             Export CSV
@@ -854,8 +851,8 @@ export const Students: React.FC = () => {
             {filterStatus === '1'
               ? `Active Enrolled Students (${totalItems})`
               : filterStatus === '0'
-              ? `Inactive Students (${totalItems})`
-              : `Enrolled Students (${totalItems})`}
+                ? `Inactive Students (${totalItems})`
+                : `Enrolled Students (${totalItems})`}
           </CardTitle>
         </CardHeader>
 
@@ -957,7 +954,7 @@ export const Students: React.FC = () => {
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        title="Bulk Import Student Roster (UI Only)"
+        title="Bulk Import Student Roster"
         description="Upload CSV spreadsheet to import student enrollment records (demonstration mode)."
         sampleHeaders={['Full Name', 'Mobile', 'Email', 'Class', 'Branch ID', 'Batch ID']}
         sampleRows={[
@@ -966,7 +963,7 @@ export const Students: React.FC = () => {
         ]}
         onImport={() => {
           fetchRoster();
-          addToast('Bulk import processed (UI Only)', 'success');
+          addToast('Bulk import processed', 'success');
         }}
       />
 

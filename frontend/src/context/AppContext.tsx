@@ -434,7 +434,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const student = students.find(s => s.id === studentId);
     if (student && student.enrollmentIds && student.enrollmentIds.length > 0) {
       setEnrollments(prev => prev.map(e => {
-        if (student.enrollmentIds.includes(e.id)) {
+        if (student.enrollmentIds?.includes(e.id)) {
           return {
             ...e,
             batchId: batchName,
@@ -700,7 +700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           feePlan: baseFeePlan
         };
       }
-      const studentEnrollments = enrollments.filter(e => s.enrollmentIds.includes(e.id));
+      const studentEnrollments = enrollments.filter(e => s.enrollmentIds?.includes(e.id));
       const mainEnrollment = studentEnrollments.find(e => e.status === 'Active') || studentEnrollments[0];
       if (!mainEnrollment) {
         return {

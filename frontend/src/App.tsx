@@ -39,6 +39,7 @@ import { FeesMaster } from './pages/FeesMaster';
 import { Attendance } from './pages/Attendance';
 import { LectureAttendance } from './pages/LectureAttendance';
 import { Assignments } from './pages/Assignments';
+import { ExamMarks } from './pages/ExamMarks';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
 import { TenantsManager } from './pages/TenantsManager';
@@ -253,6 +254,7 @@ const ContentRouter = () => {
       <Route path="/admin/timetable" element={<LectureScheduler />} />
       <Route path="/admin/academic-calendar" element={<AcademicCalendarPage />} />
       <Route path="/admin/assignments" element={<TeacherAssignments />} />
+      <Route path="/admin/exams" element={<ExamMarks />} />
       <Route path="/admin/notifications" element={<Notifications />} />
       <Route path="/admin/audit-logs" element={<AuditLogs />} />
       <Route path="/admin/institute" element={<Institute />} />
@@ -302,6 +304,7 @@ const ContentRouter = () => {
       <Route path="/branch/timetable" element={<LectureScheduler />} />
       <Route path="/branch/academic-calendar" element={<AcademicCalendarPage />} />
       <Route path="/branch/assignments" element={<TeacherAssignments />} />
+      <Route path="/branch/exams" element={<ExamMarks />} />
       <Route path="/branch/notifications" element={<Notifications />} />
       <Route path="/branch/audit-logs" element={<AuditLogs />} />
       <Route path="/branch/institute" element={<Institute />} />
@@ -327,6 +330,7 @@ const ContentRouter = () => {
       <Route path="/teacher/attendance" element={<TeacherAttendance />} />
       <Route path="/teacher/attendance/lecture/:lectureId" element={<LectureAttendance />} />
       <Route path="/teacher/assignments" element={<TeacherAssignments />} />
+      <Route path="/teacher/exams" element={<ExamMarks />} />
       <Route path="/teacher/students" element={<TeacherStudents />} />
       <Route path="/teacher/notifications" element={<TeacherNotifications />} />
       <Route path="/teacher/doubts" element={<TeacherDoubts />} />
@@ -403,6 +407,7 @@ const ContentRouter = () => {
       <Route path="/attendance" element={isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
       <Route path="/attendance/lecture/:lectureId" element={<LectureAttendance />} />
       <Route path="/assignments" element={isTeacher || currentUser?.role === 'inst-admin' || currentUser?.role === 'branch-admin' ? <TeacherAssignments /> : <Assignments />} />
+      <Route path="/exams" element={<ExamMarks />} />
       <Route path="/homework" element={<StudentHomework />} />
       <Route path="/teacher-notifications" element={<Navigate to="/teacher/notifications" replace />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
@@ -642,7 +647,7 @@ const ScrollToTop = () => {
       };
       const parseDate = (val: string): number => {
         if (!val) return 0;
-        const d = new Date(val.replace(/(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})/, (_m, a, b, c) => {
+        const d = new Date(val.replace(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/, (_m, a, b, c) => {
           // Try to handle DD/MM/YYYY vs MM/DD/YYYY intelligently
           const year = c.length === 2 ? '20' + c : c;
           // If first part > 12, it's DD/MM/YYYY

@@ -8,6 +8,8 @@ const SUBJECT_SELECT = `
         s.code, 
         s.type,
         s.description, 
+        s.base_fee,
+        COALESCE(s.fee_amount, s.base_fee) AS fee_amount,
         s.status,
         s.created_at, 
         s.updated_at
@@ -85,19 +87,22 @@ const getSubjectByCode = async (tenantId, code) => {
 };
 
 const createSubject = async (tenantId, data, userId) => {
-    const { name, code, type = 'core', description = '', status = 'active' } = data;
+    const { name, code, type = 'core', description = '', status = 'active', base_fee = null, fee_amount = null } = data;
+    const resolvedFee = fee_amount !== null && fee_amount !== undefined && fee_amount !== ''
+        ? Number(fee_amount)
+        : (base_fee !== null && base_fee !== undefined && base_fee !== '' ? Number(base_fee) : null);
 
     const [result] = await pool.query(
-        `INSERT INTO subjects (tenant_id, name, code, type, description, status, created_by, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [tenantId, name, code, type, description, status, userId, userId]
+        `INSERT INTO subjects (tenant_id, name, code, type, description, base_fee, fee_amount, status, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [tenantId, name, code, type, description, resolvedFee, resolvedFee, status, userId, userId]
     );
 
     return { id: String(result.insertId) };
 };
 
 const updateSubject = async (tenantId, code, data, userId) => {
-    const { name, type = 'core', description = '', status } = data;
+    const { name, type = 'core', description = '', status, base_fee, fee_amount } = data;
 
     // Check if subject exists
     const existing = await getSubjectByCode(tenantId, code);
@@ -105,6 +110,14 @@ const updateSubject = async (tenantId, code, data, userId) => {
 
     let updateFields = 'name = ?, type = ?, description = ?, updated_by = ?';
     const params = [name, type, description, userId];
+
+    const resolvedFee = fee_amount !== undefined ? (fee_amount !== '' && fee_amount !== null ? Number(fee_amount) : null)
+        : (base_fee !== undefined ? (base_fee !== '' && base_fee !== null ? Number(base_fee) : null) : undefined);
+
+    if (resolvedFee !== undefined) {
+        updateFields += ', base_fee = ?, fee_amount = ?';
+        params.push(resolvedFee, resolvedFee);
+    }
 
     if (status !== undefined) {
         updateFields += ', status = ?';

@@ -26,18 +26,18 @@ const MONTHS = [
 ];
 
 const MONTH_COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#fbbf24',
-  '#fb923c',
-  '#ef4444',
-  '#ec4899',
-  '#8b5cf6',
-  '#6366f1',
-  '#06b6d4',
-  '#14b8a6',
-  '#94a3b8',
-  '#a78bfa',
+  '#3b82f6', // Jan - Blue
+  '#10b981', // Feb - Emerald
+  '#f59e0b', // Mar - Amber
+  '#f97316', // Apr - Orange
+  '#ef4444', // May - Rose / Red
+  '#ec4899', // Jun - Pink
+  '#8b5cf6', // Jul - Purple
+  '#6366f1', // Aug - Indigo
+  '#06b6d4', // Sep - Cyan
+  '#14b8a6', // Oct - Teal
+  '#4f46e5', // Nov - Vibrant Indigo (replaces muted slate #94a3b8)
+  '#d946ef', // Dec - Fuchsia
 ];
 
 const normalizeMonth = (label: string): string => {
@@ -88,12 +88,17 @@ const AdmissionsTrendChart: React.FC<AdmissionsTrendChartProps> = ({
         },
       ];
     }
-    return monthlyData.map((item, index) => ({
-      id: index,
-      value: item.count,
-      label: item.label,
-      color: MONTH_COLORS[index],
-    }));
+    return monthlyData
+      .filter((item) => item.count > 0)
+      .map((item) => {
+        const monthIndex = MONTHS.findIndex((m) => m.short === item.label);
+        return {
+          id: item.label,
+          value: item.count,
+          label: item.label,
+          color: MONTH_COLORS[monthIndex >= 0 ? monthIndex : 0],
+        };
+      });
   }, [monthlyData, total]);
 
   return (
@@ -143,8 +148,8 @@ const AdmissionsTrendChart: React.FC<AdmissionsTrendChartProps> = ({
                   data: pieData,
                   innerRadius: 44,
                   outerRadius: 66,
-                  paddingAngle: total > 0 ? 2 : 0,
-                  cornerRadius: total > 0 ? 3 : 0,
+                  paddingAngle: pieData.length > 1 ? 3 : 0,
+                  cornerRadius: pieData.length > 1 ? 3 : 0,
                   highlightScope: {
                     fade: 'global',
                     highlight: 'item',

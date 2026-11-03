@@ -191,8 +191,12 @@ export const ForgotPassword: React.FC = () => {
 
         {/* Top Header & Branding */}
         <div className="text-center space-y-2">
-          <Link to="/login" className="inline-block group mb-1">
-            <img src="/logo.png" alt="Vidya Setu Logo" className="w-full h-24 object-cover" />
+          <Link to="/" className="inline-block group mb-1" title="Back to Home">
+            <img
+              src="/logo.png"
+              alt="Vidya Setu Logo"
+              className="h-24 sm:h-28 w-auto max-w-[260px] object-contain mx-auto transition-transform group-hover:scale-105"
+            />
           </Link>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">
             {step === 'email' && 'Reset Your Password'}

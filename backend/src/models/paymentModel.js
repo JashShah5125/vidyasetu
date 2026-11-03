@@ -180,6 +180,70 @@ const generateCollectionInvoiceNumber = async (tenantId, studentId) => {
 };
 
 /**
+ * Keeps the student's pending balance invoice in sync with their active fee assignment balance:
+ * - If balance > 0 and a Pending Balance invoice exists, updates its amount & balance_due.
+ * - If balance > 0 and no Pending Balance invoice exists, creates one so total invoiced == net fee.
+ * - If balance <= 0, deletes any pending balance invoice since the fee is fully settled.
+ */
+const syncPendingBalanceInvoice = async (conn, {
+    tenantId,
+    branchId,
+    studentId,
+    enrollmentId,
+    feeAssignmentId,
+    balanceAmount,
+    updatedBy = 1
+}) => {
+    const tid = Number(tenantId);
+    const sid = Number(studentId);
+    const balNum = round2(Number(balanceAmount) || 0);
+
+    const [existing] = await conn.query(
+        `SELECT id, invoice_number FROM student_invoices 
+         WHERE tenant_id = ? AND student_id = ? 
+           AND (description LIKE '%Pending Balance%' OR invoice_number LIKE '%-BAL')
+         ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [tid, sid]
+    );
+
+    if (balNum <= 0) {
+        if (existing.length > 0) {
+            await conn.query(
+                `DELETE FROM student_invoices WHERE id = ? AND tenant_id = ?`,
+                [existing[0].id, tid]
+            );
+        }
+    } else {
+        if (existing.length > 0) {
+            await conn.query(
+                `UPDATE student_invoices SET
+                    amount = ?,
+                    paid_amount = 0.00,
+                    balance_due = ?,
+                    status = 'unpaid',
+                    updated_by = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ? AND tenant_id = ?`,
+                [balNum, balNum, updatedBy, existing[0].id, tid]
+            );
+        } else {
+            const invNum = `INV-${tid}-${sid}-BAL`;
+            await conn.query(
+                `INSERT INTO student_invoices (
+                    tenant_id, branch_id, student_id, enrollment_id, fee_assignment_id,
+                    invoice_number, installment_number, description, issue_date, due_date,
+                    amount, paid_amount, balance_due, status, created_by, updated_by
+                 ) VALUES (?, ?, ?, ?, ?, ?, 1, 'Pending Balance Fee', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 MONTH), ?, 0.00, ?, 'unpaid', ?, ?)`,
+                [
+                    tid, branchId || 1, sid, enrollmentId || null, feeAssignmentId || null,
+                    invNum, balNum, balNum, updatedBy, updatedBy
+                ]
+            );
+        }
+    }
+};
+
+/**
  * Validates payment input against the active fee assignment + outstanding invoices
  * and returns a normalized plan of how `amount` maps to invoice allocations.
  *
@@ -407,6 +471,16 @@ const recordPayment = async ({
             [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
         );
 
+        await syncPendingBalanceInvoice(conn, {
+            tenantId: tid,
+            branchId: effectiveBranchId,
+            studentId: sid,
+            enrollmentId: student.enrollment_id,
+            feeAssignmentId: fee.id,
+            balanceAmount: newBalanceFee,
+            updatedBy: createdBy
+        });
+
         // Activate student status in students table, admissions table, and student user account upon payment
         await conn.query(
             `UPDATE students SET status = 1, updated_at = NOW() WHERE id = ? AND tenant_id = ?`,
@@ -530,6 +604,16 @@ const createCollectionInvoice = async ({
              WHERE id = ?`,
             [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
         );
+
+        await syncPendingBalanceInvoice(conn, {
+            tenantId: tid,
+            branchId: effectiveBranchId,
+            studentId: sid,
+            enrollmentId: ledger.enrollment_id,
+            feeAssignmentId: fee.id,
+            balanceAmount: newBalanceFee,
+            updatedBy: createdBy
+        });
 
         await conn.commit();
 
@@ -678,6 +762,16 @@ const collectBranchPayment = async ({
              WHERE id = ?`,
             [newPaidFee, newBalanceFee, newFeeStatus, createdBy, fee.id]
         );
+
+        await syncPendingBalanceInvoice(conn, {
+            tenantId: tid,
+            branchId: effectiveBranchId,
+            studentId: sid,
+            enrollmentId: student.enrollment_id,
+            feeAssignmentId: fee.id,
+            balanceAmount: newBalanceFee,
+            updatedBy: createdBy
+        });
 
         // Activate student status in students table, admissions table, and student user account upon payment
         await conn.query(
@@ -891,6 +985,16 @@ const updateStudentFeeAssignment = async (tenantId, studentId, payload, accessCo
             ]
         );
 
+        await syncPendingBalanceInvoice(conn, {
+            tenantId: tid,
+            branchId: student.primary_branch_id,
+            studentId: sid,
+            enrollmentId: student.enrollment_id,
+            feeAssignmentId: currentFee.id,
+            balanceAmount,
+            updatedBy: userId
+        });
+
         await conn.commit();
 
         return {
@@ -985,7 +1089,7 @@ const updateCollectionInvoice = async ({
         );
         const fee = feeRows[0] || null;
 
-        const oldPaid = Number(inv.paid_amount) || Number(inv.amount) || 0;
+        const oldPaid = inv.paid_amount !== null && inv.paid_amount !== undefined ? Number(inv.paid_amount) : (Number(inv.amount) || 0);
         let newAmount = amount !== undefined ? round2(Number(amount)) : Number(inv.amount);
         if (isNaN(newAmount) || newAmount <= 0) {
             throw httpError(400, 'Invoice amount must be greater than zero');
@@ -1011,6 +1115,16 @@ const updateCollectionInvoice = async ({
                  WHERE id = ?`,
                 [newFeePaid, newFeeBalance, newFeeStatus, updatedBy, fee.id]
             );
+
+            await syncPendingBalanceInvoice(conn, {
+                tenantId: tid,
+                branchId: inv.branch_id || fee.branch_id,
+                studentId: inv.student_id,
+                enrollmentId: inv.enrollment_id,
+                feeAssignmentId: fee.id,
+                balanceAmount: newFeeBalance,
+                updatedBy
+            });
         }
 
         const mode = paymentMode !== undefined ? String(paymentMode).trim() : inv.payment_mode;
@@ -1113,7 +1227,7 @@ const deleteCollectionInvoice = async ({
         );
         const fee = feeRows[0] || null;
 
-        const paidToRevert = Number(inv.paid_amount) || Number(inv.amount) || 0;
+        const paidToRevert = inv.paid_amount !== null && inv.paid_amount !== undefined ? Number(inv.paid_amount) : (Number(inv.amount) || 0);
 
         let newFeePaid = 0;
         let newFeeBalance = 0;
@@ -1133,6 +1247,16 @@ const deleteCollectionInvoice = async ({
                  WHERE id = ?`,
                 [newFeePaid, newFeeBalance, newFeeStatus, deletedBy, fee.id]
             );
+
+            await syncPendingBalanceInvoice(conn, {
+                tenantId: tid,
+                branchId: inv.branch_id || fee.branch_id,
+                studentId: inv.student_id,
+                enrollmentId: inv.enrollment_id,
+                feeAssignmentId: fee.id,
+                balanceAmount: newFeeBalance,
+                updatedBy: deletedBy
+            });
         }
 
         // 3. Delete invoice row

@@ -773,7 +773,7 @@ export const TeacherStudents: React.FC = () => {
                           Course
                         </span>
                         <div className="text-slate-900 font-bold text-sm">
-                          {detail.academic?.course || detail.course_name || '—'}
+                          {detail.academic?.course || (detail as any).course_name || '—'}
                         </div>
                       </div>
 
@@ -782,7 +782,7 @@ export const TeacherStudents: React.FC = () => {
                           Program
                         </span>
                         <div className="text-slate-900 font-bold text-sm">
-                          {detail.academic?.program || detail.program_name || '—'}
+                          {detail.academic?.program || (detail as any).program_name || '—'}
                         </div>
                       </div>
 
@@ -815,7 +815,7 @@ export const TeacherStudents: React.FC = () => {
                           Level / Class Standard
                         </span>
                         <div className="text-slate-900 font-bold text-sm">
-                          {detail.academic?.level || detail.level_name || '—'}
+                          {detail.academic?.level || (detail as any).level_name || '—'}
                         </div>
                       </div>
 

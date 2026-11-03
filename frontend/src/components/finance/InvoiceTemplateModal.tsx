@@ -113,7 +113,7 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
   const studentName = ledger?.full_name || (ledger as any)?.student?.name || 'Student';
   const studentCode = ledger?.student_code || (ledger as any)?.student?.studentCode || 'STU-REF';
   const batchName = ledger?.batch_name || 'General Batch';
-  const courseName = ledger?.feeAssignment?.course_name || 'Academic Coaching Program';
+  const courseName = (ledger?.feeAssignment as any)?.course_name || 'Academic Coaching Program';
 
   const isProforma = templateType === 'proforma';
 

@@ -428,19 +428,35 @@ export const BatchSetup: React.FC = () => {
   // Form options strictly scoped to the selected form branch
   const formBranchCourses = useMemo(() => {
     if (branchAssignedCourses.length > 0) {
-      return branchAssignedCourses.map(c => ({ value: c.code, label: `${c.name} (${c.code})` }));
+      return [
+        { value: '', label: 'Select Master Course' },
+        ...branchAssignedCourses.map(c => ({ value: c.code, label: `${c.name} (${c.code})` }))
+      ];
     }
-    return courses.map(c => ({ value: c.code, label: `${c.name} (${c.code})` }));
+    return [
+      { value: '', label: 'Select Master Course' },
+      ...courses.map(c => ({ value: c.code, label: `${c.name} (${c.code})` }))
+    ];
   }, [branchAssignedCourses, courses]);
 
-  const formProgramOptions = useMemo(() =>
-    formCoursePrograms.map(p => ({ value: String(p.id), label: p.name || '' })),
-    [formCoursePrograms]);
+  const formProgramOptions = useMemo(() => [
+    { value: '', label: 'Select Program / Track' },
+    ...formCoursePrograms.map(p => ({ value: String(p.id), label: p.name || '' }))
+  ], [formCoursePrograms]);
 
   const formLevelOptions = useMemo(() => {
     const program = formCoursePrograms.find(p => String(p.id) === form.programId);
-    return (program?.levels || []).map(l => ({ value: String(l.id), label: l.name || '' }));
+    return [
+      { value: '', label: 'Select Academic Level' },
+      ...(program?.levels || []).map(l => ({ value: String(l.id), label: l.name || '' }))
+    ];
   }, [formCoursePrograms, form.programId]);
+
+  const selectedLevelSubjects = useMemo(() => {
+    const program = formCoursePrograms.find(p => String(p.id) === form.programId);
+    const level = program?.levels?.find((l: any) => String(l.id) === form.levelId);
+    return level?.subjects || [];
+  }, [formCoursePrograms, form.programId, form.levelId]);
 
   const formYearOptions = useMemo(() => {
     const years = academicYears.filter(y => y.branchId === form.branchId || !y.branchId);
@@ -450,6 +466,74 @@ export const BatchSetup: React.FC = () => {
   const formRoomOptions = useMemo(() =>
     classrooms.filter(r => r.branchId === form.branchId).map(r => ({ value: r.id, label: r.name })),
     [classrooms, form.branchId]);
+
+  const handleFormBranchChange = async (branchId: string) => {
+    let assigned: any[] = [];
+    if (branchId) {
+      try {
+        const res = await branchApi.getCourses(branchId, { assignment_status: 'assigned' });
+        if (res?.status === 'success') {
+          assigned = res.data || [];
+        }
+      } catch {}
+    }
+    setBranchAssignedCourses(assigned);
+
+    const availableCourses = assigned.length > 0 ? assigned : courses;
+    const firstCourse = availableCourses[0];
+    const firstCourseCode = firstCourse?.code || '';
+
+    let programs: CourseApiProgram[] = [];
+    if (firstCourseCode) {
+      programs = await fetchCoursePrograms(firstCourseCode);
+    }
+    setFormCoursePrograms(programs);
+
+    const firstProg = programs[0];
+    const firstLevel = firstProg?.levels?.[0];
+
+    const years = academicYears.filter(y => y.branchId === branchId || !y.branchId);
+
+    setForm(f => ({
+      ...f,
+      branchId,
+      academicYearId: years[0]?.id ?? '',
+      courseCode: firstCourseCode,
+      programId: firstProg ? String(firstProg.id) : '',
+      levelId: firstLevel ? String(firstLevel.id) : '',
+      classroomId: ''
+    }));
+  };
+
+  const handleFormCourseChange = async (code: string) => {
+    if (!code) {
+      setForm(f => ({ ...f, courseCode: '', programId: '', levelId: '' }));
+      setFormCoursePrograms([]);
+      return;
+    }
+    const programs = await fetchCoursePrograms(code);
+    setFormCoursePrograms(programs);
+
+    const firstProg = programs[0];
+    const firstLevel = firstProg?.levels?.[0];
+
+    setForm(f => ({
+      ...f,
+      courseCode: code,
+      programId: firstProg ? String(firstProg.id) : '',
+      levelId: firstLevel ? String(firstLevel.id) : ''
+    }));
+  };
+
+  const handleFormProgramChange = (progId: string) => {
+    const prog = formCoursePrograms.find(p => String(p.id) === String(progId));
+    const firstLevel = prog?.levels?.[0];
+    setForm(f => ({
+      ...f,
+      programId: progId,
+      levelId: firstLevel ? String(firstLevel.id) : ''
+    }));
+  };
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -468,25 +552,32 @@ export const BatchSetup: React.FC = () => {
 
   const openAdd = async () => {
     const branchId = accessibleBranches[0]?.id ?? '';
+    let assigned: any[] = [];
     if (branchId) {
-      await loadBranchAssignedCourses(branchId);
+      try {
+        const res = await branchApi.getCourses(branchId, { assignment_status: 'assigned' });
+        if (res?.status === 'success') {
+          assigned = res.data || [];
+        }
+      } catch {}
     }
-    const years = academicYears.filter(y => y.branchId === branchId || !y.branchId);
-    const firstYear = years[0];
+    setBranchAssignedCourses(assigned);
 
-    // Pick first assigned course
-    let firstCourseCode = '';
+    const availableCourses = assigned.length > 0 ? assigned : courses;
+    const firstCourse = availableCourses[0];
+    const firstCourseCode = firstCourse?.code || '';
+
     let programs: CourseApiProgram[] = [];
-    if (branchAssignedCourses.length > 0) {
-      firstCourseCode = branchAssignedCourses[0].code;
-      programs = await fetchCoursePrograms(firstCourseCode);
-    } else if (courses.length > 0) {
-      firstCourseCode = courses[0].code;
+    if (firstCourseCode) {
       programs = await fetchCoursePrograms(firstCourseCode);
     }
+    setFormCoursePrograms(programs);
 
     const firstProg = programs[0];
     const firstLevel = firstProg?.levels?.[0];
+
+    const years = academicYears.filter(y => y.branchId === branchId || !y.branchId);
+    const firstYear = years[0];
 
     setForm({
       ...emptyForm,
@@ -496,18 +587,31 @@ export const BatchSetup: React.FC = () => {
       programId: firstProg ? String(firstProg.id) : '',
       levelId: firstLevel ? String(firstLevel.id) : '',
     });
-    setFormCoursePrograms(programs);
     setFormErrors({});
     setEditingId(null);
     setShowModal(true);
   };
 
   const openEdit = async (b: Batch) => {
+    let assigned: any[] = [];
     if (b.branchId) {
-      await loadBranchAssignedCourses(b.branchId);
+      try {
+        const res = await branchApi.getCourses(b.branchId, { assignment_status: 'assigned' });
+        if (res?.status === 'success') {
+          assigned = res.data || [];
+        }
+      } catch {}
     }
-    const course = courses.find(c => c.id === b.courseId);
-    const courseCode = course?.code ?? '';
+    setBranchAssignedCourses(assigned);
+
+    const course = courses.find(c => c.id === b.courseId || c.name === b.courseName);
+    const courseCode = course?.code || '';
+
+    let programs: CourseApiProgram[] = [];
+    if (courseCode) {
+      programs = await fetchCoursePrograms(courseCode);
+    }
+    setFormCoursePrograms(programs);
 
     setForm({
       name: b.name,
@@ -523,15 +627,9 @@ export const BatchSetup: React.FC = () => {
       classroomId: b.classroomId,
       status: b.status === 'Deleted' ? 'Active' : b.status,
     });
-    setFormCoursePrograms([]);
     setFormErrors({});
     setEditingId(b.id);
     setShowModal(true);
-
-    if (courseCode) {
-      const programs = await fetchCoursePrograms(courseCode);
-      setFormCoursePrograms(programs);
-    }
   };
 
   const handleToggleStatus = async (batch: Batch) => {
@@ -1763,12 +1861,7 @@ export const BatchSetup: React.FC = () => {
                   ) : (
                     <Select
                       value={form.branchId}
-                      onChange={async e => {
-                        const branchId = e.target.value;
-                        const years = academicYears.filter(y => y.branchId === branchId || !y.branchId);
-                        setForm(f => ({ ...f, branchId, academicYearId: years[0]?.id ?? '', classroomId: '' }));
-                        await loadBranchAssignedCourses(branchId);
-                      }}
+                      onChange={e => handleFormBranchChange(e.target.value)}
                       options={accessibleBranches.map(b => ({ value: b.id ?? b.name, label: b.name }))}
                       error={formErrors.branchId}
                     />
@@ -1807,12 +1900,7 @@ export const BatchSetup: React.FC = () => {
                   required
                   id="bt-course"
                   value={form.courseCode}
-                  onChange={async e => {
-                    const code = e.target.value;
-                    setForm(f => ({ ...f, courseCode: code, programId: '', levelId: '' }));
-                    const programs = await fetchCoursePrograms(code);
-                    setFormCoursePrograms(programs);
-                  }}
+                  onChange={e => handleFormCourseChange(e.target.value)}
                   options={formBranchCourses}
                   error={formErrors.courseCode}
                 />
@@ -1822,7 +1910,7 @@ export const BatchSetup: React.FC = () => {
                   required
                   id="bt-program"
                   value={form.programId}
-                  onChange={e => setForm(f => ({ ...f, programId: e.target.value, levelId: '' }))}
+                  onChange={e => handleFormProgramChange(e.target.value)}
                   options={formProgramOptions}
                   disabled={!form.courseCode}
                   error={formErrors.programId}
@@ -1839,6 +1927,41 @@ export const BatchSetup: React.FC = () => {
                   error={formErrors.levelId}
                 />
               </div>
+
+              {/* Mapped Curriculum Subjects Preview */}
+              {form.levelId && (
+                <div className="pt-3 border-t border-slate-200/60 mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <BookOpen size={14} className="text-indigo-600" />
+                      Curriculum Subjects for this Level ({selectedLevelSubjects.length})
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Inherited from Level
+                    </span>
+                  </div>
+                  {selectedLevelSubjects.length === 0 ? (
+                    <div className="p-3 text-xs italic text-slate-400 bg-white border border-dashed border-slate-200 rounded-xl">
+                      No subjects mapped to this level yet. Go to Subjects &gt; Curriculum Mappings to map subjects.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {selectedLevelSubjects.map((sub: any) => (
+                        <div
+                          key={sub.id}
+                          className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2 shadow-2xs"
+                        >
+                          <div className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-800 truncate">{sub.name}</div>
+                            <div className="text-[10px] font-mono text-slate-400 truncate uppercase">{sub.code}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Section 3: Batch Identity & Logistics */}

@@ -118,6 +118,22 @@ export interface StaffAttendanceSaveRecord {
   branch_id?: number;
 }
 
+export interface DailyStudentAttendanceRow {
+  student_id: number;
+  student_code?: string;
+  status: 0 | 1 | 2; // 0=absent, 1=present, 2=late
+  remarks?: string;
+  attendance_date: string;
+}
+
+export interface DailyStudentAttendanceSaveRecord {
+  student_id: number;
+  status: 0 | 1 | 2;
+  remarks?: string;
+  batch_id?: number | null;
+  branch_id?: number | null;
+}
+
 const getAttendanceBasePath = (): string => {
   try {
     const raw = localStorage.getItem('vs_current_user') || localStorage.getItem('user');
@@ -251,6 +267,35 @@ export const attendanceApi = {
   async saveStaffLectureAttendance(lectureId: string | number, present: boolean): Promise<any> {
     const basePath = getAttendanceBasePath();
     const response = await api.post(`${basePath}/staff/lecture/${lectureId}`, { present });
+    return response.data;
+  },
+
+  async getDailyStudentAttendance(filters: { branchId?: string | number; batchId?: string | number; date: string }): Promise<DailyStudentAttendanceRow[]> {
+    const basePath = getAttendanceBasePath();
+    const params = new URLSearchParams({ date: filters.date });
+    if (basePath === '/admin/attendance' && filters.branchId && filters.branchId !== 'All') {
+      params.append('branchId', String(filters.branchId));
+    }
+    if (filters.batchId && filters.batchId !== 'All') {
+      params.append('batchId', String(filters.batchId));
+    }
+    const response = await api.get(`${basePath}/daily-students?${params.toString()}`);
+    return response.data.data || [];
+  },
+
+  async saveDailyStudentAttendance(payload: { branchId?: string | number; batchId?: string | number; date: string; records: DailyStudentAttendanceSaveRecord[] }): Promise<any> {
+    const basePath = getAttendanceBasePath();
+    const body: any = {
+      date: payload.date,
+      records: payload.records
+    };
+    if (payload.branchId && payload.branchId !== 'All') {
+      body.branchId = payload.branchId;
+    }
+    if (payload.batchId && payload.batchId !== 'All') {
+      body.batchId = payload.batchId;
+    }
+    const response = await api.post(`${basePath}/daily-students`, body);
     return response.data;
   }
 };

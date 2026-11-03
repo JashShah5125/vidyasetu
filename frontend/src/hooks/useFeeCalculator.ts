@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 
 export interface FeeInput {
-  enrollType: 'Standard' | 'Custom Combo' | 'Subject-wise';
+  enrollType: 'Standard' | 'Subject-wise';
   baseFee: number;
   discount: number;
   downpayment: number;
@@ -9,7 +9,9 @@ export interface FeeInput {
 }
 
 export const useFeeCalculator = (initial?: Partial<FeeInput>) => {
-  const [enrollType, setEnrollType] = useState<'Standard' | 'Custom Combo' | 'Subject-wise'>(initial?.enrollType || 'Standard');
+  const [enrollType, setEnrollType] = useState<'Standard' | 'Subject-wise'>(
+    initial?.enrollType === 'Subject-wise' ? 'Subject-wise' : 'Standard'
+  );
   const [baseFee, setBaseFee] = useState(initial?.baseFee || 0);
   const [discount, setDiscount] = useState(initial?.discount || 0);
   const [downpayment, setDownpayment] = useState(initial?.downpayment || 0);

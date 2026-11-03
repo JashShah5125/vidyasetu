@@ -14,7 +14,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { Modal } from '../components/ui/Modal';
 import { attendanceApi } from '../services/attendanceApi';
-import type { AttendanceLecture, AttendanceOptions, StaffAttendanceRow, StaffAttendanceSaveRecord } from '../services/attendanceApi';
+import type { AttendanceLecture, AttendanceOptions, StaffAttendanceRow, StaffAttendanceSaveRecord, DailyStudentAttendanceSaveRecord } from '../services/attendanceApi';
+import { getStudents } from '../services/studentApi';
+import type { StudentRosterItem } from '../services/studentApi';
 
 const formatTime = (timeStr?: string | null): string => {
   if (!timeStr) return '--:--';
@@ -82,15 +84,9 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   const [selectedPerson, setSelectedPerson] = useState<any | null>(null);
 
-  const [records, setRecords] = useState<{ [key: string]: 'Present' | 'Absent' | 'Late' }>({
-    'S-201': 'Present',
-    'S-202': 'Present',
-    'S-203': 'Present',
-    'S-204': 'Absent',
-    'S-205': 'Present',
-    'S-206': 'Late',
-    'S-207': 'Present'
-  });
+  const [records, setRecords] = useState<{ [key: string]: 'Present' | 'Absent' | 'Late' }>({});
+  const [savingStudents, setSavingStudents] = useState(false);
+  const [loadingDailyStudents, setLoadingDailyStudents] = useState(false);
 
   const [staffMarks, setStaffMarks] = useState<{ [staffId: number]: 0 | 1 | 2 }>({});
   const [staffRoster, setStaffRoster] = useState<StaffAttendanceRow[]>([]);
@@ -115,6 +111,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
   const [sheetLectures, setSheetLectures] = useState<AttendanceLecture[]>([]);
   const [loadingSheetLectures, setLoadingSheetLectures] = useState(false);
+  const [studentRoster, setStudentRoster] = useState<StudentRosterItem[]>([]);
+  const [loadingStudentRoster, setLoadingStudentRoster] = useState(false);
 
   const numeric = (v: string) => (v && /^\d+$/.test(v) ? Number(v) : undefined);
   const selectedBatchId = numeric(batch);
@@ -186,12 +184,14 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   };
 
   const filteredStudents = useMemo(() => {
-    return students.filter(s => {
-      const matchBranch = !branch || s.branch === branch;
-      const matchCourse = !selectedCourseName || s.course === selectedCourseName;
-      const matchBatch = !selectedBatchName || s.batch === selectedBatchName;
+    const list = studentRoster.length > 0 ? studentRoster : (students as unknown as StudentRosterItem[]);
+    return list.filter((s: any) => {
+      const matchBranch = !branch || s.branch === branch || s.branch_name === branch;
+      const matchCourse = !selectedCourseName || s.course === selectedCourseName || s.course_name === selectedCourseName;
+      const matchBatch = !selectedBatchName || s.batch === selectedBatchName || s.batch_name === selectedBatchName;
       
-      const status = records[s.id];
+      const studentKey = String(s.student_code || s.studentId || s.id);
+      const status = records[studentKey] || records[s.id];
       const matchStatus = filterAttendanceStatus === 'All' 
         ? true 
         : filterAttendanceStatus === 'Unmarked' 
@@ -200,7 +200,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
       return matchBranch && matchCourse && matchBatch && matchStatus;
     });
-  }, [students, branch, selectedCourseName, selectedBatchName, records, filterAttendanceStatus]);
+  }, [studentRoster, students, branch, selectedCourseName, selectedBatchName, records, filterAttendanceStatus]);
 
   const filterAttendanceStatusLabel = (value: 0 | 1 | 2 | null | undefined): string | undefined =>
     value === 0 ? 'Absent' : value === 1 ? 'Present' : value === 2 ? 'Late' : undefined;
@@ -357,20 +357,84 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     return () => { cancelled = true; };
   }, [subTab, date, branchId, selectedBatchId, addToast]);
 
+  // Fetch real students roster from backend API
   useEffect(() => {
     if (attendanceType !== 'students') return;
-    if (!selectedBatchId) {
-      setSheetLectures([]);
-      return;
-    }
+    let cancelled = false;
+    setLoadingStudentRoster(true);
+
+    getStudents({
+      branchId: branchId || 'All',
+      courseId: selectedCourseId,
+      batchId: selectedBatchId,
+      limit: 100,
+      page: 1
+    })
+      .then((res) => {
+        if (!cancelled && res?.data) {
+          setStudentRoster(res.data);
+          setCurrentPage(1);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to load student roster for attendance:', err);
+          setStudentRoster([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingStudentRoster(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [attendanceType, branchId, selectedCourseId, selectedBatchId]);
+
+  // Fetch saved daily student attendance records for the selected branch/batch/date
+  useEffect(() => {
+    if (attendanceType !== 'students') return;
+    let cancelled = false;
+    setLoadingDailyStudents(true);
+
+    attendanceApi.getDailyStudentAttendance({
+      branchId: branchId || 'All',
+      batchId: selectedBatchId || 'All',
+      date
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        const loaded: { [key: string]: 'Present' | 'Absent' | 'Late' } = {};
+        (rows || []).forEach((r) => {
+          const statusStr: 'Present' | 'Absent' | 'Late' = r.status === 1 ? 'Present' : r.status === 2 ? 'Late' : 'Absent';
+          loaded[String(r.student_id)] = statusStr;
+          if (r.student_code) {
+            loaded[String(r.student_code)] = statusStr;
+          }
+        });
+        setRecords(loaded);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to load daily student attendance:', err);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDailyStudents(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [attendanceType, branchId, selectedCourseId, selectedBatchId, date]);
+
+  // Fetch daily lectures
+  useEffect(() => {
+    if (attendanceType !== 'students') return;
     let cancelled = false;
     setLoadingSheetLectures(true);
-    attendanceApi.getDailyLectures({ branchId, batchId: selectedBatchId, date })
-      .then((rows) => { if (!cancelled) setSheetLectures(rows); })
-      .catch(() => { if (!cancelled) addToast('Failed to load daily lectures.', 'error'); })
+    attendanceApi.getDailyLectures({ branchId: branchId || 'All', batchId: selectedBatchId, date })
+      .then((rows) => { if (!cancelled) setSheetLectures(rows || []); })
+      .catch(() => { if (!cancelled) setSheetLectures([]); })
       .finally(() => { if (!cancelled) setLoadingSheetLectures(false); });
     return () => { cancelled = true; };
-  }, [attendanceType, branchId, selectedBatchId, date, addToast]);
+  }, [attendanceType, branchId, selectedBatchId, date]);
 
   useEffect(() => {
     if (attendanceType !== 'students' || !linkedBranchId || !selectedBatchId) {
@@ -435,6 +499,72 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
     return () => { cancelled = true; };
   }, [attendanceType, branchId, date, addToast]);
+
+  const handleMarkStudent = (studentKey: string, status: 'Present' | 'Absent' | 'Late', studentId?: number) => {
+    setRecords(prev => {
+      const next = { ...prev };
+      const current = next[studentKey] || (studentId ? next[String(studentId)] : undefined);
+      if (current === status) {
+        delete next[studentKey];
+        if (studentId) delete next[String(studentId)];
+      } else {
+        next[studentKey] = status;
+        if (studentId) next[String(studentId)] = status;
+      }
+      return next;
+    });
+  };
+
+  const handleMarkAllStudents = (status: 'Present' | 'Absent') => {
+    const updated: { [key: string]: 'Present' | 'Absent' | 'Late' } = {};
+    filteredStudents.forEach((s: any) => {
+      const key = String(s.student_code || s.studentId || s.id);
+      updated[key] = status;
+      if (s.id) updated[String(s.id)] = status;
+    });
+    setRecords(prev => ({ ...prev, ...updated }));
+  };
+
+  const handleSaveStudents = async () => {
+    const recordsToSave: DailyStudentAttendanceSaveRecord[] = filteredStudents
+      .map((s: any) => {
+        const studentKey = String(s.student_code || s.studentId || s.id);
+        const statusLabel = records[studentKey] || records[String(s.id)];
+        if (!statusLabel) return null;
+        const statusVal: 0 | 1 | 2 = statusLabel === 'Present' ? 1 : statusLabel === 'Late' ? 2 : 0;
+        return {
+          student_id: Number(s.id),
+          status: statusVal,
+          remarks: '',
+          batch_id: s.batch_id || selectedBatchId || null,
+          branch_id: s.primary_branch_id || branchId || null
+        };
+      })
+      .filter(Boolean) as DailyStudentAttendanceSaveRecord[];
+
+    if (recordsToSave.length === 0) {
+      addToast('No student attendance marks to save.', 'error');
+      return;
+    }
+
+    try {
+      setSavingStudents(true);
+      await attendanceApi.saveDailyStudentAttendance({
+        branchId: branchId || 'All',
+        batchId: selectedBatchId || 'All',
+        date,
+        records: recordsToSave
+      });
+      setSavedType('student');
+      addToast('Student daily attendance saved successfully!', 'success');
+      setTimeout(() => setSavedType(null), 4000);
+    } catch (err: any) {
+      console.error('Failed to save student daily attendance:', err);
+      addToast(err?.response?.data?.message || 'Failed to save student daily attendance.', 'error');
+    } finally {
+      setSavingStudents(false);
+    }
+  };
 
   const handleMarkStaff = (staffId: number, status: 0 | 1 | 2) => {
     setStaffMarks(prev => {
@@ -962,25 +1092,22 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
 
           {/* TAB 1: STUDENT ATTENDANCE */}
           {attendanceType === 'students' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {selectedBatchId ? `Daily Lectures — ${selectedBatchName || 'Selected Batch'}` : 'Student Attendance Sheet'}
-                </CardTitle>
-              </CardHeader>
-
-              {selectedBatchId ? (
-                loadingSheetLectures ? (
-                  <div className="p-8 text-center text-sm text-slate-400 font-medium">
-                    <div className="animate-spin inline-block w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
-                    <div className="mt-3">Loading lectures...</div>
-                  </div>
-                ) : sheetLectures.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-slate-400 font-medium">
-                    No lectures found for {selectedBatchName || 'this batch'} on {date}.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
+            <div className="space-y-6">
+              {/* Scheduled Classroom Lectures Bar (if lectures exist for the date) */}
+              {sheetLectures.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Clock size={16} className="text-indigo-600" />
+                        Scheduled Lectures for {date}
+                      </CardTitle>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {sheetLectures.length} lecture session(s) scheduled for this selection. Click to mark lecture-specific attendance.
+                      </p>
+                    </div>
+                  </CardHeader>
+                  <div className="divide-y divide-slate-100 p-2">
                     {sheetLectures.map((l) => {
                       const start = l.start_time?.slice(0, 5) || '--:--';
                       const end = l.end_time?.slice(0, 5) || '--:--';
@@ -992,55 +1119,190 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
                       const taken = l.attendance_taken === 1 || l.status === 'completed';
 
                       return (
-                        <div key={l.id} className="hover:bg-slate-50/60 transition-colors">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-24 font-display font-bold text-indigo-600 text-sm flex flex-col shrink-0">
-                                {displayStart}
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                                  {durationMins > 0 ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : `${displayEnd}`}
-                                </span>
-                              </div>
-                              <div className="w-[1px] h-10 bg-slate-200 shrink-0 hidden sm:block"></div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-bold text-slate-900 text-sm">{l.subject_name || `Subject #${l.subject_id}`}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">
-                                  Batch: {l.batch_name} {l.classroom_name ? `| Classroom: ${l.classroom_name}` : ''} {l.teacher_name ? `| Teacher: ${l.teacher_name}` : ''}
-                                </div>
+                        <div key={l.id} className="hover:bg-slate-50/60 transition-colors p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-24 font-display font-bold text-indigo-600 text-xs flex flex-col shrink-0">
+                              {displayStart}
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                {durationMins > 0 ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : `${displayEnd}`}
+                              </span>
+                            </div>
+                            <div className="w-[1px] h-8 bg-slate-200 shrink-0 hidden sm:block"></div>
+                            <div>
+                              <div className="font-bold text-slate-900 text-sm">{l.subject_name || `Subject #${l.subject_id}`}</div>
+                              <div className="text-xs text-slate-500">
+                                Batch: {l.batch_name} {l.classroom_name ? `| Room: ${l.classroom_name}` : ''} {l.teacher_name ? `| Teacher: ${l.teacher_name}` : ''}
                               </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 shrink-0">
-                              {taken ? (
-                                <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs">
-                                  <CheckCircle2 size={13} className="text-emerald-600" /> TAKEN {l.marked_count !== undefined ? `(${l.marked_count} marked)` : ''}
-                                </span>
-                              ) : (
-                                <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs">
-                                  <Clock size={13} className="text-amber-600" /> NOT TAKEN
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/attendance/lecture/${l.id}`, {
-                                  state: { lecture: l, date, branch, batch, course }
-                                })}
-                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                              >
-                                <Users size={14} /> View &amp; Mark Attendance <ArrowRight size={13} />
-                              </button>
-                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {taken ? (
+                              <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold inline-flex items-center gap-1">
+                                <CheckCircle2 size={12} className="text-emerald-600" /> TAKEN {l.marked_count !== undefined ? `(${l.marked_count})` : ''}
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold inline-flex items-center gap-1">
+                                <Clock size={12} className="text-amber-600" /> NOT TAKEN
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/attendance/lecture/${l.id}`, {
+                                state: { lecture: l, date, branch, batch, course }
+                              })}
+                              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Users size={13} /> View &amp; Mark <ArrowRight size={12} />
+                            </button>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                )
-              ) : (
-                <div className="p-8 text-center text-sm text-slate-400 font-medium">
-                  Select a batch from the filters above (Course → Program → Level → Batch) to view that batch's lectures for {date}.
-                </div>
+                </Card>
               )}
-            </Card>
+
+              {/* Student Attendance Sheet (Always visible) */}
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
+                    <div>
+                      <CardTitle>
+                        Student Attendance Sheet {selectedBatchName ? `— Batch: ${selectedBatchName}` : selectedCourseName ? `— ${selectedCourseName}` : ''}
+                      </CardTitle>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Mark daily student attendance for {date}. Total {filteredStudents.length} student(s) matching filters.
+                      </p>
+                    </div>
+                    {filteredStudents.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleMarkAllStudents('Present')}
+                          className="text-xs font-bold text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                        >
+                          Mark All Present
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={handleExportCSV} className="flex items-center gap-1.5 cursor-pointer text-xs">
+                          <Download size={13} /> Export CSV
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+
+                {loadingStudentRoster || loadingDailyStudents ? (
+                  <div className="p-12 text-center text-sm text-slate-400 font-medium">
+                    <div className="animate-spin inline-block w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+                    <div className="mt-3">Loading student roster and attendance...</div>
+                  </div>
+                ) : paginatedItems.length === 0 ? (
+                  <div className="p-12 text-center text-sm text-slate-400 font-medium">
+                    <span className="text-3xl block mb-2">🎓</span>
+                    <p className="font-semibold text-slate-700">No student records match the selected filters.</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Try selecting another course or batch to view students.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {paginatedItems.map((s: any, idx) => {
+                      const studentKey = String(s.student_code || s.studentId || s.id);
+                      const studentName = s.full_name || s.name || `Student #${s.id}`;
+                      const studentBatch = s.batch_name || s.batch || selectedBatchName || 'General';
+                      const studentCourse = s.course_name || s.course || selectedCourseName || '';
+                      const studentStatus = records[studentKey] || records[String(s.id)];
+
+                      return (
+                        <div key={studentKey || idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 py-4 hover:bg-slate-50/50 px-4 rounded-lg transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-slate-900 text-sm">{studentName}</span>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                studentStatus === 'Present' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                studentStatus === 'Late' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                studentStatus === 'Absent' ? 'bg-red-50 text-red-700 border border-red-200' :
+                                'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                {studentStatus || 'Unmarked'}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 font-mono mt-0.5">
+                              {`${studentKey} | Batch: ${studentBatch} ${studentCourse ? `| ${studentCourse}` : ''}`}
+                            </div>
+                            {s.mobile && (
+                              <div className="text-xs text-slate-400 mt-0.5">
+                                Contact: {s.mobile} {s.guardian_mobile ? `| Parent: ${s.guardian_mobile}` : ''}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleMarkStudent(studentKey, 'Present', s.id)}
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                studentStatus === 'Present'
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                              }`}
+                            >
+                              Present
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMarkStudent(studentKey, 'Absent', s.id)}
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                studentStatus === 'Absent'
+                                  ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                              }`}
+                            >
+                              Absent
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMarkStudent(studentKey, 'Late', s.id)}
+                              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                studentStatus === 'Late'
+                                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200'
+                              }`}
+                            >
+                              Late
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {activeList.length > itemsPerPage && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={activeList.length}
+                    pageSize={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                  />
+                )}
+
+                {paginatedItems.length > 0 && (
+                  <div className="flex justify-end pt-4 border-t border-slate-100 mt-4 px-4 pb-4">
+                    <Button
+                      variant="primary"
+                      onClick={handleSaveStudents}
+                      disabled={savingStudents}
+                      className={savedType === 'student' ? '!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !text-white' : ''}
+                    >
+                      {savingStudents ? 'Saving...' : savedType === 'student' ? '✓ Saved' : 'Save Daily Sheets'}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </div>
           )}
 
           {/* TAB 2: STAFF ATTENDANCE */}
