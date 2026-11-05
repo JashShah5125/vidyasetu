@@ -33,6 +33,7 @@ import { Users } from './pages/Users';
 import { StaffCreate } from './pages/StaffCreate';
 import { LeadsAdmissions } from './pages/LeadsAdmissions';
 import { StudentRegistration } from './pages/StudentRegistration';
+import { CollectPaymentActivation } from './pages/CollectPaymentActivation';
 import { Students } from './pages/Students';
 import { Fees } from './pages/Fees';
 import { FeesMaster } from './pages/FeesMaster';
@@ -49,6 +50,8 @@ import { Reports } from './pages/Reports';
 import { SubscriptionPlans } from './pages/SubscriptionPlans';
 import { TenantDetails } from './pages/TenantDetails';
 import { BranchFinancePage } from './pages/finance/BranchFinancePage';
+import { PaymentReconciliationPage } from './pages/finance/PaymentReconciliationPage';
+import { InstallmentScheduleBuilderPage } from './pages/finance/InstallmentScheduleBuilderPage';
 import { OtherExpenseDetailPage } from './pages/finance/OtherExpenseDetailPage';
 import { OtherExpenseFormPage } from './pages/finance/OtherExpenseFormPage';
 import { FinanceDashboard } from './components/finance/FinanceDashboard';
@@ -232,13 +235,16 @@ const ContentRouter = () => {
       <Route path="/admin/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/admin/leads/batch" element={<LeadsAdmissions initialTab="batch" />} />
       <Route path="/admin/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
+      <Route path="/admin/leads/payment/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/admin/students" element={<Students />} />
       <Route path="/admin/staff" element={<Users />} />
       <Route path="/admin/staff/new" element={<StaffCreate />} />
       <Route path="/admin/staff/:id" element={<StaffCreate />} />
       <Route path="/admin/fees-master" element={<FeesMaster />} />
       <Route path="/admin/fees" element={<Fees initialTab="record" />} />
+      <Route path="/admin/fees/schedule-builder/:studentId" element={<InstallmentScheduleBuilderPage />} />
       <Route path="/admin/defaulters" element={<Fees initialTab="defaulters" />} />
+      <Route path="/admin/finance/reconciliation" element={<PaymentReconciliationPage />} />
       <Route path="/admin/finance/expenses/salaries" element={<BranchFinancePage />} />
       <Route path="/admin/finance/expenses/other" element={<BranchFinancePage />} />
       <Route path="/admin/finance/expenses/other/new" element={<OtherExpenseFormPage />} />
@@ -282,13 +288,16 @@ const ContentRouter = () => {
       <Route path="/branch/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/branch/leads/batch" element={<LeadsAdmissions initialTab="batch" />} />
       <Route path="/branch/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
+      <Route path="/branch/leads/payment/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/branch/students" element={<Students />} />
       <Route path="/branch/staff" element={<Users />} />
       <Route path="/branch/staff/new" element={<StaffCreate />} />
       <Route path="/branch/staff/:id" element={<StaffCreate />} />
       <Route path="/branch/fees-master" element={<FeesMaster />} />
       <Route path="/branch/fees" element={<Fees initialTab="record" />} />
+      <Route path="/branch/fees/schedule-builder/:studentId" element={<InstallmentScheduleBuilderPage />} />
       <Route path="/branch/defaulters" element={<Fees initialTab="defaulters" />} />
+      <Route path="/branch/finance/reconciliation" element={<PaymentReconciliationPage />} />
       <Route path="/branch/finance/expenses/salaries" element={<BranchFinancePage />} />
       <Route path="/branch/finance/expenses/other" element={<BranchFinancePage />} />
       <Route path="/branch/finance/expenses/other/new" element={<OtherExpenseFormPage />} />
@@ -322,6 +331,7 @@ const ContentRouter = () => {
       <Route path="/counsellor/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/counsellor/leads/batch" element={<LeadsAdmissions initialTab="batch" />} />
       <Route path="/counsellor/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
+      <Route path="/counsellor/leads/payment/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/counsellor/settings" element={<Settings />} />
 
       {/* ── Teacher Routes (/teacher/*) ── */}
@@ -339,6 +349,7 @@ const ContentRouter = () => {
       {/* ── Branch Finance Routes (/finance/*) ── */}
       <Route path="/finance/dashboard" element={<FinanceDashboard />} />
       <Route path="/finance/fees" element={<Fees initialTab="record" />} />
+      <Route path="/finance/reconciliation" element={<PaymentReconciliationPage />} />
       <Route path="/finance/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/finance/expenses/other/new" element={<OtherExpenseFormPage />} />
       <Route path="/finance/expenses/other/:id" element={<OtherExpenseDetailPage />} />
@@ -403,6 +414,7 @@ const ContentRouter = () => {
       <Route path="/leads/admission" element={<LeadsAdmissions initialTab="admission" />} />
       <Route path="/leads/batch" element={<LeadsAdmissions initialTab="batch" />} />
       <Route path="/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
+      <Route path="/leads/payment/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
       <Route path="/attendance/lecture/:lectureId" element={<LectureAttendance />} />
@@ -411,7 +423,9 @@ const ContentRouter = () => {
       <Route path="/homework" element={<StudentHomework />} />
       <Route path="/teacher-notifications" element={<Navigate to="/teacher/notifications" replace />} />
       <Route path="/fees" element={<Fees initialTab="record" />} />
+      <Route path="/fees/schedule-builder/:studentId" element={<InstallmentScheduleBuilderPage />} />
       <Route path="/fees-master" element={<FeesMaster />} />
+      <Route path="/reconciliation" element={<PaymentReconciliationPage />} />
       <Route path="/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/expense-voucher" element={<ExpenseVoucher />} />
       <Route path="/expense-ledger" element={<ExpenseLedger />} />

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { ClipboardList, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export const Settings: React.FC = () => {
+  const navigate = useNavigate();
   const { currentUser, updateCurrentUser } = useAuth();
   const { addToast } = useApp();
 
@@ -182,7 +185,7 @@ export const Settings: React.FC = () => {
           </Card>
         </div>
 
-        <div>
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Theme Customizer</CardTitle>
@@ -195,6 +198,38 @@ export const Settings: React.FC = () => {
                   Active Theme
                 </span>
               </div>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={18} className="text-blue-600" />
+                <CardTitle>Audit & Compliance Trail</CardTitle>
+              </div>
+            </CardHeader>
+            <div className="space-y-3.5 text-xs text-slate-600">
+              <p className="leading-relaxed">
+                Review complete operational activity, financial mutations, access logs, and role permissions changes in real time.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const auditPath = currentUser?.role === 'saas-admin'
+                    ? '/saas/audit-logs'
+                    : currentUser?.role === 'branch-admin'
+                    ? '/branch/audit-logs'
+                    : '/admin/audit-logs';
+                  navigate(auditPath);
+                }}
+                className="w-full flex items-center justify-between p-3 bg-blue-50/70 hover:bg-blue-100/80 text-blue-900 border border-blue-200/80 rounded-xl font-semibold transition-all group cursor-pointer shadow-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <ClipboardList size={16} className="text-blue-600" />
+                  <span>Open Audit Logs Console</span>
+                </span>
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+              </button>
             </div>
           </Card>
         </div>

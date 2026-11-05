@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const path = require('path');
 
 const app = express();
+app.set('trust proxy', true);
 
 // Security and utility middlewares
 app.use(helmet());
@@ -92,6 +93,8 @@ app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/audit-logs', auditLogRoutes);
 app.use('/api/branch/audit-logs', auditLogRoutes);
+app.use('/api/saas/audit-logs', auditLogRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/admin/tenants', tenantRoutes);
 app.use('/api/admin/leads', leadRoutes);
 app.use('/api/admin/plans', planRoutes);

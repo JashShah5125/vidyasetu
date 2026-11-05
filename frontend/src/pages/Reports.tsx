@@ -674,6 +674,35 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
       </div>
 
       {/* Report Type Tabs */}
+      {mode !== 'saas' && (
+        <div className="flex border-b border-slate-200 gap-2">
+          <button
+            type="button"
+            onClick={() => setReportTab('p&l')}
+            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${
+              reportTab === 'p&l'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/20'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            <TrendingUp size={16} />
+            <span>Profit &amp; Loss (P&amp;L) Statement</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setReportTab('academic')}
+            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${
+              reportTab === 'academic'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/20'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            <Award size={16} />
+            <span>Academic &amp; Student Operations</span>
+          </button>
+        </div>
+      )}
+
       {mode === 'saas' ? (
         <div className="space-y-6">
           {/* SaaS Cards stats */}
@@ -767,7 +796,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             </div>
           </Card>
         </div>
-      ) : (
+      ) : reportTab === 'p&l' ? (
         <div className="space-y-6 animate-fade-in">
           {/* P&L Cards summary */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -875,6 +904,121 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                       ₹{netSurplus.toLocaleString('en-IN')}
                     </td>
                   </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        /* Academic Operations & Roster Analysis View */
+        <div className="space-y-6 animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Students</span>
+                <div className="text-3xl font-display font-extrabold text-blue-600 mt-1">{students.length}</div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Enrolled across all courses</span>
+              </div>
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
+                <Users size={22} />
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Courses</span>
+                <div className="text-3xl font-display font-extrabold text-indigo-600 mt-1">{courses.length}</div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Academic curricula</span>
+              </div>
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
+                <Award size={22} />
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Classroom Batches</span>
+                <div className="text-3xl font-display font-extrabold text-emerald-600 mt-1">{batches.length}</div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Active class cohorts</span>
+              </div>
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
+                <TrendingUp size={22} />
+              </div>
+            </Card>
+
+            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Avg Batch Size</span>
+                <div className="text-3xl font-display font-extrabold text-purple-600 mt-1">
+                  {batches.length > 0 ? Math.round(students.length / batches.length) : 0}
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Students / cohort</span>
+              </div>
+              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center border border-purple-100">
+                <Award size={22} />
+              </div>
+            </Card>
+          </div>
+
+          {/* Course & Program Stats Table */}
+          <Card className="border border-slate-200 shadow-sm overflow-hidden">
+            <CardHeader className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">Course &amp; Batch Enrollment Roster</CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">Enrollment strength and cohort allocation breakdown</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveStatsTab('courses')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    activeStatsTab === 'courses' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Courses
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveStatsTab('programs')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    activeStatsTab === 'programs' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Programs
+                </button>
+              </div>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="px-5 py-3">{activeStatsTab === 'courses' ? 'Course Title' : 'Program Name'}</th>
+                    <th className="px-5 py-3">Code / ID</th>
+                    <th className="px-5 py-3 text-center">Active Batches</th>
+                    <th className="px-5 py-3 text-center">Enrolled Students</th>
+                    <th className="px-5 py-3 text-right">Capacity Utilization</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {(activeStatsTab === 'courses' ? courseStats : programStats).map((item: any, idx) => {
+                    const capacity = (item.batchesCount || 1) * 40;
+                    const pct = Math.min(100, Math.round((item.studentsCount / capacity) * 100));
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-5 py-3 font-semibold text-slate-900">{item.name}</td>
+                        <td className="px-5 py-3 font-mono text-slate-500">{item.code || 'PRG-' + (idx + 1)}</td>
+                        <td className="px-5 py-3 text-center font-bold text-slate-800">{item.batchesCount}</td>
+                        <td className="px-5 py-3 text-center font-bold text-blue-700">{item.studentsCount}</td>
+                        <td className="px-5 py-3 text-right">
+                          <span className={`inline-flex px-2 py-0.5 rounded font-bold text-[10px] ${
+                            pct >= 80 ? 'bg-emerald-50 text-emerald-700' : pct >= 50 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                          }`}>
+                            {pct}% ({item.studentsCount}/{capacity})
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

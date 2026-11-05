@@ -7,6 +7,7 @@ const KNOWN_TABLES = new Set([
     'classrooms', 'branches', 'tenants', 'enquiries', 'staff_profiles',
     'users', 'fee_plans', 'fee_heads', 'concessions', 'receipts',
     'payment_transactions', 'admissions', 'student_enrollments',
+    'student_fee_assignments', 'student_invoices', 'payments',
     'homeworks', 'assignments', 'exams', 'doubts', 'lectures',
     'notifications', 'subscription_plans', 'saas_invoices', 'system_configurations'
 ]);
@@ -145,7 +146,6 @@ const auditMiddleware = async (req, res, next) => {
             const action = meta.action || methodToAction(method);
             const finalEntityType = meta.entityType || entityType;
             const finalEntityId = meta.entityId !== undefined ? meta.entityId : (req._resolvedEntityId || entityId);
-            const severity = meta.severity || (method === 'DELETE' ? 'warning' : 'info');
 
             let oldValues = meta.oldValues !== undefined ? meta.oldValues : null;
             let newValues = meta.newValues !== undefined ? meta.newValues : null;
@@ -205,6 +205,43 @@ const auditMiddleware = async (req, res, next) => {
                     }
                 } else if (!newValues && req.body) {
                     newValues = simplifyPayload(sanitizePayload(req.body));
+                }
+            }
+
+            // Determine Severity Tier (Critical, Warning, or Info)
+            let severity = meta.severity;
+            if (!severity) {
+                const act = (action || '').toUpperCase();
+                const ent = (finalEntityType || '').toLowerCase();
+                const ep = (req.originalUrl || req.url || '').toLowerCase();
+
+                // 1. CRITICAL: Security credentials, permission/role alterations, master financial deletions, impersonation
+                if (
+                    act.includes('IMPERSONAT') ||
+                    ep.includes('/impersonat') ||
+                    ent.includes('role') ||
+                    ent.includes('permission') ||
+                    ep.includes('/roles') ||
+                    ep.includes('/permissions') ||
+                    ep.includes('/password') ||
+                    (act === 'DELETE' && (ent.includes('fee') || ent.includes('tenant') || ent.includes('branch') || ent.includes('course') || ent.includes('payment'))) ||
+                    (act === 'UPDATE' && ent.includes('fee_structure'))
+                ) {
+                    severity = 'critical';
+                }
+                // 2. WARNING: Destructive data deletions, archiving, status drops / deactivations
+                else if (
+                    method === 'DELETE' ||
+                    act === 'DELETE' ||
+                    act.includes('DEACTIVATE') ||
+                    act.includes('ARCHIVE') ||
+                    (newValues && (newValues.is_active === 0 || newValues.is_active === false || newValues.status === 'inactive' || newValues.status === 'suspended'))
+                ) {
+                    severity = 'warning';
+                }
+                // 3. INFO: Standard lifecycle (creations, logins, active status, lectures, payments)
+                else {
+                    severity = 'info';
                 }
             }
 

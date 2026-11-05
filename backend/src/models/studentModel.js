@@ -153,6 +153,9 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             SELECT 
                 converted_student_id,
                 tenant_id,
+                interested_course_id,
+                interested_program_id,
+                interested_level_id,
                 actual_price,
                 concession_amount,
                 final_price,
@@ -164,6 +167,9 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             FROM enquiries
             WHERE converted_student_id IS NOT NULL AND deleted_at IS NULL
         ) enq_fee ON enq_fee.converted_student_id = s.id AND enq_fee.tenant_id = s.tenant_id AND enq_fee.rn = 1
+        LEFT JOIN courses enq_c ON enq_c.id = enq_fee.interested_course_id AND enq_c.tenant_id = s.tenant_id
+        LEFT JOIN programs enq_p ON enq_p.id = enq_fee.interested_program_id AND enq_p.tenant_id = s.tenant_id
+        LEFT JOIN levels enq_l ON enq_l.id = enq_fee.interested_level_id AND enq_l.tenant_id = s.tenant_id
     `;
 
     if (search && search.trim() !== '') {
@@ -274,9 +280,9 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
             s.user_id,
             s.primary_branch_id,
             b.name AS branch_name,
-            c.name AS course_name,
-            p.name AS program_name,
-            l.name AS level_name,
+            COALESCE(c.name, enq_c.name) AS course_name,
+            COALESCE(p.name, enq_p.name) AS program_name,
+            COALESCE(l.name, enq_l.name) AS level_name,
             s.student_code,
             s.full_name,
             s.dob,
@@ -400,7 +406,8 @@ const getStudents = async (tenantId, filters = {}, accessContext = null) => {
 /**
  * Get detailed student profile by ID with optional branch scope check.
  */
-const getStudentById = async (tenantId, id, accessContext = null) => {
+const getStudentById = async (tenantId, id, accessContext = null, connection = null) => {
+    const conn = connection || pool;
     let whereBranchClause = '';
     const queryParams = [tenantId, id];
 
@@ -420,6 +427,9 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
         SELECT 
             s.*,
             b.name AS branch_name,
+            COALESCE(c.name, enq_c.name) AS course_name,
+            COALESCE(p.name, enq_p.name) AS program_name,
+            COALESCE(l.name, enq_l.name) AS level_name,
             se.id AS enrollment_id,
             se.branch_id AS enrollment_branch_id,
             se.batch_id,
@@ -443,14 +453,26 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
         LEFT JOIN branches b ON s.primary_branch_id = b.id AND b.tenant_id = s.tenant_id
         LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.deleted_at IS NULL AND se.status = 'active'
         LEFT JOIN batches bat ON se.batch_id = bat.id AND bat.tenant_id = s.tenant_id
+        LEFT JOIN levels l ON bat.level_id = l.id AND l.tenant_id = s.tenant_id
+        LEFT JOIN programs p ON (l.program_id = p.id OR (l.program_id IS NULL AND l.course_id = p.course_id)) AND p.tenant_id = s.tenant_id
+        LEFT JOIN courses c ON (l.course_id = c.id OR p.course_id = c.id) AND c.tenant_id = s.tenant_id
         LEFT JOIN academic_years ay ON se.academic_year_id = ay.id AND ay.tenant_id = s.tenant_id
         LEFT JOIN student_guardians sg ON s.id = sg.student_id AND sg.tenant_id = s.tenant_id AND sg.is_primary = 1
         LEFT JOIN guardians g ON sg.guardian_id = g.id AND g.tenant_id = s.tenant_id
+        LEFT JOIN (
+            SELECT converted_student_id, tenant_id, interested_course_id, interested_program_id, interested_level_id
+            FROM enquiries
+            WHERE converted_student_id IS NOT NULL AND deleted_at IS NULL
+            ORDER BY id DESC LIMIT 1
+        ) enq ON enq.converted_student_id = s.id AND enq.tenant_id = s.tenant_id
+        LEFT JOIN courses enq_c ON enq_c.id = enq.interested_course_id AND enq_c.tenant_id = s.tenant_id
+        LEFT JOIN programs enq_p ON enq_p.id = enq.interested_program_id AND enq_p.tenant_id = s.tenant_id
+        LEFT JOIN levels enq_l ON enq_l.id = enq.interested_level_id AND enq_l.tenant_id = s.tenant_id
         WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
         ${whereBranchClause}
     `;
 
-    const [rows] = await pool.query(query, queryParams);
+    const [rows] = await conn.query(query, queryParams);
     if (rows.length === 0) return null;
 
     const student = rows[0];
@@ -467,14 +489,14 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
             customIds = [];
         }
         if (Array.isArray(customIds) && customIds.length > 0) {
-            const [subs] = await pool.query(
+            const [subs] = await conn.query(
                 `SELECT id, name, code FROM subjects WHERE id IN (?) AND tenant_id = ?`,
                 [customIds, tenantId]
             );
             subjectsList = subs;
         }
     } else if (student.bundle_id) {
-        const [bundles] = await pool.query(
+        const [bundles] = await conn.query(
             `SELECT id, name, description, subject_ids, fee_amount FROM subject_bundles WHERE id = ? AND tenant_id = ? AND is_active = 1 LIMIT 1`,
             [student.bundle_id, tenantId]
         );
@@ -487,7 +509,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
                 subIds = [];
             }
             if (Array.isArray(subIds) && subIds.length > 0) {
-                const [subs] = await pool.query(
+                const [subs] = await conn.query(
                     `SELECT id, name, code FROM subjects WHERE id IN (?) AND tenant_id = ?`,
                     [subIds, tenantId]
                 );
@@ -496,12 +518,12 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
         }
     } else if (student.batch_id) {
         // Fallback to level bundle if no explicit bundle_id set
-        const [batchRows] = await pool.query(
+        const [batchRows] = await conn.query(
             `SELECT level_id FROM batches WHERE id = ? AND tenant_id = ?`,
             [student.batch_id, tenantId]
         );
         if (batchRows.length > 0 && batchRows[0].level_id) {
-            const [bundles] = await pool.query(
+            const [bundles] = await conn.query(
                 `SELECT id, name, description, subject_ids, fee_amount FROM subject_bundles WHERE level_id = ? AND tenant_id = ? AND is_active = 1 LIMIT 1`,
                 [batchRows[0].level_id, tenantId]
             );
@@ -514,7 +536,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
                     subIds = [];
                 }
                 if (Array.isArray(subIds) && subIds.length > 0) {
-                    const [subs] = await pool.query(
+                    const [subs] = await conn.query(
                         `SELECT id, name, code FROM subjects WHERE id IN (?) AND tenant_id = ?`,
                         [subIds, tenantId]
                     );
@@ -528,7 +550,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
     let feeAssignment = null;
     let invoicesList = [];
 
-    const [feeRows] = await pool.query(
+    const [feeRows] = await conn.query(
         `SELECT *, 
             total_concession AS discount_amount, 
             down_payment AS downpayment_amount, 
@@ -538,7 +560,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
     );
     if (feeRows.length > 0) {
         feeAssignment = feeRows[0];
-        const [invRows] = await pool.query(
+        const [invRows] = await conn.query(
             `SELECT *, 
                 amount AS billed_amount, 
                 transaction_reference AS transaction_ref 
@@ -548,7 +570,7 @@ const getStudentById = async (tenantId, id, accessContext = null) => {
         invoicesList = invRows;
     } else {
         // Fallback to enquiry agreed fee structure if fee assignment is not created yet
-        const [enqFee] = await pool.query(
+        const [enqFee] = await conn.query(
             `SELECT actual_price, concession_amount, final_price, down_payment, installment_months, installment_amount
              FROM enquiries
              WHERE converted_student_id = ? AND tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
@@ -603,10 +625,11 @@ const generateStudentCode = async (tenantId) => {
 /**
  * Create a new student with user account, guardian user account, and enrollment linkage.
  */
-const createStudent = async (tenantId, studentData, createdBy = 1, accessContext = null) => {
-    const connection = await pool.getConnection();
+const createStudent = async (tenantId, studentData, createdBy = 1, accessContext = null, externalConnection = null) => {
+    const connection = externalConnection || await pool.getConnection();
+    const isOwner = !externalConnection;
     try {
-        await connection.beginTransaction();
+        if (isOwner) await connection.beginTransaction();
 
         // Enforce branch scope if executing as Branch Admin
         let effectiveBranchId = studentData.primary_branch_id;
@@ -915,13 +938,18 @@ const createStudent = async (tenantId, studentData, createdBy = 1, accessContext
             await saveStudentDocuments(tenantId, studentId, studentData.documents, createdBy, connection);
         }
 
-        await connection.commit();
-        connection.release();
+        if (isOwner) {
+            await connection.commit();
+            connection.release();
+        }
 
-        return getStudentById(tenantId, studentId, accessContext);
+        const studentObj = await getStudentById(tenantId, studentId, accessContext, connection);
+        return studentObj || { id: studentId, studentId, student_id: studentId, ...studentData };
     } catch (error) {
-        await connection.rollback();
-        connection.release();
+        if (isOwner) {
+            await connection.rollback();
+            connection.release();
+        }
         throw error;
     }
 };
@@ -986,23 +1014,17 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
 
         if (updateData.status !== undefined) {
             const requestedStatus = normalizeStudentStatus(updateData.status);
+            studentSets.push(`status = ?`);
+            studentVals.push(requestedStatus);
             if (requestedStatus === 1) {
-                const [payCount] = await connection.query(
-                    `SELECT COUNT(*) as count FROM student_invoices WHERE student_id = ? AND tenant_id = ? AND status = 'paid' AND deleted_at IS NULL`,
+                await connection.query(
+                    `UPDATE users u JOIN students s ON s.user_id = u.id SET u.status = 'active' WHERE s.id = ? AND s.tenant_id = ?`,
                     [id, tenantId]
                 );
-                const hasPayment = (payCount[0]?.count || 0) > 0;
-                studentSets.push(`status = ?`);
-                studentVals.push(hasPayment ? 1 : 0);
-                if (hasPayment) {
-                    await connection.query(
-                        `UPDATE users u JOIN students s ON s.user_id = u.id SET u.status = 'active' WHERE s.id = ? AND s.tenant_id = ?`,
-                        [id, tenantId]
-                    );
-                }
-            } else {
-                studentSets.push(`status = ?`);
-                studentVals.push(requestedStatus);
+                await connection.query(
+                    `UPDATE admissions SET status = 1, activated_at = NOW(), updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+                    [id, tenantId]
+                );
             }
         }
 

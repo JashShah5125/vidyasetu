@@ -390,12 +390,12 @@ const convertToStudent = async (tenantId, enquiryId, formData, userId = 1, acces
             mobile: formData.mobile || enquiry.student_mobile,
             email: formData.email || enquiry.student_email,
             dob: formData.dob || null,
-            gender: formData.gender || 'Unknown',
+            gender: formData.gender || null,
             street: formData.street || null,
             city: formData.city || null,
             state: formData.state || null,
             pincode: formData.pincode || null,
-            category: formData.category || 'General',
+            category: formData.category || null,
             school_name: formData.school_name || null,
             current_class: formData.current_class || null,
             board_id: formData.board_id || null,
@@ -417,7 +417,11 @@ const convertToStudent = async (tenantId, enquiryId, formData, userId = 1, acces
             gross_amount: (formData.batch_id && formData.academic_year_id) ? (formData.gross_amount || enquiry.actual_price) : undefined
         };
 
-        const student = await studentModel.createStudent(tenantId, studentPayload, userId, accessContext);
+        const student = await studentModel.createStudent(tenantId, studentPayload, userId, accessContext, connection);
+        const finalStudentId = student?.id || student?.student_id;
+        if (!finalStudentId) {
+            throw new Error('Failed to generate student ID during registration.');
+        }
 
         const admissionNumber = await generateAdmissionNumber(tenantId);
         const [admissionRes] = await connection.query(`
@@ -429,7 +433,7 @@ const convertToStudent = async (tenantId, enquiryId, formData, userId = 1, acces
         `, [
             tenantId,
             enquiry.assigned_branch_id,
-            student.id || student.student_id,
+            finalStudentId,
             enquiry.id,
             admissionNumber,
             formData.academic_year_id || enquiry.interested_academic_year_id || null,
@@ -439,12 +443,36 @@ const convertToStudent = async (tenantId, enquiryId, formData, userId = 1, acces
         ]);
 
         const fromStatus = enquiry.status;
+        const updatedActualPrice = formData.gross_amount !== undefined && formData.gross_amount !== null ? Number(formData.gross_amount) : enquiry.actual_price;
+        const updatedConcession = formData.discount !== undefined && formData.discount !== null ? Number(formData.discount) : enquiry.concession_amount;
+        const updatedFinalPrice = formData.net_amount !== undefined && formData.net_amount !== null ? Number(formData.net_amount) : enquiry.final_price;
+        const updatedDownPayment = formData.down_payment !== undefined && formData.down_payment !== null ? Number(formData.down_payment) : enquiry.down_payment;
+        const updatedInstallmentMonths = Math.max(1, Number(formData.installments !== undefined && formData.installments !== null ? formData.installments : (enquiry.installment_months || 1)));
+
         await connection.query(`
             UPDATE enquiries
-            SET status = 7, converted_student_id = ?, converted_at = NOW(), admission_confirmed_at = NOW(),
+            SET status = 7,
+                converted_student_id = ?,
+                converted_at = NOW(),
+                admission_confirmed_at = NOW(),
+                actual_price = COALESCE(?, actual_price),
+                concession_amount = COALESCE(?, concession_amount),
+                final_price = COALESCE(?, final_price),
+                down_payment = COALESCE(?, down_payment),
+                installment_months = COALESCE(?, installment_months),
                 updated_by = ?
             WHERE tenant_id = ? AND id = ?
-        `, [student.id || student.student_id, userId, tenantId, Number(enquiryId)]);
+        `, [
+            finalStudentId,
+            updatedActualPrice,
+            updatedConcession,
+            updatedFinalPrice,
+            updatedDownPayment,
+            updatedInstallmentMonths,
+            userId,
+            tenantId,
+            Number(enquiryId)
+        ]);
 
         await connection.commit();
         connection.release();

@@ -9,6 +9,10 @@ router.get('/students/:id/ledger', requirePermission('fee.view'), paymentControl
 router.get('/students/:id/fee-assignment', requirePermission('fee.view'), paymentController.getStudentFeeAssignment);
 router.put('/students/:id/fee-assignment', requirePermission('fee.update'), paymentController.updateStudentFeeAssignment);
 router.post('/collect', requirePermission('fee.create'), paymentController.recordPayment);
+router.post('/students/:id/generate-installments', requirePermission('fee.create'), paymentController.generateInstallmentSchedule);
+router.post('/invoices/:id/send-reminder', requirePermission('fee.view'), paymentController.sendPaymentReminder);
+router.get('/reconciliation', requirePermission('fee.view'), paymentController.getReconciliation);
+router.post('/reconcile', requirePermission('fee.update'), paymentController.updateReconciliation);
 router.post('/invoices', requirePermission('fee.create'), paymentController.createInvoice);
 router.put('/invoices/:id', requirePermission('fee.update'), paymentController.updateInvoice);
 router.delete('/invoices/:id', requirePermission('fee.delete'), paymentController.deleteInvoice);

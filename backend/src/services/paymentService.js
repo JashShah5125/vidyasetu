@@ -36,6 +36,22 @@ const deleteCollectionInvoice = async (payload) => {
     return await paymentModel.deleteCollectionInvoice(payload);
 };
 
+const generateInstallmentSchedule = async (payload) => {
+    return await paymentModel.generateInstallmentSchedule(payload);
+};
+
+const sendPaymentReminder = async (payload) => {
+    return await paymentModel.sendPaymentReminder(payload);
+};
+
+const getReconciliationTransactions = async (tenantId, filters) => {
+    return await paymentModel.getReconciliationTransactions(tenantId, filters);
+};
+
+const updateReconciliationStatus = async (tenantId, payload) => {
+    return await paymentModel.updateReconciliationStatus(tenantId, payload);
+};
+
 module.exports = {
     getStudentLedger,
     getStudentFeeAssignment,
@@ -45,5 +61,9 @@ module.exports = {
     collectBranchPayment,
     updateCollectionInvoice,
     deleteCollectionInvoice,
-    getInvoiceById
+    getInvoiceById,
+    generateInstallmentSchedule,
+    sendPaymentReminder,
+    getReconciliationTransactions,
+    updateReconciliationStatus
 };

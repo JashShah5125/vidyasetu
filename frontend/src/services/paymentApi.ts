@@ -282,3 +282,147 @@ export const deleteInvoice = async (invoiceId: number) => {
   const response = await api.delete(url);
   return response.data.data;
 };
+
+// ── Sprint 4: Automated Installment Schedule Builder ──
+
+export interface GenerateInstallmentsPayload {
+  schedule_type?: 'monthly' | 'termly' | 'custom';
+  scheduleType?: 'monthly' | 'termly' | 'custom';
+  installment_count: number;
+  installmentCount?: number;
+  first_due_date?: string;
+  firstDueDate?: string;
+  due_day?: number;
+  dueDay?: number;
+  down_payment?: number;
+  downPayment?: number;
+  send_reminder?: boolean;
+  sendReminder?: boolean;
+}
+
+export interface GenerateInstallmentsResult {
+  success: boolean;
+  studentId: number;
+  scheduleType: string;
+  installmentCount: number;
+  totalScheduled: number;
+  invoices: StudentLedgerInvoice[];
+  message: string;
+}
+
+export const generateInstallmentSchedule = async (
+  studentId: number,
+  payload: GenerateInstallmentsPayload
+): Promise<GenerateInstallmentsResult> => {
+  const response = await api.post(`/admin/payments/students/${studentId}/generate-installments`, payload);
+  return response.data.data;
+};
+
+export interface SendReminderResult {
+  success: boolean;
+  invoiceId: number;
+  invoiceNumber: string;
+  studentName: string;
+  mobile: string;
+  email?: string;
+  amountDue: number;
+  dueDate: string;
+  isOverdue: boolean;
+  channel: string;
+  dispatchedAt: string;
+  message: string;
+}
+
+export const sendPaymentReminder = async (invoiceId: number): Promise<SendReminderResult> => {
+  const response = await api.post(`/admin/payments/invoices/${invoiceId}/send-reminder`);
+  return response.data.data;
+};
+
+// ── Sprint 4: Payment Reconciliation ──
+
+export interface ReconciliationTransaction {
+  id: number;
+  tenant_id: number;
+  receipt_id: number;
+  payment_mode: string;
+  amount: number;
+  reference_number?: string | null;
+  bank_reference?: string | null;
+  bank_date?: string | null;
+  reconciliation_status: 'unreconciled' | 'reconciled' | 'discrepancy';
+  reconciled_at?: string | null;
+  reconciled_by?: number | null;
+  reconciliation_notes?: string | null;
+  payment_date: string;
+  created_at: string;
+  receipt_number: string;
+  receipt_date: string;
+  branch_id?: number | null;
+  branch_name?: string | null;
+  student_id: number;
+  student_name: string;
+  student_code?: string | null;
+  student_mobile?: string | null;
+  batch_name?: string | null;
+  reconciled_by_name?: string | null;
+}
+
+export interface ReconciliationSummary {
+  totalCount: number;
+  totalAmount: number;
+  reconciledAmount: number;
+  reconciledCount: number;
+  unreconciledAmount: number;
+  unreconciledCount: number;
+  discrepancyAmount: number;
+  discrepancyCount: number;
+  reconciliationRate: number;
+}
+
+export interface ReconciliationResponse {
+  summary: ReconciliationSummary;
+  pagination: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  transactions: ReconciliationTransaction[];
+}
+
+export interface GetReconciliationParams {
+  branchId?: string | number;
+  status?: string;
+  paymentMode?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export const getReconciliationTransactions = async (
+  params?: GetReconciliationParams
+): Promise<ReconciliationResponse> => {
+  const response = await api.get('/admin/payments/reconciliation', { params });
+  return response.data.data;
+};
+
+export interface UpdateReconciliationPayload {
+  paymentIds: number[];
+  payment_ids?: number[];
+  status: 'reconciled' | 'unreconciled' | 'discrepancy';
+  bankReference?: string;
+  bank_reference?: string;
+  bankDate?: string;
+  bank_date?: string;
+  reconciliationNotes?: string;
+  reconciliation_notes?: string;
+}
+
+export const updateReconciliationStatus = async (
+  payload: UpdateReconciliationPayload
+): Promise<{ success: boolean; updatedCount: number; status: string; paymentIds: number[] }> => {
+  const response = await api.post('/admin/payments/reconcile', payload);
+  return response.data.data;
+};

@@ -67,7 +67,7 @@ export const StudentRegistration = () => {
       gender: '',
       email: '',
       address: { street: '', city: '', state: '', pincode: '' },
-      category: 'General',
+      category: '',
       schoolName: '',
       currentClass: '',
       board: '',
@@ -99,7 +99,7 @@ export const StudentRegistration = () => {
       name: '',
       mobile: '',
       email: '',
-      relation: 'Father',
+      relation: '',
       occupation: ''
     },
     documents: [] as { type: string, fileName: string, fileSize: string }[]
@@ -115,55 +115,51 @@ export const StudentRegistration = () => {
         student: {
           name: student.name || '',
           mobile: student.mobile || '',
-          dob: student.dob || '2010-05-14',
-          gender: student.gender || 'Male',
-          email: student.email || `${student.name.toLowerCase().replace(/\s+/g, '')}@example.com`,
+          dob: student.dob || '',
+          gender: student.gender || '',
+          email: student.email || '',
           address: {
             street: student.address?.street || '',
             city: student.address?.city || '',
             state: student.address?.state || '',
             pincode: student.address?.pincode || ''
           },
-          category: student.category || 'General',
-          schoolName: student.schoolName || 'National Public School',
-          currentClass: student.currentClass || 'Class 11',
-          board: student.board || 'CBSE',
-          targetExam: student.targetExam || 'JEE',
-          yearOfAttempt: student.yearOfAttempt || '2028'
+          category: student.category || '',
+          schoolName: student.schoolName || '',
+          currentClass: student.currentClass || '',
+          board: student.board || '',
+          targetExam: student.targetExam || '',
+          yearOfAttempt: student.yearOfAttempt || ''
         },
         course: {
-          course: student.course || 'JEE Prep Course',
-          program: student.program || '2 Year',
-          level: student.level || 'year1'
+          course: student.course || '',
+          program: student.program || '',
+          level: student.level || ''
         },
         fee: {
           enrollType: 'Standard',
-          course: student.course || 'JEE Prep Course',
-          program: student.program || '2 Year',
-          level: student.level || 'year1',
-          feeSelectedStandard: 'FP-01',
+          course: student.course || '',
+          program: student.program || '',
+          level: student.level || '',
+          feeSelectedStandard: '',
           feeSelectedBundle: '',
           feeSelectedSubjects: [],
-          totalFee: student.feePlan?.total || 120000,
+          totalFee: student.feePlan?.total || 0,
           discount: 0,
-          netFee: student.feePlan?.total || 120000,
-          downpayment: student.feePlan?.paid || 30000,
-          installments: 10,
-          installmentAmount: 9000,
-          paymentMode: 'Online'
+          netFee: student.feePlan?.total || 0,
+          downpayment: student.feePlan?.paid || 0,
+          installments: 1,
+          installmentAmount: 0,
+          paymentMode: 'Cash'
         },
         parent: {
-          name: parentObj?.name || 'Mr. ' + (student.name.split(' ')[1] || student.name),
-          mobile: parentObj?.mobile || student.mobile || '9877112200',
-          email: parentObj?.email || 'parent@example.com',
-          relation: parentObj?.relation || 'Father',
-          occupation: 'Business'
+          name: parentObj?.name || '',
+          mobile: parentObj?.mobile || '',
+          email: parentObj?.email || '',
+          relation: parentObj?.relation || '',
+          occupation: parentObj?.occupation || ''
         },
-        documents: [
-          { type: 'Student Photo', fileName: `${student.name.toLowerCase().replace(/\s+/g, '_')}_photo.jpg`, fileSize: '1.2 MB' },
-          { type: 'ID Proof (Aadhar)', fileName: 'aadhar_card.pdf', fileSize: '2.4 MB' },
-          { type: 'Previous Marksheet', fileName: 'class10_marksheet.pdf', fileSize: '1.8 MB' }
-        ]
+        documents: []
       });
       setFeeComplete(true);
     } else if (lead) {
@@ -174,50 +170,50 @@ export const StudentRegistration = () => {
           ...prev.student,
           name: lead.name || prev.student.name || '',
           mobile: lead.mobile || prev.student.mobile || '',
-          dob: prev.student.dob || '2010-01-01',
-          gender: prev.student.gender || 'Male',
-          email: lead.email || prev.student.email || (lead.name ? `${lead.name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'student'}@student.vidyasetu.com` : ''),
+          dob: '',
+          gender: '',
+          email: lead.email || prev.student.email || '',
           address: {
-            street: prev.student.address?.street || '123 Central Avenue',
-            city: lead.branch || lead.preferredBranch || prev.student.address?.city || 'Main City',
-            state: prev.student.address?.state || 'Maharashtra',
-            pincode: prev.student.address?.pincode || '400001'
+            street: '',
+            city: '',
+            state: '',
+            pincode: ''
           },
-          category: prev.student.category || 'General',
-          schoolName: prev.student.schoolName || 'National Public High School',
-          currentClass: lead.level || prev.student.currentClass || 'Class 11',
-          board: prev.student.board || 'CBSE',
-          targetExam: prev.student.targetExam || (lead.course && lead.course.toLowerCase().includes('jee') ? 'JEE' : lead.course && lead.course.toLowerCase().includes('neet') ? 'NEET' : 'Boards'),
-          yearOfAttempt: prev.student.yearOfAttempt || '2028'
+          category: '',
+          schoolName: '',
+          currentClass: lead.level || prev.student.currentClass || '',
+          board: '',
+          targetExam: lead.course || prev.student.targetExam || '',
+          yearOfAttempt: ''
         },
         course: {
           course: feeCfg?.course || lead.course || '',
           program: feeCfg?.program || lead.program || '',
-          level: feeCfg?.level || lead.level || 'year1'
+          level: feeCfg?.level || lead.level || ''
         },
         fee: feeCfg ? {
           enrollType: feeCfg.enrollType || 'Standard',
           course: feeCfg.course || lead.course || '',
           program: feeCfg.program || lead.program || '',
-          level: feeCfg.level || lead.level || 'year1',
+          level: feeCfg.level || lead.level || '',
           feeSelectedStandard: feeCfg.feeSelectedStandard || '',
           feeSelectedBundle: feeCfg.feeSelectedBundle || '',
           feeSelectedSubjects: feeCfg.feeSelectedSubjects || [],
-          totalFee: feeCfg.totalFee || feeCfg.netFee || 0,
-          discount: feeCfg.discount || 0,
-          netFee: feeCfg.netFee || feeCfg.totalFee || 0,
-          downpayment: feeCfg.downpayment || 0,
-          installments: feeCfg.installments || 1,
-          installmentAmount: feeCfg.installmentAmount || 0,
+          totalFee: Number(feeCfg.totalFee ?? feeCfg.netFee ?? 0),
+          discount: Number(feeCfg.discount || 0),
+          netFee: Number(feeCfg.netFee ?? feeCfg.totalFee ?? 0),
+          downpayment: Number(feeCfg.downpayment || 0),
+          installments: Math.max(1, Number(feeCfg.installments || 1)),
+          installmentAmount: Number(feeCfg.installmentAmount || 0),
           paymentMode: feeCfg.paymentMode || 'Cash'
         } : prev.fee,
         parent: {
           ...prev.parent,
-          name: lead.parentName || prev.parent.name || ('Parent of ' + lead.name),
-          mobile: lead.parentMobile || prev.parent.mobile || lead.mobile || '',
-          email: lead.parentEmail || prev.parent.email || (lead.parentMobile ? `parent.${lead.parentMobile}@parent.vidyasetu.com` : (lead.mobile ? `parent.${lead.mobile}@parent.vidyasetu.com` : 'parent@vidyasetu.com')),
-          relation: prev.parent.relation || 'Father',
-          occupation: prev.parent.occupation || 'Service / Professional'
+          name: lead.parentName || prev.parent.name || '',
+          mobile: lead.parentMobile || prev.parent.mobile || '',
+          email: lead.parentEmail || prev.parent.email || '',
+          relation: prev.parent.relation || '',
+          occupation: ''
         }
       }));
       if (feeCfg) {
@@ -292,53 +288,9 @@ export const StudentRegistration = () => {
         addToast('Please enter a valid Student Mobile Number (at least 7 digits)', 'error');
         return false;
       }
-      if (!formData.student.dob?.trim()) {
-        addToast('Please select Student Date of Birth', 'error');
-        return false;
-      }
-      if (!formData.student.gender?.trim()) {
-        addToast('Please select Student Gender', 'error');
-        return false;
-      }
       const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!formData.student.email?.trim() || !EMAIL_REGEX.test(formData.student.email.trim())) {
+      if (formData.student.email?.trim() && !EMAIL_REGEX.test(formData.student.email.trim())) {
         addToast('Please enter a valid Student Email ID without invalid special characters', 'error');
-        return false;
-      }
-      if (!formData.student.address.street?.trim()) {
-        addToast('Please enter Street Address', 'error');
-        return false;
-      }
-      if (!formData.student.address.city?.trim()) {
-        addToast('Please enter City', 'error');
-        return false;
-      }
-      if (!formData.student.address.state?.trim()) {
-        addToast('Please enter State', 'error');
-        return false;
-      }
-      if (!formData.student.address.pincode?.trim()) {
-        addToast('Please enter Pincode', 'error');
-        return false;
-      }
-      if (!formData.student.currentClass?.trim()) {
-        addToast('Please select Current Academic Level', 'error');
-        return false;
-      }
-      if (!formData.student.board?.trim()) {
-        addToast('Please select Academic Board', 'error');
-        return false;
-      }
-      if (!formData.student.targetExam?.trim()) {
-        addToast('Please select Target Exam', 'error');
-        return false;
-      }
-      if (!formData.student.yearOfAttempt?.trim()) {
-        addToast('Please select Target Year of Attempt', 'error');
-        return false;
-      }
-      if (!formData.student.schoolName?.trim()) {
-        addToast('Please enter School / College Name', 'error');
         return false;
       }
     }
@@ -365,17 +317,9 @@ export const StudentRegistration = () => {
         addToast('Please enter a valid Parent Mobile Number', 'error');
         return false;
       }
-      if (!formData.parent.relation?.trim()) {
-        addToast('Please select Parent Relation', 'error');
-        return false;
-      }
       const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!formData.parent.email?.trim() || !EMAIL_REGEX.test(formData.parent.email.trim())) {
+      if (formData.parent.email?.trim() && !EMAIL_REGEX.test(formData.parent.email.trim())) {
         addToast('Please enter a valid Parent Email ID without invalid special characters', 'error');
-        return false;
-      }
-      if (!formData.parent.occupation?.trim()) {
-        addToast('Please enter Parent Occupation', 'error');
         return false;
       }
     }
@@ -424,7 +368,10 @@ export const StudentRegistration = () => {
         addToast('Student successfully registered!', 'success');
         navigate('/leads/admission');
       } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Failed to register student.';
+        const errorList = err?.response?.data?.errors;
+        const msg = (Array.isArray(errorList) && errorList.length > 0)
+          ? errorList.join(', ')
+          : (err?.response?.data?.message || err?.message || 'Failed to register student.');
         addToast(msg, 'error');
         setConverting(false);
       }
@@ -492,27 +439,27 @@ export const StudentRegistration = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Student Name *" required value={formData.student.name} onChange={e => handleStudentChange('name', e.target.value)} />
                 <Input label="Mobile Number *" required value={formData.student.mobile} onChange={e => handleStudentChange('mobile', e.target.value)} />
-                <Input label="Date of Birth *" required type="date" value={formData.student.dob} onChange={e => handleStudentChange('dob', e.target.value)} />
-                <Select label="Gender *" value={formData.student.gender} onChange={e => handleStudentChange('gender', e.target.value)} options={[{value:'',label:'Select'},{value:'Male',label:'Male'},{value:'Female',label:'Female'},{value:'Other',label:'Other'}]} />
-                <Input label="Email ID *" required type="email" value={formData.student.email} onChange={e => handleStudentChange('email', e.target.value)} />
-                <Select label="Category" value={formData.student.category} onChange={e => handleStudentChange('category', e.target.value)} options={[{value:'General',label:'General'},{value:'OBC',label:'OBC'},{value:'SC',label:'SC'},{value:'ST',label:'ST'}]} />
+                <Input label="Date of Birth" type="date" value={formData.student.dob} onChange={e => handleStudentChange('dob', e.target.value)} />
+                <Select label="Gender" value={formData.student.gender} onChange={e => handleStudentChange('gender', e.target.value)} options={[{value:'',label:'Select Gender...'},{value:'Male',label:'Male'},{value:'Female',label:'Female'},{value:'Other',label:'Other'}]} />
+                <Input label="Email ID" type="email" value={formData.student.email} onChange={e => handleStudentChange('email', e.target.value)} />
+                <Select label="Category" value={formData.student.category} onChange={e => handleStudentChange('category', e.target.value)} options={[{value:'',label:'Select Category...'},{value:'General',label:'General'},{value:'OBC',label:'OBC'},{value:'SC',label:'SC'},{value:'ST',label:'ST'}]} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
-                <div className="lg:col-span-4"><Input label="Street Address *" required value={formData.student.address.street} onChange={e => handleAddressChange('street', e.target.value)} /></div>
-                <Input label="City *" required value={formData.student.address.city} onChange={e => handleAddressChange('city', e.target.value)} />
-                <Input label="State *" required value={formData.student.address.state} onChange={e => handleAddressChange('state', e.target.value)} />
-                <Input label="Pincode *" required value={formData.student.address.pincode} onChange={e => handleAddressChange('pincode', e.target.value)} />
+                <div className="lg:col-span-4"><Input label="Street Address" value={formData.student.address.street} onChange={e => handleAddressChange('street', e.target.value)} /></div>
+                <Input label="City" value={formData.student.address.city} onChange={e => handleAddressChange('city', e.target.value)} />
+                <Input label="State" value={formData.student.address.state} onChange={e => handleAddressChange('state', e.target.value)} />
+                <Input label="Pincode" value={formData.student.address.pincode} onChange={e => handleAddressChange('pincode', e.target.value)} />
               </div>
             </section>
 
             <section className="space-y-4">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b pb-2">Academic Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select label="Current Academic Level *" value={formData.student.currentClass} onChange={e => handleStudentChange('currentClass', e.target.value)} options={[{value:'',label:'Select'},{value:'Class 8',label:'Class 8'},{value:'Class 9',label:'Class 9'},{value:'Class 10',label:'Class 10'},{value:'Class 11',label:'Class 11'},{value:'Class 12',label:'Class 12'},{value:'Dropper',label:'Dropper'}]} />
-                <Select label="Board *" value={formData.student.board} onChange={e => handleStudentChange('board', e.target.value)} options={[{value:'',label:'Select'},{value:'CBSE',label:'CBSE'},{value:'ICSE',label:'ICSE'},{value:'State Board',label:'State Board'},{value:'Other',label:'Other'}]} />
-                <Select label="Target Exam *" value={formData.student.targetExam} onChange={e => handleStudentChange('targetExam', e.target.value)} options={[{value:'',label:'Select'},{value:'JEE',label:'JEE (Main/Adv)'},{value:'NEET',label:'NEET'},{value:'Boards',label:'School Boards'},{value:'Foundation',label:'Foundation / NTSE'}]} />
-                <Select label="Target Year of Attempt *" value={formData.student.yearOfAttempt} onChange={e => handleStudentChange('yearOfAttempt', e.target.value)} options={[{value:'',label:'Select'},{value:'2026',label:'2026'},{value:'2027',label:'2027'},{value:'2028',label:'2028'}]} />
-                <div className="md:col-span-2"><Input label="School / College Name *" required value={formData.student.schoolName} onChange={e => handleStudentChange('schoolName', e.target.value)} /></div>
+                <Select label="Current Academic Level" value={formData.student.currentClass} onChange={e => handleStudentChange('currentClass', e.target.value)} options={[{value:'',label:'Select Level...'},{value:'Class 8',label:'Class 8'},{value:'Class 9',label:'Class 9'},{value:'Class 10',label:'Class 10'},{value:'Class 11',label:'Class 11'},{value:'Class 12',label:'Class 12'},{value:'Dropper',label:'Dropper'}]} />
+                <Select label="Board" value={formData.student.board} onChange={e => handleStudentChange('board', e.target.value)} options={[{value:'',label:'Select Board...'},{value:'CBSE',label:'CBSE'},{value:'ICSE',label:'ICSE'},{value:'State Board',label:'State Board'},{value:'Other',label:'Other'}]} />
+                <Select label="Target Exam" value={formData.student.targetExam} onChange={e => handleStudentChange('targetExam', e.target.value)} options={[{value:'',label:'Select Target Exam...'},{value:'JEE',label:'JEE (Main/Adv)'},{value:'NEET',label:'NEET'},{value:'Boards',label:'School Boards'},{value:'Foundation',label:'Foundation / NTSE'}]} />
+                <Select label="Target Year of Attempt" value={formData.student.yearOfAttempt} onChange={e => handleStudentChange('yearOfAttempt', e.target.value)} options={[{value:'',label:'Select Year...'},{value:'2026',label:'2026'},{value:'2027',label:'2027'},{value:'2028',label:'2028'},{value:'2029',label:'2029'}]} />
+                <div className="md:col-span-2"><Input label="School / College Name" value={formData.student.schoolName} onChange={e => handleStudentChange('schoolName', e.target.value)} /></div>
               </div>
             </section>
           </div>
@@ -550,9 +497,9 @@ export const StudentRegistration = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Parent Name *" required value={formData.parent.name} onChange={e => handleParentChange('name', e.target.value)} />
                 <Input label="Mobile Number *" required value={formData.parent.mobile} onChange={e => handleParentChange('mobile', e.target.value)} />
-                <Select label="Relation *" value={formData.parent.relation} onChange={e => handleParentChange('relation', e.target.value)} options={[{value:'Father',label:'Father'},{value:'Mother',label:'Mother'},{value:'Guardian',label:'Guardian'}]} />
-                <Input label="Email ID *" required type="email" value={formData.parent.email} onChange={e => handleParentChange('email', e.target.value)} />
-                <Input label="Occupation *" required value={formData.parent.occupation} onChange={e => handleParentChange('occupation', e.target.value)} />
+                <Select label="Relation" value={formData.parent.relation} onChange={e => handleParentChange('relation', e.target.value)} options={[{value:'',label:'Select Relation...'},{value:'Father',label:'Father'},{value:'Mother',label:'Mother'},{value:'Guardian',label:'Guardian'}]} />
+                <Input label="Email ID" type="email" value={formData.parent.email} onChange={e => handleParentChange('email', e.target.value)} />
+                <Input label="Occupation" value={formData.parent.occupation} onChange={e => handleParentChange('occupation', e.target.value)} />
               </div>
             </section>
 

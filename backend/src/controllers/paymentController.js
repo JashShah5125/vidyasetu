@@ -5,7 +5,8 @@ const handleError = (res, error, fallbackMessage) => {
     if (error && error.statusCode) {
         return res.status(error.statusCode).json({ status: 'error', message: error.message });
     }
-    res.status(500).json({ status: 'error', message: 'Internal server error' });
+    const message = error?.message || 'Internal server error';
+    res.status(500).json({ status: 'error', message });
 };
 
 const getStudentLedger = async (req, res) => {
@@ -135,6 +136,103 @@ const deleteInvoice = async (req, res) => {
     }
 };
 
+const generateInstallmentSchedule = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+        const studentId = Number(req.params.id);
+
+        const result = await paymentService.generateInstallmentSchedule({
+            tenantId: Number(tenantId),
+            studentId,
+            scheduleType: req.body.schedule_type || req.body.scheduleType || 'monthly',
+            installmentCount: Number(req.body.installment_count || req.body.installmentCount || 6),
+            firstDueDate: req.body.first_due_date || req.body.firstDueDate || null,
+            dueDay: Number(req.body.due_day || req.body.dueDay || 10),
+            downPayment: req.body.down_payment !== undefined ? Number(req.body.down_payment) : undefined,
+            sendReminder: Boolean(req.body.send_reminder || req.body.sendReminder),
+            createdBy: Number(userId)
+        });
+
+        res.status(201).json({
+            status: 'success',
+            message: result.message,
+            data: result
+        });
+    } catch (error) {
+        handleError(res, error, 'Error generating installment schedule:');
+    }
+};
+
+const sendPaymentReminder = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+        const invoiceId = Number(req.params.id);
+
+        const result = await paymentService.sendPaymentReminder({
+            tenantId: Number(tenantId),
+            invoiceId,
+            createdBy: Number(userId)
+        });
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Payment reminder dispatched successfully',
+            data: result
+        });
+    } catch (error) {
+        handleError(res, error, 'Error sending payment reminder:');
+    }
+};
+
+const getReconciliation = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const result = await paymentService.getReconciliationTransactions(Number(tenantId), {
+            branchId: req.query.branch_id || req.query.branchId,
+            status: req.query.status || 'all',
+            paymentMode: req.query.payment_mode || req.query.paymentMode || 'all',
+            startDate: req.query.start_date || req.query.startDate,
+            endDate: req.query.end_date || req.query.endDate,
+            search: req.query.search || '',
+            page: req.query.page || 1,
+            limit: req.query.limit || 20
+        });
+
+        res.status(200).json({
+            status: 'success',
+            data: result
+        });
+    } catch (error) {
+        handleError(res, error, 'Error fetching reconciliation transactions:');
+    }
+};
+
+const updateReconciliation = async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = (req.user && (req.user.userId || req.user.id)) || 1;
+
+        const result = await paymentService.updateReconciliationStatus(Number(tenantId), {
+            paymentIds: req.body.payment_ids || req.body.paymentIds || [],
+            status: req.body.status || 'reconciled',
+            bankReference: req.body.bank_reference || req.body.bankReference || null,
+            bankDate: req.body.bank_date || req.body.bankDate || null,
+            reconciliationNotes: req.body.reconciliation_notes || req.body.reconciliationNotes || null,
+            userId: Number(userId)
+        });
+
+        res.status(200).json({
+            status: 'success',
+            message: `Updated reconciliation status to '${result.status}' for ${result.updatedCount} record(s).`,
+            data: result
+        });
+    } catch (error) {
+        handleError(res, error, 'Error updating reconciliation status:');
+    }
+};
+
 module.exports = {
     getStudentLedger,
     getStudentFeeAssignment,
@@ -142,5 +240,9 @@ module.exports = {
     recordPayment,
     createInvoice,
     updateInvoice,
-    deleteInvoice
+    deleteInvoice,
+    generateInstallmentSchedule,
+    sendPaymentReminder,
+    getReconciliation,
+    updateReconciliation
 };

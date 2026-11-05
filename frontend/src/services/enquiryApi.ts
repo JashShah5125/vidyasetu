@@ -212,22 +212,6 @@ const shortDate = (value: string | null | undefined): string => {
 };
 
 export const toLead = (row: EnquiryRow): Lead => {
-  const feeConfig = {
-    enrollType: 'Standard',
-    course: row.course_name || '',
-    program: row.program_name || '',
-    level: '',
-    feeSelectedStandard: '',
-    feeSelectedBundle: '',
-    feeSelectedSubjects: [],
-    totalFee: row.actual_price ?? 0,
-    discount: row.concession_amount ?? 0,
-    netFee: row.final_price ?? 0,
-    downpayment: row.down_payment ?? 0,
-    installments: row.installment_months ?? 1,
-    installmentAmount: row.installment_amount ?? 0,
-    paymentMode: ''
-  };
   let parsedPackageDetails: any = row.package_details;
   if (typeof parsedPackageDetails === 'string') {
     try {
@@ -236,6 +220,30 @@ export const toLead = (row: EnquiryRow): Lead => {
       // keep as string if not valid JSON
     }
   }
+
+  const totalFeeNum = Number(row.actual_price ?? row.final_price ?? 0);
+  const netFeeNum = Number(row.final_price ?? row.actual_price ?? 0);
+  const discountNum = Number(row.concession_amount ?? 0);
+  const downpaymentNum = Number(row.down_payment ?? 0);
+  const installmentsNum = Math.max(1, Number(row.installment_months ?? 1));
+  const installmentAmountNum = Number(row.installment_amount ?? (installmentsNum > 0 ? Math.floor((netFeeNum - downpaymentNum) / installmentsNum) : 0));
+
+  const feeConfig = {
+    enrollType: row.package_type === 2 ? 'Subject-wise' : 'Standard',
+    course: row.course_name || '',
+    program: row.program_name || '',
+    level: row.level_name || '',
+    feeSelectedStandard: (parsedPackageDetails?.program_id) ? String(parsedPackageDetails.program_id) : '',
+    feeSelectedBundle: (parsedPackageDetails?.bundle_id) ? String(parsedPackageDetails.bundle_id) : '',
+    feeSelectedSubjects: Array.isArray(parsedPackageDetails?.subject_ids) ? parsedPackageDetails.subject_ids.map(String) : [],
+    totalFee: totalFeeNum,
+    discount: discountNum,
+    netFee: netFeeNum,
+    downpayment: downpaymentNum,
+    installments: installmentsNum,
+    installmentAmount: installmentAmountNum,
+    paymentMode: ''
+  };
 
   return {
     id: String(row.id),
@@ -397,12 +405,12 @@ export const buildConvertPayload = (formData: any): Record<string, any> => ({
   mobile: formData?.student?.mobile?.trim() || null,
   email: formData?.student?.email?.trim() || null,
   dob: formData?.student?.dob || null,
-  gender: formData?.student?.gender || 'Male',
+  gender: formData?.student?.gender || null,
   street: formData?.student?.address?.street?.trim() || null,
   city: formData?.student?.address?.city?.trim() || null,
   state: formData?.student?.address?.state?.trim() || null,
   pincode: formData?.student?.address?.pincode?.trim() || null,
-  category: formData?.student?.category || 'General',
+  category: formData?.student?.category || null,
   school_name: formData?.student?.schoolName?.trim() || null,
   current_class: formData?.student?.currentClass || null,
   board: formData?.student?.board || null,

@@ -79,56 +79,21 @@ const convertEnquirySchema = Joi.object({
         'any.required': 'Student mobile number is required',
         'string.empty': 'Student mobile number cannot be empty'
     }),
-    email: Joi.string().email().required().messages({
-        'any.required': 'Student email ID is required',
-        'string.empty': 'Student email ID cannot be empty',
+    email: Joi.string().email().allow(null, '').optional().messages({
         'string.email': 'Student email ID must be a valid email'
     }),
-    dob: Joi.date().iso().required().messages({
-        'any.required': 'Date of birth is required',
-        'date.base': 'Valid date of birth is required'
-    }),
-    gender: Joi.string().valid('Male', 'Female', 'Other').required().messages({
-        'any.required': 'Gender is required',
-        'any.only': 'Gender must be Male, Female, or Other'
-    }),
-    street: Joi.string().trim().min(1).max(255).required().messages({
-        'any.required': 'Street address is required',
-        'string.empty': 'Street address cannot be empty'
-    }),
-    city: Joi.string().trim().min(1).max(100).required().messages({
-        'any.required': 'City is required',
-        'string.empty': 'City cannot be empty'
-    }),
-    state: Joi.string().trim().min(1).max(100).required().messages({
-        'any.required': 'State is required',
-        'string.empty': 'State cannot be empty'
-    }),
-    pincode: Joi.string().trim().min(3).max(20).required().messages({
-        'any.required': 'Pincode is required',
-        'string.empty': 'Pincode cannot be empty'
-    }),
-    category: Joi.string().trim().max(50).default('General'),
-    school_name: Joi.string().trim().min(1).max(255).required().messages({
-        'any.required': 'School/College name is required',
-        'string.empty': 'School/College name cannot be empty'
-    }),
-    current_class: Joi.string().trim().min(1).max(50).required().messages({
-        'any.required': 'Current academic class/level is required',
-        'string.empty': 'Current class cannot be empty'
-    }),
-    board: Joi.string().trim().min(1).max(100).required().messages({
-        'any.required': 'Board is required',
-        'string.empty': 'Board cannot be empty'
-    }),
-    target_exam: Joi.string().trim().min(1).max(100).required().messages({
-        'any.required': 'Target exam is required',
-        'string.empty': 'Target exam cannot be empty'
-    }),
-    year_of_attempt: Joi.string().trim().min(1).max(20).required().messages({
-        'any.required': 'Target year of attempt is required',
-        'string.empty': 'Target year of attempt cannot be empty'
-    }),
+    dob: Joi.date().iso().allow(null, '').optional(),
+    gender: Joi.string().valid('Male', 'Female', 'Other').allow(null, '').optional(),
+    street: Joi.string().trim().max(255).allow(null, '').optional(),
+    city: Joi.string().trim().max(100).allow(null, '').optional(),
+    state: Joi.string().trim().max(100).allow(null, '').optional(),
+    pincode: Joi.string().trim().max(20).allow(null, '').optional(),
+    category: Joi.string().trim().max(50).allow(null, '').optional().default('General'),
+    school_name: Joi.string().trim().max(255).allow(null, '').optional(),
+    current_class: Joi.string().trim().max(50).allow(null, '').optional(),
+    board: Joi.string().trim().max(100).allow(null, '').optional(),
+    target_exam: Joi.string().trim().max(100).allow(null, '').optional(),
+    year_of_attempt: Joi.string().trim().max(20).allow(null, '').optional(),
     guardian_name: Joi.string().trim().min(1).max(255).required().messages({
         'any.required': 'Parent/Guardian name is required',
         'string.empty': 'Parent/Guardian name cannot be empty'
@@ -137,19 +102,11 @@ const convertEnquirySchema = Joi.object({
         'any.required': 'Parent/Guardian mobile is required',
         'string.empty': 'Parent/Guardian mobile cannot be empty'
     }),
-    guardian_email: Joi.string().email().required().messages({
-        'any.required': 'Parent/Guardian email is required',
-        'string.empty': 'Parent/Guardian email cannot be empty',
+    guardian_email: Joi.string().email().allow(null, '').optional().messages({
         'string.email': 'Parent/Guardian email must be a valid email'
     }),
-    guardian_relation: Joi.string().trim().min(1).max(50).required().messages({
-        'any.required': 'Parent relation is required',
-        'string.empty': 'Parent relation cannot be empty'
-    }),
-    guardian_occupation: Joi.string().trim().min(1).max(100).required().messages({
-        'any.required': 'Parent occupation is required',
-        'string.empty': 'Parent occupation cannot be empty'
-    }),
+    guardian_relation: Joi.string().trim().max(50).allow(null, '').optional().default('Parent'),
+    guardian_occupation: Joi.string().trim().max(100).allow(null, '').optional(),
     course: Joi.string().allow(null, '').optional(),
     program: Joi.string().allow(null, '').optional(),
     level: Joi.string().allow(null, '').optional(),

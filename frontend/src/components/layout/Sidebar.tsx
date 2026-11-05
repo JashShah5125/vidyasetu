@@ -9,6 +9,7 @@ import {
   Calendar,
   CalendarDays,
   CheckSquare,
+  CheckCircle2,
   DollarSign,
   MessageSquare,
   ClipboardList,
@@ -176,6 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Record Fee', label: 'Fee Collections & Dues', path: '/admin/fees', icon: DollarSign },
               { name: 'Fees Master', label: 'Fee Structures', path: '/admin/fees-master', icon: Tag },
+              { name: 'Payment Reconciliation', label: 'Payment Reconciliation', path: '/admin/finance/reconciliation', icon: CheckCircle2 },
               { name: 'Staff Salaries', label: 'Expenses & Payroll', path: '/admin/finance/expenses/salaries', icon: CreditCard },
               { name: 'Financial Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
             ]
@@ -186,6 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Staff & Roles', label: 'Staff Directory', path: '/admin/staff', icon: ShieldCheck },
               { name: 'Broadcast Notification', label: 'Broadcast Notices', path: '/admin/notifications', icon: Bell },
               { name: 'Branches Manager', label: 'Branches Setup', path: '/admin/branches', icon: Building2 },
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/admin/audit-logs', icon: ClipboardList },
               { name: 'Settings', label: 'Institute Settings', path: '/admin/settings', icon: Settings }
             ]
           }
@@ -225,6 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Record Fee', label: 'Fee Collections & Dues', path: '/branch/fees', icon: DollarSign },
               { name: 'Fees Master', label: 'Fee Structures', path: '/branch/fees-master', icon: Tag },
+              { name: 'Payment Reconciliation', label: 'Payment Reconciliation', path: '/branch/finance/reconciliation', icon: CheckCircle2 },
               { name: 'Staff Salaries', label: 'Staff Salaries', path: '/branch/finance/expenses/salaries', icon: CreditCard }
             ]
           },
@@ -233,6 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'Staff & Roles', label: 'Staff Directory', path: '/branch/staff', icon: ShieldCheck },
               { name: 'Broadcast Notification', label: 'Broadcast Notices', path: '/branch/notifications', icon: Bell },
+              { name: 'Audit Logs', label: 'Audit Logs', path: '/branch/audit-logs', icon: ClipboardList },
               { name: 'Settings', label: 'Branch Settings', path: '/branch/settings', icon: Settings }
             ]
           }

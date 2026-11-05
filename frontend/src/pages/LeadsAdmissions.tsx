@@ -128,7 +128,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       schoolName: r.school_name || '',
       course: (r as any).course_name || r.target_exam || '—',
       program: (r as any).program_name || '',
-      level: (r as any).level_name || 'year1',
+      level: (r as any).level_name || r.current_class || '',
       branch: r.branch_name || '',
       batch: r.batch_name || '',
       status: r.status,
@@ -136,7 +136,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       createdAt: r.created_at || '',
       dob: r.dob ? new Date(r.dob).toISOString().split('T')[0] : '',
       gender: r.gender || '',
-      category: r.category || 'General',
+      category: r.category || '',
       feePlan: {
         total: Number(r.total_fees || 0),
         paid: Number(r.fees_paid || 0),
@@ -436,30 +436,25 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       );
       const branchObj = academicData.branches?.find((b: any) => b.name.toLowerCase() === bBranch);
 
-      // Filter by branch and course if possible
-      let matched = liveBatches.filter((b: any) => {
-        if (branchObj && b.branch_id && Number(b.branch_id) !== Number(branchObj.id)) return false;
-        if (courseObj) {
+      // Strict course + branch filtering: only return batches belonging to this course
+      if (courseObj) {
+        const matched = liveBatches.filter((b: any) => {
+          if (branchObj && b.branch_id && Number(b.branch_id) !== Number(branchObj.id)) return false;
           const levelObj = academicData.levels?.find((l: any) => Number(l.id) === Number(b.level_id));
-          if (levelObj && levelObj.course_id && Number(levelObj.course_id) !== Number(courseObj.id)) return false;
-        }
-        return true;
-      });
+          const progObj = levelObj?.program_id ? academicData.programs?.find((p: any) => Number(p.id) === Number(levelObj.program_id)) : null;
+          const batchCourseId = levelObj?.course_id || progObj?.course_id;
+          return batchCourseId ? Number(batchCourseId) === Number(courseObj.id) : false;
+        });
 
-      if (matched.length > 0) {
         return matched.map((b: any) => b.name || b.code);
       }
 
-      // If no course match for this branch, return all batches for this branch
+      // If no courseObj matched by name, filter by branch if available
+      let matched = liveBatches;
       if (branchObj) {
-        const branchBatches = liveBatches.filter((b: any) => Number(b.branch_id) === Number(branchObj.id));
-        if (branchBatches.length > 0) {
-          return branchBatches.map((b: any) => b.name || b.code);
-        }
+        matched = matched.filter((b: any) => Number(b.branch_id) === Number(branchObj.id));
       }
-
-      // Otherwise return all live batches for the institute
-      return liveBatches.map((b: any) => b.name || b.code);
+      return matched.map((b: any) => b.name || b.code);
     }
 
     // 2. Fallback to mock courseHierarchy / context
@@ -909,9 +904,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           if (hasNoBatch) return false;
         }
       } else if (activeTab === 'payment') {
-        const isActive = s.status === 1 || s.status === '1' || s.status === 'Active Student';
+        const isActive = s.status === 1 || s.status === '1' || s.status === 'Active Student' || s.status === 'Active';
         if (paymentSubFilter === 'pending') {
-          if (isActive && (s.feePlan?.pending || 0) <= 0) return false;
+          if (isActive) return false;
         } else if (paymentSubFilter === 'active') {
           if (!isActive) return false;
         }
@@ -1020,7 +1015,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       !s.batch || s.batch === '—' || s.batch === '' || s.status === 6 || s.status === 'Pending Batch Allocation'
     );
     const pendingPaymentStudents = sourceStudents.filter(s =>
-      (s.status !== 1 && s.status !== '1' && s.status !== 'Active Student') || (s.feePlan?.pending || 0) > 0
+      s.status !== 1 && s.status !== '1' && s.status !== 'Active Student' && s.status !== 'Active'
     );
     const activeStudentsList = sourceStudents.filter(s =>
       s.status === 1 || s.status === '1' || s.status === 'Active Student' || s.status === 'Active'
@@ -1170,6 +1165,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       addToast(`Batch ${batchForm.batch} successfully assigned to ${selectedStudent.name}! Next Step: Fee Payment & Activation`, 'success');
       await fetchStudents();
       setShowBatchModal(false);
+      setSearch(selectedStudent.studentId || selectedStudent.name);
+      setPaymentSubFilter('pending');
+      setPage(1);
       setBatchForm({ course: '', program: '', level: 'year1', batch: '', type: 'Standard Enrollment' });
       navigate(`${basePath}/payment`);
     } catch (err: any) {
@@ -2369,15 +2367,17 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Admission Date</span>
-                  <span className="text-slate-800 font-semibold mt-0.5 block">{selectedStudent.admissionDate || '2026-08-10'}</span>
+                  <span className="text-slate-800 font-semibold mt-0.5 block">{selectedStudent.admissionDate || '—'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Gender / Category</span>
-                  <span className="text-slate-800 font-semibold mt-0.5 block">{selectedStudent.gender || 'Male'} ({selectedStudent.category || 'General'})</span>
+                  <span className="text-slate-800 font-semibold mt-0.5 block">
+                    {[selectedStudent.gender, selectedStudent.category].filter(Boolean).join(' • ') || '—'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Date of Birth</span>
-                  <span className="font-mono text-slate-800 font-semibold mt-0.5 block">{selectedStudent.dob || '2010-05-14'}</span>
+                  <span className="font-mono text-slate-800 font-semibold mt-0.5 block">{selectedStudent.dob || '—'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Admission Status</span>
@@ -2475,7 +2475,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   value={batchForm.batch}
                   onChange={e => setBatchForm(prev => ({ ...prev, batch: e.target.value }))}
                   options={[
-                    { value: '', label: 'Choose a Batch from Course Hierarchy...' },
+                    {
+                      value: '',
+                      label: availableBatchesForStudent.length === 0
+                        ? `No batches found for "${selectedStudent.course || 'this course'}" at ${selectedStudent.branch || 'this branch'}...`
+                        : 'Choose a Batch from Course Hierarchy...'
+                    },
                     ...availableBatchesForStudent.map(bName => {
                       const matchedB = academicData?.batches?.find((b: any) => b.name === bName || b.code === bName);
                       const levelObj = matchedB ? academicData?.levels?.find((l: any) => Number(l.id) === Number(matchedB.level_id)) : null;
@@ -2489,6 +2494,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     })
                   ]}
                 />
+                {availableBatchesForStudent.length === 0 && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
+                    No batches found matching course <strong>{selectedStudent.course}</strong> at branch <strong>{selectedStudent.branch || 'current branch'}</strong>.
+                  </p>
+                )}
               </div>
 
               {batchForm.batch && (
@@ -2694,25 +2704,25 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                  activeTab === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                  activeTab === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
                 }`}>
-                  Master Registry
+                  All Stages
                 </span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                  activeTab === 'all' ? 'bg-blue-200/80 text-blue-900' : 'bg-slate-100 text-slate-700'
+                  activeTab === 'all' ? 'bg-blue-200/80 text-blue-900' : 'bg-white text-slate-700 border border-slate-200'
                 }`}>
                   {stats.totalAllLeads}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 mt-2">
-                <FileText size={14} className={activeTab === 'all' ? 'text-blue-600' : 'text-slate-400'} />
-                <span className={`text-xs font-bold ${activeTab === 'all' ? 'text-blue-900' : 'text-slate-800'}`}>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <FileText size={14} className={activeTab === 'all' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                <span className={`text-xs font-bold leading-tight truncate ${activeTab === 'all' ? 'text-blue-900' : 'text-slate-800'}`}>
                   All Leads Directory
                 </span>
               </div>
-              <span className="text-[10px] mt-0.5 text-slate-500">
+              <span className="text-[10px] text-slate-500 mt-0.5 leading-tight truncate">
                 Search all historical leads
               </span>
             </button>
@@ -2728,7 +2738,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           </div>
           <div>
             <span className="font-bold text-slate-900 mr-1.5">
-              {activeTab === 'all' ? 'Master Registry' : activeTab === 'pipeline' ? 'Step 1: Enquiries & Nurturing' : activeTab === 'admission' ? 'Step 2: Admission & Batching' : 'Step 3: Fee Payment & Activation'}:
+              {activeTab === 'all' ? 'All Leads Directory' : activeTab === 'pipeline' ? 'Step 1: Enquiries & Nurturing' : activeTab === 'admission' ? 'Step 2: Admission & Batching' : 'Step 3: Fee Payment & Activation'}:
             </span>
             <span className="text-slate-600">
               {activeTab === 'all' && 'Comprehensive historical directory of all leads across every stage in the institution.'}
@@ -3259,8 +3269,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { label: 'All Admitted Students', value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
-              { label: 'Needs Batch Allocation', value: stats.unassignedBatchCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Pending KYC Docs', value: stats.pendingDocs, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Pending KYC Docs', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Needs Batch Allocation', value: stats.unassignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
               { label: 'KYC Verified & Ready', value: stats.verifiedDocsCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
@@ -3275,8 +3285,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Queue View:</span>
             {[
               { id: 'all', label: `All Admitted (${stats.totalStudents})` },
-              { id: 'unassigned', label: `Needs Batch (${stats.unassignedBatchCount})` },
               { id: 'pending', label: `Pending KYC Docs (${stats.pendingDocs})` },
+              { id: 'unassigned', label: `Needs Batch (${stats.unassignedBatchCount})` },
               { id: 'verified', label: `KYC Verified (${stats.verifiedDocsCount})` },
             ].map(pill => (
               <button
@@ -3315,6 +3325,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               {paginatedStudents.map(s => {
                 const isVerified = s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 || s.status === 7 || Boolean(s.isDocVerified);
                 const hasBatch = Boolean(s.batch && s.batch !== '—' && s.batch.trim() !== '');
+                const isFeeFullyPaid = Boolean(s.feePlan?.total && s.feePlan.total > 0 && (s.feePlan?.pending || 0) <= 0);
 
                 return (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
@@ -3359,7 +3370,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     </td>
                     <td className="px-3.5 py-3 whitespace-nowrap text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {!hasBatch ? (
+                        {!isVerified ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocModal(s)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            <ClipboardList size={13} /> Review Docs <ChevronRight size={11} />
+                          </button>
+                        ) : !hasBatch ? (
                           <button
                             type="button"
                             onClick={() => handleOpenBatchModal(s)}
@@ -3367,21 +3386,26 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                           >
                             <Layers size={13} /> Allocate Batch <ChevronRight size={11} />
                           </button>
-                        ) : !isVerified ? (
+                        ) : !isFeeFullyPaid ? (
                           <button
                             type="button"
-                            onClick={() => handleOpenDocModal(s)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                            onClick={() => {
+                              setSearch(s.studentId || s.name);
+                              setPaymentSubFilter('pending');
+                              setPage(1);
+                              navigate(tabRouteMap['payment']);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            Review Docs <ChevronRight size={11} />
+                            <Zap size={12} /> To Payment <ChevronRight size={11} />
                           </button>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => navigate(tabRouteMap['payment'])}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                            onClick={() => navigate(currentUser?.role === 'counsellor' ? '/counsellor/students' : isBranchAdmin ? '/branch/students' : '/admin/students')}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            <Zap size={12} /> To Payment <ChevronRight size={11} />
+                            <CheckCircle size={12} className="text-emerald-600" /> Active in Roster <ChevronRight size={11} />
                           </button>
                         )}
 
@@ -3475,7 +3499,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Pipeline Action', align: 'center', minWidth: '200px' }]}
             >
               {paginatedStudents.map(s => {
-                const isActive = s.status === 'Active Student' || s.status === 1 || s.status === '1';
+                const isActive = s.status === 'Active Student' || s.status === 1 || s.status === '1' || s.status === 'Active';
                 return (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-500 whitespace-nowrap">{s.studentId}</td>
@@ -3498,29 +3522,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       <div className="flex items-center justify-center gap-2">
                         {!isActive ? (
                           <button
-                            onClick={async () => {
-                              const pendingAmount = (s.feePlan?.pending && s.feePlan.pending > 0) ? s.feePlan.pending : (s.feePlan?.downPayment || 10000);
-                              try {
-                                try {
-                                  await apiRecordPayment({
-                                    student_id: Number(s.id),
-                                    amount: pendingAmount,
-                                    payment_mode: 'Cash',
-                                    remarks: 'Admissions Down Payment & Activation'
-                                  });
-                                } catch (payErr) {
-                                  console.warn('apiRecordPayment warning:', payErr);
-                                }
-                                await updateStudent(s.id, { status: 1 });
-                                recordPayment(s.id, pendingAmount, 'Cash');
-                                addToast(`Collected fee downpayment of ₹${pendingAmount.toLocaleString()}! ${s.name} status is now Active.`, 'success');
-                                await fetchStudents();
-                              } catch (err: any) {
-                                recordPayment(s.id, pendingAmount, 'Cash');
-                                addToast(`Recorded fee payment of ₹${pendingAmount.toLocaleString()} for ${s.name}.`, 'success');
-                                await fetchStudents();
-                              }
-                            }}
+                            type="button"
+                            onClick={() => navigate(`${basePath}/payment/collect/${s.id}`)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors cursor-pointer"
                           >
                             <Zap size={13} /> Collect Fee & Activate

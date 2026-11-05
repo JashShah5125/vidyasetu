@@ -8,15 +8,19 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
-import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Pencil, Trash2, Wallet, Plus, SlidersHorizontal, RotateCcw, X, Filter, Search, FileText, CheckCircle2, Calendar, CreditCard, RefreshCw, Download, TrendingUp, Check, Sparkles, Printer } from 'lucide-react';
+import { Upload, Loader2, ArrowLeft, ArrowRight, AlertCircle, Eye, Pencil, Trash2, Wallet, Plus, SlidersHorizontal, RotateCcw, X, Filter, Search, FileText, CheckCircle2, Calendar, CreditCard, RefreshCw, Download, TrendingUp, Check, Sparkles, Printer, Bell } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { InvoiceTemplateModal } from '../components/finance/InvoiceTemplateModal';
+import { InstallmentScheduleBuilderModal } from '../components/finance/InstallmentScheduleBuilderModal';
+import { InstallmentScheduleBuilderPage } from './finance/InstallmentScheduleBuilderPage';
 import { getStudents, getAcademicOptions, type StudentRosterItem, type AcademicOptions } from '../services/studentApi';
 import {
   getStudentLedger,
+  recordPayment,
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  sendPaymentReminder,
   type StudentLedger,
   type StudentLedgerInvoice
 } from '../services/paymentApi';
@@ -218,7 +222,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
   const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin' || currentUser?.role === 'finance' || (currentUser as any)?.userType === 'finance' || Boolean(currentUser?.branchId);
 
   // ── View routing ──
-  const [view, setView] = useState<'register' | 'collect' | 'view_invoice' | 'edit_invoice'>('register');
+  const [view, setView] = useState<'register' | 'collect' | 'view_invoice' | 'edit_invoice' | 'schedule_builder'>('register');
 
   // ── Filters state ──
   const [showFilters, setShowFilters] = useState(false);
@@ -405,8 +409,32 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
   const [deletingInvoice, setDeletingInvoice] = useState<StudentLedgerInvoice | null>(null);
   const [deleteInvSubmitting, setDeleteInvSubmitting] = useState(false);
 
-  // ── Misc ──
+  // ── Misc & Sprint 4 Installment / Reminder States ──
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isScheduleBuilderOpen, setIsScheduleBuilderOpen] = useState(false);
+  const [reminderSendingId, setReminderSendingId] = useState<number | null>(null);
+
+  // ── Mark Payment as Done for Installment ──
+  const [payInvoice, setPayInvoice] = useState<StudentLedgerInvoice | null>(null);
+  const [showPayInvoiceModal, setShowPayInvoiceModal] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMode, setPayMode] = useState('UPI');
+  const [payTxnRef, setPayTxnRef] = useState('');
+  const [payRemarks, setPayRemarks] = useState('');
+  const [paySubmitting, setPaySubmitting] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  const handleSendReminder = async (inv: StudentLedgerInvoice) => {
+    try {
+      setReminderSendingId(inv.id);
+      const res = await sendPaymentReminder(inv.id);
+      addToast(res.message || `Payment reminder sent for ${inv.invoice_number}`, 'success');
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || err.message || 'Failed to dispatch reminder', 'error');
+    } finally {
+      setReminderSendingId(null);
+    }
+  };
 
   const fetchRoster = async (p: number, setLoading = true) => {
     try {
@@ -611,6 +639,56 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
       addToast(msg, 'error');
     } finally {
       setDeleteInvSubmitting(false);
+    }
+  };
+
+  const openMarkPaymentModal = (inv: StudentLedgerInvoice) => {
+    setPayInvoice(inv);
+    setPayAmount(String(inv.balance_due !== undefined ? inv.balance_due : inv.amount || ''));
+    setPayMode('UPI');
+    setPayTxnRef('');
+    setPayRemarks(`Payment for ${inv.description || inv.invoice_number}`);
+    setPayError(null);
+    setShowPayInvoiceModal(true);
+  };
+
+  const submitMarkPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payInvoice || !selectedStudentId) return;
+    setPayError(null);
+    const amountNum = Number(payAmount);
+    if (!amountNum || amountNum <= 0) {
+      setPayError('Please enter a valid payment amount greater than zero');
+      return;
+    }
+    const maxBalance = Number(payInvoice.balance_due !== undefined ? payInvoice.balance_due : payInvoice.amount || 0);
+    if (amountNum > maxBalance) {
+      setPayError(`Payment cannot exceed the installment balance due of ${fmt(maxBalance)}`);
+      return;
+    }
+    try {
+      setPaySubmitting(true);
+      await recordPayment({
+        student_id: selectedStudentId,
+        enrollment_id: payInvoice.enrollment_id || ledger?.enrollment_id,
+        branch_id: payInvoice.branch_id || ledger?.primary_branch_id,
+        amount: amountNum,
+        payment_mode: payMode,
+        transaction_reference: payTxnRef.trim() || undefined,
+        remarks: payRemarks.trim() || undefined,
+        installment_ids: [payInvoice.id]
+      });
+      addToast(`Payment of ${fmt(amountNum)} recorded for ${payInvoice.description || payInvoice.invoice_number}. Marked as PAID.`, 'success');
+      setShowPayInvoiceModal(false);
+      setPayInvoice(null);
+      await loadLedger(selectedStudentId);
+    } catch (err: any) {
+      console.error('Failed to record installment payment:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Failed to record installment payment';
+      setPayError(msg);
+      addToast(msg, 'error');
+    } finally {
+      setPaySubmitting(false);
     }
   };
 
@@ -1388,9 +1466,20 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       {ledger.invoices.length}
                     </span>
                   </div>
-                  <Button size="sm" variant="primary" className="flex items-center gap-1.5 font-bold h-8 px-3 text-sm shadow-xs" onClick={openInvoiceModal}>
-                    <Plus size={14} /> Add Payment
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="flex items-center gap-1.5 font-bold h-8 px-3 text-xs shadow-xs border-indigo-200 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 transition-all cursor-pointer"
+                      onClick={() => setView('schedule_builder')}
+                      title="Automated Installment Schedule Builder (Monthly/Termly)"
+                    >
+                      <Sparkles size={13} className="text-indigo-600" /> Auto Schedule Builder
+                    </Button>
+                    <Button size="sm" variant="primary" className="flex items-center gap-1.5 font-bold h-8 px-3 text-sm shadow-xs" onClick={openInvoiceModal}>
+                      <Plus size={14} /> Add Payment
+                    </Button>
+                  </div>
                 </CardHeader>
                 <Table
                   dense
@@ -1448,6 +1537,32 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                             </td>
                             <td className="px-2 py-2 text-right whitespace-nowrap">
                               <div className="inline-flex items-center justify-end gap-1">
+                                {inv.status === 'unpaid' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      title="Mark Payment as Done / Record Installment"
+                                      className="px-2 py-1 rounded-md border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold text-xs flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                                      onClick={() => openMarkPaymentModal(inv)}
+                                    >
+                                      <CheckCircle2 size={13} className="text-emerald-600" />
+                                      <span>Mark Paid</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Send Payment Reminder (SMS & WhatsApp)"
+                                      disabled={reminderSendingId === inv.id}
+                                      className="p-1 rounded-md border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
+                                      onClick={() => handleSendReminder(inv)}
+                                    >
+                                      {reminderSendingId === inv.id ? (
+                                        <Loader2 size={13} className="animate-spin text-amber-700" />
+                                      ) : (
+                                        <Bell size={13} />
+                                      )}
+                                    </button>
+                                  </>
+                                )}
                                 <button
                                   type="button"
                                   title="Invoice Template (Tax / Proforma)"
@@ -1523,6 +1638,20 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
             </>
           )}
         </div>
+      ) : view === 'schedule_builder' ? (
+        /* ── FULL-PAGE AUTOMATED INSTALLMENT SCHEDULE BUILDER ── */
+        <InstallmentScheduleBuilderPage
+          studentId={selectedStudentId}
+          initialLedger={ledger}
+          onBack={() => setView('collect')}
+          onSuccess={async (msg) => {
+            addToast(msg, 'success');
+            if (selectedStudentId) {
+              await loadLedger(selectedStudentId);
+            }
+            setView('collect');
+          }}
+        />
       ) : view === 'view_invoice' && viewInvoice ? (
         /* ── INVOICE FULL VIEW ── */
         <div className="space-y-6">
@@ -1952,6 +2081,128 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
         </form>
       </Modal>
 
+      {/* Mark Payment as Done Modal */}
+      <Modal
+        isOpen={showPayInvoiceModal && Boolean(payInvoice)}
+        onClose={() => {
+          if (!paySubmitting) {
+            setShowPayInvoiceModal(false);
+            setPayInvoice(null);
+          }
+        }}
+        title="Mark Installment Payment as Done"
+        size="md"
+      >
+        {payInvoice && (
+          <form onSubmit={submitMarkPayment} className="space-y-4 text-sm text-slate-600">
+            <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold block">
+                    Installment Details
+                  </span>
+                  <h4 className="text-sm font-bold text-slate-900 mt-0.5">
+                    {payInvoice.description || `Installment #${payInvoice.installment_number}`}
+                  </h4>
+                  <div className="text-xs text-slate-500 font-mono mt-0.5">
+                    {payInvoice.invoice_number} &bull; Due: {fmtDate(payInvoice.due_date)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">
+                    Balance Due
+                  </span>
+                  <span className="text-base font-extrabold text-rose-600 tabular-nums">
+                    {fmt(Number(payInvoice.balance_due !== undefined ? payInvoice.balance_due : payInvoice.amount || 0))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Amount Received (₹)"
+                type="number"
+                min={1}
+                max={Number(payInvoice.balance_due !== undefined ? payInvoice.balance_due : payInvoice.amount || 0)}
+                step={1}
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+              <Select
+                label="Payment Mode"
+                value={payMode}
+                onChange={(e) => setPayMode(e.target.value)}
+                options={MODES}
+              />
+            </div>
+
+            <Input
+              label="Transaction Reference / UTR / Cheque No (optional)"
+              value={payTxnRef}
+              onChange={(e) => setPayTxnRef(e.target.value)}
+              placeholder="e.g. UTR12345678, CHQ-9988..."
+            />
+
+            <Input
+              label="Payment Remarks (optional)"
+              value={payRemarks}
+              onChange={(e) => setPayRemarks(e.target.value)}
+              placeholder="Notes for receipt and ledger records"
+            />
+
+            {payError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-600" />
+                <span>{payError}</span>
+              </div>
+            )}
+
+            <div className="rounded-xl bg-emerald-50/70 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2.5">
+              <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-bold block">Instant Settlement:</span>
+                Submitting will immediately mark this installment as <span className="font-bold uppercase">PAID</span>, generate an official receipt, and update the student&apos;s overall fee balance.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setShowPayInvoiceModal(false);
+                  setPayInvoice(null);
+                }}
+                disabled={paySubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={paySubmitting}
+                className="flex items-center gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {paySubmitting ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>Recording Payment...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={15} />
+                    <span>Confirm &amp; Mark as Done</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
       <BulkImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
@@ -1964,6 +2215,18 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
         ]}
         onImport={() => {
           addToast('Bulk import is not available yet', 'error');
+        }}
+      />
+
+      <InstallmentScheduleBuilderModal
+        isOpen={isScheduleBuilderOpen}
+        onClose={() => setIsScheduleBuilderOpen(false)}
+        ledger={ledger}
+        onSuccess={(msg) => {
+          addToast(msg, 'success');
+          if (selectedStudentId) {
+            loadLedger(selectedStudentId);
+          }
         }}
       />
 

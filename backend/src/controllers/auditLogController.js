@@ -40,7 +40,8 @@ class AuditLogController {
             const isSaasAdmin = Boolean(req.user?.isSaasAdmin);
             const currentUserTenantId = req.user?.tenantId || req.user?.tenant_id;
             const currentUserId = req.user?.userId || req.user?.id;
-            const isBranchAdmin = req.user?.userType === 'branch_admin' || req.user?.role === 'branch_admin' || req.user?.userType === 'branch-admin';
+            const isBranchAdmin = req.user?.userType === 'branch_admin' || req.user?.role === 'branch_admin' ||
+                                  req.user?.userType === 'branch-admin' || req.user?.role === 'branch-admin';
 
             const conditions = [];
             const params = [];
@@ -48,7 +49,7 @@ class AuditLogController {
             // 1. Role-based scoping
             if (isSaasAdmin) {
                 // SaaS admin can view across all tenants, optionally filter by tenantId
-                if (filterTenantId) {
+                if (filterTenantId && filterTenantId !== 'All') {
                     conditions.push('a.tenant_id = ?');
                     params.push(Number(filterTenantId));
                 }
@@ -61,17 +62,19 @@ class AuditLogController {
                     a.branch_id IN (
                         SELECT branch_id FROM user_branch_access
                         WHERE user_id = ? AND revoked_at IS NULL
-                    ) OR a.user_id = ?
+                    ) OR a.user_id = ? OR a.branch_id IS NULL
                 )`);
                 params.push(currentUserId, currentUserId);
             } else {
                 // Institute Admin (and other institute staff) scoped to their institute
-                conditions.push('a.tenant_id = ?');
-                params.push(currentUserTenantId);
+                if (currentUserTenantId) {
+                    conditions.push('a.tenant_id = ?');
+                    params.push(currentUserTenantId);
+                }
             }
 
             // 2. Specific branch filter
-            if (filterBranchId) {
+            if (filterBranchId && filterBranchId !== 'All') {
                 conditions.push('a.branch_id = ?');
                 params.push(Number(filterBranchId));
             }
@@ -95,7 +98,7 @@ class AuditLogController {
             }
 
             // 6. User ID filter
-            if (userId) {
+            if (userId && userId !== 'All') {
                 conditions.push('a.user_id = ?');
                 params.push(Number(userId));
             }
@@ -126,7 +129,8 @@ class AuditLogController {
                 LEFT JOIN users u ON a.user_id = u.id
                 ${whereClause}
             `;
-            const [[{ total }]] = await pool.query(countSql, params);
+            const [countRows] = await pool.query(countSql, params);
+            const total = Number(countRows[0]?.total || 0);
 
             // Fetch records query
             const listSql = `
@@ -162,19 +166,29 @@ class AuditLogController {
 
             const [rows] = await pool.query(listSql, [...params, limit, offset]);
 
+            const safeParse = (val) => {
+                if (!val) return null;
+                if (typeof val === 'object') return val;
+                try {
+                    return JSON.parse(val);
+                } catch (_) {
+                    return { raw: String(val) };
+                }
+            };
+
             res.status(200).json({
                 status: 'success',
                 data: {
                     items: rows.map(r => ({
                         ...r,
-                        oldValues: typeof r.oldValues === 'string' ? JSON.parse(r.oldValues) : r.oldValues,
-                        newValues: typeof r.newValues === 'string' ? JSON.parse(r.newValues) : r.newValues
+                        oldValues: safeParse(r.oldValues),
+                        newValues: safeParse(r.newValues)
                     })),
                     pagination: {
                         page,
                         limit,
                         total,
-                        totalPages: Math.ceil(total / limit)
+                        totalPages: Math.max(1, Math.ceil(total / limit))
                     }
                 }
             });
@@ -196,7 +210,7 @@ class AuditLogController {
             let scopeWhere = '';
             const scopeParams = [];
 
-            if (!isSaasAdmin) {
+            if (!isSaasAdmin && currentUserTenantId) {
                 scopeWhere = 'WHERE a.tenant_id = ?';
                 scopeParams.push(currentUserTenantId);
             }
@@ -219,10 +233,15 @@ class AuditLogController {
             }
 
             let branches = [];
-            if (!isSaasAdmin) {
+            if (!isSaasAdmin && currentUserTenantId) {
                 const [branchRows] = await pool.query(
                     `SELECT id, name FROM branches WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`,
                     [currentUserTenantId]
+                );
+                branches = branchRows;
+            } else if (isSaasAdmin) {
+                const [branchRows] = await pool.query(
+                    `SELECT id, name, tenant_id AS tenantId FROM branches WHERE deleted_at IS NULL ORDER BY name ASC`
                 );
                 branches = branchRows;
             }

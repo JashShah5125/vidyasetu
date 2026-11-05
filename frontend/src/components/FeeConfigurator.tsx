@@ -185,35 +185,59 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
   const allCoursePlans = useMemo(() => {
     const list: Array<{ value: string; label: string; type: 'standard' | 'bundle'; data: any }> = [];
 
-    // 1. Standard Program / Course Plans
-    let progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse && (!fProgram || p.program === fProgram));
-    if (progPlans.length === 0 && fCourse) {
-      progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse);
-    }
-
-    if (progPlans.length > 0) {
-      progPlans.forEach(p => {
+    // 1. Live Program Fee Plans from academicData.programs
+    if (academicData?.programs && academicData.programs.length > 0) {
+      const livePrograms = academicData.programs.filter((p: any) =>
+        (!selectedCourseObj || Number(p.course_id) === Number(selectedCourseObj.id)) &&
+        (!fProgram || p.name === fProgram)
+      );
+      livePrograms.forEach((p: any) => {
+        const fee = Number(p.total_fee || 0);
         list.push({
           value: `std_${p.id}`,
-          label: `${p.program || fCourse} Base Plan - ₹${p.totalFees.toLocaleString()}`,
+          label: `${p.name} Standard Plan - ₹${fee.toLocaleString()}`,
           type: 'standard',
-          data: p
+          data: {
+            id: p.id,
+            program: p.name,
+            totalFees: fee,
+            downPayment: Number(p.down_payment || Math.round(fee * 0.3)),
+            months: Number(p.installment_months || 3)
+          }
         });
       });
-    } else if (selectedCourseObj?.fees) {
-      list.push({
-        value: `std_course`,
-        label: `${fCourse} Full Course Plan - ₹${Number(selectedCourseObj.fees).toLocaleString()}`,
-        type: 'standard',
-        data: { totalFees: Number(selectedCourseObj.fees), downPayment: Math.round(Number(selectedCourseObj.fees) * 0.3), months: 6 }
-      });
-    } else if (fCourse) {
-      list.push({
-        value: `std_default`,
-        label: `${fCourse} Standard Base Plan`,
-        type: 'standard',
-        data: { totalFees: 50000, downPayment: 15000, months: 6 }
-      });
+    }
+
+    // Fallback: Hardcoded fee plans or course base fees if live programs empty
+    if (list.length === 0) {
+      let progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse && (!fProgram || p.program === fProgram));
+      if (progPlans.length === 0 && fCourse) {
+        progPlans = INITIAL_FEE_PLANS.filter(p => p.course === fCourse);
+      }
+      if (progPlans.length > 0) {
+        progPlans.forEach(p => {
+          list.push({
+            value: `std_${p.id}`,
+            label: `${p.program || fCourse} Base Plan - ₹${p.totalFees.toLocaleString()}`,
+            type: 'standard',
+            data: p
+          });
+        });
+      } else if (selectedCourseObj?.fees) {
+        list.push({
+          value: `std_course`,
+          label: `${fCourse} Full Course Plan - ₹${Number(selectedCourseObj.fees).toLocaleString()}`,
+          type: 'standard',
+          data: { totalFees: Number(selectedCourseObj.fees), downPayment: Math.round(Number(selectedCourseObj.fees) * 0.3), months: 6 }
+        });
+      } else if (fCourse) {
+        list.push({
+          value: `std_default`,
+          label: `${fCourse} Standard Base Plan`,
+          type: 'standard',
+          data: { totalFees: 50000, downPayment: 15000, months: 6 }
+        });
+      }
     }
 
     // 2. Custom Bundles for this course / level
@@ -227,8 +251,30 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
       });
     });
 
+    // 3. Pre-configured / Agreed Lead Plan (if present from lead and doesn't exactly match an existing standard/bundle value)
+    const initTotal = Number(initialState?.totalFee ?? initialState?.netFee ?? 0);
+    if (initTotal > 0) {
+      const alreadyMatches = list.some(p => 
+        (initialState?.feeSelectedBundle && p.value === `bundle_${initialState.feeSelectedBundle}`) ||
+        (initialState?.feeSelectedStandard && p.value === `std_${initialState.feeSelectedStandard}`) ||
+        (Number(p.data?.totalFees || p.data?.fee_amount || 0) === initTotal)
+      );
+      if (!alreadyMatches) {
+        list.unshift({
+          value: 'preconfigured_plan',
+          label: `Pre-configured Agreed Plan - ₹${initTotal.toLocaleString()}`,
+          type: 'standard',
+          data: {
+            totalFees: initTotal,
+            downPayment: Number(initialState?.downpayment || 0),
+            months: Number(initialState?.installments || 1)
+          }
+        });
+      }
+    }
+
     return list;
-  }, [fCourse, fProgram, selectedCourseObj, availableBundles]);
+  }, [academicData, fCourse, fProgram, selectedCourseObj, availableBundles, initialState]);
 
   // Live Subjects for selected Level
   const availableSubjects = useMemo(() => {
@@ -250,42 +296,79 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
   const balance = useMemo(() => Math.max(0, netFee - Number(customDownpayment)), [netFee, customDownpayment]);
   const installmentAmount = useMemo(() => Number(customMonths) > 0 ? Math.floor(balance / Number(customMonths)) : 0, [balance, customMonths]);
 
-  // Calculate base fee based on selection
+  // Synchronize selected plan with allCoursePlans or pre-configured plan
   useEffect(() => {
-    if (enrollType === 'Standard') {
-      if (!selectedPlan) {
-        if (allCoursePlans.length > 0) {
-          setSelectedPlan(allCoursePlans[0].value);
-        }
+    if (enrollType !== 'Standard') return;
+
+    if (selectedPlan && allCoursePlans.some(p => p.value === selectedPlan)) {
+      return;
+    }
+
+    if (initialState?.feeSelectedBundle && allCoursePlans.some(p => p.value === `bundle_${initialState.feeSelectedBundle}`)) {
+      setSelectedPlan(`bundle_${initialState.feeSelectedBundle}`);
+      setFeeSelectedBundle(String(initialState.feeSelectedBundle));
+      return;
+    }
+    if (initialState?.feeSelectedStandard && allCoursePlans.some(p => p.value === `std_${initialState.feeSelectedStandard}`)) {
+      setSelectedPlan(`std_${initialState.feeSelectedStandard}`);
+      setFeeSelectedStandard(String(initialState.feeSelectedStandard));
+      return;
+    }
+    if (initialState?.selectedPlan && allCoursePlans.some(p => p.value === initialState.selectedPlan)) {
+      setSelectedPlan(initialState.selectedPlan);
+      return;
+    }
+
+    const initTotal = Number(initialState?.totalFee ?? initialState?.netFee ?? 0);
+    if (initTotal > 0) {
+      const matchByFee = allCoursePlans.find(p => Number(p.data?.totalFees || p.data?.fee_amount || 0) === initTotal);
+      if (matchByFee) {
+        setSelectedPlan(matchByFee.value);
+        if (matchByFee.type === 'bundle') setFeeSelectedBundle(String(matchByFee.data.id));
+        else setFeeSelectedStandard(String(matchByFee.data.id));
         return;
       }
-      const matched = allCoursePlans.find(p => p.value === selectedPlan);
-      if (matched) {
-        let calculatedBase = 0;
-        let dp = 0;
-        let months = 1;
-
-        if (matched.type === 'bundle') {
-          calculatedBase = Number(matched.data.fee_amount || matched.data.fee || 0);
-          dp = matched.data.downPayment || Math.round(calculatedBase * 0.3);
-          months = matched.data.months || 6;
-          setFeeSelectedBundle(String(matched.data.id));
-          setFeeSelectedStandard('');
-        } else {
-          calculatedBase = Number(matched.data.totalFees || 0);
-          dp = matched.data.downPayment || Math.round(calculatedBase * 0.3);
-          months = matched.data.months || 6;
-          setFeeSelectedStandard(String(matched.data.id || matched.data.course || 'std'));
-          setFeeSelectedBundle('');
-        }
-
-        if (calculatedBase > 0) {
-          setCustomTotalFee(calculatedBase);
-          if (!initialState || customDownpayment === 0) setCustomDownpayment(dp);
-          if (!initialState || customMonths === 1) setCustomMonths(months);
-        }
+      if (allCoursePlans.some(p => p.value === 'preconfigured_plan')) {
+        setSelectedPlan('preconfigured_plan');
+        return;
       }
-    } else if (enrollType === 'Subject-wise') {
+    }
+
+    if (allCoursePlans.length > 0) {
+      setSelectedPlan(allCoursePlans[0].value);
+    }
+  }, [enrollType, allCoursePlans, initialState]);
+
+  const handlePlanChange = (newPlan: string) => {
+    setSelectedPlan(newPlan);
+    const matched = allCoursePlans.find(p => p.value === newPlan);
+    if (matched) {
+      if (matched.type === 'bundle') {
+        const calculatedBase = Number(matched.data.fee_amount || matched.data.fee || 0);
+        const dp = Number(matched.data.downPayment || 0);
+        const months = Number(matched.data.months || 6);
+        setFeeSelectedBundle(String(matched.data.id));
+        setFeeSelectedStandard('');
+        setCustomTotalFee(calculatedBase);
+        setCustomDiscount(0);
+        setCustomDownpayment(dp);
+        setCustomMonths(months);
+      } else {
+        const calculatedBase = Number(matched.data.totalFees || 0);
+        const dp = Number(matched.data.downPayment || 0);
+        const months = Number(matched.data.months || 1);
+        setFeeSelectedStandard(String(matched.data.id || 'std'));
+        setFeeSelectedBundle('');
+        setCustomTotalFee(calculatedBase);
+        setCustomDiscount(0);
+        setCustomDownpayment(dp);
+        setCustomMonths(months);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (enrollType === 'Subject-wise') {
       const calculatedBase = availableSubjects
         .filter((s: any) => feeSelectedSubjects.includes(String(s.id)) || feeSelectedSubjects.includes(Number(s.id) as any))
         .reduce((acc: number, s: any) => acc + Number(s.fee_amount || s.fee || 0), 0);
@@ -293,7 +376,7 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
         setCustomTotalFee(calculatedBase);
       }
     }
-  }, [enrollType, selectedPlan, allCoursePlans, feeSelectedSubjects, availableSubjects, initialState]);
+  }, [enrollType, feeSelectedSubjects, availableSubjects]);
 
   // Report changes back to parent
   useEffect(() => {
@@ -391,7 +474,7 @@ export const FeeConfigurator: React.FC<FeeConfiguratorProps> = ({
             <Select 
               label="Select Plan" 
               value={selectedPlan} 
-              onChange={e => setSelectedPlan(e.target.value)} 
+              onChange={e => handlePlanChange(e.target.value)} 
               disabled={readOnly} 
               options={[
                 { value: '', label: allCoursePlans.length > 0 ? 'Choose a plan...' : `No plans configured for ${fCourse || 'this course'}` },

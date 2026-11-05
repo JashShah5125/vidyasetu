@@ -89,7 +89,22 @@ class AuditService {
             const effectiveUserId = userId || req.user?.userId || req.user?.id || null;
             const effectiveBranchId = branchId || req.user?.branchId || req.headers['x-branch-id'] || null;
 
-            const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
+            // Extract and clean client IP address (supporting reverse proxies, Cloudflare, Nginx, and IPv4 normalization)
+            let ipAddress = req.headers['cf-connecting-ip'] ||
+                            req.headers['x-real-ip'] ||
+                            req.headers['x-forwarded-for'] ||
+                            req.ip ||
+                            req.socket?.remoteAddress ||
+                            '127.0.0.1';
+
+            if (typeof ipAddress === 'string' && ipAddress.includes(',')) {
+                ipAddress = ipAddress.split(',')[0].trim();
+            }
+            if (ipAddress === '::1' || ipAddress === '::ffff:127.0.0.1') {
+                ipAddress = '127.0.0.1';
+            } else if (typeof ipAddress === 'string' && ipAddress.startsWith('::ffff:')) {
+                ipAddress = ipAddress.replace('::ffff:', '');
+            }
             const userAgent = req.headers['user-agent'] || null;
             const endpoint = req.originalUrl || req.url;
             const method = req.method;
