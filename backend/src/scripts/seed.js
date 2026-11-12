@@ -39,7 +39,10 @@ const seedMasterTenant = async () => {
 
         // 3. Run all seed SQL files from migrations/seeds
         const fs = require('fs');
-        const seedsDir = path.resolve(__dirname, '../../../migrations/seeds');
+        let seedsDir = path.resolve(__dirname, '../../../migrations/seeds');
+        if (!fs.existsSync(seedsDir)) {
+            seedsDir = path.resolve(__dirname, '../../migrations/seeds');
+        }
         if (fs.existsSync(seedsDir)) {
             const files = fs.readdirSync(seedsDir).filter(f => f.endsWith('.sql')).sort();
             for (const file of files) {

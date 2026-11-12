@@ -1,0 +1,2 @@
+-- Basic tenant, branches, and roles can be inserted here as demo data
+-- Will be customized by the backend team based on the exact ORM seeder structure

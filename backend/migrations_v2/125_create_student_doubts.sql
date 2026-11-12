@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS student_doubts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    branch_id INT NULL,
+    batch_id INT NOT NULL,
+    student_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    assigned_teacher_id INT NOT NULL,
+    topic VARCHAR(255) NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0=Open, 1=In Progress, 2=Resolved, 3=Reopened',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
+    INDEX idx_doubt_student_status (tenant_id, student_id, status),
+    INDEX idx_doubt_teacher_status (tenant_id, assigned_teacher_id, status),
+    INDEX idx_doubt_batch_subject (tenant_id, batch_id, subject_id),
+    INDEX idx_doubt_teacher_updated (tenant_id, assigned_teacher_id, updated_at),
+    CONSTRAINT fk_sd_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sd_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sd_batch FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_sd_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_sd_teacher FOREIGN KEY (assigned_teacher_id) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

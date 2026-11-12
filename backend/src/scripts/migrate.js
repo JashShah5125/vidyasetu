@@ -32,7 +32,10 @@ const runMigrations = async () => {
             );
         `);
 
-        const migrationsDir = path.resolve(__dirname, '../../../migrations');
+        let migrationsDir = path.resolve(__dirname, '../../../migrations');
+        if (!fs.existsSync(migrationsDir)) {
+            migrationsDir = path.resolve(__dirname, '../../migrations');
+        }
         if (!fs.existsSync(migrationsDir)) {
             throw new Error(`Migrations directory not found at: ${migrationsDir}`);
         }

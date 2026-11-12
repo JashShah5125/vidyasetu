@@ -1,0 +1,1 @@
+-- MySQL does not need pgcrypto extension

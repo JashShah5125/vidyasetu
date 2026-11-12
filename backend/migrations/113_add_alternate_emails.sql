@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN alternate_emails JSON DEFAULT NULL;

@@ -23,7 +23,10 @@ const seedMasterTenantV2 = async () => {
         });
 
         // All setup logic (tenants, users, etc.) has been moved to seeds_v2 sql files.
-        const seedsDir = path.resolve(__dirname, '../../../seeds_v2');
+        let seedsDir = path.resolve(__dirname, '../../../seeds_v2');
+        if (!fs.existsSync(seedsDir)) {
+            seedsDir = path.resolve(__dirname, '../../seeds_v2');
+        }
         if (fs.existsSync(seedsDir)) {
             const files = fs.readdirSync(seedsDir).filter(f => f.endsWith('.sql')).sort();
             for (const file of files) {
