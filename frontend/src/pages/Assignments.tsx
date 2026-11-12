@@ -32,7 +32,7 @@ export const Assignments: React.FC = () => {
   const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
   // Navigation Tabs state
-  const [activeTab, setActiveTab] = useState<'assignments' | 'exams'>('assignments');
+  const [activeTab, setActiveTab] = useState<'homework' | 'assignment'>('homework');
   const [loading, setLoading] = useState(false);
 
   // Scoping options from backend
@@ -107,7 +107,7 @@ export const Assignments: React.FC = () => {
   const fetchList = useCallback(async () => {
     setLoading(true);
     try {
-      const type = activeTab === 'assignments' ? 'homework' : 'exam';
+      const type = activeTab;
       const data = await assignmentApi.getHomeworks({
         assignmentType: type,
         status: filterStatus === 'All' ? undefined : filterStatus,
@@ -243,7 +243,7 @@ export const Assignments: React.FC = () => {
       setFormBatchIds([]);
     }
     setFormDueDate(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
-    setFormMaxMarks(activeTab === 'assignments' ? '50' : '100');
+    setFormMaxMarks('50');
     setFormFiles([]);
     setShowCreateModal(true);
   };
@@ -272,7 +272,7 @@ export const Assignments: React.FC = () => {
         branchId: isBranchAdmin ? Number(activeBranchId) : Number(formBranchId),
         academicYearId: Number(formAcademicYearId),
         subjectId: Number(formSubjectId),
-        assignmentType: activeTab === 'assignments' ? 'homework' : 'exam',
+        assignmentType: activeTab,
         batchIds: formBatchIds,
         dueDate: formDueDate,
         maxMarks: formMaxMarks ? parseFloat(formMaxMarks) : null
@@ -757,12 +757,10 @@ export const Assignments: React.FC = () => {
           </button>
           <div>
             <h2 className="text-2xl font-display font-bold text-slate-900">
-              {isEditing ? 'Edit Assignment' : activeTab === 'assignments' ? 'Create Homework Assignment' : 'Schedule Evaluation Test'}
+              {isEditing ? 'Edit Task' : activeTab === 'homework' ? 'Create Homework' : 'Create Assignment'}
             </h2>
             <p className="text-sm text-slate-500">
-              {activeTab === 'assignments'
-                ? 'Publish homework tasks and study materials for your branch batches.'
-                : 'Configure classroom test schedule and score thresholds.'}
+              Publish homework tasks, assignments, and study materials for your branch batches.
             </p>
           </div>
         </div>
@@ -771,7 +769,7 @@ export const Assignments: React.FC = () => {
           <Input
             label="Title *"
             required
-            placeholder={activeTab === 'assignments' ? 'e.g. Electrophilic Addition Quiz Problems' : 'e.g. Physics Chapter 4 Evaluation Test'}
+            placeholder="e.g. Electrophilic Addition Practice Problems"
             value={formTitle}
             onChange={e => setFormTitle(e.target.value)}
           />
@@ -927,15 +925,15 @@ export const Assignments: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Homework &amp; Exams</h2>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Homework &amp; Tasks</h2>
           <p className="text-sm text-slate-500 mt-1">
-            Manage course assignments, evaluative classroom tests, and student grade rosters.
+            Manage homework, course assignments, practice sets, and student submissions.
           </p>
         </div>
 
         <Button variant="primary" onClick={handleOpenCreateModal}>
           <Plus size={16} className="mr-1.5" />
-          {activeTab === 'assignments' ? 'Create Homework' : 'Schedule Test'}
+          {activeTab === 'homework' ? 'Create Homework' : 'Create Assignment'}
         </Button>
       </div>
 
@@ -943,29 +941,29 @@ export const Assignments: React.FC = () => {
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => {
-            setActiveTab('assignments');
+            setActiveTab('homework');
             setCurrentPage(1);
           }}
           className={`flex items-center gap-2 px-5 py-3 border-b-2 font-display text-sm font-bold transition-all cursor-pointer ${
-            activeTab === 'assignments'
+            activeTab === 'homework'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          <BookOpen size={16} /> Homework &amp; Assignments
+          <BookOpen size={16} /> Homeworks
         </button>
         <button
           onClick={() => {
-            setActiveTab('exams');
+            setActiveTab('assignment');
             setCurrentPage(1);
           }}
           className={`flex items-center gap-2 px-5 py-3 border-b-2 font-display text-sm font-bold transition-all cursor-pointer ${
-            activeTab === 'exams'
+            activeTab === 'assignment'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          <ClipboardList size={16} /> Classroom Tests &amp; Exams
+          <ClipboardList size={16} /> Assignments
         </button>
       </div>
 
@@ -1025,7 +1023,7 @@ export const Assignments: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>
-            {activeTab === 'assignments' ? 'Homework Assignments' : 'Scheduled Evaluations'} ({items.length})
+            {activeTab === 'homework' ? 'Homeworks' : 'Assignments'} ({items.length})
           </CardTitle>
           <Button
             variant="secondary"
@@ -1057,7 +1055,7 @@ export const Assignments: React.FC = () => {
           <div className="p-12 text-center text-slate-400 font-medium">Loading items...</div>
         ) : items.length === 0 ? (
           <div className="p-12 text-center text-slate-400">
-            No {activeTab === 'assignments' ? 'homework assignments' : 'evaluations'} found for this scope.
+            No {activeTab === 'homework' ? 'homeworks' : 'assignments'} found for this scope.
           </div>
         ) : (
           <Table

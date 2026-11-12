@@ -14,7 +14,6 @@ import {
   Plus,
   ArrowLeft,
   BookOpen,
-  ClipboardList,
   ClipboardCheck,
   CheckCircle2,
   Edit3,
@@ -34,113 +33,10 @@ import {
   Search,
   Users,
   Clock,
-  ExternalLink,
-  Repeat,
-  CalendarDays,
-  RefreshCw
+  ExternalLink
 } from 'lucide-react';
-import type { ExamItem } from '../../types';
 import { assignmentApi } from '../../services/assignmentApi';
 import type { HomeworkItem, HomeworkPayload, HomeworkScoping } from '../../services/assignmentApi';
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const formatPreviewDate = (dateStr: string) => {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
-};
-
-const getRecurrenceSummaryText = (
-  recurrenceType: 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_day' | 'custom' = 'weekly',
-  repeatDays: string[] = [],
-  repeatEndType: 'count' | 'date' = 'count',
-  repeatCount: number = 4,
-  repeatEndDate: string = '',
-  totalSessions: number = 4,
-  repeatInterval: number = 1
-) => {
-  let freqText = 'Every week';
-  if (recurrenceType === 'biweekly') freqText = 'Every 2 weeks';
-  else if (recurrenceType === 'monthly_date') freqText = 'Every month on same date';
-  else if (recurrenceType === 'monthly_day') freqText = 'Every month on same day';
-  else if (recurrenceType === 'custom') freqText = `Every ${repeatInterval} week${repeatInterval > 1 ? 's' : ''}`;
-
-  if (repeatDays.length && (recurrenceType === 'weekly' || recurrenceType === 'biweekly' || recurrenceType === 'custom')) {
-    freqText += ` on ${repeatDays.join(', ')}`;
-  }
-
-  const endText = repeatEndType === 'date' && repeatEndDate
-    ? `until ${formatPreviewDate(repeatEndDate)} (${totalSessions} sessions)`
-    : `(${totalSessions} sessions)`;
-
-  return `${freqText} ${endText}`;
-};
-
-function generateRecurringExamDates(
-  startDateStr: string,
-  recurrenceType: 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_day' | 'custom' = 'weekly',
-  repeatDays: string[] = [],
-  repeatEndType: 'count' | 'date' = 'count',
-  repeatCount: number = 4,
-  repeatEndDate: string = '',
-  repeatInterval: number = 1
-): string[] {
-  if (!startDateStr || startDateStr === 'Not Set') return [];
-  const start = new Date(startDateStr);
-  if (isNaN(start.getTime())) return [startDateStr];
-
-  const dates: string[] = [startDateStr];
-  const maxOccurrences = repeatEndType === 'count' ? Math.min(Math.max(repeatCount || 1, 1), 52) : 52;
-  const endDate = repeatEndType === 'date' && repeatEndDate ? new Date(repeatEndDate) : null;
-
-  let current = new Date(start);
-
-  if (recurrenceType === 'weekly' || recurrenceType === 'biweekly') {
-    const stepWeeks = recurrenceType === 'biweekly' ? 2 : (repeatInterval || 1);
-    while (dates.length < maxOccurrences) {
-      current.setDate(current.getDate() + 7 * stepWeeks);
-      if (endDate && current > endDate) break;
-      dates.push(current.toISOString().split('T')[0]);
-    }
-  } else if (recurrenceType === 'monthly_date') {
-    const targetDayOfMonth = start.getDate();
-    while (dates.length < maxOccurrences) {
-      current.setMonth(current.getMonth() + (repeatInterval || 1));
-      current.setDate(targetDayOfMonth);
-      if (endDate && current > endDate) break;
-      dates.push(current.toISOString().split('T')[0]);
-    }
-  } else if (recurrenceType === 'monthly_day') {
-    const dayOfWeek = start.getDay();
-    const nthWeek = Math.floor((start.getDate() - 1) / 7);
-    while (dates.length < maxOccurrences) {
-      current.setMonth(current.getMonth() + (repeatInterval || 1), 1);
-      let firstMatch = 1;
-      while (new Date(current.getFullYear(), current.getMonth(), firstMatch).getDay() !== dayOfWeek) {
-        firstMatch++;
-      }
-      const targetDate = firstMatch + nthWeek * 7;
-      current.setDate(targetDate);
-      if (endDate && current > endDate) break;
-      dates.push(current.toISOString().split('T')[0]);
-    }
-  } else if (recurrenceType === 'custom') {
-    const stepWeeks = Math.max(1, repeatInterval || 1);
-    while (dates.length < maxOccurrences) {
-      current.setDate(current.getDate() + 7 * stepWeeks);
-      if (endDate && current > endDate) break;
-      dates.push(current.toISOString().split('T')[0]);
-    }
-  }
-
-  return dates;
-}
 
 
 interface HomeworkFormState {
@@ -172,13 +68,11 @@ const EMPTY_HW_FORM: HomeworkFormState = {
 
 const TYPE_OPTIONS = [
   { value: 'assignment', label: 'Assignment' },
-  { value: 'homework', label: 'Homework' },
-  { value: 'exam', label: 'Exam' }
+  { value: 'homework', label: 'Homework' }
 ];
 
 const getTypeBadgeColor = (type: string) => {
   switch (type?.toLowerCase()) {
-    case 'exam': return 'bg-purple-50 text-purple-700 border-purple-200';
     case 'homework': return 'bg-amber-50 text-amber-700 border-amber-200';
     case 'assignment':
     default: return 'bg-blue-50 text-blue-700 border-blue-200';
@@ -188,14 +82,9 @@ const getTypeBadgeColor = (type: string) => {
 const getStatusBadgeColor = (status: string) => {
   switch (status) {
     case 'Draft': return 'bg-gray-100 text-gray-800';
-    case 'Published':
-    case 'Scheduled': return 'bg-blue-100 text-blue-800';
-    case 'Closed':
-    case 'Completed': return 'bg-green-100 text-green-800';
+    case 'Published': return 'bg-blue-100 text-blue-800';
+    case 'Closed': return 'bg-green-100 text-green-800';
     case 'Cancelled': return 'bg-red-100 text-red-800';
-    case 'Marks Published': return 'bg-purple-100 text-purple-800';
-    case 'Marks Pending': return 'bg-orange-100 text-orange-800';
-    case 'In Progress': return 'bg-teal-100 text-teal-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };
@@ -207,15 +96,13 @@ const typeLabel = (value: string) => {
 
 export const TeacherAssignments: React.FC = () => {
   const {
-    exams,
-    setExams,
     currentUser,
     sendNotification,
     addToast
   } = useApp();
   const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin';
 
-  const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'assignment' | 'exams'>('homework');
+  const [activePrimaryTab, setActivePrimaryTab] = useState<'homework' | 'assignment'>('homework');
   const [activeSubTab, setActiveSubTab] = useState<'active' | 'drafts'>('active');
 
   const [scoping, setScoping] = useState<HomeworkScoping | null>(null);
@@ -285,10 +172,6 @@ export const TeacherAssignments: React.FC = () => {
     }
   }, [searchParams, setSearchParams]);
 
-  const [showExamForm, setShowExamForm] = useState<boolean>(false);
-  const [examForm, setExamForm] = useState<Partial<ExamItem>>({});
-  const [showExamDetails, setShowExamDetails] = useState<ExamItem | null>(null);
-
   const loadScoping = useCallback(async () => {
     try {
       const data = await assignmentApi.getScoping();
@@ -302,7 +185,8 @@ export const TeacherAssignments: React.FC = () => {
     setLoading(true);
     try {
       const data = await assignmentApi.getHomeworks();
-      setHomeworks(data);
+      // Keep Homework & Tasks strictly scoped to homework and assignment items
+      setHomeworks((data || []).filter(item => (item.assignmentType || '').toLowerCase() !== 'exam'));
     } catch (err: any) {
       addToast(err.message || 'Failed to load homework', 'error');
     } finally {
@@ -310,81 +194,27 @@ export const TeacherAssignments: React.FC = () => {
     }
   }, [addToast]);
 
-  const loadExams = useCallback(async () => {
-    try {
-      const data = await assignmentApi.getHomeworks({ assignmentType: 'exam' });
-      const examItems: ExamItem[] = data.map(hw => {
-        // Extra exam metadata stored as JSON in description
-        let meta: Record<string, any> = {};
-        try { meta = JSON.parse(hw.description || '{}'); } catch { /* plain text */ }
-        const hwStatus = hw.status;
-        return {
-          id: hw.id,
-          name: hw.title,
-          type: meta.examType || 'Unit Test',
-          subject: hw.subjectName || '',
-          batch: (hw.batchNames && hw.batchNames.length > 0) ? hw.batchNames.join(', ') : '',
-          examDate: hw.dueDate || '',
-          startTime: meta.startTime || '',
-          duration: meta.duration || '',
-          totalMarks: hw.maxMarks ?? meta.totalMarks ?? 100,
-          passingMarks: meta.passingMarks ?? 40,
-          status: hwStatus === 'Draft' ? 'Draft' : hwStatus === 'Published' ? 'Scheduled' : 'Completed',
-          average: hw.classAveragePercentage ? `${hw.classAveragePercentage}%` : '',
-          isRecurring: meta.isRecurring || false,
-          recurrenceType: meta.recurrenceType,
-          repeatDays: meta.repeatDays,
-          repeatCount: meta.repeatCount,
-          repeatEndType: meta.repeatEndType,
-          repeatEndDate: meta.repeatEndDate,
-          repeatInterval: meta.repeatInterval,
-          recurrenceSummary: meta.recurrenceSummary,
-          recurringGroupId: meta.recurringGroupId,
-          recurringInstanceIndex: meta.recurringInstanceIndex,
-          submittedCount: hw.submittedCount ?? 0,
-          gradedSubmissionsCount: hw.gradedSubmissionsCount ?? 0,
-          classAveragePercentage: hw.classAveragePercentage ?? null,
-          totalCount: hw.totalCount ?? 0,
-          // keep backend IDs for updates
-          _hwId: hw.id,
-          _batchIds: hw.batchIds,
-          _batchNames: hw.batchNames || [],
-          _branchId: hw.branchId,
-          _academicYearId: hw.academicYearId,
-          _subjectId: hw.subjectId,
-        } as unknown as ExamItem;
-      });
-      setExams(examItems);
-    } catch (err: any) {
-      // silently fail — exams tab just shows empty
-    }
-  }, [addToast, setExams]);
-
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadHomeworks(), loadExams()]);
-  }, [loadHomeworks, loadExams]);
+    await loadHomeworks();
+  }, [loadHomeworks]);
 
   const draftsCount = useMemo(() => {
     if (activePrimaryTab === 'homework') {
       return homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'homework').length;
     }
-    if (activePrimaryTab === 'assignment') {
-      return homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'assignment').length;
-    }
-    return exams.filter(e => e.status === 'Draft').length;
-  }, [activePrimaryTab, homeworks, exams]);
+    return homeworks.filter(a => a.status === 'Draft' && (a.assignmentType || '').toLowerCase() === 'assignment').length;
+  }, [activePrimaryTab, homeworks]);
 
   useEffect(() => {
     loadScoping();
     loadHomeworks();
-    loadExams();
-  }, [loadScoping, loadHomeworks, loadExams]);
+  }, [loadScoping, loadHomeworks]);
 
   useEffect(() => {
-    if (showHwForm || showExamForm) {
+    if (showHwForm) {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
-  }, [showHwForm, showExamForm]);
+  }, [showHwForm]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -399,7 +229,7 @@ export const TeacherAssignments: React.FC = () => {
     }
   }, [activePrimaryTab, activeSubTab]);
 
-  // Dynamic status options based on primary tab (Homework, Exam, Assignment) and sub-tab (Active vs Drafts)
+  // Dynamic status options based on sub-tab (Active vs Drafts)
   const statusFilterOptions = useMemo(() => {
     if (activeSubTab === 'drafts') {
       return [
@@ -408,29 +238,12 @@ export const TeacherAssignments: React.FC = () => {
       ];
     }
 
-    if (activePrimaryTab === 'exams') {
-      return [
-        { value: 'All', label: 'All Statuses' },
-        { value: 'Scheduled', label: 'Scheduled' },
-        { value: 'Completed', label: 'Completed' }
-      ];
-    }
-
-    if (activePrimaryTab === 'homework') {
-      return [
-        { value: 'All', label: 'All Statuses' },
-        { value: 'Published', label: 'Published' },
-        { value: 'Closed', label: 'Closed' }
-      ];
-    }
-
-    // activePrimaryTab === 'assignment'
     return [
       { value: 'All', label: 'All Statuses' },
       { value: 'Published', label: 'Published' },
       { value: 'Closed', label: 'Closed' }
     ];
-  }, [activePrimaryTab, activeSubTab]);
+  }, [activeSubTab]);
 
   const filteredHomeworks = useMemo(() => {
     return homeworks.filter(item => {
@@ -441,7 +254,6 @@ export const TeacherAssignments: React.FC = () => {
       const itemType = (item.assignmentType || 'assignment').toLowerCase();
       if (activePrimaryTab === 'homework' && itemType !== 'homework') return false;
       if (activePrimaryTab === 'assignment' && itemType !== 'assignment') return false;
-      if (activePrimaryTab === 'exams') return false; // exams come from context, not homeworks
 
       if (filterType !== 'All' && item.assignmentType !== filterType) return false;
       if (filterBranch !== 'All' && !isBranchAdmin && item.branchName !== filterBranch) return false;
@@ -460,57 +272,7 @@ export const TeacherAssignments: React.FC = () => {
     });
   }, [homeworks, activePrimaryTab, activeSubTab, filterType, filterBranch, filterBatch, filterSubject, filterStatus, searchQuery, isBranchAdmin]);
 
-  // Convert ExamItem → HomeworkItem shape for the shared table when on the Exams tab
-  const filteredExamsAsHomework = useMemo((): HomeworkItem[] => {
-    if (activePrimaryTab !== 'exams') return [];
-    return exams
-      .filter(ex => {
-        if (activeSubTab === 'active' && ex.status === 'Draft') return false;
-        if (activeSubTab === 'drafts' && ex.status !== 'Draft') return false;
-        if (filterStatus !== 'All' && ex.status !== filterStatus) return false;
-        if (filterBatch !== 'All' && ex.batch !== filterBatch) return false;
-        if (filterSubject !== 'All' && ex.subject !== filterSubject) return false;
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          if (!ex.name.toLowerCase().includes(q) &&
-              !ex.subject.toLowerCase().includes(q) &&
-              !ex.batch.toLowerCase().includes(q)) return false;
-        }
-        return true;
-      })
-      .map(ex => ({
-        id: ex.id,
-        branchId: '',
-        branchName: '',
-        academicYearId: '',
-        academicYearName: '',
-        subjectId: '',
-        subjectName: ex.subject || '—',
-        subjectCode: '',
-        title: ex.name,
-        description: '',
-        assignmentType: 'exam',
-        batchIds: ex._batchIds || [],
-        batchNames: (ex._batchNames && ex._batchNames.length > 0) ? ex._batchNames : (ex.batch ? [ex.batch] : ['—']),
-        files: [],
-        dueDate: ex.examDate || '—',
-        dueDateTime: ex.examDate || '',
-        maxMarks: ex.totalMarks ?? null,
-        status: (ex.status === 'Scheduled' ? 'Published' : ex.status === 'Completed' ? 'Closed' : ex.status) as HomeworkItem['status'],
-        publishedAt: null,
-        closedAt: null,
-        submittedCount: ex.submittedCount ?? 0,
-        gradedSubmissionsCount: ex.gradedSubmissionsCount ?? 0,
-        classAveragePercentage: ex.classAveragePercentage ?? null,
-        totalCount: ex.totalCount ?? 0,
-        createdBy: '',
-        updatedAt: null,
-        // carry exam-specific fields for the detail panel
-        _examItem: ex,
-      } as HomeworkItem & { _examItem: typeof ex }));
-  }, [exams, activePrimaryTab, activeSubTab, filterBatch, filterSubject, filterStatus, searchQuery]);
-
-  const currentData = activePrimaryTab === 'exams' ? filteredExamsAsHomework : filteredHomeworks;
+  const currentData = filteredHomeworks;
   const totalPages = Math.ceil(currentData.length / itemsPerPage);
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -710,7 +472,7 @@ export const TeacherAssignments: React.FC = () => {
   interface ConfirmCloseTarget {
     id: string;
     title: string;
-    type: 'homework' | 'assignment' | 'exam';
+    type: 'homework' | 'assignment';
     subject?: string;
     batch?: string;
     dueDate?: string;
@@ -718,28 +480,19 @@ export const TeacherAssignments: React.FC = () => {
   const [confirmCloseTarget, setConfirmCloseTarget] = useState<ConfirmCloseTarget | null>(null);
 
   const promptCloseItem = (
-    item: HomeworkItem | ExamItem,
-    typeOverride?: 'homework' | 'assignment' | 'exam'
+    item: HomeworkItem,
+    typeOverride?: 'homework' | 'assignment'
   ) => {
-    const isExam = typeOverride === 'exam' || (item as any).assignmentType === 'exam' || Boolean((item as any)._examItem);
-    const itemType: 'homework' | 'assignment' | 'exam' = isExam
-      ? 'exam'
-      : typeOverride || (((item as any).assignmentType || '').toLowerCase() === 'homework' ? 'homework' : 'assignment');
-
-    const title = (item as any).title || (item as any).name || 'Untitled';
-    const subject = (item as any).subjectName || (item as any).subject || '';
-    const batch = (item as any).batchNames?.length
-      ? (item as any).batchNames.join(', ')
-      : ((item as any).batch || '');
-    const dueDate = (item as any).dueDate || (item as any).examDate || '';
+    const itemType: 'homework' | 'assignment' =
+      typeOverride || (((item.assignmentType || '').toLowerCase() === 'homework') ? 'homework' : 'assignment');
 
     setConfirmCloseTarget({
       id: String(item.id),
-      title,
+      title: item.title || 'Untitled',
       type: itemType,
-      subject,
-      batch,
-      dueDate
+      subject: item.subjectName || '',
+      batch: item.batchNames?.length ? item.batchNames.join(', ') : '',
+      dueDate: item.dueDate || ''
     });
   };
 
@@ -747,23 +500,13 @@ export const TeacherAssignments: React.FC = () => {
     if (!confirmCloseTarget) return;
     setActionBusy(true);
     const { id, title, type } = confirmCloseTarget;
-    const typeLabel = type === 'exam' ? 'Exam' : type === 'homework' ? 'Homework' : 'Assignment';
+    const label = type === 'homework' ? 'Homework' : 'Assignment';
 
     try {
-      if (type === 'exam') {
-        if (id && !String(id).startsWith('EX-')) {
-          await assignmentApi.closeHomework(id);
-        }
-        setExams(prev => prev.map(e => e.id === id ? { ...e, status: 'Completed' } : e));
-        setShowExamDetails(null);
-        await refreshAll();
-        addToast(`Exam "${title}" marked as completed. Status updated to Completed.`, 'success');
-      } else {
-        await assignmentApi.closeHomework(id);
-        addToast(`${typeLabel} "${title}" closed successfully. Status updated to Closed.`, 'success');
-        setShowHwDetail(null);
-        await refreshAll();
-      }
+      await assignmentApi.closeHomework(id);
+      addToast(`${label} "${title}" closed successfully. Status updated to Closed.`, 'success');
+      setShowHwDetail(null);
+      await refreshAll();
       setConfirmCloseTarget(null);
     } catch (err: any) {
       addToast(err.message || `Failed to close ${type}.`, 'error');
@@ -779,15 +522,14 @@ export const TeacherAssignments: React.FC = () => {
 
   const renderConfirmCloseModal = () => {
     if (!confirmCloseTarget) return null;
-    const isExam = confirmCloseTarget.type === 'exam';
     const isHw = confirmCloseTarget.type === 'homework';
-    const typeLabel = isExam ? 'Exam' : isHw ? 'Homework' : 'Assignment';
+    const label = isHw ? 'Homework' : 'Assignment';
 
     return (
       <Modal
         isOpen={Boolean(confirmCloseTarget)}
         onClose={() => !actionBusy && setConfirmCloseTarget(null)}
-        title={`Close ${typeLabel}`}
+        title={`Close ${label}`}
         size="md"
         footer={
           <div className="flex items-center justify-end gap-2.5 w-full">
@@ -804,7 +546,7 @@ export const TeacherAssignments: React.FC = () => {
               type="button"
               variant="primary"
               style={{
-                backgroundColor: isExam ? '#4f46e5' : '#d97706',
+                backgroundColor: '#d97706',
                 color: 'white'
               }}
               className="cursor-pointer font-semibold shadow-sm flex items-center gap-1.5 px-4"
@@ -818,17 +560,13 @@ export const TeacherAssignments: React.FC = () => {
               )}
               {actionBusy
                 ? 'Closing...'
-                : `Confirm Close ${typeLabel}`}
+                : `Confirm Close ${label}`}
             </Button>
           </div>
         }
       >
         <div className="flex items-start gap-4">
-          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-            isExam
-              ? 'bg-indigo-50 text-indigo-600 border border-indigo-100'
-              : 'bg-amber-50 text-amber-600 border border-amber-100'
-          }`}>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 bg-amber-50 text-amber-600 border border-amber-100">
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div className="space-y-3 flex-1">
@@ -838,9 +576,7 @@ export const TeacherAssignments: React.FC = () => {
                 <span className="font-bold text-slate-950">"{confirmCloseTarget.title}"</span>?
               </h4>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                {isExam
-                  ? 'This will mark the exam as Completed. The status will update to Completed.'
-                  : `This will mark this ${confirmCloseTarget.type} as Closed and stop accepting further student submissions.`}
+                {`This will mark this ${confirmCloseTarget.type} as Closed and stop accepting further student submissions.`}
               </p>
             </div>
 
@@ -849,13 +585,11 @@ export const TeacherAssignments: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className="text-slate-400 font-medium">Item Type</span>
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
-                  isExam
-                    ? 'bg-purple-100 text-purple-700'
-                    : isHw
+                  isHw
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-blue-100 text-blue-700'
                 }`}>
-                  {typeLabel}
+                  {label}
                 </span>
               </div>
               {confirmCloseTarget.subject && (
@@ -874,7 +608,7 @@ export const TeacherAssignments: React.FC = () => {
               )}
               {confirmCloseTarget.dueDate && (
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400 font-medium">{isExam ? 'Exam Date' : 'Due Date'}</span>
+                  <span className="text-slate-400 font-medium">Due Date</span>
                   <span className="font-semibold text-slate-800">{confirmCloseTarget.dueDate}</span>
                 </div>
               )}
@@ -888,7 +622,7 @@ export const TeacherAssignments: React.FC = () => {
   interface ConfirmDeleteTarget {
     id: string;
     title: string;
-    type: 'homework' | 'assignment' | 'exam';
+    type: 'homework' | 'assignment';
     subject?: string;
     batch?: string;
     dueDate?: string;
@@ -896,27 +630,18 @@ export const TeacherAssignments: React.FC = () => {
   }
   const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<ConfirmDeleteTarget | null>(null);
 
-  const promptDeleteItem = (item: HomeworkItem | ExamItem | any) => {
-    const isExam = item.assignmentType === 'exam' || Boolean(item._examItem) || activePrimaryTab === 'exams';
-    const isHw = !isExam && (((item.assignmentType || '').toLowerCase() === 'homework') || activePrimaryTab === 'homework');
-    const itemType: 'homework' | 'assignment' | 'exam' = isExam ? 'exam' : isHw ? 'homework' : 'assignment';
-
-    const title = item.title || item.name || 'Untitled';
-    const subject = item.subjectName || item.subject || '';
-    const batch = item.batchNames?.length
-      ? item.batchNames.join(', ')
-      : (item.batch || '');
-    const dueDate = item.dueDate || item.examDate || '';
-    const status = item.status || '';
+  const promptDeleteItem = (item: HomeworkItem) => {
+    const isHw = ((item.assignmentType || '').toLowerCase() === 'homework') || activePrimaryTab === 'homework';
+    const itemType: 'homework' | 'assignment' = isHw ? 'homework' : 'assignment';
 
     setConfirmDeleteTarget({
       id: String(item.id),
-      title,
+      title: item.title || 'Untitled',
       type: itemType,
-      subject,
-      batch,
-      dueDate,
-      status
+      subject: item.subjectName || '',
+      batch: item.batchNames?.length ? item.batchNames.join(', ') : '',
+      dueDate: item.dueDate || '',
+      status: item.status || ''
     });
   };
 
@@ -924,24 +649,16 @@ export const TeacherAssignments: React.FC = () => {
     if (!confirmDeleteTarget) return;
     setActionBusy(true);
     const { id, title, type } = confirmDeleteTarget;
-    const typeLabel = type === 'exam' ? 'Exam' : type === 'homework' ? 'Homework' : 'Assignment';
+    const label = type === 'homework' ? 'Homework' : 'Assignment';
 
     try {
-      if (type === 'exam') {
-        if (id && !String(id).startsWith('EX-')) {
-          await assignmentApi.deleteHomework(id);
-        }
-        setExams(prev => prev.filter(e => e.id !== id));
-        setShowExamDetails(null);
-      } else {
-        await assignmentApi.deleteHomework(id);
-        setShowHwDetail(null);
-      }
+      await assignmentApi.deleteHomework(id);
+      setShowHwDetail(null);
       await refreshAll();
-      addToast(`${typeLabel} "${title}" deleted successfully.`, 'success');
+      addToast(`${label} "${title}" deleted successfully.`, 'success');
       setConfirmDeleteTarget(null);
     } catch (err: any) {
-      addToast(err.message || `Failed to delete ${typeLabel.toLowerCase()}.`, 'error');
+      addToast(err.message || `Failed to delete ${label.toLowerCase()}.`, 'error');
     } finally {
       setActionBusy(false);
     }
@@ -953,15 +670,14 @@ export const TeacherAssignments: React.FC = () => {
 
   const renderConfirmDeleteModal = () => {
     if (!confirmDeleteTarget) return null;
-    const isExam = confirmDeleteTarget.type === 'exam';
     const isHw = confirmDeleteTarget.type === 'homework';
-    const typeLabel = isExam ? 'Exam' : isHw ? 'Homework' : 'Assignment';
+    const label = isHw ? 'Homework' : 'Assignment';
 
     return (
       <Modal
         isOpen={Boolean(confirmDeleteTarget)}
         onClose={() => !actionBusy && setConfirmDeleteTarget(null)}
-        title={`Delete ${typeLabel}`}
+        title={`Delete ${label}`}
         size="md"
         footer={
           <div className="flex items-center justify-end gap-2.5 w-full">
@@ -992,7 +708,7 @@ export const TeacherAssignments: React.FC = () => {
               )}
               {actionBusy
                 ? 'Deleting...'
-                : `Confirm Delete ${typeLabel}`}
+                : `Confirm Delete ${label}`}
             </Button>
           </div>
         }
@@ -1008,7 +724,7 @@ export const TeacherAssignments: React.FC = () => {
                 <span className="font-bold text-slate-950">&quot;{confirmDeleteTarget.title}&quot;</span>?
               </h4>
               <p className="text-xs text-rose-600 font-medium mt-1 leading-relaxed">
-                This action is permanent and cannot be undone. All associated records and student submissions for this {typeLabel.toLowerCase()} will be permanently removed.
+                This action is permanent and cannot be undone. All associated records and student submissions for this {label.toLowerCase()} will be permanently removed.
               </p>
             </div>
 
@@ -1017,13 +733,11 @@ export const TeacherAssignments: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className="text-slate-400 font-medium">Item Type</span>
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
-                  isExam
-                    ? 'bg-purple-100 text-purple-700'
-                    : isHw
+                  isHw
                     ? 'bg-amber-100 text-amber-700'
                     : 'bg-blue-100 text-blue-700'
                 }`}>
-                  {typeLabel}
+                  {label}
                 </span>
               </div>
               {confirmDeleteTarget.subject && (
@@ -1042,7 +756,7 @@ export const TeacherAssignments: React.FC = () => {
               )}
               {confirmDeleteTarget.dueDate && (
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400 font-medium">{isExam ? 'Exam Date' : 'Due Date'}</span>
+                  <span className="text-slate-400 font-medium">Due Date</span>
                   <span className="font-semibold text-slate-800">{confirmDeleteTarget.dueDate}</span>
                 </div>
               )}
@@ -1112,9 +826,8 @@ export const TeacherAssignments: React.FC = () => {
         const item = await assignmentApi.getHomework(evaluateParam);
         if (item && !isCancelled) {
           const type = (item.assignmentType || '').toLowerCase();
-          if (type === 'exam') {
-            setActivePrimaryTab('exams');
-          } else if (type === 'assignment') {
+          if (type === 'exam') return;
+          if (type === 'assignment') {
             setActivePrimaryTab('assignment');
           } else {
             setActivePrimaryTab('homework');
@@ -1210,469 +923,6 @@ export const TeacherAssignments: React.FC = () => {
   const openDetail = (item: HomeworkItem) => {
     setShowHwDetail(item);
   };
-
-  // ─── Exam persistence actions ──────────────────────────────────────────────
-  const resolveExamPayload = (
-    form: Partial<ExamItem>,
-    examDateStr: string,
-    titleStr: string,
-    groupId?: string,
-    instanceIdx?: number,
-    totalInstances?: number
-  ) => {
-    let targetBatchIds: number[] = [];
-    let batchObj = scoping?.batches?.find(b => b.name === form.batch || String(b.id) === String(form.batch));
-    if (batchObj) {
-      targetBatchIds = [Number(batchObj.id)];
-    } else if ((form as any)._batchIds && (form as any)._batchIds.length > 0) {
-      targetBatchIds = (form as any)._batchIds.map(Number);
-      batchObj = scoping?.batches?.find(b => targetBatchIds.includes(Number(b.id)));
-    }
-
-    const subjectObj = scoping?.subjects?.find(s => s.name === form.subject || String(s.id) === String(form.subject));
-    let resolvedSubjectId = subjectObj ? Number(subjectObj.id) : Number((form as any)._subjectId || 0);
-    if (!resolvedSubjectId && scoping?.subjects?.[0]) {
-      resolvedSubjectId = Number(scoping.subjects[0].id);
-    }
-
-    const resolvedBranchId = Number(
-      batchObj?.branchId || (form as any)._branchId || scoping?.branches?.[0]?.id || 1
-    );
-    const resolvedAcademicYearId = Number(
-      batchObj?.academicYearId || (form as any)._academicYearId || scoping?.academicYears?.[0]?.id || 1
-    );
-
-    const recurrenceSummary = form.isRecurring
-      ? getRecurrenceSummaryText(
-          form.recurrenceType || 'weekly',
-          form.repeatDays || [],
-          form.repeatEndType || 'count',
-          form.repeatCount || 4,
-          form.repeatEndDate || '',
-          totalInstances || (form.repeatCount || 4),
-          form.repeatInterval || 1
-        )
-      : undefined;
-
-    const meta = {
-      examType: form.type || 'Unit Test',
-      passingMarks: form.passingMarks !== undefined ? Number(form.passingMarks) : 40,
-      totalMarks: form.totalMarks !== undefined ? Number(form.totalMarks) : 100,
-      startTime: form.startTime || '',
-      duration: form.duration || '',
-      isRecurring: Boolean(form.isRecurring),
-      recurrenceType: form.recurrenceType,
-      repeatDays: form.repeatDays,
-      repeatCount: form.repeatCount,
-      repeatEndType: form.repeatEndType,
-      repeatEndDate: form.repeatEndDate,
-      repeatInterval: form.repeatInterval,
-      recurrenceSummary,
-      recurringGroupId: groupId,
-      recurringInstanceIndex: instanceIdx
-    };
-
-    const payload: HomeworkPayload = {
-      title: titleStr.trim(),
-      description: JSON.stringify(meta),
-      branchId: resolvedBranchId,
-      academicYearId: resolvedAcademicYearId,
-      subjectId: resolvedSubjectId,
-      assignmentType: 'exam',
-      batchIds: targetBatchIds,
-      dueDate: examDateStr || new Date().toISOString().slice(0, 10),
-      maxMarks: form.totalMarks !== undefined ? Number(form.totalMarks) : 100,
-      existingFiles: []
-    };
-
-    return {
-      payload,
-      recurrenceSummary
-    };
-  };
-
-  const handleSaveExamDraft = async () => {
-    if (!examForm.name || !examForm.batch) {
-      addToast('Test title and Target Batch are required.', 'error');
-      return;
-    }
-    const batchObj = scoping?.batches?.find(b => b.name === examForm.batch || String(b.id) === String(examForm.batch)) ||
-      ((examForm as any)._batchIds?.length ? scoping?.batches?.find(b => (examForm as any)._batchIds.includes(Number(b.id))) : null);
-    if (!batchObj && !(examForm as any)._batchIds?.length) {
-      addToast('Please select a valid target batch.', 'error');
-      return;
-    }
-
-    setActionBusy(true);
-    try {
-      const isEditing = Boolean(examForm.id && !String(examForm.id).startsWith('EX-'));
-      const examDate = examForm.examDate && examForm.examDate !== 'Not Set' ? examForm.examDate : new Date().toISOString().slice(0, 10);
-      const { payload } = resolveExamPayload(
-        examForm,
-        examDate,
-        examForm.name || 'Untitled Test'
-      );
-      payload.status = 'draft';
-
-      if (isEditing && examForm.id) {
-        await assignmentApi.updateHomework(String(examForm.id), payload);
-        addToast(`Exam "${payload.title}" updated in drafts.`, 'success');
-      } else {
-        await assignmentApi.createHomework(payload);
-        addToast(`Exam "${payload.title}" saved as draft.`, 'success');
-      }
-
-      setShowExamForm(false);
-      await refreshAll();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to save exam draft.', 'error');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleScheduleExam = async () => {
-    if (!examForm.name || !examForm.batch || !examForm.examDate || examForm.examDate === 'Not Set') {
-      addToast('Please fill in Test Name, Target Batch, and Exam Date.', 'error');
-      return;
-    }
-
-    const batchObj = scoping?.batches?.find(b => b.name === examForm.batch || String(b.id) === String(examForm.batch)) ||
-      ((examForm as any)._batchIds?.length ? scoping?.batches?.find(b => (examForm as any)._batchIds.includes(Number(b.id))) : null);
-    if (!batchObj && !(examForm as any)._batchIds?.length) {
-      addToast('Please select a valid target batch.', 'error');
-      return;
-    }
-
-    setActionBusy(true);
-    try {
-      const isEditing = Boolean(examForm.id && !String(examForm.id).startsWith('EX-'));
-      const groupId = `REC-EX-${Date.now()}`;
-
-      const recurrenceDates = examForm.isRecurring
-        ? generateRecurringExamDates(
-            examForm.examDate,
-            examForm.recurrenceType || 'weekly',
-            examForm.repeatDays || [],
-            examForm.repeatEndType || 'count',
-            examForm.repeatCount || 4,
-            examForm.repeatEndDate || '',
-            examForm.repeatInterval || 1
-          )
-        : [examForm.examDate];
-
-      let recurrenceSummaryText: string | undefined;
-
-      if (isEditing && examForm.id) {
-        const { payload, recurrenceSummary } = resolveExamPayload(
-          examForm,
-          examForm.examDate,
-          examForm.name || 'Untitled Test'
-        );
-        payload.status = 'scheduled';
-        recurrenceSummaryText = recurrenceSummary;
-        await assignmentApi.updateHomework(String(examForm.id), payload);
-        await assignmentApi.publishHomework(String(examForm.id));
-        addToast(`Exam "${payload.title}" updated and scheduled successfully!`, 'success');
-      } else {
-        for (let idx = 0; idx < recurrenceDates.length; idx++) {
-          const dateStr = recurrenceDates[idx];
-          const itemNumber = idx + 1;
-          const examTitle = recurrenceDates.length > 1
-            ? `${examForm.name} (Session #${itemNumber})`
-            : (examForm.name || 'Untitled Test');
-
-          const { payload, recurrenceSummary } = resolveExamPayload(
-            examForm,
-            dateStr,
-            examTitle,
-            groupId,
-            itemNumber,
-            recurrenceDates.length
-          );
-          payload.status = 'scheduled';
-          if (idx === 0) recurrenceSummaryText = recurrenceSummary;
-
-          const res = await assignmentApi.createHomework(payload);
-          if (res?.id) {
-            await assignmentApi.publishHomework(res.id);
-          }
-        }
-
-        if (recurrenceDates.length > 1) {
-          addToast(`Scheduled ${recurrenceDates.length} recurring test sessions for ${examForm.batch}!`, 'success');
-        } else {
-          addToast(`Exam "${examForm.name}" scheduled for ${examForm.batch}!`, 'success');
-        }
-      }
-
-      sendNotification({
-        id: `N-${Date.now()}`,
-        title: `Upcoming Exam: ${examForm.name}`,
-        message: examForm.isRecurring
-          ? `A recurring test series (${recurrenceSummaryText || ''}) has been scheduled starting on ${examForm.examDate} for ${examForm.batch}.`
-          : `An exam has been scheduled on ${examForm.examDate} for ${examForm.batch}.`,
-        category: 'Examination',
-        sender: currentUser?.name || 'Teacher',
-        senderRole: 'Teacher',
-        createdAt: new Date().toISOString(),
-        direction: 'Outgoing',
-        status: 'Unread',
-        recipients: [{ type: 'Batch', id: examForm.batch || '', name: examForm.batch || '' }]
-      });
-
-      setShowExamForm(false);
-      await refreshAll();
-      setActiveSubTab('active');
-    } catch (err: any) {
-      addToast(err.message || 'Failed to schedule exam.', 'error');
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const handleCancelExam = (id: string) => {
-    const item = exams.find(e => e.id === id);
-    if (item) {
-      promptCloseItem(item, 'exam');
-    } else {
-      promptCloseItem({ id, name: 'Exam' } as any, 'exam');
-    }
-  };
-
-
-  // ─── Full page: Exam detail (view only) ────────────────────────────────────
-  if (showExamDetails) {
-    const ex = showExamDetails;
-    return (
-      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
-        {/* Top nav */}
-        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowExamDetails(null)}
-              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-display font-bold text-slate-900">{ex.name}</h2>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(ex.status)}`}>
-                  {ex.status}
-                </span>
-                {ex.isRecurring && (
-                  <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                    Recurring
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">{ex.subject || '—'} · {ex.batch || 'No batch'} · {ex.examDate}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {(ex.status === 'Scheduled' || ex.status === 'Completed') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExamDetails(null);
-                  const hwShape = filteredExamsAsHomework.find(h => h.id === ex.id) || ({
-                    id: ex.id,
-                    title: ex.name,
-                    status: (ex.status === 'Scheduled' ? 'Published' : ex.status === 'Completed' ? 'Closed' : ex.status) as HomeworkItem['status'],
-                    maxMarks: ex.totalMarks,
-                    batchNames: ex._batchNames && ex._batchNames.length > 0 ? ex._batchNames : (ex.batch ? [ex.batch] : ['—']),
-                    subjectName: ex.subject || '—',
-                    dueDate: ex.examDate || '—',
-                    assignmentType: 'exam',
-                  } as HomeworkItem);
-                  openEvaluate(hwShape);
-                }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition-colors cursor-pointer"
-              >
-                <ClipboardCheck size={15} /> Grade Exam
-              </button>
-            )}
-            {(ex.status === 'Scheduled' || ex.status === 'Draft') && (
-              <button
-                type="button"
-                onClick={() => handleCancelExam(ex.id)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
-              >
-                <XCircle size={15} /> Close Exam
-              </button>
-            )}
-            {(ex.status === 'Completed' || ex.status === 'Draft') && (
-              <button
-                type="button"
-                onClick={() => {
-                  promptDeleteItem({
-                    id: ex.id,
-                    name: ex.name,
-                    title: ex.name,
-                    subject: ex.subject,
-                    batch: ex.batch,
-                    examDate: ex.examDate,
-                    assignmentType: 'exam',
-                    _examItem: ex
-                  });
-                }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-sm font-semibold hover:bg-rose-100 transition-colors cursor-pointer"
-              >
-                <Trash2 size={15} /> Delete Exam
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => { setExamForm({ ...ex }); setShowExamDetails(null); setShowExamForm(true); }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors cursor-pointer"
-            >
-              <Edit3 size={15} /> Edit Exam
-            </button>
-          </div>
-        </div>
-
-        {/* Detail body */}
-        <div className="px-6 md:px-10 py-8 space-y-6">
-
-          {/* ── Exam Meta grid ── */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-              <BookOpen size={16} className="text-blue-600" />
-              <h3 className="font-bold text-sm text-slate-700">Exam Details</h3>
-            </div>
-            <div className="p-6">
-              <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-5">
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Exam Type</dt>
-                  <dd>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-purple-50 text-purple-700 border-purple-200">
-                      {ex.type || '—'}
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Subject</dt>
-                  <dd className="text-sm font-semibold text-slate-800">{ex.subject || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Target Batch</dt>
-                  <dd className="text-sm font-semibold text-slate-800">{ex.batch || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Exam Date</dt>
-                  <dd className="text-sm font-semibold text-slate-800">{ex.examDate || '—'}</dd>
-                </div>
-                {ex.startTime && (
-                  <div>
-                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Start Time</dt>
-                    <dd className="text-sm font-semibold text-slate-800">{ex.startTime}</dd>
-                  </div>
-                )}
-                {ex.duration && (
-                  <div>
-                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Duration</dt>
-                    <dd className="text-sm font-semibold text-slate-800">{ex.duration}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Total Marks</dt>
-                  <dd className="text-sm font-semibold text-slate-800">{ex.totalMarks ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Passing Marks</dt>
-                  <dd className="text-sm font-semibold text-slate-800">{ex.passingMarks ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Class Average</dt>
-                  <dd className="text-sm font-semibold text-slate-800">{ex.average || '—'}</dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Status</dt>
-                  <dd>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(ex.status)}`}>
-                      {ex.status}
-                    </span>
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-
-          {/* ── Recurrence Info ── */}
-          {ex.isRecurring && (
-            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-                <Repeat size={16} className="text-blue-600" />
-                <h3 className="font-bold text-sm text-slate-700">Repeat Schedule</h3>
-                <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">Active</span>
-              </div>
-              <div className="p-6">
-                <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-5">
-                  <div>
-                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Frequency</dt>
-                    <dd className="text-sm font-semibold text-slate-800 capitalize">
-                      {ex.recurrenceType === 'weekly' ? 'Every Week'
-                        : ex.recurrenceType === 'biweekly' ? 'Bi-Weekly'
-                        : ex.recurrenceType === 'monthly_date' ? 'Monthly (Same Date)'
-                        : ex.recurrenceType === 'monthly_day' ? 'Monthly (Same Weekday)'
-                        : ex.recurrenceType === 'custom' ? `Every ${ex.repeatInterval || 1} Weeks`
-                        : ex.recurrenceType || '—'}
-                    </dd>
-                  </div>
-                  {ex.repeatDays && ex.repeatDays.length > 0 && (
-                    <div>
-                      <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Repeat Day</dt>
-                      <dd className="text-sm font-semibold text-slate-800">{ex.repeatDays.join(', ')}</dd>
-                    </div>
-                  )}
-                  <div>
-                    <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">End Condition</dt>
-                    <dd className="text-sm font-semibold text-slate-800">
-                      {ex.repeatEndType === 'date'
-                        ? `Until ${ex.repeatEndDate || '—'}`
-                        : `${ex.repeatCount || '—'} Sessions Total`}
-                    </dd>
-                  </div>
-                  {ex.recurringGroupId && (
-                    <div>
-                      <dt className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Session</dt>
-                      <dd className="text-sm font-semibold text-slate-800">#{ex.recurringInstanceIndex ?? 1}</dd>
-                    </div>
-                  )}
-                </dl>
-                {ex.recurrenceSummary && (
-                  <p className="mt-4 text-xs text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
-                    {ex.recurrenceSummary}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="flex items-center justify-between py-2">
-            <button
-              type="button"
-              onClick={() => setShowExamDetails(null)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <ArrowLeft size={15} /> Back to List
-            </button>
-            <button
-              type="button"
-              onClick={() => { setExamForm({ ...ex }); setShowExamDetails(null); setShowExamForm(true); }}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors cursor-pointer"
-            >
-              <Edit3 size={15} /> Edit Exam
-            </button>
-          </div>
-        </div>
-        {renderConfirmCloseModal()}
-        {renderConfirmDeleteModal()}
-      </div>
-    );
-  }
 
   // ─── Full page: Assignment detail (view only) ───────────────────────────────
   if (showHwDetail) {
@@ -2154,7 +1404,7 @@ export const TeacherAssignments: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-display font-bold text-slate-900">
-                  {item.assignmentType === 'exam' ? `Grade Exam: ${item.title}` : `Evaluate: ${item.title}`}
+                  {`Evaluate: ${item.title}`}
                 </h2>
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getStatusBadgeColor(item.status)}`}>
                   {item.status}
@@ -2816,453 +2066,6 @@ export const TeacherAssignments: React.FC = () => {
     );
   }
 
-  // ─── Full page: Exam create / edit (mock) ───────────────────────────────────
-  if (showExamForm) {
-    return (
-      <div className="-mx-4 md:-mx-8 -my-6 md:-my-8 min-h-screen bg-slate-50 animate-fade-in">
-        {/* Top nav bar */}
-        <div className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setShowExamForm(false)}
-              className="flex items-center justify-center h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
-              title="Go back"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-display font-bold text-slate-900">
-                  {examForm.id ? `Edit Test: ${examForm.name || 'Untitled'}` : 'Schedule Examination / Test'}
-                </h2>
-                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-violet-50 text-violet-700 border border-violet-200">
-                  {examForm.id ? 'Editing' : 'New Test'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {examForm.id ? 'Update examination details and evaluation parameters.' : 'Configure unit tests, mock exams, or chapter evaluations.'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <Button type="button" variant="secondary" onClick={() => setShowExamForm(false)} className="cursor-pointer" disabled={actionBusy}>
-              Cancel
-            </Button>
-            <Button type="button" variant="outline" onClick={handleSaveExamDraft} className="cursor-pointer" disabled={actionBusy}>
-              {actionBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Check className="w-4 h-4 mr-1.5" />}
-              Save Draft
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              style={{ backgroundColor: '#2563eb', color: 'white' }}
-              className="cursor-pointer font-semibold shadow-sm px-5"
-              onClick={handleScheduleExam}
-              disabled={actionBusy}
-            >
-              {actionBusy ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Send className="w-4 h-4 mr-1.5" />}
-              {examForm.id ? 'Save & Update Exam' : 'Schedule Exam'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Form body */}
-        <div className="px-6 md:px-10 py-8 space-y-6">
-
-          {/* Section 1: Basic Information */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-              <ClipboardList size={16} className="text-blue-600" />
-              <h3 className="font-bold text-sm text-slate-700">Basic Information</h3>
-              <p className="text-xs text-slate-400 ml-2">— Test name, type, subject, and target class</p>
-            </div>
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
-                  Test Title <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  value={examForm.name || ''}
-                  onChange={e => setExamForm({ ...examForm, name: e.target.value })}
-                  placeholder="e.g. Unit Test 2 — Periodic Table & Chemical Bonding"
-                  className="w-full text-base font-medium"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Test Type</label>
-                  <select
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    value={examForm.type || 'Unit Test'}
-                    onChange={e => setExamForm({ ...examForm, type: e.target.value })}
-                  >
-                    <option value="Unit Test">Unit Test</option>
-                    <option value="Chapter Test">Chapter Test</option>
-                    <option value="Weekly Test">Weekly Test</option>
-                    <option value="Mock Test">Mock Test</option>
-                    <option value="Term Examination">Term Examination</option>
-                    <option value="Internal Assessment">Internal Assessment</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Subject <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    value={examForm.subject || ''}
-                    onChange={e => setExamForm({ ...examForm, subject: e.target.value })}
-                  >
-                    <option value="">Select a subject...</option>
-                    {subjectOptions.map(s => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Target Batch <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    value={examForm.batch || ''}
-                    onChange={e => setExamForm({ ...examForm, batch: e.target.value })}
-                  >
-                    <option value="">Select a batch...</option>
-                    {(scoping?.batches || []).map(b => (
-                      <option key={b.id} value={b.name}>{b.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Exam Schedule & Evaluation */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-              <Award size={16} className="text-blue-600" />
-              <h3 className="font-bold text-sm text-slate-700">Schedule & Evaluation</h3>
-              <p className="text-xs text-slate-400 ml-2">— Exam date, total marks, and passing threshold</p>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">
-                    Exam Date <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    type="date"
-                    value={examForm.examDate === 'Not Set' ? '' : (examForm.examDate || '')}
-                    onChange={e => setExamForm({ ...examForm, examDate: e.target.value })}
-                    className="w-full"
-                  />
-                  <span className="text-[11px] text-slate-400 block mt-1">The date students will sit the exam.</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Total Marks</label>
-                  <Input
-                    type="number"
-                    value={examForm.totalMarks || 100}
-                    onChange={e => setExamForm({ ...examForm, totalMarks: parseInt(e.target.value) || 0 })}
-                    className="w-full"
-                  />
-                  <span className="text-[11px] text-slate-400 block mt-1">Full marks achievable in this test.</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1.5">Passing Threshold</label>
-                  <Input
-                    type="number"
-                    value={examForm.passingMarks || 40}
-                    onChange={e => setExamForm({ ...examForm, passingMarks: parseInt(e.target.value) || 0 })}
-                    className="w-full"
-                  />
-                  <span className="text-[11px] text-slate-400 block mt-1">Minimum marks required to pass.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Test Recurrence & Automated Repeat Schedule */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white to-slate-50/50">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                  <Repeat size={17} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm text-slate-800">Test Recurrence & Repeat Schedule</h3>
-                    {examForm.isRecurring && (
-                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                        Repeat Enabled
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Automatically repeat this test on the same day every week, same date every month, or custom intervals
-                  </p>
-                </div>
-              </div>
-
-              {/* Toggle Switch */}
-              <label className="relative inline-flex items-center gap-2.5 cursor-pointer select-none">
-                <span className="text-xs font-bold text-slate-700">Repeat Test</span>
-                <input
-                  type="checkbox"
-                  checked={Boolean(examForm.isRecurring)}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    const initialExamDate = examForm.examDate || new Date().toISOString().split('T')[0];
-                    const dateObj = new Date(initialExamDate);
-                    const dayIndex = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
-                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    setExamForm({
-                      ...examForm,
-                      isRecurring: checked,
-                      recurrenceType: examForm.recurrenceType || 'weekly',
-                      repeatDays: examForm.repeatDays?.length ? examForm.repeatDays : [dayNames[dayIndex]],
-                      repeatCount: examForm.repeatCount || 4,
-                      repeatEndType: examForm.repeatEndType || 'count',
-                      repeatInterval: examForm.repeatInterval || 1
-                    });
-                  }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner relative"></div>
-                <span className={`text-xs font-bold ${examForm.isRecurring ? 'text-blue-600' : 'text-slate-400'}`}>
-                  {examForm.isRecurring ? 'ON' : 'OFF'}
-                </span>
-              </label>
-            </div>
-
-            {examForm.isRecurring && (() => {
-              const previewDates = generateRecurringExamDates(
-                examForm.examDate || '',
-                examForm.recurrenceType || 'weekly',
-                examForm.repeatDays || [],
-                examForm.repeatEndType || 'count',
-                examForm.repeatCount || 4,
-                examForm.repeatEndDate || '',
-                examForm.repeatInterval || 1
-              );
-
-              return (
-                <div className="p-6 space-y-6 animate-fade-in bg-slate-50/40">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Recurrence Frequency Type */}
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                          Repeat Frequency <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium shadow-2xs"
-                          value={examForm.recurrenceType || 'weekly'}
-                          onChange={e => setExamForm({ ...examForm, recurrenceType: e.target.value as any })}
-                        >
-                          <option value="weekly">Every Week (Same day every week)</option>
-                          <option value="biweekly">Bi-Weekly (Every 2 weeks on same day)</option>
-                          <option value="monthly_date">Every Month (Same Date every month, e.g. 15th)</option>
-                          <option value="monthly_day">Every Month (Same Weekday, e.g. 2nd Monday)</option>
-                          <option value="custom">Custom Interval (Every N weeks)</option>
-                        </select>
-                        <span className="text-[11px] text-slate-400 block mt-1">
-                          {examForm.recurrenceType === 'weekly' && 'Repeats every week on the specified day.'}
-                          {examForm.recurrenceType === 'biweekly' && 'Repeats every 2 weeks on the specified day.'}
-                          {examForm.recurrenceType === 'monthly_date' && `Repeats on day ${examForm.examDate ? (new Date(examForm.examDate).getDate() || '—') : '—'} of every month.`}
-                          {examForm.recurrenceType === 'monthly_day' && 'Repeats on the same weekday position each month.'}
-                          {examForm.recurrenceType === 'custom' && 'Repeats at custom weekly intervals.'}
-                        </span>
-                      </div>
-
-                      {/* Custom interval multiplier if chosen */}
-                      {examForm.recurrenceType === 'custom' && (
-                        <div className="p-3 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                            Repeat Every
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              min={1}
-                              max={12}
-                              value={examForm.repeatInterval || 1}
-                              onChange={e => setExamForm({ ...examForm, repeatInterval: Math.max(1, parseInt(e.target.value) || 1) })}
-                              className="w-24 font-bold text-center"
-                            />
-                            <span className="text-sm font-semibold text-slate-600">Weeks</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* End Condition - Segmented Inline Pill Control */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                        End Repetition
-                      </label>
-                      <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => setExamForm({ ...examForm, repeatEndType: 'count' })}
-                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                            (examForm.repeatEndType || 'count') === 'count'
-                              ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                          }`}
-                        >
-                          <span>Repeat Count</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExamForm({ ...examForm, repeatEndType: 'date' })}
-                          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                            examForm.repeatEndType === 'date'
-                              ? 'bg-white text-blue-700 shadow-xs border border-slate-200/80'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                          }`}
-                        >
-                          <span>Until End Date</span>
-                        </button>
-                      </div>
-
-                      {/* Unified dynamic input for selected segment */}
-                      <div className="mt-2.5">
-                        {(examForm.repeatEndType || 'count') === 'count' ? (
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min={2}
-                                max={24}
-                                value={examForm.repeatCount || 4}
-                                onChange={e => setExamForm({ ...examForm, repeatCount: Math.min(24, Math.max(2, parseInt(e.target.value) || 2)) })}
-                                className="w-24 font-bold text-center"
-                              />
-                              <span className="text-xs font-semibold text-slate-600">Total test sessions</span>
-                            </div>
-                            <span className="text-[11px] text-slate-400 block mt-1">Schedules this test a total of {examForm.repeatCount || 4} times.</span>
-                          </div>
-                        ) : (
-                          <div>
-                            <Input
-                              type="date"
-                              value={examForm.repeatEndDate || ''}
-                              onChange={e => setExamForm({ ...examForm, repeatEndDate: e.target.value })}
-                              className="w-full"
-                            />
-                            <span className="text-[11px] text-slate-400 block mt-1">No test will be scheduled after this cutoff date.</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Day selector for weekly & biweekly */}
-                  {(examForm.recurrenceType === 'weekly' || examForm.recurrenceType === 'biweekly' || examForm.recurrenceType === 'custom') && (
-                    <div className="pt-3 border-t border-slate-200/60">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">
-                        Test Day of the Week
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
-                          const isSelected = (examForm.repeatDays || []).includes(day);
-                          return (
-                            <button
-                              key={day}
-                              type="button"
-                              onClick={() => {
-                                setExamForm({
-                                  ...examForm,
-                                  repeatDays: [day]
-                                });
-                              }}
-                              className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              {day}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Live Occurrence Preview */}
-                  <div className="p-4 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-blue-50/80 border border-blue-200/80 rounded-xl space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
-                        <Calendar size={14} className="text-blue-600" />
-                        Generated Test Schedule Preview ({previewDates.length} sessions)
-                      </div>
-                      <span className="text-[11px] font-semibold text-blue-700 font-mono">
-                        {getRecurrenceSummaryText(
-                          examForm.recurrenceType || 'weekly',
-                          examForm.repeatDays || [],
-                          examForm.repeatEndType || 'count',
-                          examForm.repeatCount || 4,
-                          examForm.repeatEndDate || '',
-                          previewDates.length,
-                          examForm.repeatInterval || 1
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 pt-1.5">
-                      {previewDates.map((dateStr, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-blue-200 text-xs font-mono font-bold text-slate-800 shadow-2xs"
-                        >
-                          <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
-                            {idx + 1}
-                          </span>
-                          {formatPreviewDate(dateStr)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Footer action bar */}
-          <div className="flex items-center justify-between py-2">
-            <Button type="button" variant="secondary" onClick={() => setShowExamForm(false)} className="cursor-pointer">
-              Cancel
-            </Button>
-            <div className="flex items-center gap-2.5">
-              <Button type="button" variant="outline" onClick={handleSaveExamDraft} className="cursor-pointer">
-                <Check className="w-4 h-4 mr-1.5" /> Save Draft
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                style={{ backgroundColor: '#2563eb', color: 'white' }}
-                className="cursor-pointer font-semibold shadow-sm px-6"
-                onClick={handleScheduleExam}
-              >
-                <Send className="w-4 h-4 mr-1.5" />
-                {examForm.id ? 'Save & Update Exam' : 'Schedule Exam'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ─── Main list view ──────────────────────────────────────────────────────
   const handleResetFilters = () => {
     setFilterType('All');
@@ -3278,8 +2081,8 @@ export const TeacherAssignments: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-display font-bold text-slate-900">Homework &amp; Exams</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage homework, assignments, practice sets, and classroom evaluations</p>
+          <h2 className="text-2xl font-display font-bold text-slate-900">Homework &amp; Tasks</h2>
+          <p className="text-sm text-slate-500 mt-1">Manage homework, assignments, and practice sets</p>
         </div>
         {activePrimaryTab === 'homework' && (
           <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => openCreateForm('homework')}>
@@ -3289,11 +2092,6 @@ export const TeacherAssignments: React.FC = () => {
         {activePrimaryTab === 'assignment' && (
           <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => openCreateForm('assignment')}>
             <Plus className="w-4 h-4 mr-2" /> Create Assignment
-          </Button>
-        )}
-        {activePrimaryTab === 'exams' && (
-          <Button className="bg-blue-600 text-white cursor-pointer" onClick={() => { setExamForm({}); setShowExamForm(true); }}>
-            <Plus className="w-4 h-4 mr-2" /> Schedule Test
           </Button>
         )}
       </div>
@@ -3327,18 +2125,6 @@ export const TeacherAssignments: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => { setActivePrimaryTab('exams'); setActiveSubTab('active'); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-              activePrimaryTab === 'exams' && activeSubTab !== 'drafts'
-                ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 ring-2 ring-blue-500/15'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 border border-transparent'
-            }`}
-          >
-            <ClipboardList size={16} />
-            Exams
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveSubTab('drafts')}
             className={`ml-auto flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
               activeSubTab === 'drafts'
@@ -3362,9 +2148,7 @@ export const TeacherAssignments: React.FC = () => {
           placeholder={
             activePrimaryTab === 'homework'
               ? 'Search homework by title...'
-              : activePrimaryTab === 'assignment'
-              ? 'Search assignments by title...'
-              : 'Search exams by title...'
+              : 'Search assignments by title...'
           }
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
@@ -3424,10 +2208,10 @@ export const TeacherAssignments: React.FC = () => {
                 : ['28%', '14%', '18%', '12%', '12%', '16%']
             }
             headers={[
-              { label: activePrimaryTab === 'homework' ? 'Homework' : activePrimaryTab === 'assignment' ? 'Assignment' : 'Exam', align: 'left' },
+              { label: activePrimaryTab === 'homework' ? 'Homework' : 'Assignment', align: 'left' },
               { label: 'Subject', align: 'left' },
               { label: 'Target Batch', align: 'left' },
-              { label: activePrimaryTab === 'exams' ? 'Exam Date' : 'Due Date', align: 'left' },
+              { label: 'Due Date', align: 'left' },
               ...(activeSubTab === 'active' ? [{ label: 'Submissions', align: 'center' as const }] : []),
               { label: 'Status', align: 'center' as const },
               { label: 'Actions', align: 'right' as const }
@@ -3439,19 +2223,18 @@ export const TeacherAssignments: React.FC = () => {
                   <FileText className="mx-auto text-slate-300 mb-3" size={32} />
                   <div className="font-medium">
                     No {activeSubTab === 'active'
-                      ? (activePrimaryTab === 'homework' ? 'active homework' : activePrimaryTab === 'assignment' ? 'active assignments' : 'active exams')
-                      : (activePrimaryTab === 'homework' ? 'homework drafts' : activePrimaryTab === 'assignment' ? 'assignment drafts' : 'exam drafts')
+                      ? (activePrimaryTab === 'homework' ? 'active homework' : 'active assignments')
+                      : (activePrimaryTab === 'homework' ? 'homework drafts' : 'assignment drafts')
                     } found.
                   </div>
                 </td>
               </tr>
             ) : (
-              (paginatedData as (HomeworkItem & { _examItem?: ExamItem })[]).map((assign) => {
-                const examItem = assign._examItem;
-                const displayStatus = examItem ? examItem.status : assign.status;
-                const submittedCount = assign.submittedCount ?? examItem?.submittedCount ?? 0;
-                const totalCount = assign.totalCount ?? examItem?.totalCount ?? null;
-                const isDraft = displayStatus === 'Draft' || assign.status === 'Draft';
+              (paginatedData as HomeworkItem[]).map((assign) => {
+                const displayStatus = assign.status;
+                const submittedCount = assign.submittedCount ?? 0;
+                const totalCount = assign.totalCount ?? null;
+                const isDraft = displayStatus === 'Draft';
                 return (
                 <tr key={assign.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-4 py-3 text-left">
@@ -3462,11 +2245,6 @@ export const TeacherAssignments: React.FC = () => {
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider ${getTypeBadgeColor(assign.assignmentType)}`}>
                         {typeLabel(assign.assignmentType)}
                       </span>
-                      {examItem?.isRecurring && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider bg-blue-50 text-blue-700 border-blue-200">
-                          Recurring
-                        </span>
-                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[160px]" title={assign.subjectName}>
@@ -3504,20 +2282,17 @@ export const TeacherAssignments: React.FC = () => {
                     <div className="flex items-center justify-end gap-1 flex-nowrap shrink-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          if (examItem) { setShowExamDetails(examItem); }
-                          else { openDetail(assign); }
-                        }}
+                        onClick={() => openDetail(assign)}
                         title="View Details"
                         className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
                       </button>
-                      {(assign.status === 'Published' || assign.status === 'Closed' || (examItem && (examItem.status === 'Scheduled' || examItem.status === 'Completed'))) && (
+                      {(assign.status === 'Published' || assign.status === 'Closed') && (
                         <button
                           type="button"
                           onClick={() => openEvaluate(assign)}
-                          title={examItem ? "Grade Exam" : "Evaluate Submissions"}
+                          title="Evaluate Submissions"
                           className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg border border-slate-200 hover:border-purple-200 transition-colors cursor-pointer"
                         >
                           <ClipboardCheck className="w-3.5 h-3.5" />
@@ -3525,20 +2300,13 @@ export const TeacherAssignments: React.FC = () => {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          if (examItem) {
-                            setExamForm(examItem);
-                            setShowExamForm(true);
-                          } else {
-                            openEditForm(assign);
-                          }
-                        }}
-                        title={examItem ? 'Edit Exam' : activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'}
+                        onClick={() => openEditForm(assign)}
+                        title={activePrimaryTab === 'homework' ? 'Edit Homework' : 'Edit Assignment'}
                         className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      {!examItem && assign.status === 'Published' && (
+                      {assign.status === 'Published' && (
                         <button
                           type="button"
                           onClick={() => handleCloseAssign(assign)}
@@ -3548,21 +2316,11 @@ export const TeacherAssignments: React.FC = () => {
                           <XCircle className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {examItem && (examItem.status === 'Scheduled' || examItem.status === 'Draft') && (
-                        <button
-                          type="button"
-                          onClick={() => handleCancelExam(examItem.id)}
-                          title="Close Exam"
-                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg border border-slate-200 hover:border-amber-200 transition-colors cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                       {assign.status !== 'Published' && (
                         <button
                           type="button"
                           onClick={() => handleDeleteAssign(assign)}
-                          title={examItem ? 'Delete Exam' : ((assign.assignmentType || '').toLowerCase() === 'homework' || activePrimaryTab === 'homework') ? 'Delete Homework' : 'Delete Assignment'}
+                          title={((assign.assignmentType || '').toLowerCase() === 'homework' || activePrimaryTab === 'homework') ? 'Delete Homework' : 'Delete Assignment'}
                           className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

@@ -26,13 +26,13 @@ const UpcomingExamsTable: React.FC<UpcomingExamsTableProps> = ({ data, loading }
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const isBranchAdmin = currentUser?.role === 'branch-admin';
-  const assignmentsPath = isBranchAdmin ? '/branch/assignments' : '/admin/assignments';
+  const examsPath = isBranchAdmin ? '/branch/exams' : '/admin/exams';
 
   const exams = (data ?? []).slice(0, 3);
 
   return (
     <div
-      onClick={() => navigate(assignmentsPath)}
+      onClick={() => navigate(examsPath)}
       className="group relative bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col space-y-3 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 hover:border-slate-300 cursor-pointer overflow-hidden select-none"
     >
       {/* Subtle top accent bar */}

@@ -35,7 +35,6 @@ const EXAM_TYPES: ExamType[] = [
   'Mock Test',
   'Term Exam',
   'Final Exam',
-  'Assignment',
   'Internal Assessment',
   'Other'
 ];

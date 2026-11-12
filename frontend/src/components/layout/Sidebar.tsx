@@ -168,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Lecture Schedule', label: 'Lecture Timetable', path: '/admin/timetable', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/admin/attendance', icon: CheckSquare },
               { name: 'Academic Calendar', label: 'Academic Calendar', path: '/admin/academic-calendar', icon: CalendarDays },
-              { name: 'Assignment and Exams', label: 'Homework & Tasks', path: '/admin/assignments', icon: BookOpen },
+              { name: 'Homework & Tasks', label: 'Homework & Tasks', path: '/admin/assignments', icon: BookOpen },
               { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/admin/exams', icon: Award }
             ]
           },
@@ -219,7 +219,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Lecture Schedule', label: 'Lecture Timetable', path: '/branch/timetable', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/branch/attendance', icon: CheckSquare },
               { name: 'Academic Calendar', label: 'Academic Calendar', path: '/branch/academic-calendar', icon: CalendarDays },
-              { name: 'Assignment and Exams', label: 'Homework & Tasks', path: '/branch/assignments', icon: BookOpen },
+              { name: 'Homework & Tasks', label: 'Homework & Tasks', path: '/branch/assignments', icon: BookOpen },
               { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/branch/exams', icon: Award }
             ]
           },
@@ -268,7 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
             links: [
               { name: 'My Schedule', label: 'Lecture Schedule', path: '/teacher/schedule', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance', path: '/teacher/attendance', icon: CheckSquare },
-              { name: 'Assignment and Exams', label: 'Homework & Tasks', path: '/teacher/assignments', icon: BookOpen },
+              { name: 'Homework & Tasks', label: 'Homework & Tasks', path: '/teacher/assignments', icon: BookOpen },
               { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/teacher/exams', icon: Award },
               { name: 'Students Roster', label: 'My Students', path: '/teacher/students', icon: GraduationCap }
             ]

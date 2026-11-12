@@ -500,7 +500,8 @@ const getPageTitle = (path: string): string => {
   if (clean.includes('/batches')) return 'Vidya Setu | Batches Setup';
   if (clean.includes('/branches')) return 'Vidya Setu | Branches';
   if (clean.includes('/doubts')) return 'Vidya Setu | Doubts Hub';
-  if (clean.includes('/homework') || clean.includes('/assignments')) return 'Vidya Setu | Homework & Exams';
+  if (clean.includes('/homework') || clean.includes('/assignments')) return 'Vidya Setu | Homework & Tasks';
+  if (clean.includes('/exams')) return 'Vidya Setu | Exams & Marks';
   if (clean.includes('/calendar')) return 'Vidya Setu | Academic Calendar';
   if (clean.includes('/reports')) return 'Vidya Setu | Reports';
   if (clean.includes('/users') || clean.includes('/staff')) return 'Vidya Setu | Users & Roles';

@@ -774,6 +774,10 @@ export const TeacherDashboard: React.FC = () => {
   }, [filteredAssessments, showAllAssessments]);
 
   const handleGradeRedirect = (assessment: HomeworkItem) => {
+    if ((assessment.assignmentType || '').toLowerCase() === 'exam') {
+      navigate('/teacher/exams');
+      return;
+    }
     navigate(`/assignments?evaluate=${encodeURIComponent(assessment.id)}`);
   };
 
@@ -2123,7 +2127,7 @@ export const TeacherDashboard: React.FC = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => navigate('/assignments')}
+                              onClick={() => navigate(assessmentTypeFilter === 'exam' ? '/teacher/exams' : '/assignments')}
                               className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2.5 py-1.5 cursor-pointer"
                             >
                               Manage All →
@@ -2145,9 +2149,9 @@ export const TeacherDashboard: React.FC = () => {
                         variant="secondary"
                         size="sm"
                         className="mt-4 text-xs cursor-pointer"
-                        onClick={() => navigate('/assignments')}
+                        onClick={() => navigate(assessmentTypeFilter === 'exam' ? '/teacher/exams' : '/assignments')}
                       >
-                        Go to Assessments
+                        Go to {assessmentTypeFilter === 'exam' ? 'Exams & Marks' : 'Homework & Tasks'}
                       </Button>
                     </div>
                   )}
