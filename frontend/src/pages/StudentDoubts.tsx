@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -687,9 +688,9 @@ export const StudentDoubts: React.FC = () => {
       </div>
 
       {/* Ask a Doubt Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[1000] overflow-y-auto bg-black/45 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-200 animate-in fade-in zoom-in-95 duration-150 my-auto">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-indigo-50/50">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-indigo-600" />
@@ -868,14 +869,15 @@ export const StudentDoubts: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Lightbox Image Preview Modal */}
-      {previewImageUrl && (
+      {previewImageUrl && createPortal(
         <div
           onClick={() => setPreviewImageUrl(null)}
-          className="fixed inset-0 z-60 bg-black/80 flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-4 cursor-pointer"
         >
           <div className="relative max-w-4xl max-h-[90vh]">
             <img
@@ -890,7 +892,8 @@ export const StudentDoubts: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const attendanceModel = require('../models/attendanceModel');
 const studentModel = require('../models/studentModel');
 const timetableAccessService = require('../services/timetableAccessService');
+const AuditService = require('../services/auditService');
 
 const resolveTenantId = (req) => {
     if (req.query && req.query.tenantId) return parseInt(req.query.tenantId);
@@ -14,7 +15,12 @@ const resolveUserId = (req) => req.user && (req.user.userId || req.user.id);
 const handleError = (res, error, fallbackMessage) => {
     console.error(fallbackMessage, error);
     if (error && error.statusCode) {
-        return res.status(error.statusCode).json({ status: 'error', message: error.message, code: error.code });
+        return res.status(error.statusCode).json({
+            status: 'error',
+            message: error.message,
+            code: error.code,
+            details: error.details
+        });
     }
     res.status(500).json({ status: 'error', message: error.message || 'Internal server error' });
 };
@@ -108,7 +114,7 @@ const saveAttendance = async (req, res) => {
         const tenantId = resolveTenantId(req);
         const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
         const { lectureId } = req.params;
-        const { records } = req.body;
+        const { records, location } = req.body;
 
         if (!Array.isArray(records)) {
             return res.status(400).json({ status: 'error', message: 'records array required' });
@@ -168,7 +174,7 @@ const submitAttendance = async (req, res) => {
         const tenantId = resolveTenantId(req);
         const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
         const { lectureId } = req.params;
-        const { records } = req.body;
+        const { records, location } = req.body;
 
         let lecture = null;
         if (accessContext.authorizedBranchId) {
@@ -207,10 +213,108 @@ const submitAttendance = async (req, res) => {
             }
         }
 
-        const result = await attendanceModel.submitAttendance(tenantId, lectureId, resolveUserId(req), records || []);
+        const result = await attendanceModel.submitAttendance(tenantId, lectureId, resolveUserId(req), records || [], location || null);
         res.status(200).json({ status: 'success', message: 'Attendance submitted and locked successfully', data: result });
     } catch (error) {
         handleError(res, error, 'Error submitting attendance:');
+    }
+};
+
+/**
+ * 5a. POST /api/branch/attendance/correct/:lectureId
+ * Correct locked attendance for a lecture with mandatory reason and audit trail
+ */
+const correctAttendance = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const { lectureId } = req.params;
+        const { records, reason } = req.body;
+        req.audit = false;
+
+        let lecture = null;
+        if (accessContext.authorizedBranchId) {
+            lecture = await timetableAccessService.validateLectureInBranch(tenantId, accessContext.authorizedBranchId, lectureId);
+        } else {
+            const [rows] = await pool.query('SELECT * FROM lectures WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL', [Number(lectureId), tenantId]);
+            if (!rows.length) {
+                return res.status(404).json({ status: 'error', message: 'Lecture not found' });
+            }
+            lecture = rows[0];
+        }
+
+        if (Array.isArray(records) && records.length > 0) {
+            const studentIds = records.map(r => Number(r.student_id)).filter(Boolean);
+            if (studentIds.length > 0) {
+                const [enrolled] = await pool.query(
+                    `SELECT student_id FROM student_enrollments
+                     WHERE tenant_id = ? AND batch_id = ? AND academic_year_id = ?
+                       AND status = 'active' AND deleted_at IS NULL AND student_id IN (?)`,
+                    [tenantId, lecture.batch_id, lecture.academic_year_id, studentIds]
+                );
+                const validSet = new Set(enrolled.map(e => Number(e.student_id)));
+                for (const sId of studentIds) {
+                    if (!validSet.has(sId)) {
+                        return res.status(403).json({
+                            status: 'error',
+                            message: `Forbidden: Student ID ${sId} is not actively enrolled in batch ${lecture.batch_id}.`
+                        });
+                    }
+                }
+            }
+        }
+
+        const result = await attendanceModel.correctAttendance(tenantId, lectureId, resolveUserId(req), records, reason);
+
+        await AuditService.logFromRequest(req, {
+            action: 'ATTENDANCE_CORRECTION',
+            entityType: 'attendance_records',
+            entityId: Number(lectureId),
+            branchId: result.branchId,
+            severity: 'warning',
+            oldValues: {
+                changes: result.changes.map(c => ({
+                    student_id: c.student_id,
+                    student_name: c.student_name,
+                    status: c.old_status,
+                    remarks: c.old_remarks
+                }))
+            },
+            newValues: {
+                reason: result.reason,
+                changes: result.changes.map(c => ({
+                    student_id: c.student_id,
+                    student_name: c.student_name,
+                    status: c.new_status,
+                    remarks: c.new_remarks
+                }))
+            }
+        });
+
+        res.status(200).json({ status: 'success', message: 'Attendance corrected and audited successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Error correcting attendance:');
+    }
+};
+
+/**
+ * 5a2. GET /api/branch/attendance/corrections/:lectureId
+ * Get attendance correction history for a lecture
+ */
+const getCorrections = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const { lectureId } = req.params;
+
+        if (accessContext.authorizedBranchId) {
+            await timetableAccessService.validateLectureInBranch(tenantId, accessContext.authorizedBranchId, lectureId);
+        }
+
+        const corrections = await attendanceModel.getCorrections(tenantId, lectureId);
+        res.status(200).json({ status: 'success', data: corrections });
+    } catch (error) {
+        handleError(res, error, 'Error fetching attendance corrections:');
     }
 };
 
@@ -319,7 +423,7 @@ const saveStaffAttendance = async (req, res) => {
         const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
 
         const branchId = accessContext.authorizedBranchId || (req.body.branchId ? parseInt(req.body.branchId) : 1);
-        const { date, records } = req.body;
+        const { date, records, location } = req.body;
 
         if (!date) {
             return res.status(400).json({ status: 'error', message: 'date is required' });
@@ -361,7 +465,7 @@ const saveStaffAttendance = async (req, res) => {
             }
         }
 
-        const result = await attendanceModel.saveStaffAttendance(tenantId, { branchId, date, records, userId: resolveUserId(req) });
+        const result = await attendanceModel.saveStaffAttendance(tenantId, { branchId, date, records, userId: resolveUserId(req), location: location || null });
         res.status(200).json({ status: 'success', message: 'Staff attendance saved successfully', data: result });
     } catch (error) {
         handleError(res, error, 'Error saving branch staff attendance:');
@@ -485,7 +589,7 @@ const saveDailyStudents = async (req, res) => {
         const tenantId = resolveTenantId(req);
         const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
         const branchId = accessContext.authorizedBranchId || req.body.branchId;
-        const { batchId, date, records } = req.body;
+        const { batchId, date, records, location } = req.body;
 
         if (!date) {
             return res.status(400).json({ status: 'error', message: 'date is required' });
@@ -503,11 +607,37 @@ const saveDailyStudents = async (req, res) => {
             batchId,
             date,
             records,
-            userId: resolveUserId(req)
+            userId: resolveUserId(req),
+            location: location || null
         });
         res.status(200).json({ status: 'success', message: 'Student daily attendance saved successfully', data: result });
     } catch (error) {
         handleError(res, error, 'Error saving daily student attendance:');
+    }
+};
+
+const toggleStudentCheckin = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const accessContext = await timetableAccessService.resolveAccessContext(tenantId, req.user);
+        const { lectureId } = req.params;
+        if (accessContext.authorizedBranchId) {
+            await timetableAccessService.validateLectureInBranch(tenantId, accessContext.authorizedBranchId, lectureId);
+        }
+        const { open } = req.body || {};
+        const result = await attendanceModel.toggleStudentCheckinSession(
+            tenantId,
+            lectureId,
+            resolveUserId(req),
+            open !== undefined ? Boolean(open) : true
+        );
+        res.status(200).json({
+            status: 'success',
+            message: result.student_checkin_open ? 'Student self check-in opened' : 'Student self check-in closed',
+            data: result
+        });
+    } catch (error) {
+        handleError(res, error, 'Failed to toggle branch student check-in session:');
     }
 };
 
@@ -517,6 +647,8 @@ module.exports = {
     getRoster,
     saveAttendance,
     submitAttendance,
+    correctAttendance,
+    getCorrections,
     getTemplate,
     bulkUpload,
     getStaffAttendance,
@@ -525,5 +657,6 @@ module.exports = {
     getBatchReport,
     getStudentReport,
     getDailyStudents,
-    saveDailyStudents
+    saveDailyStudents,
+    toggleStudentCheckin
 };

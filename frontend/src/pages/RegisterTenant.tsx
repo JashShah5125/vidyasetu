@@ -26,20 +26,6 @@ const INDIAN_STATES = [
   'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Chandigarh'
 ];
 
-const DESIGNATION_OPTIONS = [
-  'Director',
-  'Owner',
-  'Principal',
-  'Managing Director',
-  'Founder / Co-Founder',
-  'Head of Institute',
-  'Administrator',
-  'Branch Manager',
-  'Dean / Academic Head',
-  'Partner',
-  'Other'
-];
-
 const ADDITIONAL_DOC_TYPES = [
   {
     key: 'regDoc' as const,
@@ -76,7 +62,6 @@ export const RegisterTenant: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [isOtherDesignation, setIsOtherDesignation] = useState<boolean>(false);
   const [selectedDocType, setSelectedDocType] = useState<'regDoc' | 'adminIdDoc' | 'gstDoc' | 'logo'>('regDoc');
 
   // Form State: Strictly fields that map 1:1 to saas_leads columns
@@ -90,7 +75,6 @@ export const RegisterTenant: React.FC = () => {
 
     // Step 2: Admin / Contact Details
     contactPerson: '',
-    designation: '',
     mobile: '',
     altMobile: '',
     email: '',
@@ -254,7 +238,6 @@ export const RegisterTenant: React.FC = () => {
       payload.append('state', formData.state);
       if (formData.pincode.trim()) payload.append('pincode', formData.pincode.trim());
       payload.append('contactPerson', formData.contactPerson.trim());
-      if (formData.designation.trim()) payload.append('designation', formData.designation.trim());
       payload.append('mobile', formData.mobile.replace(/[^0-9]/g, ''));
       if (formData.altMobile.trim()) payload.append('altMobile', formData.altMobile.replace(/[^0-9]/g, ''));
       payload.append('email', formData.email.trim());
@@ -311,11 +294,11 @@ export const RegisterTenant: React.FC = () => {
 
           {/* Top: Logo & Slogan */}
           <div className="space-y-6 relative z-10">
-            <Link to="/login" className="inline-block group">
+            <Link to="/" className="inline-block group" title="Back to Home">
               <img
                 src="/logo.png"
                 alt="Vidya Setu Logo"
-                className="h-16 sm:h-20 w-auto object-contain transition-transform group-hover:scale-102"
+                className="h-24 sm:h-28 w-auto max-w-[240px] object-contain transition-transform group-hover:scale-105"
               />
             </Link>
 
@@ -580,42 +563,6 @@ export const RegisterTenant: React.FC = () => {
                           onChange={e => handleChange('contactPerson', e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
                         />
-                      </div>
-
-                      {/* Designation */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                          Designation
-                        </label>
-                        <select
-                          value={isOtherDesignation ? 'Other' : (formData.designation || '')}
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (val === 'Other') {
-                              setIsOtherDesignation(true);
-                              handleChange('designation', '');
-                            } else {
-                              setIsOtherDesignation(false);
-                              handleChange('designation', val);
-                            }
-                          }}
-                          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium cursor-pointer"
-                        >
-                          <option value="">Select Designation</option>
-                          {DESIGNATION_OPTIONS.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                        {isOtherDesignation && (
-                          <input
-                            type="text"
-                            placeholder="Please specify your designation"
-                            value={formData.designation}
-                            onChange={e => handleChange('designation', e.target.value)}
-                            className="mt-2 w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
-                            autoFocus
-                          />
-                        )}
                       </div>
 
                       {/* Mobile & Alt Mobile */}

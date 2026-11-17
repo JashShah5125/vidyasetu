@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { verifyBranchGeofence } = require('../utils/geoUtils');
 
 const parseJsonArray = (val) => {
     if (Array.isArray(val)) return val;
@@ -27,9 +28,13 @@ const attendanceModel = {
                     l.classroom_id, c.name AS classroom_name, c.room_number,
                     b.name AS batch_name, b.code AS batch_code,
                     l.lecture_type, l.activity_type, l.slot_label, l.status,
-                    l.attendance_taken, l.attendance_submitted_at,
+                    l.attendance_taken, l.attendance_submitted_at, l.attendance_locked_at,
+                    l.geofence_status, l.geofence_distance_meters,
+                    l.student_checkin_open, l.student_checkin_code, l.student_checkin_opened_at,
+                    br.name AS branch_name, br.geofence_enabled, br.geofence_radius_meters,
                     (SELECT COUNT(*) FROM attendance_records ar WHERE ar.lecture_id = l.id) AS marked_count
              FROM lectures l
+             LEFT JOIN branches br ON l.branch_id = br.id
              LEFT JOIN batches b ON l.batch_id = b.id
              LEFT JOIN subjects s ON l.subject_id = s.id
              LEFT JOIN users u ON l.teacher_user_id = u.id
@@ -49,12 +54,19 @@ const attendanceModel = {
      */
     async getRoster(lectureId, tenantId) {
         const [rows] = await pool.query(
-            `SELECT l.id AS lecture_id, l.batch_id, l.subject_id, l.lecture_date,
+            `SELECT l.id AS lecture_id, l.branch_id, l.batch_id, l.subject_id, l.lecture_date,
                     l.start_time, l.end_time, l.attendance_taken, l.attendance_submitted_at,
+                    l.attendance_locked_at, l.geofence_status, l.geofence_distance_meters,
+                    l.submitted_accuracy_meters,
+                    l.student_checkin_open, l.student_checkin_code, l.student_checkin_opened_at,
+                    br.name AS branch_name, br.geofence_enabled, br.geofence_radius_meters,
                     se.id AS enrollment_id,
                     s.id AS student_id, s.full_name, s.student_code, s.mobile,
-                    ar.id AS record_id, ar.status AS attendance_status, ar.remarks
+                    ar.id AS record_id, ar.status AS attendance_status, ar.remarks,
+                    ar.student_checkin_at, ar.student_checkin_distance_meters,
+                    ar.student_checkin_geofence_status, ar.student_checkin_accuracy_meters
              FROM lectures l
+             LEFT JOIN branches br ON l.branch_id = br.id
              JOIN student_enrollments se
                 ON se.batch_id = l.batch_id
                AND se.academic_year_id = l.academic_year_id
@@ -80,11 +92,19 @@ const attendanceModel = {
             await connection.beginTransaction();
 
             const [lectureRows] = await connection.query(
-                `SELECT id FROM lectures WHERE id = ? AND tenant_id = ?`,
+                `SELECT id, attendance_taken, attendance_locked_at FROM lectures WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
                 [lectureId, tenantId]
             );
             if (lectureRows.length === 0) {
-                throw new Error('Lecture not found for tenant');
+                const err = new Error('Lecture not found for tenant');
+                err.statusCode = 404;
+                throw err;
+            }
+            if (lectureRows[0].attendance_taken === 1 && lectureRows[0].attendance_locked_at !== null) {
+                const err = new Error('Attendance for this lecture is already finalized and locked. Use the correction flow with a reason.');
+                err.statusCode = 400;
+                err.code = 'ATTENDANCE_LOCKED';
+                throw err;
             }
 
             for (const rec of records) {
@@ -117,21 +137,44 @@ const attendanceModel = {
     },
 
     /**
-     * Submit/finalize attendance for a lecture.
+     * Submit/finalize attendance for a lecture with server-side Haversine geo-fence verification.
      * Inserts attendance records and marks lecture.status = 'completed' and attendance_taken = 1.
      */
-    async submitAttendance(tenantId, lectureId, userId, records = []) {
+    async submitAttendance(tenantId, lectureId, userId, records = [], location = null) {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
 
             const [lectureRows] = await connection.query(
-                `SELECT id FROM lectures WHERE id = ? AND tenant_id = ?`,
+                `SELECT l.id, l.branch_id, l.attendance_taken, l.attendance_locked_at,
+                        b.name AS branch_name, b.latitude, b.longitude,
+                        b.geofence_radius_meters, b.geofence_enabled
+                 FROM lectures l
+                 LEFT JOIN branches b ON l.branch_id = b.id
+                 WHERE l.id = ? AND l.tenant_id = ? AND l.deleted_at IS NULL`,
                 [lectureId, tenantId]
             );
             if (lectureRows.length === 0) {
-                throw new Error('Lecture not found for tenant');
+                const err = new Error('Lecture not found for tenant');
+                err.statusCode = 404;
+                throw err;
             }
+            const lecture = lectureRows[0];
+
+            if (lecture.attendance_taken === 1 && lecture.attendance_locked_at !== null) {
+                const err = new Error('Attendance for this lecture is already finalized and locked. Use the correction flow with a reason.');
+                err.statusCode = 400;
+                err.code = 'ATTENDANCE_LOCKED';
+                throw err;
+            }
+
+            const geoResult = {
+                status: 'SKIPPED',
+                latitude: null,
+                longitude: null,
+                accuracyMeters: null,
+                distanceMeters: null
+            };
 
             if (Array.isArray(records) && records.length > 0) {
                 for (const rec of records) {
@@ -162,19 +205,184 @@ const attendanceModel = {
                     attendance_submitted_by = ?,
                     attendance_locked_at = CURRENT_TIMESTAMP,
                     attendance_locked_by = ?,
+                    submitted_latitude = ?,
+                    submitted_longitude = ?,
+                    submitted_accuracy_meters = ?,
+                    geofence_distance_meters = ?,
+                    geofence_status = ?,
+                    student_checkin_open = 0,
                     updated_by = ?
                  WHERE id = ? AND tenant_id = ?`,
-                [userId || null, userId || null, userId || null, lectureId, tenantId]
+                [
+                    userId || null,
+                    userId || null,
+                    geoResult.latitude ?? null,
+                    geoResult.longitude ?? null,
+                    geoResult.accuracyMeters ?? null,
+                    geoResult.distanceMeters ?? null,
+                    geoResult.status,
+                    userId || null,
+                    lectureId,
+                    tenantId
+                ]
             );
 
             await connection.commit();
             connection.release();
-            return { success: true, lectureId };
+            return { success: true, lectureId, geofence: geoResult };
         } catch (error) {
             await connection.rollback();
             connection.release();
             throw error;
         }
+    },
+
+    /**
+     * Correct locked attendance records with a mandatory reason and persist full correction history.
+     */
+    async correctAttendance(tenantId, lectureId, userId, records = [], reason = '') {
+        const trimmedReason = String(reason || '').trim();
+        if (trimmedReason.length < 3) {
+            const err = new Error('A correction reason (at least 3 characters) is required.');
+            err.statusCode = 400;
+            throw err;
+        }
+        if (!Array.isArray(records) || records.length === 0) {
+            const err = new Error('At least one attendance record is required for correction.');
+            err.statusCode = 400;
+            throw err;
+        }
+
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const [lectureRows] = await connection.query(
+                `SELECT id, branch_id FROM lectures WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+                [lectureId, tenantId]
+            );
+            if (lectureRows.length === 0) {
+                const err = new Error('Lecture not found for tenant');
+                err.statusCode = 404;
+                throw err;
+            }
+            const branchId = lectureRows[0].branch_id || null;
+
+            const [existingRows] = await connection.query(
+                `SELECT ar.student_id, ar.status, ar.remarks, s.full_name, s.student_code
+                 FROM attendance_records ar
+                 LEFT JOIN students s ON s.id = ar.student_id
+                 WHERE ar.lecture_id = ? AND ar.tenant_id = ?`,
+                [lectureId, tenantId]
+            );
+            const existingMap = new Map(existingRows.map(r => [Number(r.student_id), r]));
+
+            const studentIds = records.map(r => Number(r.student_id)).filter(Boolean);
+            const studentNameMap = new Map();
+            if (studentIds.length > 0) {
+                const [stuRows] = await connection.query(
+                    `SELECT id, full_name, student_code FROM students WHERE id IN (?)`,
+                    [studentIds]
+                );
+                for (const s of stuRows) {
+                    studentNameMap.set(Number(s.id), s);
+                }
+            }
+
+            const changes = [];
+            for (const rec of records) {
+                const studentId = Number(rec.student_id);
+                const newStatus = Number(rec.status);
+                if (!studentId || ![0, 1, 2].includes(newStatus)) continue;
+
+                const newRemarks = rec.remarks ? String(rec.remarks).trim() : null;
+                const prev = existingMap.get(studentId);
+                const oldStatus = prev !== undefined && prev.status !== null ? Number(prev.status) : null;
+                const oldRemarks = prev?.remarks ? String(prev.remarks).trim() : null;
+
+                if (oldStatus === newStatus && oldRemarks === newRemarks) {
+                    continue;
+                }
+
+                await connection.query(
+                    `INSERT INTO attendance_records
+                        (tenant_id, lecture_id, student_id, status, remarks, created_by, updated_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE
+                        status = VALUES(status),
+                        remarks = VALUES(remarks),
+                        updated_by = VALUES(updated_by),
+                        updated_at = CURRENT_TIMESTAMP`,
+                    [tenantId, lectureId, studentId, newStatus, newRemarks, userId || null, userId || null]
+                );
+
+                await connection.query(
+                    `INSERT INTO attendance_corrections
+                        (tenant_id, branch_id, lecture_id, student_id, old_status, new_status, old_remarks, new_remarks, reason, corrected_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [tenantId, branchId, lectureId, studentId, oldStatus, newStatus, oldRemarks, newRemarks, trimmedReason, userId]
+                );
+
+                const stuInfo = studentNameMap.get(studentId) || prev || {};
+                changes.push({
+                    student_id: studentId,
+                    student_name: stuInfo.full_name || `Student #${studentId}`,
+                    student_code: stuInfo.student_code || null,
+                    old_status: oldStatus,
+                    new_status: newStatus,
+                    old_remarks: oldRemarks,
+                    new_remarks: newRemarks
+                });
+            }
+
+            if (changes.length === 0) {
+                const err = new Error('No attendance changes detected to correct.');
+                err.statusCode = 400;
+                throw err;
+            }
+
+            await connection.query(
+                `UPDATE lectures SET updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?`,
+                [userId || null, lectureId, tenantId]
+            );
+
+            await connection.commit();
+            connection.release();
+
+            return {
+                success: true,
+                lectureId: Number(lectureId),
+                branchId,
+                correctedCount: changes.length,
+                reason: trimmedReason,
+                changes
+            };
+        } catch (error) {
+            await connection.rollback();
+            connection.release();
+            throw error;
+        }
+    },
+
+    /**
+     * Get attendance correction audit history for a lecture.
+     */
+    async getCorrections(tenantId, lectureId) {
+        const [rows] = await pool.query(
+            `SELECT ac.id, ac.lecture_id, ac.student_id,
+                    s.full_name AS student_name, s.student_code,
+                    ac.old_status, ac.new_status, ac.old_remarks, ac.new_remarks,
+                    ac.reason, ac.corrected_by,
+                    u.name AS corrected_by_name, u.email AS corrected_by_email,
+                    ac.created_at
+             FROM attendance_corrections ac
+             LEFT JOIN students s ON s.id = ac.student_id
+             LEFT JOIN users u ON u.id = ac.corrected_by
+             WHERE ac.tenant_id = ? AND ac.lecture_id = ?
+             ORDER BY ac.created_at DESC, ac.id DESC`,
+            [tenantId, lectureId]
+        );
+        return rows;
     },
 
     /**
@@ -330,7 +538,8 @@ const attendanceModel = {
      */
     async getAttendanceOptions(tenantId) {
         const [branches] = await pool.query(
-            `SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 'active' OR status = 1 OR status = '1' OR status IS NULL) ORDER BY name ASC`,
+            `SELECT id, name, code, latitude, longitude, geofence_radius_meters, geofence_enabled
+             FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND (status = 'active' OR status = 1 OR status = '1' OR status IS NULL) ORDER BY name ASC`,
             [tenantId]
         );
         const [batches] = await pool.query(
@@ -368,9 +577,13 @@ const attendanceModel = {
                    DATE_FORMAT(l.lecture_date, '%Y-%m-%d') AS lecture_date,
                    l.start_time, l.end_time,
                    b.name AS batch_name, b.code AS batch_code,
-                   l.status, l.attendance_taken, l.attendance_submitted_at,
+                   l.status, l.attendance_taken, l.attendance_submitted_at, l.attendance_locked_at,
+                   l.geofence_status, l.geofence_distance_meters,
+                   l.student_checkin_open, l.student_checkin_code, l.student_checkin_opened_at,
+                   br.name AS branch_name, br.geofence_enabled, br.geofence_radius_meters,
                    (SELECT COUNT(*) FROM attendance_records ar WHERE ar.lecture_id = l.id) AS marked_count
             FROM lectures l
+            LEFT JOIN branches br ON l.branch_id = br.id
             LEFT JOIN batches b ON l.batch_id = b.id
             LEFT JOIN subjects s ON l.subject_id = s.id
             LEFT JOIN users u ON l.teacher_user_id = u.id
@@ -540,13 +753,32 @@ const attendanceModel = {
      * records: [{ staff_id, status (0/1/2), remarks?, lecture_ids?, branch_id? }]
      * Rule: if the resulting row keeps any lecture_id, status is forced to present (1).
      */
-    async saveStaffAttendance(tenantId, { branchId, date, records = [], userId } = {}) {
+    async saveStaffAttendance(tenantId, { branchId, date, records = [], userId, location = null } = {}) {
         if (!date) throw new Error('date is required');
         if (!Array.isArray(records)) records = [];
 
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
+
+            if (branchId && branchId !== 'All') {
+                const [branchRows] = await connection.query(
+                    `SELECT id, name, latitude, longitude, geofence_radius_meters, geofence_enabled
+                     FROM branches WHERE tenant_id = ? AND deleted_at IS NULL AND (id = ? OR name = ? OR code = ?) LIMIT 1`,
+                    [tenantId, branchId, branchId, branchId]
+                );
+                if (branchRows.length > 0) {
+                    const geoResult = verifyBranchGeofence(branchRows[0], location);
+                    if (!geoResult.allowed) {
+                        const err = new Error(geoResult.message || 'Outside branch geo-fence.');
+                        err.statusCode = 403;
+                        err.code = geoResult.status || 'GEOFENCE_BLOCKED';
+                        err.details = geoResult;
+                        throw err;
+                    }
+                }
+            }
+
             let count = 0;
             for (const rec of records) {
                 const status = Number(rec.status);
@@ -772,7 +1004,7 @@ const attendanceModel = {
     /**
      * Save/upsert daily student attendance records and sync with lectures if applicable.
      */
-    async saveDailyStudentAttendance(tenantId, { branchId, batchId, date, records = [], userId } = {}) {
+    async saveDailyStudentAttendance(tenantId, { branchId, batchId, date, records = [], userId, location = null } = {}) {
         await this.ensureDailyStudentTable();
         if (!date) throw new Error('date is required');
         if (!Array.isArray(records) || records.length === 0) {
@@ -792,7 +1024,9 @@ const attendanceModel = {
                         `SELECT id FROM branches WHERE (name = ? OR code = ?) AND tenant_id = ? LIMIT 1`,
                         [branchId, branchId, tenantId]
                     );
-                    if (bRows.length > 0) resolvedBranchId = bRows[0].id;
+                    if (bRows.length > 0) {
+                        resolvedBranchId = bRows[0].id;
+                    }
                 }
             }
 
@@ -886,6 +1120,246 @@ const attendanceModel = {
             await connection.commit();
             connection.release();
             return { success: true, count };
+        } catch (error) {
+            await connection.rollback();
+            connection.release();
+            throw error;
+        }
+    },
+
+    /**
+     * Open or close the student self check-in session for a lecture (generates a 4-digit PIN when opened).
+     */
+    async toggleStudentCheckinSession(tenantId, lectureId, userId, open = true) {
+        const [rows] = await pool.query(
+            `SELECT id, attendance_taken, attendance_locked_at, student_checkin_open, student_checkin_code
+             FROM lectures
+             WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+            [lectureId, tenantId]
+        );
+        if (rows.length === 0) {
+            const err = new Error('Lecture not found for tenant');
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const lec = rows[0];
+        if (lec.attendance_taken === 1 && lec.attendance_locked_at !== null) {
+            const err = new Error('Attendance is already locked for this lecture. Self check-in cannot be opened.');
+            err.statusCode = 400;
+            err.code = 'ATTENDANCE_LOCKED';
+            throw err;
+        }
+
+        const shouldOpen = Boolean(open);
+        const code = shouldOpen ? String(Math.floor(1000 + Math.random() * 9000)) : null;
+
+        await pool.query(
+            `UPDATE lectures
+             SET student_checkin_open = ?,
+                 student_checkin_code = COALESCE(?, student_checkin_code),
+                 student_checkin_opened_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE student_checkin_opened_at END,
+                 updated_by = ?
+             WHERE id = ? AND tenant_id = ?`,
+            [shouldOpen ? 1 : 0, code, shouldOpen ? 1 : 0, userId || null, lectureId, tenantId]
+        );
+
+        return {
+            lectureId: Number(lectureId),
+            student_checkin_open: shouldOpen ? 1 : 0,
+            student_checkin_code: shouldOpen ? code : lec.student_checkin_code,
+            opened_at: shouldOpen ? new Date().toISOString() : null
+        };
+    },
+
+    /**
+     * Resolve active student profile from authenticated user ID.
+     */
+    async resolveStudentByUserId(tenantId, userId) {
+        const [rows] = await pool.query(
+            `SELECT id, full_name, student_code, primary_branch_id
+             FROM students
+             WHERE tenant_id = ? AND user_id = ? AND deleted_at IS NULL
+             LIMIT 1`,
+            [tenantId, Number(userId)]
+        );
+        return rows.length > 0 ? rows[0] : null;
+    },
+
+    /**
+     * Get lectures for a student's active enrollments on a given date along with check-in & attendance state.
+     * Deliberately excludes student_checkin_code so students must read it from the classroom/teacher.
+     */
+    async getStudentLectures(tenantId, userId, date) {
+        const student = await this.resolveStudentByUserId(tenantId, userId);
+        if (!student) {
+            const err = new Error('No student profile is linked to this account.');
+            err.statusCode = 403;
+            throw err;
+        }
+
+        const [rows] = await pool.query(
+            `SELECT l.id, l.branch_id, l.academic_year_id, l.batch_id, l.subject_id,
+                    s.name AS subject_name, s.code AS subject_code,
+                    DATE_FORMAT(l.lecture_date, '%Y-%m-%d') AS lecture_date,
+                    l.start_time, l.end_time,
+                    l.classroom_id, c.name AS classroom_name, c.room_number,
+                    b.name AS batch_name, b.code AS batch_code,
+                    u.name AS teacher_name,
+                    l.status AS lecture_status,
+                    l.attendance_taken, l.attendance_locked_at,
+                    l.student_checkin_open, l.student_checkin_opened_at,
+                    br.name AS branch_name, br.geofence_enabled, br.geofence_radius_meters,
+                    ar.status AS attendance_status, ar.remarks,
+                    ar.student_checkin_at, ar.student_checkin_distance_meters,
+                    ar.student_checkin_geofence_status, ar.student_checkin_accuracy_meters
+             FROM student_enrollments se
+             JOIN lectures l
+               ON l.batch_id = se.batch_id
+              AND l.academic_year_id = se.academic_year_id
+              AND l.tenant_id = se.tenant_id
+              AND l.is_default = 0
+              AND l.deleted_at IS NULL
+              AND l.status NOT IN ('cancelled')
+             LEFT JOIN branches br ON l.branch_id = br.id
+             LEFT JOIN batches b ON l.batch_id = b.id
+             LEFT JOIN subjects s ON l.subject_id = s.id
+             LEFT JOIN classrooms c ON l.classroom_id = c.id
+             LEFT JOIN users u ON l.teacher_user_id = u.id
+             LEFT JOIN attendance_records ar
+               ON ar.lecture_id = l.id AND ar.student_id = ?
+             WHERE se.tenant_id = ? AND se.student_id = ?
+               AND se.status = 'active' AND se.deleted_at IS NULL
+               AND l.lecture_date = ?
+             ORDER BY l.start_time ASC`,
+            [student.id, tenantId, student.id, date]
+        );
+
+        return { student, lectures: rows };
+    },
+
+    /**
+     * Student self check-in with Class PIN validation and Haversine branch geo-fence verification.
+     */
+    async studentCheckIn(tenantId, userId, lectureId, { code, location } = {}) {
+        const student = await this.resolveStudentByUserId(tenantId, userId);
+        if (!student) {
+            const err = new Error('No student profile is linked to this account.');
+            err.statusCode = 403;
+            throw err;
+        }
+
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const [lectureRows] = await connection.query(
+                `SELECT l.id, l.branch_id, l.batch_id, l.academic_year_id,
+                        l.attendance_taken, l.attendance_locked_at,
+                        l.student_checkin_open, l.student_checkin_code,
+                        br.name AS branch_name, br.latitude, br.longitude,
+                        br.geofence_radius_meters, br.geofence_enabled
+                 FROM lectures l
+                 LEFT JOIN branches br ON l.branch_id = br.id
+                 WHERE l.id = ? AND l.tenant_id = ? AND l.deleted_at IS NULL AND l.status NOT IN ('cancelled')`,
+                [lectureId, tenantId]
+            );
+            if (lectureRows.length === 0) {
+                const err = new Error('Lecture not found.');
+                err.statusCode = 404;
+                throw err;
+            }
+            const lecture = lectureRows[0];
+
+            const [enrollRows] = await connection.query(
+                `SELECT id FROM student_enrollments
+                 WHERE tenant_id = ? AND student_id = ? AND batch_id = ? AND academic_year_id = ?
+                   AND status = 'active' AND deleted_at IS NULL
+                 LIMIT 1`,
+                [tenantId, student.id, lecture.batch_id, lecture.academic_year_id]
+            );
+            if (enrollRows.length === 0) {
+                const err = new Error('You are not enrolled in this lecture batch.');
+                err.statusCode = 403;
+                throw err;
+            }
+
+            if (lecture.attendance_taken === 1 && lecture.attendance_locked_at !== null) {
+                const err = new Error('Attendance for this lecture is already locked by the faculty.');
+                err.statusCode = 400;
+                err.code = 'ATTENDANCE_LOCKED';
+                throw err;
+            }
+
+            if (Number(lecture.student_checkin_open) !== 1) {
+                const err = new Error('Student self check-in is not currently open for this lecture. Ask your teacher to open it.');
+                err.statusCode = 400;
+                err.code = 'CHECKIN_CLOSED';
+                throw err;
+            }
+
+            const submittedCode = String(code || '').trim();
+            if (!submittedCode || submittedCode !== String(lecture.student_checkin_code || '').trim()) {
+                const err = new Error('Invalid Class PIN. Please enter the 4-digit PIN shared by your teacher.');
+                err.statusCode = 400;
+                err.code = 'INVALID_CHECKIN_CODE';
+                throw err;
+            }
+
+            const geoResult = verifyBranchGeofence(lecture.branch_id ? lecture : null, location);
+            if (!geoResult.allowed) {
+                const err = new Error(geoResult.message || 'Check-in blocked: You are outside the permitted branch geo-fence.');
+                err.statusCode = 403;
+                err.code = geoResult.status || 'GEOFENCE_BLOCKED';
+                err.details = {
+                    status: geoResult.status,
+                    distanceMeters: geoResult.distanceMeters,
+                    accuracyMeters: geoResult.accuracyMeters,
+                    radiusMeters: geoResult.radiusMeters
+                };
+                throw err;
+            }
+
+            await connection.query(
+                `INSERT INTO attendance_records
+                    (tenant_id, lecture_id, student_id, status, remarks,
+                     student_checkin_at, student_checkin_latitude, student_checkin_longitude,
+                     student_checkin_accuracy_meters, student_checkin_distance_meters,
+                     student_checkin_geofence_status, created_by, updated_by)
+                 VALUES (?, ?, ?, 1, NULL, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                    status = 1,
+                    student_checkin_at = CURRENT_TIMESTAMP,
+                    student_checkin_latitude = VALUES(student_checkin_latitude),
+                    student_checkin_longitude = VALUES(student_checkin_longitude),
+                    student_checkin_accuracy_meters = VALUES(student_checkin_accuracy_meters),
+                    student_checkin_distance_meters = VALUES(student_checkin_distance_meters),
+                    student_checkin_geofence_status = VALUES(student_checkin_geofence_status),
+                    updated_by = VALUES(updated_by),
+                    updated_at = CURRENT_TIMESTAMP`,
+                [
+                    tenantId,
+                    lectureId,
+                    student.id,
+                    geoResult.latitude ?? null,
+                    geoResult.longitude ?? null,
+                    geoResult.accuracyMeters ?? null,
+                    geoResult.distanceMeters ?? null,
+                    geoResult.status,
+                    userId || null,
+                    userId || null
+                ]
+            );
+
+            await connection.commit();
+            connection.release();
+            return {
+                lectureId: Number(lectureId),
+                studentId: student.id,
+                status: 1,
+                geofence: geoResult,
+                checkedInAt: new Date().toISOString()
+            };
         } catch (error) {
             await connection.rollback();
             connection.release();

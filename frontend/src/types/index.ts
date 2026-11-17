@@ -241,6 +241,10 @@ export interface Branch {
   email?: string;
   phone?: string;
   operatingHours?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofenceRadius?: number;
+  geofenceEnabled?: boolean;
   bankDetails?: {
     accountName: string;
     accountNumber: string;

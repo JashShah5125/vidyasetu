@@ -6,9 +6,10 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Select } from '../components/ui/Select';
-import { ChevronLeft, MapPin, Building, Clock, Landmark, ShieldAlert, GraduationCap, Plus, Trash2, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronLeft, MapPin, Building, Clock, Landmark, ShieldAlert, GraduationCap, Plus, Trash2, BookOpen, ChevronDown, ChevronRight, Navigation, Loader2 } from 'lucide-react';
 import type { Branch } from '../types';
 import { branchApi, toBranch } from '../services/branchApi';
+import { captureCurrentLocation } from '../utils/geolocation';
 
 // Type for a course-program mapping on a branch
 interface BranchCourseMapping {
@@ -44,9 +45,12 @@ export const BranchDetail: React.FC = () => {
   const [formData, setFormData] = useState<Partial<Branch>>({
     name: '', code: '', admin: '', adminEmail: '', adminMobile: '', capacity: 0, status: 'Active',
     address: '', email: '', phone: '', operatingHours: '', programs: [],
+    latitude: null, longitude: null, geofenceRadius: 100, geofenceEnabled: false,
     altEmails: [], defaultEmail: '',
     bankDetails: { accountName: '', accountNumber: '', ifsc: '', bankName: '' }
   });
+  const [isCapturingGeo, setIsCapturingGeo] = useState(false);
+  const [capturedAccuracy, setCapturedAccuracy] = useState<number | null>(null);
 
   const [altEmailInput, setAltEmailInput] = useState('');
 
@@ -132,6 +136,10 @@ export const BranchDetail: React.FC = () => {
       email: formData.email,
       phone: formData.phone,
       operatingHours: formData.operatingHours,
+      latitude: formData.latitude ?? null,
+      longitude: formData.longitude ?? null,
+      geofenceRadius: formData.geofenceRadius ?? 100,
+      geofenceEnabled: Boolean(formData.geofenceEnabled),
       bankDetails: formData.bankDetails,
       admin: formData.admin,
       adminEmail: formData.adminEmail,
@@ -195,6 +203,25 @@ export const BranchDetail: React.FC = () => {
       }
       if (!formData.code?.trim()) {
         return { isValid: false, error: 'Please enter the Branch Code.' };
+      }
+      const hasLat = formData.latitude !== null && formData.latitude !== undefined && String(formData.latitude) !== '';
+      const hasLon = formData.longitude !== null && formData.longitude !== undefined && String(formData.longitude) !== '';
+      if (hasLat !== hasLon) {
+        return { isValid: false, error: 'Please provide both Latitude and Longitude, or leave both empty.' };
+      }
+      if (hasLat && hasLon) {
+        const lat = Number(formData.latitude);
+        const lon = Number(formData.longitude);
+        if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) {
+          return { isValid: false, error: 'Invalid coordinates. Latitude must be -90..90 and Longitude -180..180.' };
+        }
+      }
+      if (formData.geofenceEnabled && (!hasLat || !hasLon)) {
+        return { isValid: false, error: 'Latitude and Longitude are required when Geo-Fencing is enabled.' };
+      }
+      const radius = Number(formData.geofenceRadius ?? 100);
+      if (!Number.isFinite(radius) || radius < 10 || radius > 10000) {
+        return { isValid: false, error: 'Geo-fence radius must be between 10 and 10,000 metres.' };
       }
     }
     if (tab === 'admin') {
@@ -438,6 +465,106 @@ export const BranchDetail: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Branch Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="contact@branch.com" />
                   <Input label="Branch Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="022-XXXXXXX" />
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Navigation size={18} className="text-indigo-600" />
+                  <div>
+                    <h3 className="font-bold text-slate-800">Attendance Geo-Fencing</h3>
+                    <p className="text-xs text-slate-500">Restrict attendance submission to within the branch radius using Haversine distance.</p>
+                  </div>
+                </div>
+                <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.geofenceEnabled)}
+                    onChange={e => setFormData({ ...formData, geofenceEnabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    {formData.geofenceEnabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Input
+                    label="Latitude"
+                    type="number"
+                    step="any"
+                    value={formData.latitude ?? ''}
+                    onChange={e => setFormData({
+                      ...formData,
+                      latitude: e.target.value === '' ? null : Number(e.target.value)
+                    })}
+                    placeholder="e.g., 19.076000"
+                  />
+                  <Input
+                    label="Longitude"
+                    type="number"
+                    step="any"
+                    value={formData.longitude ?? ''}
+                    onChange={e => setFormData({
+                      ...formData,
+                      longitude: e.target.value === '' ? null : Number(e.target.value)
+                    })}
+                    placeholder="e.g., 72.877700"
+                  />
+                  <Input
+                    label="Allowed Radius (metres)"
+                    type="number"
+                    min={10}
+                    max={10000}
+                    value={formData.geofenceRadius ?? 100}
+                    onChange={e => setFormData({
+                      ...formData,
+                      geofenceRadius: e.target.value === '' ? 100 : Number(e.target.value)
+                    })}
+                    placeholder="100"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isCapturingGeo}
+                      onClick={async () => {
+                        try {
+                          setIsCapturingGeo(true);
+                          const pos = await captureCurrentLocation();
+                          setFormData(prev => ({
+                            ...prev,
+                            latitude: pos.latitude,
+                            longitude: pos.longitude
+                          }));
+                          setCapturedAccuracy(pos.accuracy);
+                          addToast(`Captured branch coordinates (±${pos.accuracy}m accuracy).`, 'success');
+                        } catch (err: any) {
+                          addToast(err?.message || 'Unable to capture current location.', 'error');
+                        } finally {
+                          setIsCapturingGeo(false);
+                        }
+                      }}
+                      className="text-xs font-bold"
+                    >
+                      {isCapturingGeo ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Navigation size={14} className="mr-1.5 text-indigo-600" />}
+                      {isCapturingGeo ? 'Capturing GPS...' : 'Capture Current Location'}
+                    </Button>
+                    {capturedAccuracy !== null && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Accuracy: ±{capturedAccuracy}m
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Tip: Right-click your campus on Google Maps to copy exact coordinates without any API key.
+                  </p>
                 </div>
               </div>
             </Card>

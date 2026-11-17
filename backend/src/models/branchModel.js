@@ -117,6 +117,10 @@ const rowToBranch = async (row) => {
         ...row,
         id: String(row.id),
         status: formatStatus(row.status),
+        latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : null,
+        longitude: row.longitude !== null && row.longitude !== undefined ? Number(row.longitude) : null,
+        geofenceRadius: row.geofence_radius_meters !== null && row.geofence_radius_meters !== undefined ? Number(row.geofence_radius_meters) : 100,
+        geofenceEnabled: Boolean(Number(row.geofence_enabled)),
         bankDetails: {
             accountName: row.bank_account_name,
             accountNumber: row.bank_account_number,
@@ -150,6 +154,7 @@ const getBranches = async (tenantId, { search = '', status = 'all', limit = 10, 
     const [rows] = await pool.query(
         `SELECT b.id, b.name, b.code, b.address_line1, b.city, b.state, b.pincode,
                 b.phone, b.email, b.capacity, b.operating_hours, b.status,
+                b.latitude, b.longitude, b.geofence_radius_meters, b.geofence_enabled,
                 b.bank_account_name, b.bank_account_number, b.bank_ifsc, b.bank_name,
                 b.created_at, b.updated_at
          FROM branches b
@@ -492,8 +497,18 @@ const rowToEditPayload = (row) => {
         phone: row.phone,
         email: row.email,
         operatingHours: row.operating_hours,
+        latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : null,
+        longitude: row.longitude !== null && row.longitude !== undefined ? Number(row.longitude) : null,
+        geofenceRadius: row.geofence_radius_meters !== null && row.geofence_radius_meters !== undefined ? Number(row.geofence_radius_meters) : 100,
+        geofenceEnabled: Boolean(Number(row.geofence_enabled)),
         bankDetails: Object.keys(bank).length ? bank : undefined
     };
+};
+
+const parseOptionalCoord = (val) => {
+    if (val === undefined || val === null || val === '') return null;
+    const num = Number(val);
+    return Number.isFinite(num) ? num : null;
 };
 
 const normalizeCreatePayload = (data) => {
@@ -503,6 +518,13 @@ const normalizeCreatePayload = (data) => {
     const courseIds = (data.courseIds || [])
         .concat((data.programMappings || []).map(m => Number(m.courseId)))
         .filter(Boolean);
+
+    const rawRadius = data.geofenceRadius !== undefined ? data.geofenceRadius : data.geofence_radius_meters;
+    const parsedRadius = rawRadius !== undefined && rawRadius !== null && rawRadius !== ''
+        ? Math.max(10, Math.round(Number(rawRadius)))
+        : 100;
+
+    const rawEnabled = data.geofenceEnabled !== undefined ? data.geofenceEnabled : data.geofence_enabled;
 
     return {
         name: data.name,
@@ -518,6 +540,10 @@ const normalizeCreatePayload = (data) => {
         phone: data.phone || null,
         email: data.email || null,
         operating_hours: data.operatingHours || null,
+        latitude: parseOptionalCoord(data.latitude),
+        longitude: parseOptionalCoord(data.longitude),
+        geofence_radius_meters: Number.isFinite(parsedRadius) ? parsedRadius : 100,
+        geofence_enabled: rawEnabled ? 1 : 0,
         bank_account_name: bank.accountName || null,
         bank_account_number: bank.accountNumber || null,
         bank_ifsc: bank.ifsc || null,
@@ -538,13 +564,15 @@ const createBranch = async (tenantId, data, userId) => {
             `INSERT INTO branches (
                 tenant_id, name, code, address_line1, city, state, pincode,
                 phone, email, capacity, operating_hours, status,
+                latitude, longitude, geofence_radius_meters, geofence_enabled,
                 bank_account_name, bank_account_number, bank_ifsc, bank_name,
                 created_by, updated_by
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 tenantId, payload.name, payload.code, payload.address_line1,
                 payload.city, payload.state, payload.pincode, payload.phone,
                 payload.email, payload.capacity, payload.operating_hours, payload.status,
+                payload.latitude, payload.longitude, payload.geofence_radius_meters, payload.geofence_enabled,
                 payload.bank_account_name, payload.bank_account_number, payload.bank_ifsc,
                 payload.bank_name, userId, userId
             ]
@@ -592,6 +620,7 @@ const updateBranch = async (tenantId, identifier, data, userId) => {
             `UPDATE branches SET
                 name = ?, code = ?, address_line1 = ?, city = ?, state = ?, pincode = ?,
                 phone = ?, email = ?, capacity = ?, operating_hours = ?, status = ?,
+                latitude = ?, longitude = ?, geofence_radius_meters = ?, geofence_enabled = ?,
                 bank_account_name = ?, bank_account_number = ?, bank_ifsc = ?, bank_name = ?,
                 updated_by = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
@@ -599,6 +628,7 @@ const updateBranch = async (tenantId, identifier, data, userId) => {
                 payload.name, payload.code, payload.address_line1,
                 payload.city, payload.state, payload.pincode, payload.phone,
                 payload.email, payload.capacity, payload.operating_hours, payload.status,
+                payload.latitude, payload.longitude, payload.geofence_radius_meters, payload.geofence_enabled,
                 payload.bank_account_name, payload.bank_account_number, payload.bank_ifsc,
                 payload.bank_name, userId, branchId
             ]

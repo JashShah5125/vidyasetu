@@ -7,12 +7,18 @@ import { Select } from '../components/ui/Select';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, Save, Lock, Loader2,
-  Users, UserCheck, UserX, Search, Download, AlertCircle, RefreshCw, Upload
+  Users, UserCheck, UserX, Search, Download, AlertCircle, RefreshCw, Upload,
+  MapPin, History, ShieldAlert
 } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { attendanceApi } from '../services/attendanceApi';
-import type { AttendanceRosterRow, AttendanceRecord, AttendanceLecture } from '../services/attendanceApi';
+import type { AttendanceRosterRow, AttendanceRecord, AttendanceLecture, AttendanceCorrectionItem } from '../services/attendanceApi';
 import { useApp } from '../context/AppContext';
+import {
+  AttendanceCorrectionModal,
+  AttendanceCorrectionHistoryModal,
+  type AttendanceChangeDiff
+} from '../components/attendance/AttendanceCorrectionModal';
 
 export const LectureAttendance: React.FC = () => {
   const { lectureId } = useParams<{ lectureId: string }>();
@@ -41,10 +47,17 @@ export const LectureAttendance: React.FC = () => {
   // Student Roster States
   const [rosterRows, setRosterRows] = useState<AttendanceRosterRow[]>([]);
   const [rosterMarks, setRosterMarks] = useState<{ [studentId: number]: { status: 0 | 1 | 2; remarks?: string } }>({});
+  const [initialRosterMarks, setInitialRosterMarks] = useState<{ [studentId: number]: { status: 0 | 1 | 2; remarks?: string } }>({});
   const [lectureInfo, setLectureInfo] = useState<Partial<AttendanceLecture> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [correctionsHistory, setCorrectionsHistory] = useState<AttendanceCorrectionItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [geoErrorBanner, setGeoErrorBanner] = useState<string | null>(null);
+  const [togglingCheckin, setTogglingCheckin] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -67,13 +80,16 @@ export const LectureAttendance: React.FC = () => {
         }
       });
       setRosterMarks(initialMarks);
+      setInitialRosterMarks(initialMarks);
 
       // Extract lecture metadata from first row or navState
       if (rows.length > 0) {
         const first = rows[0];
         setLectureInfo(prev => ({
           ...prev,
+          ...(navState?.lecture || {}),
           id: Number(lectureId),
+          branch_id: first.branch_id,
           batch_id: first.batch_id,
           subject_id: first.subject_id,
           lecture_date: first.lecture_date,
@@ -81,7 +97,15 @@ export const LectureAttendance: React.FC = () => {
           end_time: first.end_time,
           attendance_taken: first.attendance_taken,
           attendance_submitted_at: first.attendance_submitted_at,
-          ...(navState?.lecture || {})
+          attendance_locked_at: first.attendance_locked_at,
+          geofence_status: first.geofence_status,
+          geofence_distance_meters: first.geofence_distance_meters,
+          branch_name: first.branch_name,
+          geofence_enabled: first.geofence_enabled,
+          geofence_radius_meters: first.geofence_radius_meters,
+          student_checkin_open: first.student_checkin_open,
+          student_checkin_code: first.student_checkin_code,
+          student_checkin_opened_at: first.student_checkin_opened_at
         }));
       } else if (navState?.lecture) {
         setLectureInfo(navState.lecture);
@@ -108,6 +132,46 @@ export const LectureAttendance: React.FC = () => {
   const attendancePercentage = totalStudents > 0 ? Math.round(((presentCount + lateCount * 0.5) / totalStudents) * 100) : 0;
 
   const isTaken = lectureInfo?.attendance_taken === 1;
+  const isLocked = Boolean(isTaken && lectureInfo?.attendance_locked_at);
+
+  const pendingChanges: AttendanceChangeDiff[] = useMemo(() => {
+    if (!isLocked) return [];
+    const diffs: AttendanceChangeDiff[] = [];
+    for (const row of rosterRows) {
+      const prev = initialRosterMarks[row.student_id];
+      const curr = rosterMarks[row.student_id];
+      if (!curr) continue;
+      const oldStatus = prev ? prev.status : null;
+      const oldRemarks = (prev?.remarks || '').trim();
+      const newRemarks = (curr.remarks || '').trim();
+      if (oldStatus !== curr.status || oldRemarks !== newRemarks) {
+        diffs.push({
+          student_id: row.student_id,
+          student_name: row.full_name,
+          student_code: row.student_code,
+          old_status: oldStatus,
+          new_status: curr.status,
+          old_remarks: oldRemarks,
+          new_remarks: newRemarks
+        });
+      }
+    }
+    return diffs;
+  }, [isLocked, rosterRows, initialRosterMarks, rosterMarks]);
+
+  const handleOpenHistory = async () => {
+    if (!lectureId) return;
+    setIsHistoryModalOpen(true);
+    setLoadingHistory(true);
+    try {
+      const list = await attendanceApi.getCorrections(lectureId);
+      setCorrectionsHistory(list);
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to load correction history.', 'error');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   // Student status marking handler
   const handleMarkStatus = (studentId: number, status: 0 | 1 | 2) => {
@@ -157,9 +221,18 @@ export const LectureAttendance: React.FC = () => {
     setRosterMarks({});
   };
 
-  // Submit and lock attendance (atomic insert into attendance_records & update lecture status)
+  // Submit and lock attendance (with geolocation capture & Haversine verification)
   const handleSubmitAndLock = async () => {
     if (!lectureId) return;
+    if (isLocked) {
+      if (pendingChanges.length === 0) {
+        addToast('Modify at least one student status or remark before submitting a correction.', 'info');
+        return;
+      }
+      setIsCorrectionModalOpen(true);
+      return;
+    }
+
     const records: AttendanceRecord[] = Object.entries(rosterMarks).map(([sId, data]) => ({
       student_id: Number(sId),
       status: data.status,
@@ -171,16 +244,76 @@ export const LectureAttendance: React.FC = () => {
       return;
     }
 
+    setGeoErrorBanner(null);
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      await attendanceApi.submitAttendance(lectureId, records);
-      setLectureInfo(prev => prev ? ({ ...prev, attendance_taken: 1, status: 'completed' }) : null);
-      addToast('Attendance submitted and locked into database successfully!', 'success');
+      const res = await attendanceApi.submitAttendance(lectureId, records);
+      const geo = res?.data?.geofence;
+      setLectureInfo(prev => prev ? ({
+        ...prev,
+        attendance_taken: 1,
+        attendance_locked_at: new Date().toISOString(),
+        status: 'completed',
+        geofence_status: geo?.status || prev.geofence_status,
+        geofence_distance_meters: geo?.distanceMeters ?? prev.geofence_distance_meters
+      }) : null);
+      addToast(
+        geo?.status === 'INSIDE' && geo?.distanceMeters !== null
+          ? `Attendance verified (${Math.round(geo.distanceMeters)}m from branch) and locked!`
+          : 'Attendance submitted and locked into database successfully!',
+        'success'
+      );
       fetchRoster();
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Failed to submit attendance.', 'error');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to submit attendance.';
+      setGeoErrorBanner(msg);
+      addToast(msg, 'error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleConfirmCorrection = async (reason: string) => {
+    if (!lectureId || pendingChanges.length === 0) return;
+    setIsSaving(true);
+    try {
+      const records: AttendanceRecord[] = pendingChanges.map(c => ({
+        student_id: c.student_id,
+        status: c.new_status,
+        remarks: c.new_remarks
+      }));
+      await attendanceApi.correctAttendance(lectureId, records, reason);
+      addToast(`Corrected ${records.length} record(s) and logged to Audit Trail.`, 'success');
+      setIsCorrectionModalOpen(false);
+      await fetchRoster();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to save attendance correction.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleStudentCheckin = async (open: boolean) => {
+    if (!lectureId) return;
+    setTogglingCheckin(true);
+    try {
+      const res = await attendanceApi.toggleStudentCheckin(lectureId, open);
+      setLectureInfo(prev => prev ? ({
+        ...prev,
+        student_checkin_open: res.student_checkin_open,
+        student_checkin_code: res.student_checkin_code,
+        student_checkin_opened_at: res.opened_at
+      }) : null);
+      addToast(
+        res.student_checkin_open
+          ? `Student self check-in opened! Class PIN: ${res.student_checkin_code}`
+          : 'Student self check-in closed.',
+        'success'
+      );
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to update student check-in session.', 'error');
+    } finally {
+      setTogglingCheckin(false);
     }
   };
 
@@ -269,7 +402,7 @@ export const LectureAttendance: React.FC = () => {
               </h1>
               {isTaken ? (
                 <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs">
-                  <CheckCircle2 size={14} className="text-emerald-600" /> TAKEN / SUBMITTED
+                  <CheckCircle2 size={14} className="text-emerald-600" /> TAKEN / LOCKED
                 </span>
               ) : (
                 <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs">
@@ -302,27 +435,126 @@ export const LectureAttendance: React.FC = () => {
 
         {/* Top Actions */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full md:w-auto justify-end">
-          <Button
-            variant="secondary"
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-bold cursor-pointer"
-          >
-            <Upload size={14} /> Bulk Import <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200"></span>
-          </Button>
+          {isLocked && (
+            <Button
+              variant="secondary"
+              onClick={handleOpenHistory}
+              className="flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            >
+              <History size={14} /> Correction History
+            </Button>
+          )}
+          {!isLocked && (
+            <Button
+              variant="secondary"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            >
+              <Upload size={14} /> Bulk Import
+            </Button>
+          )}
           <Button variant="secondary" onClick={handleExportCSV} className="flex items-center gap-1.5 text-xs font-bold">
             <Download size={14} /> Export CSV
           </Button>
           <Button
             variant="primary"
             onClick={handleSubmitAndLock}
-            disabled={isSaving || markedCount === 0}
+            disabled={isSaving || (isLocked ? pendingChanges.length === 0 : markedCount === 0)}
             className="flex items-center gap-1.5 text-xs font-bold shadow-sm"
           >
-            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
-            Submit &amp; Lock Attendance
+            {isSaving ? <Loader2 size={14} className="animate-spin" /> : (isLocked ? <ShieldAlert size={14} /> : <Lock size={14} />)}
+            {isLocked
+              ? `Submit Correction${pendingChanges.length > 0 ? ` (${pendingChanges.length})` : ''}`
+              : 'Submit & Lock Attendance'}
           </Button>
         </div>
       </div>
+
+      {geoErrorBanner && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-start gap-2.5">
+          <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold">Geo-Fence Verification Blocked Submission</p>
+            <p className="mt-0.5 text-rose-700">{geoErrorBanner}</p>
+          </div>
+          <button type="button" onClick={() => setGeoErrorBanner(null)} className="text-rose-500 hover:text-rose-700 font-bold">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {!isLocked && (
+        <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 text-xs text-indigo-950">
+            <MapPin size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">
+                Student Geo-Fenced Self Check-In
+                {Number(lectureInfo?.student_checkin_open) === 1 && lectureInfo?.student_checkin_code && (
+                  <span className="ml-2 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white font-mono text-xs tracking-widest">
+                    PIN: {lectureInfo.student_checkin_code}
+                  </span>
+                )}
+              </p>
+              <p className="text-indigo-800/80 mt-0.5">
+                {Number(lectureInfo?.student_checkin_open) === 1
+                  ? 'Share this PIN with students in the classroom so they can verify their GPS location and mark themselves present.'
+                  : 'Open a check-in window to generate a 4-digit Class PIN for students to check in with their device location.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {Number(lectureInfo?.student_checkin_open) === 1 ? (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={fetchRoster}
+                  className="text-xs font-bold flex items-center gap-1.5"
+                >
+                  <RefreshCw size={13} /> Refresh Roster
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleToggleStudentCheckin(false)}
+                  disabled={togglingCheckin}
+                  className="text-xs font-bold text-rose-700 border-rose-200 hover:bg-rose-50"
+                >
+                  Close Check-In
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => handleToggleStudentCheckin(true)}
+                disabled={togglingCheckin}
+                className="text-xs font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+              >
+                {togglingCheckin ? 'Opening...' : 'Open Student Check-In'}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isLocked && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Lock size={15} className="text-amber-600 shrink-0" />
+            <span>
+              <strong>Attendance Locked:</strong> Any status or remark changes will require a mandatory correction reason and will be logged in the Audit Trail.
+            </span>
+          </div>
+          {pendingChanges.length > 0 && (
+            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold shrink-0">
+              {pendingChanges.length} pending edit{pendingChanges.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Summary KPI Cards - Students */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -490,6 +722,15 @@ export const LectureAttendance: React.FC = () => {
                         <div className="font-mono text-xs font-semibold text-indigo-600 uppercase mt-0.5">
                           {student.student_code}
                         </div>
+                        {student.student_checkin_at && (
+                          <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <MapPin size={10} />
+                            Self Check-In
+                            {student.student_checkin_geofence_status === 'INSIDE' && student.student_checkin_distance_meters != null
+                              ? ` • ${Math.round(Number(student.student_checkin_distance_meters))}m`
+                              : ''}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-xs font-medium text-slate-600 whitespace-nowrap">
@@ -567,11 +808,13 @@ export const LectureAttendance: React.FC = () => {
             <Button
               variant="primary"
               onClick={handleSubmitAndLock}
-              disabled={isSaving || markedCount === 0}
+              disabled={isSaving || (isLocked ? pendingChanges.length === 0 : markedCount === 0)}
               className="text-xs font-bold shadow-sm"
             >
-              {isSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Lock size={14} className="mr-1" />}
-              Submit &amp; Lock Attendance
+              {isSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : (isLocked ? <ShieldAlert size={14} className="mr-1" /> : <Lock size={14} className="mr-1" />)}
+              {isLocked
+                ? `Review & Submit Correction${pendingChanges.length > 0 ? ` (${pendingChanges.length})` : ''}`
+                : 'Submit & Lock Attendance'}
             </Button>
           </div>
         </div>
@@ -620,6 +863,21 @@ export const LectureAttendance: React.FC = () => {
           setRosterMarks(updatedMarks);
           addToast(`Imported attendance marks for ${matchCount} students into preview (UI Only). Click Submit & Lock to save.`, 'success');
         }}
+      />
+
+      <AttendanceCorrectionModal
+        isOpen={isCorrectionModalOpen}
+        onClose={() => setIsCorrectionModalOpen(false)}
+        changes={pendingChanges}
+        isSubmitting={isSaving}
+        onConfirm={handleConfirmCorrection}
+      />
+
+      <AttendanceCorrectionHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        corrections={correctionsHistory}
+        isLoading={loadingHistory}
       />
     </div>
   );

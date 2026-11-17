@@ -2,6 +2,29 @@ import api from './api';
 
 export type AttendanceStatus = 0 | 1 | 2; // 0=absent, 1=present, 2=late
 
+export interface GeoLocationPayload {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
+
+export interface AttendanceCorrectionItem {
+  id: number;
+  lecture_id: number;
+  student_id: number;
+  student_name: string;
+  student_code?: string;
+  old_status: number | null;
+  new_status: number;
+  old_remarks?: string | null;
+  new_remarks?: string | null;
+  reason: string;
+  corrected_by: number;
+  corrected_by_name?: string;
+  corrected_by_email?: string;
+  created_at: string;
+}
+
 export interface AttendanceLecture {
   id: number;
   tenant_id: number;
@@ -27,11 +50,51 @@ export interface AttendanceLecture {
   status: string;
   attendance_taken: number;
   attendance_submitted_at?: string;
+  attendance_locked_at?: string | null;
+  geofence_status?: string | null;
+  geofence_distance_meters?: number | null;
+  branch_name?: string;
+  geofence_enabled?: number | boolean;
+  geofence_radius_meters?: number;
+  student_checkin_open?: number | boolean;
+  student_checkin_code?: string | null;
+  student_checkin_opened_at?: string | null;
   marked_count?: number;
+}
+
+export interface StudentLectureItem {
+  id: number;
+  branch_id: number;
+  batch_id: number;
+  subject_id: number;
+  subject_name: string;
+  subject_code?: string;
+  lecture_date: string;
+  start_time: string;
+  end_time: string;
+  classroom_name?: string;
+  room_number?: string;
+  batch_name: string;
+  teacher_name?: string;
+  lecture_status: string;
+  attendance_taken: number;
+  attendance_locked_at?: string | null;
+  student_checkin_open: number | boolean;
+  student_checkin_opened_at?: string | null;
+  branch_name?: string;
+  geofence_enabled?: number | boolean;
+  geofence_radius_meters?: number;
+  attendance_status?: number | null;
+  remarks?: string | null;
+  student_checkin_at?: string | null;
+  student_checkin_distance_meters?: number | null;
+  student_checkin_geofence_status?: string | null;
+  student_checkin_accuracy_meters?: number | null;
 }
 
 export interface AttendanceRosterRow {
   lecture_id: number;
+  branch_id?: number;
   batch_id: number;
   subject_id: number;
   lecture_date: string;
@@ -39,6 +102,16 @@ export interface AttendanceRosterRow {
   end_time: string;
   attendance_taken: number;
   attendance_submitted_at?: string;
+  attendance_locked_at?: string | null;
+  geofence_status?: string | null;
+  geofence_distance_meters?: number | null;
+  submitted_accuracy_meters?: number | null;
+  branch_name?: string;
+  geofence_enabled?: number | boolean;
+  geofence_radius_meters?: number;
+  student_checkin_open?: number | boolean;
+  student_checkin_code?: string | null;
+  student_checkin_opened_at?: string | null;
   enrollment_id: number;
   student_id: number;
   full_name: string;
@@ -47,6 +120,10 @@ export interface AttendanceRosterRow {
   record_id?: number;
   attendance_status?: number;
   remarks?: string;
+  student_checkin_at?: string | null;
+  student_checkin_distance_meters?: number | null;
+  student_checkin_geofence_status?: string | null;
+  student_checkin_accuracy_meters?: number | null;
 }
 
 export interface AttendanceRecord {
@@ -56,7 +133,15 @@ export interface AttendanceRecord {
 }
 
 export interface AttendanceOptions {
-  branches: Array<{ id: number; name: string; code: string }>;
+  branches: Array<{
+    id: number;
+    name: string;
+    code: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    geofence_radius_meters?: number;
+    geofence_enabled?: number | boolean;
+  }>;
   batches: Array<{ id: number; branch_id: number; level_id: number; academic_year_id: number; name: string; code: string }>;
   academicYears: Array<{ id: number; name: string }>;
   courses: Array<{ id: number; name: string; code: string }>;
@@ -189,10 +274,22 @@ export const attendanceApi = {
     return response.data;
   },
 
-  async submitAttendance(lectureId: string | number, records?: AttendanceRecord[]): Promise<any> {
+  async submitAttendance(lectureId: string | number, records?: AttendanceRecord[], location?: GeoLocationPayload | null): Promise<any> {
     const basePath = getAttendanceBasePath();
-    const response = await api.post(`${basePath}/submit/${lectureId}`, { records });
+    const response = await api.post(`${basePath}/submit/${lectureId}`, { records, location: location || undefined });
     return response.data;
+  },
+
+  async correctAttendance(lectureId: string | number, records: AttendanceRecord[], reason: string): Promise<any> {
+    const basePath = getAttendanceBasePath();
+    const response = await api.post(`${basePath}/correct/${lectureId}`, { records, reason });
+    return response.data;
+  },
+
+  async getCorrections(lectureId: string | number): Promise<AttendanceCorrectionItem[]> {
+    const basePath = getAttendanceBasePath();
+    const response = await api.get(`${basePath}/corrections/${lectureId}`);
+    return response.data.data || [];
   },
 
   async downloadTemplate(lectureId: string | number): Promise<Blob> {
@@ -254,11 +351,14 @@ export const attendanceApi = {
     return response.data.data || [];
   },
 
-  async saveStaffAttendance(branchId: string | number, date: string, records: StaffAttendanceSaveRecord[]): Promise<any> {
+  async saveStaffAttendance(branchId: string | number, date: string, records: StaffAttendanceSaveRecord[], location?: GeoLocationPayload | null): Promise<any> {
     const basePath = getAttendanceBasePath();
     const payload: any = { date, records };
     if (basePath === '/admin/attendance' && branchId && branchId !== 'All') {
       payload.branchId = branchId;
+    }
+    if (location) {
+      payload.location = location;
     }
     const response = await api.post(`${basePath}/staff/save`, payload);
     return response.data;
@@ -283,7 +383,7 @@ export const attendanceApi = {
     return response.data.data || [];
   },
 
-  async saveDailyStudentAttendance(payload: { branchId?: string | number; batchId?: string | number; date: string; records: DailyStudentAttendanceSaveRecord[] }): Promise<any> {
+  async saveDailyStudentAttendance(payload: { branchId?: string | number; batchId?: string | number; date: string; records: DailyStudentAttendanceSaveRecord[]; location?: GeoLocationPayload | null }): Promise<any> {
     const basePath = getAttendanceBasePath();
     const body: any = {
       date: payload.date,
@@ -295,7 +395,41 @@ export const attendanceApi = {
     if (payload.batchId && payload.batchId !== 'All') {
       body.batchId = payload.batchId;
     }
+    if (payload.location) {
+      body.location = payload.location;
+    }
     const response = await api.post(`${basePath}/daily-students`, body);
+    return response.data;
+  },
+
+  async toggleStudentCheckin(lectureId: string | number, open: boolean): Promise<{
+    lectureId: number;
+    student_checkin_open: number;
+    student_checkin_code: string | null;
+    opened_at: string | null;
+  }> {
+    const basePath = getAttendanceBasePath();
+    const response = await api.post(`${basePath}/checkin-session/${lectureId}`, { open });
+    return response.data.data;
+  },
+
+  async getStudentLectures(date: string): Promise<{
+    student: { id: number; full_name: string; student_code?: string };
+    lectures: StudentLectureItem[];
+  }> {
+    const response = await api.get(`/student/attendance/lectures?date=${encodeURIComponent(date)}`);
+    return response.data.data;
+  },
+
+  async studentCheckIn(
+    lectureId: string | number,
+    code: string,
+    location: GeoLocationPayload | null
+  ): Promise<any> {
+    const response = await api.post(`/student/attendance/check-in/${lectureId}`, {
+      code,
+      location: location || undefined
+    });
     return response.data;
   }
 };

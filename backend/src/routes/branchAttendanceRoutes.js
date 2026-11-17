@@ -16,6 +16,9 @@ router.get('/lectures/daily', branchAttendanceController.getDailyLectures);
 router.get('/roster/:lectureId', branchAttendanceController.getRoster);
 router.post('/save/:lectureId', branchAttendanceController.saveAttendance);
 router.post('/submit/:lectureId', branchAttendanceController.submitAttendance);
+router.post('/checkin-session/:lectureId', branchAttendanceController.toggleStudentCheckin);
+router.post('/correct/:lectureId', branchAttendanceController.correctAttendance);
+router.get('/corrections/:lectureId', branchAttendanceController.getCorrections);
 router.get('/template/:lectureId', branchAttendanceController.getTemplate);
 router.post('/bulk-upload/:lectureId', uploadAttendanceCsv, branchAttendanceController.bulkUpload);
 

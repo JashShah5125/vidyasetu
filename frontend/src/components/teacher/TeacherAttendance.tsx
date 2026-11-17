@@ -11,7 +11,7 @@ import {
   FileText, Users, UserCheck, AlertTriangle,
   RotateCcw, Save, Layers, Phone, BookOpen,
   Download, Upload, FileSpreadsheet, FileUp, HelpCircle,
-  RefreshCw, TrendingUp, Filter, Check, Eye
+  RefreshCw, TrendingUp, Filter, Check, Eye, Lock, History, ShieldAlert
 } from 'lucide-react';
 import {
   teacherScheduleApi,
@@ -24,8 +24,14 @@ import {
 import {
   attendanceApi,
   type AttendanceRosterRow,
-  type AttendanceRecord
+  type AttendanceRecord,
+  type AttendanceCorrectionItem
 } from '../../services/attendanceApi';
+import {
+  AttendanceCorrectionModal,
+  AttendanceCorrectionHistoryModal,
+  type AttendanceChangeDiff
+} from '../attendance/AttendanceCorrectionModal';
 
 const parseLocalDate = (dateStr?: string | null): Date => {
   if (!dateStr || typeof dateStr !== 'string') {
@@ -133,11 +139,19 @@ export const TeacherAttendance: React.FC = () => {
   const [activeLecture, setActiveLecture] = useState<TeacherScheduleLecture | null>(null);
   const [rosterRows, setRosterRows] = useState<AttendanceRosterRow[]>([]);
   const [rosterMarks, setRosterMarks] = useState<{ [studentId: number]: { status: 0 | 1 | 2; remarks?: string } }>({});
+  const [initialRosterMarks, setInitialRosterMarks] = useState<{ [studentId: number]: { status: 0 | 1 | 2; remarks?: string } }>({});
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [rosterSearch, setRosterSearch] = useState('');
   const [rosterStatusFilter, setRosterStatusFilter] = useState<'all' | 'present' | 'late' | 'absent' | 'unmarked'>('all');
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [correctionsHistory, setCorrectionsHistory] = useState<AttendanceCorrectionItem[]>([]);
+  const [loadingCorrectionHistory, setLoadingCorrectionHistory] = useState(false);
+  const [geoErrorBanner, setGeoErrorBanner] = useState<string | null>(null);
+  const [checkinSession, setCheckinSession] = useState<{ open: boolean; code: string | null }>({ open: false, code: null });
+  const [togglingCheckin, setTogglingCheckin] = useState(false);
 
   // Fetch Teacher's Assigned Lectures for the Selected Date
   const fetchTodayLectures = useCallback(async () => {
@@ -494,7 +508,6 @@ export const TeacherAttendance: React.FC = () => {
         remarks: r.remarks
       }));
 
-      await attendanceApi.saveAttendance(activeLecture.id, recordsToSave);
       await attendanceApi.submitAttendance(activeLecture.id, recordsToSave);
 
       // Update local marks
@@ -661,6 +674,12 @@ export const TeacherAttendance: React.FC = () => {
         }
       });
       setRosterMarks(initial);
+      setInitialRosterMarks(initial);
+      setGeoErrorBanner(null);
+      setCheckinSession({
+        open: Boolean(rows[0] && Number(rows[0].student_checkin_open) === 1),
+        code: rows[0]?.student_checkin_code || null
+      });
     } catch (err: any) {
       console.error('Failed to load roster:', err);
       addToast(err.response?.data?.message || 'Failed to load student roster for lecture.', 'error');
@@ -746,9 +765,112 @@ export const TeacherAttendance: React.FC = () => {
     setHasUnsavedChanges(true);
   };
 
+  const isRosterLocked = Boolean(
+    activeLecture && (
+      activeLecture.attendanceTaken ||
+      activeLecture.attendance?.taken ||
+      (rosterRows[0]?.attendance_taken === 1 && rosterRows[0]?.attendance_locked_at)
+    )
+  );
+
+  const pendingChanges: AttendanceChangeDiff[] = useMemo(() => {
+    if (!isRosterLocked) return [];
+    const diffs: AttendanceChangeDiff[] = [];
+    for (const r of rosterRows) {
+      const prev = initialRosterMarks[r.student_id];
+      const curr = rosterMarks[r.student_id];
+      if (!curr) continue;
+      const oldStatus = prev ? prev.status : null;
+      const oldRemarks = (prev?.remarks || '').trim();
+      const newRemarks = (curr.remarks || '').trim();
+      if (oldStatus !== curr.status || oldRemarks !== newRemarks) {
+        diffs.push({
+          student_id: r.student_id,
+          student_name: r.full_name,
+          student_code: r.student_code,
+          old_status: oldStatus,
+          new_status: curr.status,
+          old_remarks: oldRemarks,
+          new_remarks: newRemarks
+        });
+      }
+    }
+    return diffs;
+  }, [isRosterLocked, rosterRows, initialRosterMarks, rosterMarks]);
+
+  const handleToggleStudentCheckin = async (open: boolean) => {
+    if (!activeLecture) return;
+    setTogglingCheckin(true);
+    try {
+      const res = await attendanceApi.toggleStudentCheckin(activeLecture.id, open);
+      setCheckinSession({
+        open: Boolean(res.student_checkin_open),
+        code: res.student_checkin_code || null
+      });
+      addToast(
+        res.student_checkin_open
+          ? `Student self check-in opened! Class PIN: ${res.student_checkin_code}`
+          : 'Student self check-in closed.',
+        'success'
+      );
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to update student check-in session.', 'error');
+    } finally {
+      setTogglingCheckin(false);
+    }
+  };
+
+  const handleOpenCorrectionHistory = async () => {
+    if (!activeLecture) return;
+    setIsHistoryModalOpen(true);
+    setLoadingCorrectionHistory(true);
+    try {
+      const list = await attendanceApi.getCorrections(activeLecture.id);
+      setCorrectionsHistory(list);
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to load correction history.', 'error');
+    } finally {
+      setLoadingCorrectionHistory(false);
+    }
+  };
+
+  const handleConfirmCorrection = async (reason: string) => {
+    if (!activeLecture || pendingChanges.length === 0) return;
+    setIsSaving(true);
+    try {
+      const records: AttendanceRecord[] = pendingChanges.map(c => ({
+        student_id: c.student_id,
+        status: c.new_status,
+        remarks: c.new_remarks
+      }));
+      await attendanceApi.correctAttendance(activeLecture.id, records, reason);
+      addToast(`Corrected ${records.length} attendance record(s) and logged to Audit Trail.`, 'success');
+      setIsCorrectionModalOpen(false);
+      setHasUnsavedChanges(false);
+      setInitialRosterMarks({ ...rosterMarks });
+      fetchTodayLectures();
+      fetchAttendanceHistory();
+      fetchBatchSummaries();
+      fetchLowAttendanceAlerts();
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || 'Failed to save attendance correction.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSaveAttendance = async () => {
     if (!activeLecture) return;
-    
+
+    if (isRosterLocked) {
+      if (pendingChanges.length === 0) {
+        addToast('Modify at least one student status or remark before submitting a correction.', 'info');
+        return;
+      }
+      setIsCorrectionModalOpen(true);
+      return;
+    }
+
     // Check unmarked count
     const totalStudents = rosterRows.length;
     const markedCount = Object.keys(rosterMarks).length;
@@ -757,6 +879,7 @@ export const TeacherAttendance: React.FC = () => {
       addToast(`${unmarkedDiff} unmarked student${unmarkedDiff > 1 ? 's' : ''} recorded as Absent (0).`, 'info');
     }
 
+    setGeoErrorBanner(null);
     setIsSaving(true);
     try {
       const records: AttendanceRecord[] = rosterRows.map((r) => {
@@ -768,9 +891,9 @@ export const TeacherAttendance: React.FC = () => {
         };
       });
 
-      // Save records & mark lecture as completed
-      await attendanceApi.saveAttendance(activeLecture.id, records);
-      await attendanceApi.submitAttendance(activeLecture.id, records);
+      // Save records & lock lecture atomically
+      const submitRes = await attendanceApi.submitAttendance(activeLecture.id, records);
+      const geo = submitRes?.data?.geofence;
 
       // 1. Optimistically update today's lectures list
       const nowIso = new Date().toISOString();
@@ -829,7 +952,12 @@ export const TeacherAttendance: React.FC = () => {
         };
       });
 
-      addToast('Attendance submitted and saved successfully!', 'success');
+      addToast(
+        geo?.status === 'INSIDE' && geo?.distanceMeters !== null
+          ? `Attendance verified (${Math.round(geo.distanceMeters)}m from branch) and submitted!`
+          : 'Attendance submitted and saved successfully!',
+        'success'
+      );
       setHasUnsavedChanges(false);
       setActiveLecture(null);
       navigate(location.pathname, { replace: true, state: null });
@@ -841,7 +969,9 @@ export const TeacherAttendance: React.FC = () => {
       fetchLowAttendanceAlerts();
     } catch (err: any) {
       console.error('Failed to save attendance:', err);
-      addToast(err.response?.data?.message || 'Failed to save attendance. Please try again.', 'error');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to save attendance. Please try again.';
+      setGeoErrorBanner(msg);
+      addToast(msg, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -921,8 +1051,18 @@ export const TeacherAttendance: React.FC = () => {
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border border-amber-200 animate-pulse'
                 }`}>
-                  {isSubmitted ? 'Attendance Submitted' : 'Attendance Pending'}
+                  {isSubmitted ? 'Attendance Submitted & Locked' : 'Attendance Pending'}
                 </span>
+                {isRosterLocked && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleOpenCorrectionHistory}
+                    className="text-xs font-bold py-1 px-3 h-7"
+                  >
+                    <History size={13} className="mr-1" /> Correction History
+                  </Button>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500">
                 <span className="flex items-center gap-1">
@@ -974,6 +1114,66 @@ export const TeacherAttendance: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Student Self Check-In Control */}
+          {!isRosterLocked && (
+            <div className="mt-4 p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5 text-xs text-indigo-950">
+                <MapPin size={16} className="text-indigo-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">
+                    Student Geo-Fenced Self Check-In
+                    {checkinSession.open && checkinSession.code && (
+                      <span className="ml-2 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white font-mono text-xs tracking-widest">
+                        PIN: {checkinSession.code}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-indigo-800/80 mt-0.5">
+                    {checkinSession.open
+                      ? 'Share this PIN with students inside the classroom so they can verify GPS and check in.'
+                      : 'Open self check-in to generate a 4-digit Class PIN for students in your branch radius.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {checkinSession.open ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => activeLecture && handleOpenRoster(activeLecture)}
+                      className="text-xs font-bold"
+                    >
+                      <RefreshCw size={13} className="mr-1" /> Refresh Roster
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleToggleStudentCheckin(false)}
+                      disabled={togglingCheckin}
+                      className="text-xs font-bold text-rose-700 border-rose-200 hover:bg-rose-50"
+                    >
+                      Close Check-In
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleToggleStudentCheckin(true)}
+                    disabled={togglingCheckin}
+                    className="text-xs font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                  >
+                    {togglingCheckin ? 'Opening...' : 'Open Student Check-In'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Bulk Action Toolbar & Search */}
           <div className="pt-4 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
@@ -1136,6 +1336,15 @@ export const TeacherAttendance: React.FC = () => {
                               <div className="font-bold text-slate-900 leading-snug">
                                 {student.full_name}
                               </div>
+                              {student.student_checkin_at && (
+                                <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <MapPin size={10} />
+                                  Self Check-In
+                                  {student.student_checkin_geofence_status === 'INSIDE' && student.student_checkin_distance_meters != null
+                                    ? ` • ${Math.round(Number(student.student_checkin_distance_meters))}m`
+                                    : ''}
+                                </div>
+                              )}
                               {student.mobile && (
                                 <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                                   <Phone size={11} /> {student.mobile}
@@ -1401,6 +1610,34 @@ export const TeacherAttendance: React.FC = () => {
         </Modal>
 
         {/* Floating Action Footer */}
+        {geoErrorBanner && (
+          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-start gap-2.5">
+            <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold">Geo-Fence Verification Blocked Submission</p>
+              <p className="mt-0.5 text-rose-700">{geoErrorBanner}</p>
+            </div>
+            <button type="button" onClick={() => setGeoErrorBanner(null)} className="text-rose-500 hover:text-rose-700 font-bold">
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        <AttendanceCorrectionModal
+          isOpen={isCorrectionModalOpen}
+          onClose={() => setIsCorrectionModalOpen(false)}
+          changes={pendingChanges}
+          isSubmitting={isSaving}
+          onConfirm={handleConfirmCorrection}
+        />
+
+        <AttendanceCorrectionHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          corrections={correctionsHistory}
+          isLoading={loadingCorrectionHistory}
+        />
+
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 py-3.5 px-6 shadow-lg">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs font-semibold">
@@ -1428,13 +1665,18 @@ export const TeacherAttendance: React.FC = () => {
                 type="button"
                 variant="primary"
                 onClick={handleSaveAttendance}
-                disabled={isSaving || loadingRoster || rosterRows.length === 0}
+                disabled={isSaving || loadingRoster || rosterRows.length === 0 || (isRosterLocked && pendingChanges.length === 0)}
                 className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 shadow-md shadow-blue-600/20"
               >
                 {isSaving ? (
                   <>
                     <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                    Saving Attendance...
+                    {isRosterLocked ? 'Submitting Correction...' : 'Verifying & Saving...'}
+                  </>
+                ) : isRosterLocked ? (
+                  <>
+                    <ShieldAlert size={16} />
+                    Submit Correction{pendingChanges.length > 0 ? ` (${pendingChanges.length})` : ''}
                   </>
                 ) : (
                   <>

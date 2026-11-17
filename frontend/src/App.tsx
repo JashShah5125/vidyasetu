@@ -62,6 +62,7 @@ import { TeacherAttendance } from './components/teacher/TeacherAttendance';
 import { TeacherAssignments } from './components/teacher/TeacherAssignments';
 import { StudentHomework } from './pages/StudentHomework';
 import { StudentDoubts } from './pages/StudentDoubts';
+import { StudentAttendance } from './pages/StudentAttendance';
 import { TeacherDoubts } from './components/teacher/TeacherDoubts';
 import { TeacherStudents } from './components/teacher/TeacherStudents';
 import { TeacherSchedule } from './components/teacher/TeacherSchedule';
@@ -168,6 +169,7 @@ const getRoleDashboard = (role?: string) => {
 const ContentRouter = () => {
   const { currentUser, isImpersonating } = useAuth();
   const isTeacher = currentUser?.role === 'teacher';
+  const isStudent = currentUser?.role === 'student' || currentUser?.role === 'parent';
   const isSaasAdminUser = Boolean(
     (currentUser?.role === 'saas-admin' || currentUser?.role === 'super-admin' || currentUser?.isSaasAdmin) &&
     !isImpersonating
@@ -416,7 +418,8 @@ const ContentRouter = () => {
       <Route path="/leads/payment" element={<LeadsAdmissions initialTab="payment" />} />
       <Route path="/leads/payment/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
-      <Route path="/attendance" element={isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
+      <Route path="/attendance" element={isStudent ? <StudentAttendance /> : isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
+      <Route path="/student/attendance" element={<StudentAttendance />} />
       <Route path="/attendance/lecture/:lectureId" element={<LectureAttendance />} />
       <Route path="/assignments" element={isTeacher || currentUser?.role === 'inst-admin' || currentUser?.role === 'branch-admin' ? <TeacherAssignments /> : <Assignments />} />
       <Route path="/exams" element={<ExamMarks />} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -229,7 +229,7 @@ const PRICING_PLANS = [
       'Unlimited Branch Campuses',
       'Unlimited Student Intake',
       'Custom Branded Subdomain / White-label',
-      'Biometric Machine API Integration',
+      'Geo-Fenced Student Self Check-In & Audit Trail',
       'Custom Payment Gateway Connectors',
       'Dedicated Customer Success Manager',
       'Custom Report Builder & Export APIs',
@@ -286,15 +286,6 @@ export const LandingPage: React.FC = () => {
   const [isAnnual, setIsAnnual] = useState<boolean>(true);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  const [isDemoModalOpen, setIsDemoModalOpen] = useState<boolean>(false);
-  const [demoFormData, setDemoFormData] = useState({
-    name: '',
-    instituteName: '',
-    phone: '',
-    email: '',
-    studentCount: '250-500'
-  });
-  const [demoSubmitted, setDemoSubmitted] = useState<boolean>(false);
 
   // Anonymized Interactive Controls:
   const [mvp1Tab, setMvp1Tab] = useState<'isolation' | 'quotas' | 'onboarding'>('isolation');
@@ -309,6 +300,8 @@ export const LandingPage: React.FC = () => {
   const mainContainerRef = useRef<HTMLDivElement>(null);
   const navContainerRef = useRef<HTMLDivElement>(null);
   const linkRefs = useRef<{ [key: string]: HTMLAnchorElement | null }>({});
+  const programmaticScrollTimerRef = useRef<number | null>(null);
+  const isProgrammaticScrollRef = useRef<boolean>(false);
   const [pillIndicator, setPillIndicator] = useState<{
     left: number;
     width: number;
@@ -325,33 +318,48 @@ export const LandingPage: React.FC = () => {
 
   const updatePillPosition = () => {
     const activeEl = linkRefs.current[activeNavSection];
-    const container = navContainerRef.current;
-    if (activeEl && container) {
-      const activeRect = activeEl.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
+    if (activeEl) {
       setPillIndicator({
-        left: activeRect.left - containerRect.left,
-        width: activeRect.width,
-        top: activeRect.top - containerRect.top,
-        height: activeRect.height,
+        left: activeEl.offsetLeft,
+        width: activeEl.offsetWidth,
+        top: activeEl.offsetTop,
+        height: activeEl.offsetHeight,
         ready: true
       });
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     updatePillPosition();
     const rafId = requestAnimationFrame(updatePillPosition);
     window.addEventListener('resize', updatePillPosition);
+    document.fonts?.ready?.then(updatePillPosition);
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', updatePillPosition);
     };
   }, [activeNavSection]);
 
+  const unlockScrollSpy = () => {
+    isProgrammaticScrollRef.current = false;
+    if (programmaticScrollTimerRef.current) {
+      window.clearTimeout(programmaticScrollTimerRef.current);
+      programmaticScrollTimerRef.current = null;
+    }
+  };
+
+  const lockScrollSpyBriefly = () => {
+    isProgrammaticScrollRef.current = true;
+    if (programmaticScrollTimerRef.current) {
+      window.clearTimeout(programmaticScrollTimerRef.current);
+    }
+    programmaticScrollTimerRef.current = window.setTimeout(unlockScrollSpy, 1600);
+  };
+
   // Scroll to top when clicking VidyaSetu brand logo
   const handleScrollToTop = (e: React.MouseEvent) => {
     e.preventDefault();
+    lockScrollSpyBriefly();
     setActiveNavSection('why-vidyasetu');
     if (mainContainerRef.current) {
       mainContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
@@ -363,6 +371,7 @@ export const LandingPage: React.FC = () => {
   // Smooth programmatic scroll handler
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
+    lockScrollSpyBriefly();
     setActiveNavSection(id);
     const target = document.getElementById(id);
     if (target) {
@@ -373,6 +382,7 @@ export const LandingPage: React.FC = () => {
 
   const handleMobileNavClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
+    lockScrollSpyBriefly();
     setActiveNavSection(id);
     setMobileMenuOpen(false);
     const target = document.getElementById(id);
@@ -382,60 +392,59 @@ export const LandingPage: React.FC = () => {
     window.history.pushState(null, '', `#${id}`);
   };
 
-  // Sync active nav section with URL hash and scrolling
+  // Sync active nav section with URL hash and container scrolling
   useEffect(() => {
+    const sectionIds = ['why-vidyasetu', 'mvps', 'roles', 'architecture', 'pricing', 'faq'];
     const initialHash = window.location.hash.replace('#', '');
-    if (initialHash && ['why-vidyasetu', 'mvps', 'roles', 'architecture', 'pricing', 'faq'].includes(initialHash)) {
+    if (initialHash && sectionIds.includes(initialHash)) {
       setActiveNavSection(initialHash);
-    } else {
-      window.scrollTo(0, 0);
+    } else if (mainContainerRef.current) {
+      mainContainerRef.current.scrollTo(0, 0);
     }
 
     const handleHashChange = () => {
       const currentHash = window.location.hash.replace('#', '');
-      if (currentHash && ['why-vidyasetu', 'mvps', 'roles', 'architecture', 'pricing', 'faq'].includes(currentHash)) {
+      if (currentHash && sectionIds.includes(currentHash)) {
         setActiveNavSection(currentHash);
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
+    const handleScroll = () => {
+      if (isProgrammaticScrollRef.current) return;
+      const container = mainContainerRef.current;
+      if (!container) return;
 
-    const sectionIds = ['why-vidyasetu', 'mvps', 'roles', 'architecture', 'pricing', 'faq'];
-    const elements = sectionIds
-      .map((id) => document.getElementById(id))
-      .filter(Boolean) as HTMLElement[];
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.find((e) => e.isIntersecting);
-        if (visible && visible.target.id) {
-          setActiveNavSection(visible.target.id);
-        }
-      },
-      {
-        threshold: 0.15,
-        rootMargin: '-80px 0px -40% 0px'
+      // If scrolled to the very bottom, highlight the last section
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 40) {
+        setActiveNavSection(sectionIds[sectionIds.length - 1]);
+        return;
       }
-    );
 
-    elements.forEach((el) => observer.observe(el));
+      const thresholdY = 140;
+      let currentActive = sectionIds[0];
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= thresholdY) {
+          currentActive = id;
+        }
+      }
+      setActiveNavSection(currentActive);
+    };
+
+    const container = mainContainerRef.current;
+    window.addEventListener('hashchange', handleHashChange);
+    container?.addEventListener('scroll', handleScroll, { passive: true });
+    container?.addEventListener('scrollend', unlockScrollSpy, { passive: true });
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
-      observer.disconnect();
+      container?.removeEventListener('scroll', handleScroll);
+      container?.removeEventListener('scrollend', unlockScrollSpy);
+      if (programmaticScrollTimerRef.current) {
+        window.clearTimeout(programmaticScrollTimerRef.current);
+      }
     };
   }, []);
-
-  const handleDemoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setDemoSubmitted(true);
-    setTimeout(() => {
-      setTimeout(() => {
-        setIsDemoModalOpen(false);
-        setDemoSubmitted(false);
-      }, 2500);
-    }, 500);
-  };
 
   const selectedMvp = MVP_FEATURES.find((m) => m.id === activeMvp) || MVP_FEATURES[0];
   const selectedRoleData = ROLES_SHOWCASE.find((r) => r.id === activeRole) || ROLES_SHOWCASE[0];
@@ -650,10 +659,10 @@ export const LandingPage: React.FC = () => {
                   }}
                   href={`#${item.id}`}
                   onClick={(e) => handleNavClick(e, item.id)}
-                  className={`relative z-10 px-4 py-2 rounded-full text-xs font-semibold select-none transition-colors duration-250 ease-out ${
+                  className={`relative z-10 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap select-none transition-colors duration-250 ease-out ${
                     isActive
-                      ? 'text-white font-bold'
-                      : 'text-white/80 hover:text-white font-medium'
+                      ? 'text-white'
+                      : 'text-white/80 hover:text-white'
                   }`}
                 >
                   {item.label}
@@ -1823,13 +1832,6 @@ export const LandingPage: React.FC = () => {
                 <ArrowRight size={12} className="text-blue-700" />
               </div>
             </Link>
-
-            <button
-              onClick={() => setIsDemoModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-blue-800/60 hover:bg-blue-800 border border-blue-400/40 text-white text-sm font-semibold transition-all cursor-pointer"
-            >
-              <span>Schedule Live Walkthrough</span>
-            </button>
           </div>
         </div>
       </section>
@@ -1931,131 +1933,10 @@ export const LandingPage: React.FC = () => {
                   Reset Account Password
                 </Link>
               </li>
-              <li>
-                <button
-                  onClick={() => setIsDemoModalOpen(true)}
-                  className="hover:text-blue-600 transition-colors text-left cursor-pointer"
-                >
-                  Request Architecture Demo
-                </button>
-              </li>
             </ul>
           </div>
         </div>
       </footer>
-
-      {/* ── SCHEDULE DEMO MODAL (Clean Light Theme) ── */}
-      {isDemoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 shadow-2xl text-left">
-            <button
-              onClick={() => setIsDemoModalOpen(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-
-            {demoSubmitted ? (
-              <div className="py-8 text-center space-y-4">
-                <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle2 size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900">Walkthrough Request Received!</h3>
-                <p className="text-xs text-slate-600 max-w-sm mx-auto font-medium">
-                  Our academy onboarding specialist will contact you on WhatsApp / Phone within 2 business hours.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleDemoSubmit} className="space-y-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-blue-600 tracking-wider">
-                    Personalized Walkthrough
-                  </span>
-                  <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">
-                    Schedule a 1-on-1 Architecture Demo
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">
-                    See how VidyaSetu fits your specific coaching institute workflow.
-                  </p>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                      Your Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter your full name"
-                      value={demoFormData.name}
-                      onChange={(e) => setDemoFormData({ ...demoFormData, name: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                      Institute / Academy Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter coaching institute name"
-                      value={demoFormData.instituteName}
-                      onChange={(e) => setDemoFormData({ ...demoFormData, instituteName: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                        Mobile Number (WhatsApp)
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        placeholder="Enter 10-digit mobile number"
-                        value={demoFormData.phone}
-                        onChange={(e) => setDemoFormData({ ...demoFormData, phone: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                        Approximate Students
-                      </label>
-                      <select
-                        value={demoFormData.studentCount}
-                        onChange={(e) => setDemoFormData({ ...demoFormData, studentCount: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
-                      >
-                        <option value="Under 100">Under 100 Students</option>
-                        <option value="100-300">100 - 300 Students</option>
-                        <option value="300-1000">300 - 1,000 Students</option>
-                        <option value="1000+">1,000+ Students (Multi-Branch)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3">
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/25 active:scale-[0.98] cursor-pointer"
-                  >
-                    Confirm Walkthrough Request
-                  </button>
-                  <p className="text-[10px] text-slate-400 text-center mt-2 font-medium">
-                    Zero spam guaranteed. We only use this to schedule your demo.
-                  </p>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

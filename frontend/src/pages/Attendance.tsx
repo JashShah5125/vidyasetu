@@ -17,6 +17,7 @@ import { attendanceApi } from '../services/attendanceApi';
 import type { AttendanceLecture, AttendanceOptions, StaffAttendanceRow, StaffAttendanceSaveRecord, DailyStudentAttendanceSaveRecord } from '../services/attendanceApi';
 import { getStudents } from '../services/studentApi';
 import type { StudentRosterItem } from '../services/studentApi';
+import { captureCurrentLocation } from '../utils/geolocation';
 
 const formatTime = (timeStr?: string | null): string => {
   if (!timeStr) return '--:--';
@@ -117,11 +118,24 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
   const numeric = (v: string) => (v && /^\d+$/.test(v) ? Number(v) : undefined);
   const selectedBatchId = numeric(batch);
 
-  const branchId = useMemo(() => {
+  const selectedBranchMeta = useMemo(() => {
     if (!attendanceOptions) return undefined;
-    const b = attendanceOptions.branches.find(o => o.name === branch);
-    return b ? b.id : undefined;
+    return attendanceOptions.branches.find(o => o.name === branch);
   }, [attendanceOptions, branch]);
+
+  const branchId = selectedBranchMeta?.id;
+
+  const captureSubmissionLocation = useCallback(async () => {
+    const geofenceEnabled = Boolean(selectedBranchMeta?.geofence_enabled);
+    if (geofenceEnabled) {
+      return await captureCurrentLocation();
+    }
+    try {
+      return await captureCurrentLocation({ enableHighAccuracy: false, maximumAge: 60000, timeout: 4000 });
+    } catch {
+      return null;
+    }
+  }, [selectedBranchMeta]);
 
   const selectedCourseId = course ? Number(course) : undefined;
   const selectedProgramId = program ? Number(program) : undefined;
@@ -560,7 +574,7 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
       setTimeout(() => setSavedType(null), 4000);
     } catch (err: any) {
       console.error('Failed to save student daily attendance:', err);
-      addToast(err?.response?.data?.message || 'Failed to save student daily attendance.', 'error');
+      addToast(err?.response?.data?.message || err?.message || 'Failed to save student daily attendance.', 'error');
     } finally {
       setSavingStudents(false);
     }
@@ -586,15 +600,16 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     }
     try {
       setSavingStaff(true);
-      await attendanceApi.saveStaffAttendance(branchId || 'All', date, recordsToSave);
+      const location = await captureSubmissionLocation();
+      await attendanceApi.saveStaffAttendance(branchId || 'All', date, recordsToSave, location);
       const refreshed = await attendanceApi.getStaffAttendance({ branchId: branchId || 'All', date, employeeType: 'Non-Teaching' });
       setStaffRoster(refreshed.filter(r => !isTeacherMember(r)));
       setStaffMarks({});
       setSavedType('staff');
       setTimeout(() => setSavedType(null), 4000);
       addToast('Staff attendance saved.', 'success');
-    } catch {
-      addToast('Failed to save staff attendance.', 'error');
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || err?.message || 'Failed to save staff attendance.', 'error');
     } finally {
       setSavingStaff(false);
     }
@@ -669,7 +684,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
     }
     try {
       setSavingTeachers(true);
-      await attendanceApi.saveStaffAttendance(branchId || 'All', date, recordsToSave);
+      const location = await captureSubmissionLocation();
+      await attendanceApi.saveStaffAttendance(branchId || 'All', date, recordsToSave, location);
       const refreshed = await attendanceApi.getStaffAttendance({ branchId: branchId || 'All', date, employeeType: 'Teaching' });
       const teachersOnly = refreshed.filter(r => isTeacherMember(r));
       setTeachersRoster(teachersOnly.length > 0 ? teachersOnly : refreshed);
@@ -677,8 +693,8 @@ export const Attendance: React.FC<AttendanceProps> = ({ initialTab = 'sheet' }) 
       setSavedType('teacher');
       setTimeout(() => setSavedType(null), 4000);
       addToast('Teacher attendance saved successfully.', 'success');
-    } catch {
-      addToast('Failed to save teacher attendance.', 'error');
+    } catch (err: any) {
+      addToast(err?.response?.data?.message || err?.message || 'Failed to save teacher attendance.', 'error');
     } finally {
       setSavingTeachers(false);
     }

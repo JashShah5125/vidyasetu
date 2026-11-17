@@ -1,7 +1,21 @@
 const attendanceModel = require('../models/attendanceModel');
+const AuditService = require('../services/auditService');
 
 const resolveTenantId = (req) => req.user && req.user.tenantId;
-const resolveUserId = (req) => req.user && req.user.userId;
+const resolveUserId = (req) => req.user && (req.user.userId || req.user.id);
+
+const handleError = (res, error, fallbackMessage) => {
+    console.error(fallbackMessage, error);
+    if (error && error.statusCode) {
+        return res.status(error.statusCode).json({
+            status: 'error',
+            message: error.message,
+            code: error.code,
+            details: error.details
+        });
+    }
+    res.status(500).json({ status: 'error', message: error.message || fallbackMessage });
+};
 
 const getAttendanceOptions = async (req, res) => {
     try {
@@ -69,8 +83,7 @@ const saveAttendance = async (req, res) => {
         const result = await attendanceModel.saveAttendance(tenantId, lectureId, records, resolveUserId(req));
         res.status(200).json({ status: 'success', message: 'Attendance saved successfully', data: result });
     } catch (error) {
-        console.error('Error saving attendance:', error);
-        res.status(500).json({ status: 'error', message: error.message || 'Failed to save attendance' });
+        handleError(res, error, 'Failed to save attendance');
     }
 };
 
@@ -78,12 +91,62 @@ const submitAttendance = async (req, res) => {
     try {
         const tenantId = resolveTenantId(req);
         const { lectureId } = req.params;
-        const { records } = req.body;
-        const result = await attendanceModel.submitAttendance(tenantId, lectureId, resolveUserId(req), records);
+        const { records, location } = req.body;
+        const result = await attendanceModel.submitAttendance(tenantId, lectureId, resolveUserId(req), records, location || null);
         res.status(200).json({ status: 'success', message: 'Attendance submitted successfully', data: result });
     } catch (error) {
-        console.error('Error submitting attendance:', error);
-        res.status(500).json({ status: 'error', message: error.message || 'Failed to submit attendance' });
+        handleError(res, error, 'Failed to submit attendance');
+    }
+};
+
+const correctAttendance = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { lectureId } = req.params;
+        const { records, reason } = req.body;
+        req.audit = false;
+
+        const result = await attendanceModel.correctAttendance(tenantId, lectureId, resolveUserId(req), records, reason);
+
+        await AuditService.logFromRequest(req, {
+            action: 'ATTENDANCE_CORRECTION',
+            entityType: 'attendance_records',
+            entityId: Number(lectureId),
+            branchId: result.branchId,
+            severity: 'warning',
+            oldValues: {
+                changes: result.changes.map(c => ({
+                    student_id: c.student_id,
+                    student_name: c.student_name,
+                    status: c.old_status,
+                    remarks: c.old_remarks
+                }))
+            },
+            newValues: {
+                reason: result.reason,
+                changes: result.changes.map(c => ({
+                    student_id: c.student_id,
+                    student_name: c.student_name,
+                    status: c.new_status,
+                    remarks: c.new_remarks
+                }))
+            }
+        });
+
+        res.status(200).json({ status: 'success', message: 'Attendance corrected and audited successfully', data: result });
+    } catch (error) {
+        handleError(res, error, 'Failed to correct attendance');
+    }
+};
+
+const getCorrections = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { lectureId } = req.params;
+        const corrections = await attendanceModel.getCorrections(tenantId, lectureId);
+        res.status(200).json({ status: 'success', data: corrections });
+    } catch (error) {
+        handleError(res, error, 'Failed to fetch attendance corrections');
     }
 };
 
@@ -176,18 +239,17 @@ const getStaffAttendance = async (req, res) => {
 const saveStaffAttendance = async (req, res) => {
     try {
         const tenantId = resolveTenantId(req);
-        const { branchId, date, records } = req.body;
+        const { branchId, date, records, location } = req.body;
         if (!date) {
             return res.status(400).json({ status: 'error', message: 'date is required' });
         }
         if (!Array.isArray(records)) {
             return res.status(400).json({ status: 'error', message: 'records array required' });
         }
-        const result = await attendanceModel.saveStaffAttendance(tenantId, { branchId, date, records, userId: resolveUserId(req) });
+        const result = await attendanceModel.saveStaffAttendance(tenantId, { branchId, date, records, userId: resolveUserId(req), location: location || null });
         res.status(200).json({ status: 'success', message: 'Staff attendance saved successfully', data: result });
     } catch (error) {
-        console.error('Error saving staff attendance:', error);
-        res.status(500).json({ status: 'error', message: error.message || 'Failed to save staff attendance' });
+        handleError(res, error, 'Failed to save staff attendance');
     }
 };
 
@@ -222,7 +284,7 @@ const getDailyStudents = async (req, res) => {
 const saveDailyStudents = async (req, res) => {
     try {
         const tenantId = resolveTenantId(req);
-        const { branchId, batchId, date, records } = req.body;
+        const { branchId, batchId, date, records, location } = req.body;
         if (!date) {
             return res.status(400).json({ status: 'error', message: 'date is required' });
         }
@@ -234,12 +296,33 @@ const saveDailyStudents = async (req, res) => {
             batchId,
             date,
             records,
-            userId: resolveUserId(req)
+            userId: resolveUserId(req),
+            location: location || null
         });
         res.status(200).json({ status: 'success', message: 'Student daily attendance saved successfully', data: result });
     } catch (error) {
-        console.error('Error saving daily student attendance:', error);
-        res.status(500).json({ status: 'error', message: error.message || 'Failed to save student attendance' });
+        handleError(res, error, 'Failed to save student attendance');
+    }
+};
+
+const toggleStudentCheckin = async (req, res) => {
+    try {
+        const tenantId = resolveTenantId(req);
+        const { lectureId } = req.params;
+        const { open } = req.body || {};
+        const result = await attendanceModel.toggleStudentCheckinSession(
+            tenantId,
+            lectureId,
+            resolveUserId(req),
+            open !== undefined ? Boolean(open) : true
+        );
+        res.status(200).json({
+            status: 'success',
+            message: result.student_checkin_open ? 'Student self check-in opened' : 'Student self check-in closed',
+            data: result
+        });
+    } catch (error) {
+        handleError(res, error, 'Failed to toggle student check-in session');
     }
 };
 
@@ -250,6 +333,8 @@ module.exports = {
     getRoster,
     saveAttendance,
     submitAttendance,
+    correctAttendance,
+    getCorrections,
     getTemplate,
     bulkUpload,
     getBatchReport,
@@ -258,5 +343,6 @@ module.exports = {
     saveStaffAttendance,
     saveStaffLectureAttendance,
     getDailyStudents,
-    saveDailyStudents
+    saveDailyStudents,
+    toggleStudentCheckin
 };

@@ -17,6 +17,9 @@ router.get('/lectures/daily', requirePermission('attendance.view'), attendanceCo
 router.get('/roster/:lectureId', requirePermission('attendance.view'), attendanceController.getRoster);
 router.post('/save/:lectureId', requirePermission('attendance.mark'), attendanceController.saveAttendance);
 router.post('/submit/:lectureId', requirePermission('attendance.mark'), attendanceController.submitAttendance);
+router.post('/checkin-session/:lectureId', requirePermission('attendance.mark'), attendanceController.toggleStudentCheckin);
+router.post('/correct/:lectureId', requirePermission('attendance.mark'), attendanceController.correctAttendance);
+router.get('/corrections/:lectureId', requirePermission('attendance.view'), attendanceController.getCorrections);
 router.get('/template/:lectureId', requirePermission('attendance.mark'), attendanceController.getTemplate);
 router.post('/bulk-upload/:lectureId', requirePermission('attendance.mark'), uploadAttendanceCsv, attendanceController.bulkUpload);
 

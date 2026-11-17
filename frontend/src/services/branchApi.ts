@@ -17,6 +17,10 @@ export interface BranchApiPayload {
   email?: string;
   phone?: string;
   operatingHours?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofenceRadius?: number;
+  geofenceEnabled?: boolean;
   bankDetails?: {
     bankName?: string;
     accountName?: string;
@@ -99,6 +103,14 @@ export const toBranch = (row: Record<string, any>): Branch => {
     email: row.email || '',
     phone: row.phone || '',
     operatingHours: row.operating_hours || row.operatingHours || '',
+    latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : null,
+    longitude: row.longitude !== null && row.longitude !== undefined ? Number(row.longitude) : null,
+    geofenceRadius: row.geofence_radius_meters !== null && row.geofence_radius_meters !== undefined
+      ? Number(row.geofence_radius_meters)
+      : (row.geofenceRadius ?? 100),
+    geofenceEnabled: row.geofenceEnabled !== undefined
+      ? Boolean(row.geofenceEnabled)
+      : Boolean(Number(row.geofence_enabled)),
     bankDetails: {
       accountName: row.bank_account_name || '',
       accountNumber: row.bank_account_number || '',

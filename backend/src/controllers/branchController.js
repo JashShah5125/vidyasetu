@@ -1,6 +1,32 @@
 const branchModel = require('../models/branchModel');
+const { isValidCoordinate } = require('../utils/geoUtils');
 
 const resolveTenantId = (req) => req.user && req.user.tenantId;
+
+const validateGeofenceFields = (data) => {
+    const latProvided = data.latitude !== undefined && data.latitude !== null && data.latitude !== '';
+    const lonProvided = data.longitude !== undefined && data.longitude !== null && data.longitude !== '';
+    const geofenceEnabled = Boolean(data.geofenceEnabled ?? data.geofence_enabled);
+
+    if (latProvided !== lonProvided) {
+        return 'Both latitude and longitude must be provided together.';
+    }
+    if (latProvided && lonProvided && !isValidCoordinate(data.latitude, data.longitude)) {
+        return 'Invalid coordinates. Latitude must be between -90 and 90, and longitude between -180 and 180.';
+    }
+    if (geofenceEnabled && (!latProvided || !lonProvided)) {
+        return 'Latitude and longitude are required when geo-fencing is enabled for a branch.';
+    }
+
+    const rawRadius = data.geofenceRadius !== undefined ? data.geofenceRadius : data.geofence_radius_meters;
+    if (rawRadius !== undefined && rawRadius !== null && rawRadius !== '') {
+        const numRadius = Number(rawRadius);
+        if (!Number.isFinite(numRadius) || numRadius < 10 || numRadius > 10000) {
+            return 'Geo-fence radius must be between 10 and 10,000 metres.';
+        }
+    }
+    return null;
+};
 
 const getBranches = async (req, res) => {
     try {
@@ -58,6 +84,11 @@ const createBranch = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Missing required fields (name, code)' });
         }
 
+        const geoError = validateGeofenceFields(data);
+        if (geoError) {
+            return res.status(400).json({ status: 'error', message: geoError });
+        }
+
         const result = await branchModel.createBranch(resolveTenantId(req), data, req.user.userId);
 
         res.status(201).json({ status: 'success', message: 'Branch created successfully', data: result });
@@ -78,6 +109,11 @@ const updateBranch = async (req, res) => {
 
         if (!data.name || !data.code) {
             return res.status(400).json({ status: 'error', message: 'Missing required fields (name, code)' });
+        }
+
+        const geoError = validateGeofenceFields(data);
+        if (geoError) {
+            return res.status(400).json({ status: 'error', message: geoError });
         }
 
         // Branch admin can only update their own assigned branch

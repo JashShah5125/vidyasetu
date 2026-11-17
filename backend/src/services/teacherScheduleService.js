@@ -219,6 +219,10 @@ class TeacherScheduleService {
                 l.attendance_taken,
                 l.attendance_submitted_at,
                 l.attendance_locked_at,
+                l.geofence_status,
+                l.geofence_distance_meters,
+                br.geofence_enabled,
+                br.geofence_radius_meters,
                 sa.status AS staff_attendance_status,
                 sa.lecture_ids AS staff_attendance_lecture_ids
             FROM lectures l
@@ -329,14 +333,18 @@ class TeacherScheduleService {
                 branch: {
                     id: r.branch_id,
                     name: r.branch_name || '',
-                    code: r.branch_code
+                    code: r.branch_code,
+                    geofenceEnabled: Boolean(Number(r.geofence_enabled)),
+                    geofenceRadius: r.geofence_radius_meters ? Number(r.geofence_radius_meters) : 100
                 },
                 status: r.status || 'SCHEDULED',
                 attendance: {
                     required: true,
                     taken: lectureAttendanceTaken,
                     submittedAt: r.attendance_submitted_at,
-                    lockedAt: r.attendance_locked_at
+                    lockedAt: r.attendance_locked_at,
+                    geofenceStatus: r.geofence_status || null,
+                    geofenceDistanceMeters: r.geofence_distance_meters ?? null
                 },
                 lessonPlan: {
                     available: true,
@@ -411,6 +419,10 @@ class TeacherScheduleService {
                 l.attendance_taken,
                 l.attendance_submitted_at,
                 l.attendance_locked_at,
+                l.geofence_status,
+                l.geofence_distance_meters,
+                br.geofence_enabled,
+                br.geofence_radius_meters,
                 sa.status AS staff_attendance_status,
                 sa.lecture_ids AS staff_attendance_lecture_ids
             FROM lectures l
@@ -529,14 +541,18 @@ class TeacherScheduleService {
                 branch: {
                     id: r.branch_id,
                     name: r.branch_name || '',
-                    code: r.branch_code
+                    code: r.branch_code,
+                    geofenceEnabled: Boolean(Number(r.geofence_enabled)),
+                    geofenceRadius: r.geofence_radius_meters ? Number(r.geofence_radius_meters) : 100
                 },
                 status: r.status || 'SCHEDULED',
                 attendance: {
                     required: true,
                     taken: lectureAttendanceTaken,
                     submittedAt: r.attendance_submitted_at,
-                    lockedAt: r.attendance_locked_at
+                    lockedAt: r.attendance_locked_at,
+                    geofenceStatus: r.geofence_status || null,
+                    geofenceDistanceMeters: r.geofence_distance_meters ?? null
                 },
                 attendanceTaken: lectureAttendanceTaken,
                 isTeacherPresent: Boolean(isTeacherPresent),

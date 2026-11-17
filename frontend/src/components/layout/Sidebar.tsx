@@ -327,6 +327,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
           {
             title: 'Learning',
             links: [
+              { name: 'Attendance', label: 'My Attendance', path: '/attendance', icon: CheckSquare },
               { name: 'Homework', label: 'My Homework', path: '/homework', icon: BookOpen },
               { name: 'Doubts', label: 'Doubts', path: '/doubts', icon: MessageSquare }
             ]

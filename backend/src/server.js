@@ -9,6 +9,7 @@ const pool = require('./config/db');
 const redisClient = require('./config/redis');
 const { ensureAuditLogsSchema } = require('./config/initAuditLogs');
 const { ensureSprint4Schema } = require('./config/initSprint4Finance');
+const { ensureSprint2GeofencingSchema } = require('./config/initSprint2Geofencing');
 
 const PORT = process.env.PORT || 5000;
 
@@ -19,9 +20,10 @@ const startServer = async () => {
         console.log('✅ Database connected successfully');
         connection.release();
 
-        // Self-healing schema & permissions for Audit Logs and Sprint 4 Finance
+        // Self-healing schema & permissions for Audit Logs, Sprint 2 Geofencing, and Sprint 4 Finance
         try {
             await ensureAuditLogsSchema();
+            await ensureSprint2GeofencingSchema();
             await ensureSprint4Schema();
         } catch (e) {
             console.warn('⚠️ [Schema Setup] Notice:', e.message);
