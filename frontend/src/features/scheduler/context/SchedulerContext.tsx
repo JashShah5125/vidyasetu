@@ -137,8 +137,8 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const resolvedBatch = options?.batches?.find(b => String(b.id) === String(item.batchId) || b.name === item.batchId || b.code === item.batchId);
         const batchId = resolvedBatch?.id || (item.batchId && !isNaN(Number(item.batchId)) ? Number(item.batchId) : item.batchId);
-        const branchId = resolvedBatch?.branch_id || (item.branchId && !isNaN(Number(item.branchId)) ? Number(item.branchId) : item.branchId) || 1;
-        const academicYearId = resolvedBatch?.academic_year_id || item.academicYearId || 1;
+        const branchId = resolvedBatch?.branch_id || (item.branchId && !isNaN(Number(item.branchId)) ? Number(item.branchId) : item.branchId) || undefined;
+        const academicYearId = resolvedBatch?.academic_year_id || (item.academicYearId && !isNaN(Number(item.academicYearId)) ? Number(item.academicYearId) : undefined);
 
         const resolvedSubject = options?.subjects?.find(s => String(s.id) === String(item.subjectId) || s.name === item.subjectId || s.code === item.subjectId);
         const subjectId = resolvedSubject?.id || (item.subjectId && !isNaN(Number(item.subjectId)) ? Number(item.subjectId) : item.subjectId);

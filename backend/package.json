@@ -12,6 +12,7 @@
     "migrate:v2": "node src/scripts/migrate_v2.js",
     "seed:v2": "node src/scripts/seed_v2.js",
     "setup:v2": "npm run migrate:v2 && npm run seed:v2",
+    "zip": "cd .. && zip -r backend.zip backend -x \"backend/node_modules/*\" \"backend/.DS_Store\" \"*/.DS_Store\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

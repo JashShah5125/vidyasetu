@@ -132,8 +132,8 @@ const verifyBranchGeofence = (branch, location) => {
     );
     const distanceMeters = Math.round(rawDistance * 100) / 100;
 
-    // Reject degraded readings with uncertainty > 50m
-    const maxAllowedAccuracy = 50;
+    // Reject degraded readings with uncertainty > 150m (allows Chrome DevTools 150m simulation and mobile GPS)
+    const maxAllowedAccuracy = 150;
     if (accuracyMeters !== null && accuracyMeters > maxAllowedAccuracy) {
         return {
             enforced: true,

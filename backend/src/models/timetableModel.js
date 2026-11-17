@@ -768,12 +768,102 @@ const timetableModel = {
      * Create single calendar lecture
      */
     async createLecture(tenantId, data, userId) {
-        const branchId = data.branch_id || data.branchId || 1;
-        const academicYearId = data.academic_year_id || data.academicYearId || 1;
-        const batchId = data.batch_id || data.batchId;
-        const subjectId = data.subject_id || data.subjectId || null;
-        const teacherUserId = data.teacher_user_id || data.teacherId || data.teacherUserId || null;
-        const classroomId = data.classroom_id !== undefined ? data.classroom_id : (data.roomId !== undefined ? data.roomId : (data.classroomId !== undefined ? data.classroomId : null));
+        let branchId = data.branch_id || data.branchId;
+        let academicYearId = data.academic_year_id || data.academicYearId;
+        let batchId = data.batch_id || data.batchId;
+        let subjectId = data.subject_id || data.subjectId || null;
+        let teacherUserId = data.teacher_user_id || data.teacherId || data.teacherUserId || null;
+        let classroomId = data.classroom_id !== undefined ? data.classroom_id : (data.roomId !== undefined ? data.roomId : (data.classroomId !== undefined ? data.classroomId : null));
+
+        // 1. Resolve batch if string name/code or ID was provided
+        if (batchId) {
+            const [bRows] = await pool.query(
+                `SELECT id, branch_id, academic_year_id FROM batches WHERE tenant_id = ? AND (id = ? OR name = ? OR code = ?) LIMIT 1`,
+                [tenantId, batchId, batchId, batchId]
+            );
+            if (bRows.length > 0) {
+                batchId = bRows[0].id;
+                if (!branchId || isNaN(Number(branchId))) branchId = bRows[0].branch_id;
+                if (!academicYearId || isNaN(Number(academicYearId))) academicYearId = bRows[0].academic_year_id;
+            }
+        }
+
+        // 2. Resolve branch if string code/name was provided
+        if (branchId && isNaN(Number(branchId))) {
+            const [brRows] = await pool.query(
+                `SELECT id FROM branches WHERE tenant_id = ? AND (id = ? OR code = ? OR name = ?) LIMIT 1`,
+                [tenantId, branchId, branchId, branchId]
+            );
+            if (brRows.length > 0) branchId = brRows[0].id;
+        }
+
+        // 3. Resolve academic year if missing, invalid or defaulted to nonexistent ID
+        if (!academicYearId || isNaN(Number(academicYearId))) {
+            const [ayRows] = await pool.query(
+                `SELECT id FROM academic_years WHERE tenant_id = ? AND (branch_id = ? OR branch_id IS NULL) AND status = 'active' ORDER BY id DESC LIMIT 1`,
+                [tenantId, branchId || 0]
+            );
+            if (ayRows.length > 0) {
+                academicYearId = ayRows[0].id;
+            } else {
+                const [anyAy] = await pool.query(
+                    `SELECT id FROM academic_years WHERE tenant_id = ? ORDER BY id DESC LIMIT 1`,
+                    [tenantId]
+                );
+                if (anyAy.length > 0) academicYearId = anyAy[0].id;
+            }
+        } else {
+            // Verify that the provided academicYearId actually exists for this tenant
+            const [ayExists] = await pool.query(
+                `SELECT id FROM academic_years WHERE id = ? AND tenant_id = ? LIMIT 1`,
+                [academicYearId, tenantId]
+            );
+            if (ayExists.length === 0) {
+                // If it doesn't exist (e.g. invalid fallback 1), pick the active academic year
+                const [ayFallback] = await pool.query(
+                    `SELECT id FROM academic_years WHERE tenant_id = ? AND (branch_id = ? OR branch_id IS NULL) AND status = 'active' ORDER BY id DESC LIMIT 1`,
+                    [tenantId, branchId || 0]
+                );
+                if (ayFallback.length > 0) {
+                    academicYearId = ayFallback[0].id;
+                } else {
+                    const [anyAy] = await pool.query(
+                        `SELECT id FROM academic_years WHERE tenant_id = ? ORDER BY id DESC LIMIT 1`,
+                        [tenantId]
+                    );
+                    if (anyAy.length > 0) academicYearId = anyAy[0].id;
+                }
+            }
+        }
+
+        // 4. Resolve subject if string name/code was provided
+        if (subjectId && isNaN(Number(subjectId))) {
+            const [sRows] = await pool.query(
+                `SELECT id FROM subjects WHERE tenant_id = ? AND (id = ? OR name = ? OR code = ?) LIMIT 1`,
+                [tenantId, subjectId, subjectId, subjectId]
+            );
+            if (sRows.length > 0) subjectId = sRows[0].id;
+        }
+
+        // 5. Resolve teacher if string name/email was provided
+        if (teacherUserId && isNaN(Number(teacherUserId))) {
+            const [tRows] = await pool.query(
+                `SELECT id FROM users WHERE tenant_id = ? AND (id = ? OR name = ? OR email = ?) LIMIT 1`,
+                [tenantId, teacherUserId, teacherUserId, teacherUserId]
+            );
+            if (tRows.length > 0) teacherUserId = tRows[0].id;
+        }
+
+        // 6. Resolve classroom if string name/number was provided
+        if (classroomId && isNaN(Number(classroomId))) {
+            const [cRows] = await pool.query(
+                `SELECT id FROM classrooms WHERE tenant_id = ? AND (id = ? OR name = ? OR room_number = ?) LIMIT 1`,
+                [tenantId, classroomId, classroomId, classroomId]
+            );
+            if (cRows.length > 0) classroomId = cRows[0].id;
+            else classroomId = null;
+        }
+
         const lectureDate = data.lecture_date || data.date || null;
         let startTime = data.start_time || data.startTime || '09:00:00';
         let endTime = data.end_time || data.endTime || '10:30:00';

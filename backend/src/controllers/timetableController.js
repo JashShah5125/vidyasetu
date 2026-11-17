@@ -187,7 +187,7 @@ const createLecture = async (req, res) => {
         res.status(201).json({ status: 'success', message: 'Lecture created successfully', data: result });
     } catch (error) {
         console.error('Error creating lecture:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to create lecture' });
+        res.status(500).json({ status: 'error', message: error.sqlMessage || error.message || 'Failed to create lecture' });
     }
 };
 

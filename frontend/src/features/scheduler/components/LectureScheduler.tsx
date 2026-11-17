@@ -939,9 +939,10 @@ export const LectureScheduler = () => {
               }
             } else {
               try {
-                const actualBatchId = resolvedBatchObj?.id || (lectureData.batchId && !isNaN(Number(lectureData.batchId)) ? Number(lectureData.batchId) : lectureData.batchId) || batch;
-                const actualBranchId = resolvedBatchObj?.branch_id || selectedBranchObj?.id || assignedBranch?.id || 1;
-                const actualAcademicYearId = resolvedBatchObj?.academic_year_id || 1;
+                const batchFallback: any = resolvedBatchObj || batches.find(b => String(b.id) === String(batch) || b.name === batch || b.code === batch);
+                const actualBatchId = batchFallback?.id || (lectureData.batchId && !isNaN(Number(lectureData.batchId)) ? Number(lectureData.batchId) : lectureData.batchId) || batch;
+                const actualBranchId = batchFallback?.branch_id || batchFallback?.branchId || selectedBranchObj?.id || assignedBranch?.id || branches.find(b => b.code === branch || b.name === branch)?.id;
+                const actualAcademicYearId = batchFallback?.academic_year_id || batchFallback?.academicYearId || undefined;
 
                 if (lectureData.id) {
                   await updateLecture(lectureData.id, {
