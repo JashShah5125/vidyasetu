@@ -38,6 +38,16 @@ const getStudentLedger = async (tenantId, studentId, accessContext = null) => {
             s.tenant_id,
             s.primary_branch_id,
             b.name AS branch_name,
+            b.address_line1 AS branch_address,
+            b.city AS branch_city,
+            b.state AS branch_state,
+            b.pincode AS branch_pincode,
+            b.phone AS branch_phone,
+            b.email AS branch_email,
+            b.bank_name,
+            b.bank_account_name,
+            b.bank_account_number,
+            b.bank_ifsc,
             s.student_code,
             s.full_name,
             s.mobile,
@@ -91,19 +101,41 @@ const getStudentLedger = async (tenantId, studentId, accessContext = null) => {
                     if (existingEnrollment.length > 0) {
                         effectiveEnrollmentId = existingEnrollment[0].id;
                     } else {
-                        const [insEnroll] = await pool.query(
-                            `INSERT INTO student_enrollments (
-                                tenant_id, branch_id, student_id, batch_id, academic_year_id, enrolled_date, status, created_by, updated_by
-                            ) VALUES (?, ?, ?, ?, ?, CURDATE(), 'active', 1, 1)`,
-                            [
-                                tenantId,
-                                student.primary_branch_id || 1,
-                                studentId,
-                                student.batch_id || null,
-                                student.academic_year_id || 1
-                            ]
-                        );
-                        effectiveEnrollmentId = insEnroll.insertId;
+                        // Find dynamic academic year for this tenant/branch
+                        let academicYearIdToUse = student.academic_year_id || enq.interested_academic_year_id || null;
+                        if (!academicYearIdToUse) {
+                            const [ayRows] = await pool.query(
+                                `SELECT id FROM academic_years WHERE tenant_id = ? AND (branch_id = ? OR branch_id IS NULL) AND deleted_at IS NULL ORDER BY status = 'active' DESC, id DESC LIMIT 1`,
+                                [tenantId, student.primary_branch_id || null]
+                            );
+                            if (ayRows.length > 0) {
+                                academicYearIdToUse = ayRows[0].id;
+                            } else {
+                                const [anyAy] = await pool.query(
+                                    `SELECT id FROM academic_years WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
+                                    [tenantId]
+                                );
+                                if (anyAy.length > 0) {
+                                    academicYearIdToUse = anyAy[0].id;
+                                }
+                            }
+                        }
+
+                        if (academicYearIdToUse) {
+                            const [insEnroll] = await pool.query(
+                                `INSERT INTO student_enrollments (
+                                    tenant_id, branch_id, student_id, batch_id, academic_year_id, enrolled_date, status, created_by, updated_by
+                                ) VALUES (?, ?, ?, ?, ?, CURDATE(), 'active', 1, 1)`,
+                                [
+                                    tenantId,
+                                    student.primary_branch_id || enq.assigned_branch_id || 1,
+                                    studentId,
+                                    student.batch_id || null,
+                                    academicYearIdToUse
+                                ]
+                            );
+                            effectiveEnrollmentId = insEnroll.insertId;
+                        }
                     }
                 }
 

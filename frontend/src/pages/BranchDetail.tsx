@@ -232,7 +232,7 @@ export const BranchDetail: React.FC = () => {
         return { isValid: false, error: 'Please enter a valid Admin Email address.' };
       }
       const cleanPhone = (formData.adminMobile || '').replace(/[^0-9]/g, '');
-      if (cleanPhone.length < 10) {
+      if (cleanPhone.length !== 10) {
         return { isValid: false, error: 'Please enter a valid 10-digit Admin Mobile number.' };
       }
     }
@@ -464,7 +464,14 @@ export const BranchDetail: React.FC = () => {
                 <Input label="Full Address" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Street, City, State, Pincode" />
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Branch Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="contact@branch.com" />
-                  <Input label="Branch Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="022-XXXXXXX" />
+                  <Input
+                    label="Branch Phone"
+                    type="tel"
+                    maxLength={11}
+                    value={formData.phone}
+                    onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 11)})}
+                    placeholder="10 or 11-digit number"
+                  />
                 </div>
               </div>
             </Card>
@@ -584,7 +591,16 @@ export const BranchDetail: React.FC = () => {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input label="Admin Name" value={formData.admin} onChange={e => setFormData({...formData, admin: e.target.value})} placeholder="Full Name" disabled={currentUser?.role === 'branch-admin'} />
-                  <Input label="Admin Mobile" value={formData.adminMobile} onChange={e => setFormData({...formData, adminMobile: e.target.value})} placeholder="For SMS alerts" disabled={currentUser?.role === 'branch-admin'} />
+                  <Input
+                    label="Admin Mobile"
+                    type="tel"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    value={formData.adminMobile}
+                    onChange={e => setFormData({...formData, adminMobile: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                    placeholder="10-digit mobile"
+                    disabled={currentUser?.role === 'branch-admin'}
+                  />
                 </div>
 
                 {/* Primary Admin Email */}

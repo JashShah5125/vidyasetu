@@ -17,6 +17,16 @@ import { branchApi } from '../services/branchApi';
 import { roleApi, type RoleItem } from '../services/roleApi';
 import { batchApi, type Batch } from '../services/batchApi';
 
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+];
+
 // ─── Tab Config ────────────────────────────────────────────────────────────────
 const TABS = [
   { id: 'basic', label: 'Basic Info', icon: User },
@@ -620,8 +630,20 @@ export const StaffCreate: React.FC = () => {
     }
     if (tabId === 'contact') {
       const cleanMobile = form.mobile.replace(/[^0-9]/g, '');
-      if (!form.mobile.trim() || cleanMobile.length < 10) {
+      if (!form.mobile.trim() || cleanMobile.length !== 10) {
         return { isValid: false, error: 'Please enter a valid 10-digit Mobile Number.' };
+      }
+      if (form.alternateMobile?.trim()) {
+        const cleanAlt = form.alternateMobile.replace(/[^0-9]/g, '');
+        if (cleanAlt.length !== 10) {
+          return { isValid: false, error: 'Alternate Mobile Number must be a valid 10-digit number.' };
+        }
+      }
+      if (form.pinCode?.trim()) {
+        const cleanPin = form.pinCode.replace(/[^0-9]/g, '');
+        if (cleanPin.length !== 6) {
+          return { isValid: false, error: 'PIN Code must be exactly 6 digits.' };
+        }
       }
       const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!form.email.trim() || !EMAIL_REGEX.test(form.email.trim())) {
@@ -921,8 +943,24 @@ export const StaffCreate: React.FC = () => {
             <div className="space-y-5">
               <SectionTitle>Phone & Email</SectionTitle>
               <FieldGrid>
-                <Input label="Mobile Number *" type="tel" value={form.mobile} onChange={e => set('mobile', e.target.value)} placeholder="10-digit number" />
-                <Input label="Alternate Mobile" type="tel" value={form.alternateMobile} onChange={e => set('alternateMobile', e.target.value)} placeholder="Optional" />
+                <Input
+                  label="Mobile Number *"
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  value={form.mobile}
+                  onChange={e => set('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit number"
+                />
+                <Input
+                  label="Alternate Mobile"
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  value={form.alternateMobile}
+                  onChange={e => set('alternateMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="Optional 10-digit number"
+                />
                 <Input label="Email Address *" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@institute.com" />
               </FieldGrid>
               <SectionTitle>Address Details</SectionTitle>
@@ -933,8 +971,22 @@ export const StaffCreate: React.FC = () => {
               </div>
               <FieldGrid>
                 <Input label="City" value={form.city} onChange={e => set('city', e.target.value)} placeholder="e.g. Mumbai" />
-                <Input label="State" value={form.state} onChange={e => set('state', e.target.value)} placeholder="e.g. Maharashtra" />
-                <Input label="PIN Code" value={form.pinCode} onChange={e => set('pinCode', e.target.value)} placeholder="6-digit PIN" />
+                <Select
+                  label="State"
+                  value={form.state}
+                  onChange={e => set('state', e.target.value)}
+                  options={[
+                    { value: '', label: 'Select State...' },
+                    ...INDIAN_STATES.map(s => ({ value: s, label: s }))
+                  ]}
+                />
+                <Input
+                  label="PIN Code"
+                  maxLength={6}
+                  value={form.pinCode}
+                  onChange={e => set('pinCode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="6-digit PIN"
+                />
               </FieldGrid>
             </div>
           )}

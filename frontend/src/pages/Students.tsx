@@ -7,9 +7,10 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar, Pencil, Trash2, Loader2, Eye, Edit3 } from 'lucide-react';
+import { ArrowLeft, UserPlus, Upload, BookOpen, User, Phone, Layers, CheckCircle, IndianRupee, CreditCard, FileText, Clock, AlertCircle, Calendar, Pencil, Trash2, Loader2, Eye, Edit3, Printer } from 'lucide-react';
 import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { AddStudentForm } from '../components/students/AddStudentForm';
+import { InvoiceTemplateModal } from '../components/finance/InvoiceTemplateModal';
 import {
   getStudents,
   getStudentById,
@@ -20,8 +21,10 @@ import type { CreateStudentPayload } from '../services/studentApi';
 import type {
   StudentRosterItem,
   StudentDetail,
+  StudentInvoice,
   AcademicOptions
 } from '../services/studentApi';
+import { getStudentLedger, type StudentLedger, type StudentLedgerInvoice } from '../services/paymentApi';
 import { formatDate } from '../utils/dateFormatter';
 
 export const Students: React.FC = () => {
@@ -53,6 +56,11 @@ export const Students: React.FC = () => {
   const [selectedStudentDetail, setSelectedStudentDetail] = useState<StudentDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [profileTab, setProfileTab] = useState<'overview' | 'academic' | 'parents' | 'fees' | 'documents'>('overview');
+
+  // Invoice Printing & Ledger state
+  const [templateInvoice, setTemplateInvoice] = useState<StudentLedgerInvoice | null>(null);
+  const [templateInitialType, setTemplateInitialType] = useState<'tax' | 'proforma'>('tax');
+  const [studentLedger, setStudentLedger] = useState<StudentLedger | null>(null);
 
   // Edit & Delete state
   const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
@@ -114,6 +122,7 @@ export const Students: React.FC = () => {
   useEffect(() => {
     if (!selectedStudentId) {
       setSelectedStudentDetail(null);
+      setStudentLedger(null);
       return;
     }
     const fetchDetail = async () => {
@@ -131,7 +140,102 @@ export const Students: React.FC = () => {
       }
     };
     fetchDetail();
+
+    // Fetch official student ledger for invoice printing if available
+    getStudentLedger(selectedStudentId)
+      .then(data => setStudentLedger(data))
+      .catch(err => {
+        console.warn('Could not load student ledger:', err);
+        setStudentLedger(null);
+      });
   }, [selectedStudentId]);
+
+  // Fallback synthesized ledger in case full ledger fetch is delayed
+  const currentLedger: StudentLedger | null = useMemo(() => {
+    if (!selectedStudentDetail) return null;
+    return {
+      id: selectedStudentDetail.id,
+      tenant_id: (selectedStudentDetail as any).tenant_id || 0,
+      primary_branch_id: (selectedStudentDetail as any).branch_id || (selectedStudentDetail as any).primary_branch_id || 0,
+      branch_name: selectedStudentDetail.branch_name,
+      student_code: selectedStudentDetail.student_code,
+      full_name: selectedStudentDetail.full_name || (selectedStudentDetail as any).name || '',
+      mobile: selectedStudentDetail.mobile || (selectedStudentDetail as any).contact_number || '',
+      email: selectedStudentDetail.email || '',
+      student_status: selectedStudentDetail.status || 'active',
+      academic_year_name: selectedStudentDetail.academic_year_name,
+      batch_name: selectedStudentDetail.batch_name,
+      feeAssignment: selectedStudentDetail.feeAssignment ? {
+        id: (selectedStudentDetail.feeAssignment as any).id || 0,
+        tenant_id: (selectedStudentDetail as any).tenant_id || 0,
+        branch_id: (selectedStudentDetail as any).branch_id || 0,
+        student_id: selectedStudentDetail.id,
+        enrollment_id: (selectedStudentDetail as any).enrollment_id || 0,
+        fee_source_type: 'course',
+        gross_amount: Number(selectedStudentDetail.feeAssignment.gross_amount || 0),
+        total_concession: Number(selectedStudentDetail.feeAssignment.total_concession ?? selectedStudentDetail.feeAssignment.discount_amount ?? 0),
+        net_amount: Number(selectedStudentDetail.feeAssignment.net_amount || 0),
+        down_payment: Number(selectedStudentDetail.feeAssignment.down_payment ?? selectedStudentDetail.feeAssignment.downpayment_amount ?? 0),
+        installment_count: selectedStudentDetail.feeAssignment.installment_count || 1,
+        installment_amount: Number(selectedStudentDetail.feeAssignment.installment_amount || 0),
+        payment_plan_type: 'installments',
+        course_name: (selectedStudentDetail as any).course_name || (selectedStudentDetail.feeAssignment as any).course_name || 'Academic Coaching Program'
+      } as any : null,
+      invoices: (selectedStudentDetail.invoicesList || []).map(inv => ({
+        id: inv.id,
+        tenant_id: (selectedStudentDetail as any).tenant_id || 0,
+        branch_id: (selectedStudentDetail as any).branch_id || 0,
+        student_id: selectedStudentDetail.id,
+        enrollment_id: (selectedStudentDetail as any).enrollment_id || 0,
+        fee_assignment_id: (selectedStudentDetail.feeAssignment as any)?.id || 0,
+        invoice_number: inv.invoice_number,
+        installment_number: inv.installment_number ?? 0,
+        issue_date: inv.issue_date || new Date().toISOString(),
+        due_date: inv.due_date || new Date().toISOString(),
+        payment_date: inv.payment_date || null,
+        amount: Number(inv.amount ?? inv.billed_amount ?? 0),
+        paid_amount: Number(inv.paid_amount || 0),
+        balance_due: Number(inv.balance_due || 0),
+        outstanding: Number(inv.balance_due || 0),
+        payment_mode: inv.payment_mode || null,
+        transaction_reference: inv.transaction_reference || inv.transaction_ref || null,
+        status: (inv.status === 'paid' ? 'paid' : 'unpaid') as any
+      })),
+      totalOutstanding: Number(selectedStudentDetail.feeAssignment?.balance_amount ?? selectedStudentDetail.feeAssignment?.balance_due ?? 0)
+    };
+  }, [selectedStudentDetail]);
+
+  const handleOpenPrintInvoice = (inv: StudentInvoice) => {
+    const matchingLedgerInvoice = studentLedger?.invoices?.find(
+      (i) => i.id === inv.id || i.invoice_number === inv.invoice_number
+    );
+
+    const invoiceToPrint: StudentLedgerInvoice = matchingLedgerInvoice || {
+      id: inv.id,
+      tenant_id: (selectedStudentDetail as any)?.tenant_id || 0,
+      branch_id: (selectedStudentDetail as any)?.branch_id || 0,
+      student_id: selectedStudentDetail?.id || 0,
+      enrollment_id: (selectedStudentDetail as any)?.enrollment_id || 0,
+      fee_assignment_id: (selectedStudentDetail?.feeAssignment as any)?.id || 0,
+      invoice_number: inv.invoice_number,
+      installment_number: inv.installment_number ?? 0,
+      description: (inv as any).description || (inv.installment_number === 0 ? 'Downpayment' : `Installment #${inv.installment_number}`),
+      issue_date: inv.issue_date || new Date().toISOString(),
+      due_date: inv.due_date || new Date().toISOString(),
+      payment_date: inv.payment_date || null,
+      amount: Number(inv.amount ?? inv.billed_amount ?? 0),
+      paid_amount: Number(inv.paid_amount || 0),
+      balance_due: Number(inv.balance_due || 0),
+      outstanding: Number(inv.balance_due || 0),
+      payment_mode: inv.payment_mode || null,
+      transaction_reference: inv.transaction_reference || inv.transaction_ref || null,
+      remarks: null,
+      status: (inv.status === 'paid' ? 'paid' : 'unpaid') as any,
+    };
+
+    setTemplateInvoice(invoiceToPrint);
+    setTemplateInitialType(inv.status === 'paid' ? 'tax' : 'proforma');
+  };
 
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
 
@@ -665,7 +769,7 @@ export const Students: React.FC = () => {
                       </h3>
 
                       {selectedStudentDetail.invoicesList && selectedStudentDetail.invoicesList.length > 0 ? (
-                        <Table dense minWidth="850px" headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status']}>
+                        <Table dense minWidth="920px" headers={['Invoice #', 'Installment', 'Due Date', 'Billed Amount', 'Paid Amount', 'Balance Due', 'Payment Info', 'Status', 'Actions']}>
                           {selectedStudentDetail.invoicesList.map((inv) => (
                             <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                               <td className="px-3 py-2 font-mono font-bold text-xs text-blue-700">
@@ -701,7 +805,7 @@ export const Students: React.FC = () => {
                                   <span className="text-slate-400 italic">Not paid</span>
                                 )}
                               </td>
-                              <td className="px-6 py-4 text-xs">
+                              <td className="px-3 py-2 text-xs">
                                 <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${inv.status === 'paid'
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : inv.status === 'partially_paid'
@@ -710,6 +814,17 @@ export const Students: React.FC = () => {
                                   }`}>
                                   {inv.status}
                                 </span>
+                              </td>
+                              <td className="px-3 py-2 text-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPrintInvoice(inv)}
+                                  title="Print / View Invoice"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 font-semibold transition-colors cursor-pointer shadow-2xs hover:shadow-xs"
+                                >
+                                  <Printer size={13} className="text-indigo-600" />
+                                  <span>Print</span>
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -755,6 +870,14 @@ export const Students: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        <InvoiceTemplateModal
+          isOpen={Boolean(templateInvoice)}
+          onClose={() => setTemplateInvoice(null)}
+          invoice={templateInvoice}
+          ledger={studentLedger || currentLedger}
+          initialType={templateInitialType}
+        />
       </div>
     );
   }

@@ -26,6 +26,16 @@ import { useSearchParams, useNavigate, useParams, useLocation } from 'react-rout
 import { useAuth } from '../context/AuthContext';
 import { getTenantStatusLabel } from '../types';
 
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+];
+
 const formatDate = (dateStr: string | undefined): string => {
   if (!dateStr) return '';
   if (dateStr.includes('T')) {
@@ -477,8 +487,8 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
         }
       }
       const cleanMobile = mobile.replace(/[^0-9]/g, '');
-      if (!mobile.trim() || cleanMobile.length < 10) {
-        return { isValid: false, error: 'Primary Mobile Number is compulsory and must be at least 10 digits.' };
+      if (!mobile.trim() || cleanMobile.length !== 10) {
+        return { isValid: false, error: 'Primary Mobile Number is compulsory and must be exactly 10 digits.' };
       }
     }
 
@@ -1632,19 +1642,23 @@ export const TenantsManager: React.FC<{ initialOpenCreate?: boolean; initialInsp
                       value={city} 
                       onChange={(e) => setCity(e.target.value)} 
                     />
-                    <Input 
+                    <Select 
                       label="State" 
                       required
-                      placeholder="e.g. Maharashtra" 
                       value={state} 
                       onChange={(e) => setState(e.target.value)} 
+                      options={[
+                        { value: '', label: 'Select State...' },
+                        ...INDIAN_STATES.map(s => ({ value: s, label: s }))
+                      ]}
                     />
                     <Input 
                       label="PIN Code" 
                       required
+                      maxLength={6}
                       placeholder="e.g. 400001" 
                       value={pincode} 
-                      onChange={(e) => setPincode(e.target.value)} 
+                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} 
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

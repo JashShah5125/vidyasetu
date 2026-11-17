@@ -12,12 +12,15 @@ const createEnquirySchema = Joi.object({
         'any.required': 'Student name is required',
         'string.empty': 'Student name is required'
     }),
-    student_mobile: Joi.string().trim().min(7).max(20).required().messages({
-        'any.required': 'Student mobile is required'
+    student_mobile: Joi.string().trim().pattern(/^[0-9]{10}$/).required().messages({
+        'any.required': 'Student mobile is required',
+        'string.pattern.base': 'Student mobile must be exactly 10 digits'
     }),
     student_email: Joi.string().email().allow(null, '').optional(),
     parent_name: Joi.string().trim().max(255).allow(null, '').optional(),
-    parent_mobile: Joi.string().trim().max(20).allow(null, '').optional(),
+    parent_mobile: Joi.string().trim().pattern(/^[0-9]{10}$/).allow(null, '').optional().messages({
+        'string.pattern.base': 'Parent mobile must be exactly 10 digits'
+    }),
     parent_email: Joi.string().email().allow(null, '').optional(),
     interested_course_id: Joi.number().integer().allow(null).optional(),
     interested_program_id: Joi.number().integer().allow(null).optional(),
@@ -75,9 +78,10 @@ const convertEnquirySchema = Joi.object({
         'any.required': 'Student full name is required',
         'string.empty': 'Student full name cannot be empty'
     }),
-    mobile: Joi.string().trim().min(7).max(20).required().messages({
+    mobile: Joi.string().trim().pattern(/^[0-9]{10}$/).required().messages({
         'any.required': 'Student mobile number is required',
-        'string.empty': 'Student mobile number cannot be empty'
+        'string.empty': 'Student mobile number cannot be empty',
+        'string.pattern.base': 'Student mobile number must be exactly 10 digits'
     }),
     email: Joi.string().email().allow(null, '').optional().messages({
         'string.email': 'Student email ID must be a valid email'
@@ -87,7 +91,9 @@ const convertEnquirySchema = Joi.object({
     street: Joi.string().trim().max(255).allow(null, '').optional(),
     city: Joi.string().trim().max(100).allow(null, '').optional(),
     state: Joi.string().trim().max(100).allow(null, '').optional(),
-    pincode: Joi.string().trim().max(20).allow(null, '').optional(),
+    pincode: Joi.string().trim().pattern(/^[0-9]{6}$/).allow(null, '').optional().messages({
+        'string.pattern.base': 'Pincode must be exactly 6 digits'
+    }),
     category: Joi.string().trim().max(50).allow(null, '').optional().default('General'),
     school_name: Joi.string().trim().max(255).allow(null, '').optional(),
     current_class: Joi.string().trim().max(50).allow(null, '').optional(),
@@ -98,9 +104,10 @@ const convertEnquirySchema = Joi.object({
         'any.required': 'Parent/Guardian name is required',
         'string.empty': 'Parent/Guardian name cannot be empty'
     }),
-    guardian_mobile: Joi.string().trim().min(7).max(20).required().messages({
+    guardian_mobile: Joi.string().trim().pattern(/^[0-9]{10}$/).required().messages({
         'any.required': 'Parent/Guardian mobile is required',
-        'string.empty': 'Parent/Guardian mobile cannot be empty'
+        'string.empty': 'Parent/Guardian mobile cannot be empty',
+        'string.pattern.base': 'Parent/Guardian mobile must be exactly 10 digits'
     }),
     guardian_email: Joi.string().email().allow(null, '').optional().messages({
         'string.email': 'Parent/Guardian email must be a valid email'

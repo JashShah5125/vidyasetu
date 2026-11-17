@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Printer,
   Download,
@@ -15,6 +15,7 @@ import { Button } from '../ui/Button';
 import { formatDate as fmtDate } from '../../utils/dateFormatter';
 import type { StudentLedgerInvoice, StudentLedger } from '../../services/paymentApi';
 import { useAuth } from '../../context/AuthContext';
+import { getInstituteProfile } from '../../services/instituteApi';
 
 export interface InvoiceTemplateModalProps {
   isOpen: boolean;
@@ -79,7 +80,58 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
   const [templateType, setTemplateType] = useState<'tax' | 'proforma'>(initialType);
   const [taxRate, setTaxRate] = useState<number>(18); // Default 18% GST (9% CGST + 9% SGST)
   const [isGstInclusive, setIsGstInclusive] = useState<boolean>(true);
+  const [instituteProfile, setInstituteProfile] = useState<any | null>(null);
+  const [instituteLogo, setInstituteLogo] = useState<string | null>(
+    currentUser?.logoUrl || currentUser?.tenantLogo || (currentUser as any)?.logo || null
+  );
   const printContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setTemplateType(initialType);
+  }, [initialType]);
+
+  useEffect(() => {
+    getInstituteProfile()
+      .then((res) => {
+        if (res?.tenant) {
+          setInstituteProfile(res.tenant);
+          const url = res.tenant.logoUrl || (res.tenant as any).logo_url;
+          if (url) {
+            setInstituteLogo(url);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const instituteAddress = useMemo(() => {
+    const parts = [
+      (ledger as any)?.branch_address || instituteProfile?.address,
+      (ledger as any)?.branch_city || instituteProfile?.city,
+      (ledger as any)?.branch_state || instituteProfile?.state,
+      (ledger as any)?.branch_pincode || instituteProfile?.pincode
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Main Campus Road, Knowledge Park';
+  }, [ledger, instituteProfile]);
+
+  const instituteContact = (ledger as any)?.branch_phone || instituteProfile?.mobile || currentUser?.mobile || '+91 98765 43210';
+  const instituteEmail = (ledger as any)?.branch_email || instituteProfile?.email || currentUser?.email || 'support@vidyasetu.com';
+
+  const gstin = instituteProfile?.gstNo || (instituteProfile as any)?.gst_number || '27AABCA1234F1Z8';
+  const stateCodeStr = useMemo(() => {
+    const stateName = (ledger as any)?.branch_state || instituteProfile?.state || 'Maharashtra';
+    const numCode = gstin && gstin.length >= 2 && !isNaN(Number(gstin.slice(0, 2))) ? gstin.slice(0, 2) : '27';
+    return `${numCode} (${stateName})`;
+  }, [gstin, ledger, instituteProfile]);
+
+  const instituteName = currentUser?.tenantName || instituteProfile?.name || 'VIDYA SETU ACADEMY';
+  const branchName = ledger?.branch_name || currentUser?.branch || 'Main Campus';
+
+  const bankName = (ledger as any)?.bank_name || 'HDFC Bank Ltd';
+  const bankAccountName = (ledger as any)?.bank_account_name || instituteName;
+  const bankAccountNumber = (ledger as any)?.bank_account_number || '50200012345678';
+  const bankIfsc = (ledger as any)?.bank_ifsc || 'HDFC0001234';
+  const upiVpa = currentUser?.tenantId ? `${currentUser.tenantId}@hdfcbank` : 'vidyasetu@hdfcbank';
 
   if (!isOpen || !invoice) return null;
 
@@ -108,12 +160,19 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
 
   const grandTotal = isGstInclusive ? totalAmount : taxableValue + cgst + sgst;
 
-  const instituteName = currentUser?.tenantName || 'VIDYA SETU ACADEMY';
-  const branchName = ledger?.branch_name || currentUser?.branch || 'Main Campus';
   const studentName = ledger?.full_name || (ledger as any)?.student?.name || 'Student';
   const studentCode = ledger?.student_code || (ledger as any)?.student?.studentCode || 'STU-REF';
   const batchName = ledger?.batch_name || 'General Batch';
   const courseName = (ledger?.feeAssignment as any)?.course_name || 'Academic Coaching Program';
+
+  const getInstituteInitials = (name: string) => {
+    if (!name) return 'VS';
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
 
   const isProforma = templateType === 'proforma';
 
@@ -197,7 +256,12 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
   };
 
   return (
-    <div className="invoice-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/70 backdrop-blur-xs overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible">
+    <div
+      className="invoice-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-transparent overflow-y-auto print:p-0 print:bg-white print:static print:overflow-visible"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       {/* Inline styles for perfect A4 Print output */}
       <style>{`
         @media print {
@@ -239,19 +303,19 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
         }
       `}</style>
 
-      <div className="invoice-modal-dialog relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:border-none print:rounded-none">
+      <div className="invoice-modal-dialog relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:border-none print:rounded-none">
         {/* Top Control Bar (Hidden during print) */}
-        <div className="no-print bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
+        <div className="no-print bg-white text-slate-800 px-5 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Template Type:</span>
-            <div className="inline-flex rounded-lg bg-slate-800 p-1 border border-slate-700">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Template Type:</span>
+            <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200">
               <button
                 type="button"
                 onClick={() => setTemplateType('tax')}
                 className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                   !isProforma
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
                 <FileCheck2 size={13} />
@@ -263,7 +327,7 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
                 className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                   isProforma
                     ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                 }`}
               >
                 <FileText size={13} />
@@ -277,7 +341,7 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
               variant="primary"
               size="sm"
               onClick={handlePrint}
-              className="flex items-center gap-1.5 font-bold h-8 px-3 text-xs shadow-xs"
+              className="flex items-center gap-1.5 font-bold h-8 px-3.5 text-xs shadow-xs"
             >
               <Printer size={13} />
               Print / Save PDF
@@ -285,7 +349,8 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Close (Esc)"
             >
               <X size={18} />
             </button>
@@ -316,10 +381,29 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
               )}
 
               {/* Main Institute Header */}
-              <div className="flex justify-between items-start pb-5 border-b-2 border-slate-900 gap-4">
+              <div className="flex justify-between items-start pb-5 border-b-2 border-slate-300 gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-xl bg-blue-900 text-white font-black text-xl flex items-center justify-center tracking-tighter shrink-0 shadow-xs">
-                    VS
+                  {instituteLogo ? (
+                    <div className="w-14 h-14 rounded-xl border border-slate-200/90 p-1 bg-white shrink-0 shadow-xs flex items-center justify-center overflow-hidden">
+                      <img
+                        src={instituteLogo.startsWith('http') || instituteLogo.startsWith('data:') ? instituteLogo : instituteLogo}
+                        alt={instituteName}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.currentTarget.parentElement as HTMLElement).style.display = 'none';
+                          const fb = document.getElementById('inst-initials-fallback');
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  <div
+                    id="inst-initials-fallback"
+                    className={`w-14 h-14 rounded-xl bg-blue-700 text-white font-black text-xl flex items-center justify-center tracking-tighter shrink-0 shadow-xs ${
+                      instituteLogo ? 'hidden' : ''
+                    }`}
+                  >
+                    {getInstituteInitials(instituteName)}
                   </div>
                   <div>
                     <h1 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight">
@@ -329,12 +413,12 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
                       Coaching & Educational Excellence &bull; Branch: {branchName}
                     </p>
                     <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                      Main Campus Road, Knowledge Park &bull; Contact: +91 98765 43210 &bull; support@vidyasetu.com
+                      {instituteAddress} &bull; Contact: {instituteContact} &bull; {instituteEmail}
                     </p>
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-600 font-mono mt-1">
-                      <span><strong>GSTIN:</strong> 27AABCA1234F1Z8</span>
+                      <span><strong>GSTIN:</strong> {gstin}</span>
                       <span>&bull;</span>
-                      <span><strong>State Code:</strong> 27 (Maharashtra)</span>
+                      <span><strong>State Code:</strong> {stateCodeStr}</span>
                       <span>&bull;</span>
                       <span><strong>SAC Code:</strong> 999293</span>
                     </div>
@@ -345,7 +429,7 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
                 <div className="text-right shrink-0">
                   <div
                     className={`inline-block px-3.5 py-1.5 rounded font-black font-mono text-xs uppercase tracking-wider text-white ${
-                      isProforma ? 'bg-amber-600' : 'bg-slate-900'
+                      isProforma ? 'bg-amber-600' : 'bg-blue-700'
                     }`}
                   >
                     {isProforma ? 'PROFORMA INVOICE' : 'TAX INVOICE'}
@@ -493,9 +577,9 @@ export const InvoiceTemplateModal: React.FC<InvoiceTemplateModalProps> = ({
 
                   <div className="text-[11px] text-slate-600 space-y-1">
                     <div className="font-bold text-slate-700">Bank & Payment Remittance Details:</div>
-                    <div><strong>Bank:</strong> HDFC Bank Ltd &bull; <strong>A/C Name:</strong> {instituteName}</div>
-                    <div><strong>A/C No:</strong> 50200012345678 &bull; <strong>IFSC:</strong> HDFC0001234</div>
-                    <div><strong>UPI VPA:</strong> {currentUser?.tenantId ? `${currentUser.tenantId}@hdfcbank` : 'vidyasetu@hdfcbank'}</div>
+                    <div><strong>Bank:</strong> {bankName} &bull; <strong>A/C Name:</strong> {bankAccountName}</div>
+                    <div><strong>A/C No:</strong> {bankAccountNumber} &bull; <strong>IFSC:</strong> {bankIfsc}</div>
+                    <div><strong>UPI VPA:</strong> {upiVpa}</div>
                   </div>
                 </div>
 

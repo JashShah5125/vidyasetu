@@ -13,6 +13,7 @@ import { BulkImportModal } from '../components/ui/BulkImportModal';
 import { InvoiceTemplateModal } from '../components/finance/InvoiceTemplateModal';
 import { InstallmentScheduleBuilderModal } from '../components/finance/InstallmentScheduleBuilderModal';
 import { InstallmentScheduleBuilderPage } from './finance/InstallmentScheduleBuilderPage';
+import { CollectPaymentActivation } from './CollectPaymentActivation';
 import { getStudents, getAcademicOptions, type StudentRosterItem, type AcademicOptions } from '../services/studentApi';
 import {
   getStudentLedger,
@@ -222,7 +223,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
   const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin' || currentUser?.role === 'finance' || (currentUser as any)?.userType === 'finance' || Boolean(currentUser?.branchId);
 
   // ── View routing ──
-  const [view, setView] = useState<'register' | 'collect' | 'view_invoice' | 'edit_invoice' | 'schedule_builder'>('register');
+  const [view, setView] = useState<'register' | 'collect' | 'view_invoice' | 'edit_invoice' | 'schedule_builder' | 'collect_payment'>('register');
 
   // ── Filters state ──
   const [showFilters, setShowFilters] = useState(false);
@@ -536,13 +537,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
   };
 
   const openInvoiceModal = () => {
-    setInvAmount('');
-    setInvMode('UPI');
-    setInvTxnRef('');
-    setInvDescription('');
-    setInvRemarks('');
-    setInvError(null);
-    setShowInvoiceModal(true);
+    setView('collect_payment');
   };
 
   const submitInvoice = async (e: React.FormEvent) => {
@@ -768,9 +763,8 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
           >
             <RefreshCw
               size={13}
-              className={`transition-transform duration-500 text-slate-500 group-hover:rotate-180 group-hover:text-slate-700 ${
-                rosterLoading ? 'animate-spin text-blue-600' : ''
-              }`}
+              className={`transition-transform duration-500 text-slate-500 group-hover:rotate-180 group-hover:text-slate-700 ${rosterLoading ? 'animate-spin text-blue-600' : ''
+                }`}
             />
             <span>Refresh</span>
           </button>
@@ -870,11 +864,10 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
               </div>
               <div className="flex items-center justify-between text-[11px] mt-2 pt-2 border-t border-slate-100">
                 <span className="text-slate-400">Overdue recovery</span>
-                <span className={`font-bold font-mono px-1.5 py-0.5 rounded text-[10px] ${
-                  summary.defaulters > 0
-                    ? 'bg-rose-100 text-rose-700'
-                    : 'bg-slate-100 text-slate-600'
-                }`}>
+                <span className={`font-bold font-mono px-1.5 py-0.5 rounded text-[10px] ${summary.defaulters > 0
+                  ? 'bg-rose-100 text-rose-700'
+                  : 'bg-slate-100 text-slate-600'
+                  }`}>
                   {summary.defaulters} {summary.defaulters === 1 ? 'student' : 'students'} overdue
                 </span>
               </div>
@@ -1196,8 +1189,8 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                   const st = getUnifiedStatus(s);
 
                   return (
-                    <tr 
-                      key={s.id || idx} 
+                    <tr
+                      key={s.id || idx}
                       onClick={() => openCollect(s)}
                       className="hover:bg-slate-50/80 cursor-pointer transition-colors border-b border-slate-100 last:border-b-0"
                     >
@@ -1351,19 +1344,19 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                   const overdueAmount = ledger.fees_overdue !== undefined
                     ? Number(ledger.fees_overdue)
                     : (() => {
-                        const now = new Date();
-                        const startDate = new Date((fa as any)?.created_at || (ledger as any)?.created_at || now);
-                        let expected = downPayment;
-                        for (let i = 1; i <= installmentCount; i++) {
-                          const dueDate = new Date(startDate);
-                          dueDate.setMonth(dueDate.getMonth() + i);
-                          if (dueDate <= now) {
-                            expected += installmentAmount;
-                          }
+                      const now = new Date();
+                      const startDate = new Date((fa as any)?.created_at || (ledger as any)?.created_at || now);
+                      let expected = downPayment;
+                      for (let i = 1; i <= installmentCount; i++) {
+                        const dueDate = new Date(startDate);
+                        dueDate.setMonth(dueDate.getMonth() + i);
+                        if (dueDate <= now) {
+                          expected += installmentAmount;
                         }
-                        expected = Math.min(netAmount, expected);
-                        return Math.max(0, expected - paidAmount);
-                      })();
+                      }
+                      expected = Math.min(netAmount, expected);
+                      return Math.max(0, expected - paidAmount);
+                    })();
 
                   return (
                     <>
@@ -1423,7 +1416,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                             </div>
                             <div className="flex justify-between text-xs text-slate-400 mt-1">
                               <span>{percentCollected}% collected</span>
-                              <span>{ledger.invoices.length} invoice{ledger.invoices.length === 1 ? '' : 's'}</span>
+                              <span>{(ledger.invoices || []).length} invoice{(ledger.invoices || []).length === 1 ? '' : 's'}</span>
                             </div>
                           </div>
 
@@ -1463,7 +1456,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-base font-bold text-slate-900">Invoices</CardTitle>
                     <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                      {ledger.invoices.length}
+                      {(ledger.invoices || []).length}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1474,7 +1467,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       onClick={() => setView('schedule_builder')}
                       title="Automated Installment Schedule Builder (Monthly/Termly)"
                     >
-                      <Sparkles size={13} className="text-indigo-600" /> Auto Schedule Builder
+                      <Sparkles size={13} className="text-indigo-600" /> Auto Installment Builder
                     </Button>
                     <Button size="sm" variant="primary" className="flex items-center gap-1.5 font-bold h-8 px-3 text-sm shadow-xs" onClick={openInvoiceModal}>
                       <Plus size={14} /> Add Payment
@@ -1497,7 +1490,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                     { label: 'Actions', align: 'right' }
                   ]}
                 >
-                  {ledger.invoices.length === 0 ? (
+                  {(ledger.invoices || []).length === 0 ? (
                     <tr>
                       <td colSpan={9}>
                         <div className="py-12 text-center text-slate-400 text-sm">
@@ -1508,7 +1501,7 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                     </tr>
                   ) : (
                     <>
-                      {ledger.invoices.map(inv => {
+                      {(ledger.invoices || []).map(inv => {
                         const st = statusBadge(inv.status);
                         const isInvOverdue = inv.balance_due > 0 && inv.due_date && new Date(inv.due_date) < new Date();
                         const isBalInvoice = inv.invoice_number?.endsWith('-BAL') || inv.description?.includes('Pending Balance');
@@ -1604,20 +1597,20 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
                       })}
                       <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900">
                         <td className="px-2.5 py-3 text-xs sm:text-sm font-bold text-slate-900 whitespace-nowrap">
-                          Total ({ledger.invoices.length})
+                          Total ({(ledger.invoices || []).length})
                         </td>
                         <td className="px-2.5 py-3 text-xs text-slate-600 font-medium">
                           All account entries
                         </td>
                         <td className="px-2 py-3 text-right text-xs sm:text-sm font-bold text-slate-900 tabular-nums whitespace-nowrap">
-                          {fmt(ledger.invoices.reduce((s, i) => s + (Number(i.amount) || 0), 0))}
+                          {fmt((ledger.invoices || []).reduce((s, i) => s + (Number(i.amount) || 0), 0))}
                         </td>
                         <td className="px-2 py-3 text-right text-xs sm:text-sm font-bold text-emerald-700 tabular-nums whitespace-nowrap">
-                          {fmt(ledger.invoices.reduce((s, i) => s + (Number(i.paid_amount) || 0), 0))}
+                          {fmt((ledger.invoices || []).reduce((s, i) => s + (Number(i.paid_amount) || 0), 0))}
                         </td>
                         <td className="px-2 py-3 text-right text-xs sm:text-sm font-bold tabular-nums whitespace-nowrap">
                           {(() => {
-                            const totBal = ledger.invoices.reduce((s, i) => s + (Number(i.balance_due) || 0), 0);
+                            const totBal = (ledger.invoices || []).reduce((s, i) => s + (Number(i.balance_due) || 0), 0);
                             return totBal > 0 ? (
                               <span className="inline-block text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
                                 {fmt(totBal)}
@@ -1638,6 +1631,20 @@ export const Fees: React.FC<FeesProps> = ({ initialTab }) => {
             </>
           )}
         </div>
+      ) : view === 'collect_payment' && selectedStudentId ? (
+        /* ── DEDICATED COLLECT PAYMENT CONSOLE (Matches Admissions Step 3 Console) ── */
+        <CollectPaymentActivation
+          studentId={selectedStudentId}
+          isFeeCollection
+          onBack={() => setView('collect')}
+          onSuccess={async (msg) => {
+            addToast(msg, 'success');
+            if (selectedStudentId) {
+              await loadLedger(selectedStudentId);
+            }
+            setView('collect');
+          }}
+        />
       ) : view === 'schedule_builder' ? (
         /* ── FULL-PAGE AUTOMATED INSTALLMENT SCHEDULE BUILDER ── */
         <InstallmentScheduleBuilderPage

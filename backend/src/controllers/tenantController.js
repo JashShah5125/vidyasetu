@@ -431,6 +431,8 @@ const impersonateTenant = async (req, res) => {
                     isSaasAdmin: false,
                     tenantId: Number(id),
                     tenantName: tenant.name,
+                    tenantLogo: tenant.logo_url || null,
+                    logoUrl: tenant.logo_url || null,
                     branch: branchInfo ? branchInfo.name : '',
                     branchId: branchInfo ? branchInfo.id : null,
                     branchCode: branchInfo ? branchInfo.code : null,

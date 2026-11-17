@@ -49,6 +49,16 @@ export interface StudentLedger {
   tenant_id: number;
   primary_branch_id: number;
   branch_name?: string;
+  branch_address?: string;
+  branch_city?: string;
+  branch_state?: string;
+  branch_pincode?: string;
+  branch_phone?: string;
+  branch_email?: string;
+  bank_name?: string;
+  bank_account_name?: string;
+  bank_account_number?: string;
+  bank_ifsc?: string;
   student_code: string;
   full_name: string;
   mobile?: string;

@@ -10,6 +10,16 @@ import { getEnquiryById, toLead, convertEnquiry, buildConvertPayload } from '../
 import { uploadStudentDocumentFile } from '../services/studentApi';
 import type { Lead } from '../types';
 
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+];
+
 export const StudentRegistration = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -284,9 +294,17 @@ export const StudentRegistration = () => {
         addToast('Please enter Student Full Name', 'error');
         return false;
       }
-      if (!formData.student.mobile?.trim() || formData.student.mobile.trim().length < 7) {
-        addToast('Please enter a valid Student Mobile Number (at least 7 digits)', 'error');
+      const cleanStudentMobile = formData.student.mobile?.replace(/\D/g, '') || '';
+      if (cleanStudentMobile.length !== 10) {
+        addToast('Please enter a valid 10-digit Student Mobile Number', 'error');
         return false;
+      }
+      if (formData.student.address.pincode?.trim()) {
+        const cleanPin = formData.student.address.pincode.replace(/\D/g, '');
+        if (cleanPin.length !== 6) {
+          addToast('Please enter a valid 6-digit Pincode', 'error');
+          return false;
+        }
       }
       const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (formData.student.email?.trim() && !EMAIL_REGEX.test(formData.student.email.trim())) {
@@ -313,8 +331,9 @@ export const StudentRegistration = () => {
         addToast('Please enter Parent / Guardian Name', 'error');
         return false;
       }
-      if (!formData.parent.mobile?.trim() || formData.parent.mobile.trim().length < 7) {
-        addToast('Please enter a valid Parent Mobile Number', 'error');
+      const cleanParentMobile = formData.parent.mobile?.replace(/\D/g, '') || '';
+      if (cleanParentMobile.length !== 10) {
+        addToast('Please enter a valid 10-digit Parent Mobile Number', 'error');
         return false;
       }
       const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -438,17 +457,42 @@ export const StudentRegistration = () => {
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b pb-2">Student Basic Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Student Name *" required value={formData.student.name} onChange={e => handleStudentChange('name', e.target.value)} />
-                <Input label="Mobile Number *" required value={formData.student.mobile} onChange={e => handleStudentChange('mobile', e.target.value)} />
+                <Input
+                  label="Mobile Number *"
+                  required
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  placeholder="10-digit primary mobile"
+                  value={formData.student.mobile}
+                  onChange={e => handleStudentChange('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                />
                 <Input label="Date of Birth" type="date" value={formData.student.dob} onChange={e => handleStudentChange('dob', e.target.value)} />
                 <Select label="Gender" value={formData.student.gender} onChange={e => handleStudentChange('gender', e.target.value)} options={[{value:'',label:'Select Gender...'},{value:'Male',label:'Male'},{value:'Female',label:'Female'},{value:'Other',label:'Other'}]} />
                 <Input label="Email ID" type="email" value={formData.student.email} onChange={e => handleStudentChange('email', e.target.value)} />
+                {/* Category field - optional for institutes; uncomment if needed:
                 <Select label="Category" value={formData.student.category} onChange={e => handleStudentChange('category', e.target.value)} options={[{value:'',label:'Select Category...'},{value:'General',label:'General'},{value:'OBC',label:'OBC'},{value:'SC',label:'SC'},{value:'ST',label:'ST'}]} />
+                */}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
                 <div className="lg:col-span-4"><Input label="Street Address" value={formData.student.address.street} onChange={e => handleAddressChange('street', e.target.value)} /></div>
                 <Input label="City" value={formData.student.address.city} onChange={e => handleAddressChange('city', e.target.value)} />
-                <Input label="State" value={formData.student.address.state} onChange={e => handleAddressChange('state', e.target.value)} />
-                <Input label="Pincode" value={formData.student.address.pincode} onChange={e => handleAddressChange('pincode', e.target.value)} />
+                <Select
+                  label="State"
+                  value={formData.student.address.state}
+                  onChange={e => handleAddressChange('state', e.target.value)}
+                  options={[
+                    { value: '', label: 'Select State...' },
+                    ...INDIAN_STATES.map(s => ({ value: s, label: s }))
+                  ]}
+                />
+                <Input
+                  label="Pincode"
+                  maxLength={6}
+                  placeholder="6-digit PIN"
+                  value={formData.student.address.pincode}
+                  onChange={e => handleAddressChange('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
               </div>
             </section>
 
@@ -496,7 +540,16 @@ export const StudentRegistration = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Parent Name *" required value={formData.parent.name} onChange={e => handleParentChange('name', e.target.value)} />
-                <Input label="Mobile Number *" required value={formData.parent.mobile} onChange={e => handleParentChange('mobile', e.target.value)} />
+                <Input
+                  label="Mobile Number *"
+                  required
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  placeholder="10-digit primary mobile"
+                  value={formData.parent.mobile}
+                  onChange={e => handleParentChange('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                />
                 <Select label="Relation" value={formData.parent.relation} onChange={e => handleParentChange('relation', e.target.value)} options={[{value:'',label:'Select Relation...'},{value:'Father',label:'Father'},{value:'Mother',label:'Mother'},{value:'Guardian',label:'Guardian'}]} />
                 <Input label="Email ID" type="email" value={formData.parent.email} onChange={e => handleParentChange('email', e.target.value)} />
                 <Input label="Occupation" value={formData.parent.occupation} onChange={e => handleParentChange('occupation', e.target.value)} />

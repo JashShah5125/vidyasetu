@@ -172,44 +172,44 @@ export const EditStaffSalaryView: React.FC<EditStaffSalaryViewProps> = ({
         </div>
       )}
 
-      {/* ── Staff Profile Header Banner ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-6 text-white shadow-md">
+      {/* ── Staff Profile Header Banner (Vidya Setu Theme) ── */}
+      <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-white border border-blue-200/80 rounded-2xl p-5 sm:p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center font-bold text-2xl shadow-inner shrink-0">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 text-white font-bold text-xl sm:text-2xl font-display shadow-md shadow-blue-500/20 flex items-center justify-center shrink-0">
               {staff.first_name?.[0]}
               {staff.last_name?.[0]}
             </div>
             <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h3 className="text-xl font-bold text-white tracking-tight">{staff.full_name}</h3>
-                <span className="px-3 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className="text-xl font-bold text-slate-900 tracking-tight font-display">{staff.full_name}</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100/80 text-blue-700 border border-blue-200">
                   {staff.employee_type || 'Staff'}
                 </span>
-                <span className="font-mono text-xs text-slate-300 bg-white/10 px-2.5 py-0.5 rounded-md border border-white/10">
+                <span className="font-mono text-xs font-semibold text-slate-600 bg-white/90 px-2.5 py-0.5 rounded-md border border-slate-200/80 shadow-2xs">
                   {staff.employee_id || `ID: ${staff.id}`}
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 mt-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-2">
                 {staff.designation && (
-                  <span className="font-medium text-slate-200">Designation: <strong>{staff.designation}</strong></span>
+                  <span>Designation: <strong className="text-slate-800 font-semibold">{staff.designation}</strong></span>
                 )}
                 {staff.department && (
                   <>
-                    <span>•</span>
-                    <span>Department: <strong>{staff.department}</strong></span>
+                    <span className="text-slate-300">•</span>
+                    <span>Department: <strong className="text-slate-800 font-semibold">{staff.department}</strong></span>
                   </>
                 )}
                 {staff.primary_branch_name && (
                   <>
-                    <span>•</span>
-                    <span>Branch: <strong>{staff.primary_branch_name}</strong></span>
+                    <span className="text-slate-300">•</span>
+                    <span>Branch: <strong className="text-slate-800 font-semibold">{staff.primary_branch_name}</strong></span>
                   </>
                 )}
                 {staff.joining_date && (
                   <>
-                    <span>•</span>
-                    <span>Joined: {formatDate(staff.joining_date)}</span>
+                    <span className="text-slate-300">•</span>
+                    <span>Joined: <strong className="text-slate-800 font-semibold">{formatDate(staff.joining_date)}</strong></span>
                   </>
                 )}
               </div>
@@ -217,16 +217,16 @@ export const EditStaffSalaryView: React.FC<EditStaffSalaryViewProps> = ({
           </div>
 
           {/* Current Baseline Salary */}
-          <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl px-5 py-3.5 md:text-right shrink-0">
-            <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold block">
+          <div className="bg-white/90 backdrop-blur-sm border border-blue-200/80 rounded-2xl px-5 py-3.5 md:text-right shadow-2xs shrink-0">
+            <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold block">
               Current Master Salary
             </span>
-            <span className="text-2xl font-black text-slate-200 tracking-tight block mt-0.5">
-              {fmt(staff.salary_amount)} <span className="text-xs font-normal text-slate-400">/ mo</span>
+            <span className="text-2xl font-black text-blue-700 tracking-tight block mt-0.5 font-mono tabular-nums">
+              {fmt(staff.salary_amount)} <span className="text-xs font-medium text-slate-500">/ mo</span>
             </span>
             {staff.salary_effective_from && (
-              <span className="text-[11px] text-slate-400 block mt-1 font-medium">
-                Since: {formatDate(staff.salary_effective_from)}
+              <span className="text-[11px] text-slate-500 block mt-1 font-medium">
+                Since: <span className="font-semibold text-slate-700">{formatDate(staff.salary_effective_from)}</span>
               </span>
             )}
           </div>

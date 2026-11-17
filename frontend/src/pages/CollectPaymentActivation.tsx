@@ -14,11 +14,26 @@ import { getStudentLedger, recordPayment, type StudentLedger } from '../services
 
 type CollectionType = 'downpayment' | 'installment' | 'full' | 'custom';
 
-export const CollectPaymentActivation: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+export interface CollectPaymentActivationProps {
+  studentId?: number;
+  isFeeCollection?: boolean;
+  onBack?: () => void;
+  onSuccess?: (msg: string) => void;
+}
+
+export const CollectPaymentActivation: React.FC<CollectPaymentActivationProps> = ({
+  studentId: propStudentId,
+  isFeeCollection: propIsFeeCollection,
+  onBack,
+  onSuccess
+}) => {
+  const { id: routeId } = useParams<{ id: string }>();
+  const id = propStudentId ? String(propStudentId) : routeId;
   const navigate = useNavigate();
   const location = useLocation();
   const { addToast, currentUser } = useApp();
+
+  const isFeeCollection = propIsFeeCollection ?? location.pathname.includes('/fees');
 
   const isBranchAdmin = currentUser?.role === 'branch-admin' || (currentUser?.role as string) === 'branch_admin' || currentUser?.role === 'finance';
 
@@ -26,8 +41,20 @@ export const CollectPaymentActivation: React.FC = () => {
     if (location.pathname.startsWith('/admin/leads')) return '/admin/leads';
     if (location.pathname.startsWith('/branch/leads')) return '/branch/leads';
     if (location.pathname.startsWith('/counsellor/leads')) return '/counsellor/leads';
+    if (location.pathname.startsWith('/admin/fees')) return '/admin/fees';
+    if (location.pathname.startsWith('/branch/fees')) return '/branch/fees';
     return '/leads';
   }, [location.pathname]);
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (location.pathname.includes('/fees')) {
+      navigate(location.pathname.startsWith('/branch') ? '/branch/fees' : '/admin/fees');
+    } else {
+      navigate(`${basePath}/payment`);
+    }
+  };
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -188,27 +215,41 @@ export const CollectPaymentActivation: React.FC = () => {
       try {
         await recordPayment({
           student_id: studentIdNum,
+          enrollment_id: ledgerData?.enrollment_id || studentData?.enrollment_id,
+          branch_id: ledgerData?.primary_branch_id || studentData?.branch_id,
           amount: paymentAmount,
           payment_mode: paymentMode,
           transaction_reference: transactionRef.trim() || undefined,
-          remarks: remarks.trim() || 'Admissions Down Payment & Activation'
+          remarks: remarks.trim() || (isFeeCollection ? 'Fee Collection Payment' : 'Admissions Down Payment & Activation')
         });
       } catch (payErr: any) {
         console.warn('Backend payment record notice:', payErr);
       }
 
-      // 2. Mark student status as 1 (Active Student)
-      await updateStudent(studentIdNum, { status: 1 });
+      // 2. Mark student status as 1 (Active Student) if in admissions flow
+      if (!isFeeCollection && studentData?.status !== 1) {
+        try {
+          await updateStudent(studentIdNum, { status: 1 });
+        } catch (stErr) {
+          console.warn('Student status update notice:', stErr);
+        }
+      }
 
-      addToast(
-        `Payment of ₹${paymentAmount.toLocaleString('en-IN')} confirmed! ${studentData?.full_name || 'Student'} is now officially active.`,
-        'success'
-      );
+      const successMsg = `Payment of ₹${paymentAmount.toLocaleString('en-IN')} confirmed for ${studentData?.full_name || 'Student'}!`;
+      addToast(successMsg, 'success');
 
-      // Return to Step 3 / Leads Pipeline
-      navigate(`${basePath}/payment`);
+      // Navigate or callback
+      if (onSuccess) {
+        onSuccess(successMsg);
+      } else if (onBack) {
+        onBack();
+      } else if (location.pathname.includes('/fees')) {
+        navigate(location.pathname.startsWith('/branch') ? '/branch/fees' : '/admin/fees');
+      } else {
+        navigate(`${basePath}/payment`);
+      }
     } catch (err: any) {
-      console.error('Failed to confirm payment & activate:', err);
+      console.error('Failed to confirm payment:', err);
       const msg = err?.response?.data?.message || err?.message || 'Failed to record payment.';
       addToast(msg, 'error');
     } finally {
@@ -230,7 +271,7 @@ export const CollectPaymentActivation: React.FC = () => {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-        <p className="text-sm font-semibold text-slate-600">Loading student fee ledger & admission details...</p>
+        <p className="text-sm font-semibold text-slate-600">Loading student fee ledger & details...</p>
       </div>
     );
   }
@@ -240,9 +281,9 @@ export const CollectPaymentActivation: React.FC = () => {
       <div className="p-6 max-w-xl mx-auto text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
         <h2 className="text-lg font-bold text-slate-900">Student Record Not Found</h2>
-        <p className="text-sm text-slate-500">Could not retrieve admission details for ID #{id}.</p>
-        <Button variant="secondary" onClick={() => navigate(`${basePath}/payment`)}>
-          Back to Step 3: Fee Payment & Activation
+        <p className="text-sm text-slate-500">Could not retrieve details for ID #{id}.</p>
+        <Button variant="secondary" onClick={handleBack}>
+          {isFeeCollection ? 'Back to Fee Collection' : 'Back to Step 3: Fee Payment & Activation'}
         </Button>
       </div>
     );
@@ -261,32 +302,39 @@ export const CollectPaymentActivation: React.FC = () => {
         <div className="space-y-1">
           <button
             type="button"
-            onClick={() => navigate(`${basePath}/payment`)}
+            onClick={handleBack}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mb-1 group"
           >
             <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
-            Back to Step 3: Fee Payment & Activation
+            {isFeeCollection ? 'Back to Fee Collection & Dues' : 'Back to Step 3: Fee Payment & Activation'}
           </button>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Collect Admission Fee & Activate Student
+              {isFeeCollection ? 'Collect Fee Payment' : 'Collect Admission Fee & Activate Student'}
             </h1>
             <span className="font-mono text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md">
               {studentCode}
             </span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full flex items-center gap-1">
-              <Sparkles size={11} className="text-amber-600" /> Admission Gate: Step 3
+            <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${isFeeCollection
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-amber-50 text-amber-800 border border-amber-200'
+              }`}>
+              <Sparkles size={11} className={isFeeCollection ? 'text-emerald-600' : 'text-amber-600'} />
+              {isFeeCollection ? 'Fee Collection & Receipt' : 'Admission Gate: Step 3'}
             </span>
           </div>
           <p className="text-xs text-slate-500">
-            Select the fee component being collected to issue an official receipt and activate {studentName}’s LMS portal credentials.
+            {isFeeCollection
+              ? `Select the fee component being collected to issue an official receipt for ${studentName}.`
+              : `Select the fee component being collected to issue an official receipt and activate ${studentName}’s LMS portal credentials.`
+            }
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">
           <Button
             variant="secondary"
-            onClick={() => navigate(`${basePath}/payment`)}
+            onClick={handleBack}
             className="text-xs font-semibold h-9"
           >
             Cancel
@@ -300,12 +348,12 @@ export const CollectPaymentActivation: React.FC = () => {
             {submitting ? (
               <>
                 <Loader2 size={13} className="animate-spin" />
-                <span>Activating Student...</span>
+                <span>{isFeeCollection ? 'Recording Payment...' : 'Activating Student...'}</span>
               </>
             ) : (
               <>
                 <CheckCircle2 size={14} />
-                <span>Confirm Payment & Activate</span>
+                <span>{isFeeCollection ? 'Confirm Payment' : 'Confirm Payment & Activate'}</span>
               </>
             )}
           </Button>
@@ -460,11 +508,10 @@ export const CollectPaymentActivation: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleCollectionTypeChange('downpayment')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${
-                    collectionType === 'downpayment'
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${collectionType === 'downpayment'
                       ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
@@ -491,11 +538,10 @@ export const CollectPaymentActivation: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleCollectionTypeChange('installment')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${
-                    collectionType === 'installment'
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${collectionType === 'installment'
                       ? 'border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/20 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
@@ -522,11 +568,10 @@ export const CollectPaymentActivation: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleCollectionTypeChange('full')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${
-                    collectionType === 'full'
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${collectionType === 'full'
                       ? 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
@@ -553,11 +598,10 @@ export const CollectPaymentActivation: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleCollectionTypeChange('custom')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${
-                    collectionType === 'custom'
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative group flex flex-col justify-between ${collectionType === 'custom'
                       ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/20 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
@@ -596,11 +640,10 @@ export const CollectPaymentActivation: React.FC = () => {
                           key={num}
                           type="button"
                           onClick={() => handleInstallmentIndexChange(num)}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                            isSelected
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${isSelected
                               ? 'bg-blue-600 text-white shadow-2xs font-bold'
                               : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                          }`}
+                            }`}
                         >
                           Installment #{num}
                         </button>
@@ -654,11 +697,10 @@ export const CollectPaymentActivation: React.FC = () => {
                       key={m.id}
                       type="button"
                       onClick={() => setPaymentMode(m.id)}
-                      className={`h-9 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border text-center truncate ${
-                        paymentMode === m.id
+                      className={`h-9 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border text-center truncate ${paymentMode === m.id
                           ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
                           : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
-                      }`}
+                        }`}
                     >
                       {m.label}
                     </button>
@@ -711,13 +753,14 @@ export const CollectPaymentActivation: React.FC = () => {
               {/* Automated Lifecycle Impact Notice */}
               <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 text-xs text-emerald-900 space-y-1.5 shadow-2xs">
                 <span className="font-bold flex items-center gap-1.5 text-emerald-800">
-                  <ShieldCheck size={14} className="text-emerald-600" /> Automated Onboarding Confirmation:
+                  <ShieldCheck size={14} className="text-emerald-600" /> {isFeeCollection ? 'Automated Financial Ledger Impact:' : 'Automated Onboarding Confirmation:'}
                 </span>
                 <ul className="list-disc list-inside space-y-0.5 text-[11px] text-emerald-800/90 pl-1">
-                  <li>Upgrades {studentName} to an <strong>Active Student</strong> (Status: 1).</li>
-                  <li>Generates an official payment receipt & updates the financial ledger.</li>
-                  <li>Activates Student & Parent LMS portal accounts automatically.</li>
-                  <li>Synchronizes timetable schedules & classroom seatings for batch <strong>{batchName}</strong>.</li>
+                  {!isFeeCollection && <li>Upgrades {studentName} to an <strong>Active Student</strong> (Status: 1).</li>}
+                  <li>Generates an official payment invoice receipt & updates student ledger in real-time.</li>
+                  {!isFeeCollection && <li>Activates Student & Parent LMS portal accounts automatically.</li>}
+                  <li>Allocates collected amount towards scheduled dues & balance remaining.</li>
+                  <li>Instant payment entry available in Revenue Reports & Day Book.</li>
                 </ul>
               </div>
 
@@ -726,7 +769,7 @@ export const CollectPaymentActivation: React.FC = () => {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate(`${basePath}/payment`)}
+                  onClick={handleBack}
                   className="text-xs font-semibold h-10 px-4"
                 >
                   Cancel
@@ -741,12 +784,12 @@ export const CollectPaymentActivation: React.FC = () => {
                   {submitting ? (
                     <>
                       <Loader2 size={14} className="animate-spin" />
-                      <span>Recording Payment & Activating...</span>
+                      <span>Recording Payment...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 size={15} />
-                      <span>Confirm ₹{(amount || 0).toLocaleString('en-IN')} & Activate Student</span>
+                      <span>{isFeeCollection ? `Confirm ₹${(amount || 0).toLocaleString('en-IN')}` : `Confirm ₹${(amount || 0).toLocaleString('en-IN')} & Activate Student`}</span>
                     </>
                   )}
                 </Button>

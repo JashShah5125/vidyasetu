@@ -108,6 +108,13 @@ export const InstituteCheckout: React.FC = () => {
   const currencySymbol = (defaultBilling.currency || targetPlan.currency) === 'INR' ? '₹' : (defaultBilling.currency || targetPlan.currency) === 'USD' ? '$' : '€';
 
   const handleCheckout = () => {
+    if (billingPhone?.trim()) {
+      const clean = billingPhone.replace(/\D/g, '');
+      if (clean.length !== 10) {
+        addToast('Please enter a valid 10-digit Billing Phone Number', 'error');
+        return;
+      }
+    }
     setIsProcessing(true);
     setTimeout(() => {
       addToast(isRenewal ? 'Subscription renewed successfully!' : `Successfully upgraded to ${targetPlan.name} plan!`);
@@ -163,9 +170,12 @@ export const InstituteCheckout: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Input
                   label="Billing Phone Number"
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   value={billingPhone}
-                  onChange={(e) => setBillingPhone(e.target.value)}
-                  placeholder="For payment communications"
+                  onChange={(e) => setBillingPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit mobile number"
                 />
                 <Input
                   label="GSTIN / Tax ID (Optional)"

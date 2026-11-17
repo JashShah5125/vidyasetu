@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { leadService } from '../../services/leadService';
@@ -21,6 +22,16 @@ import {
 } from 'lucide-react';
 import type { SaasLead, SaasLeadFollowup } from '../../types/saas';
 import { LEAD_STATUS_MAP, LEAD_SOURCE_MAP, LEAD_STATUS_OPTIONS, LEAD_SOURCE_OPTIONS } from '../../types/saas';
+
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+];
 
 // Format date helper
 const formatDate = (dateStr?: string | null): string => {
@@ -192,10 +203,55 @@ const StatusDropdownMenu: React.FC<StatusDropdownMenuProps> = ({
 }) => {
   const badge = getStatusBadge(lead.status);
   const Icon = badge.icon;
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuHeight = 280;
+      const menuWidth = 224;
+
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUp = spaceBelow < menuHeight && rect.top > menuHeight;
+
+      let left = align === 'right' ? rect.right - menuWidth : rect.left;
+      if (left + menuWidth > window.innerWidth - 12) {
+        left = window.innerWidth - menuWidth - 12;
+      }
+      if (left < 12) {
+        left = 12;
+      }
+
+      setCoords({
+        top: openUp ? rect.top - 6 : rect.bottom + 6,
+        left,
+        openUp
+      });
+    };
+
+    updatePosition();
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [isOpen, align]);
 
   return (
     <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
       <button
+        ref={buttonRef}
         type="button"
         disabled={isUpdating}
         onClick={onToggle}
@@ -210,41 +266,62 @@ const StatusDropdownMenu: React.FC<StatusDropdownMenuProps> = ({
         <ChevronDown size={12} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && (
-        <div
-          className={`absolute z-50 mt-1.5 ${align === 'right' ? 'right-0' : 'left-0'} w-56 rounded-2xl bg-white shadow-xl border border-slate-200 py-1.5 text-xs animate-scale-in`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-            Change CRM Status
-          </div>
-          <div className="py-1">
-            {Object.values(STAGES_CONFIG).map((stage) => {
-              const StageIcon = stage.icon;
-              const isSelected = lead.status === stage.id;
+      {isOpen && coords && createPortal(
+        <>
+          {/* Transparent Backdrop to close when clicking outside */}
+          <div
+            className="fixed inset-0 z-[9998]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(e);
+            }}
+          />
 
-              return (
-                <button
-                  key={stage.id}
-                  type="button"
-                  onClick={() => onSelectStatus(stage.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-left font-medium transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-blue-50 text-blue-700 font-bold'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${stage.dotColor}`} />
-                    <StageIcon size={14} className={isSelected ? 'text-blue-600' : 'text-slate-400'} />
-                    <span>{stage.label}</span>
-                  </div>
-                  {isSelected && <CheckCircle2 size={14} className="text-blue-600" />}
-                </button>
-              );
-            })}
+          {/* Floating Dropdown Menu */}
+          <div
+            style={{
+              position: 'fixed',
+              top: coords.openUp ? undefined : `${coords.top}px`,
+              bottom: coords.openUp ? `${window.innerHeight - coords.top}px` : undefined,
+              left: `${coords.left}px`,
+              width: '14rem'
+            }}
+            className="z-[9999] rounded-2xl bg-white shadow-2xl border border-slate-200/90 py-1.5 text-xs animate-scale-in select-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
+              <span>Change CRM Status</span>
+              <span className="text-[10px] text-slate-400 font-normal">#{lead.id}</span>
+            </div>
+            <div className="py-1 max-h-[320px] overflow-y-auto">
+              {Object.values(STAGES_CONFIG).map((stage) => {
+                const StageIcon = stage.icon;
+                const isSelected = lead.status === stage.id;
+
+                return (
+                  <button
+                    key={stage.id}
+                    type="button"
+                    onClick={() => onSelectStatus(stage.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-left font-medium transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50 text-blue-700 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${stage.dotColor}`} />
+                      <StageIcon size={14} className={isSelected ? 'text-blue-600' : 'text-slate-400'} />
+                      <span>{stage.label}</span>
+                    </div>
+                    {isSelected && <CheckCircle2 size={14} className="text-blue-600" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -1053,7 +1130,15 @@ export const Leads: React.FC = () => {
     if (!form.instituteName.trim()) errors.instituteName = 'Institute name is compulsory';
     if (!form.contactPerson.trim()) errors.contactPerson = 'Contact person name is compulsory';
     const cleanMobile = form.mobile.replace(/[^0-9]/g, '');
-    if (!cleanMobile || cleanMobile.length < 10) errors.mobile = 'Mobile number is compulsory and must be at least 10 digits';
+    if (!cleanMobile || cleanMobile.length !== 10) errors.mobile = 'Mobile number is compulsory and must be exactly 10 digits';
+    if (form.altMobile?.trim()) {
+      const cleanAlt = form.altMobile.replace(/[^0-9]/g, '');
+      if (cleanAlt.length !== 10) errors.altMobile = 'Alternate mobile must be exactly 10 digits';
+    }
+    if (form.pincode?.trim()) {
+      const cleanPin = form.pincode.replace(/[^0-9]/g, '');
+      if (cleanPin.length !== 6) errors.pincode = 'PIN Code must be exactly 6 digits';
+    }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Invalid email format';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -1161,18 +1246,30 @@ export const Leads: React.FC = () => {
     window.location.href = `mailto:${email}?subject=${subject}`;
   };
 
-  const renderFormField = (label: string, key: keyof LeadFormState, required = false, placeholder = '') => (
-    <div key={key} className="flex flex-col gap-1">
-      <Input
-        label={label}
-        required={required}
-        value={form[key]}
-        onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-        error={formErrors[key]}
-        placeholder={placeholder}
-      />
-    </div>
-  );
+  const renderFormField = (label: string, key: keyof LeadFormState, required = false, placeholder = '') => {
+    const isPhone = key === 'mobile' || key === 'altMobile';
+    const isPin = key === 'pincode';
+    return (
+      <div key={key} className="flex flex-col gap-1">
+        <Input
+          label={label}
+          required={required}
+          type={isPhone ? 'tel' : 'text'}
+          maxLength={isPhone ? 10 : isPin ? 6 : undefined}
+          pattern={isPhone ? '[0-9]{10}' : isPin ? '[0-9]{6}' : undefined}
+          value={form[key]}
+          onChange={(e) => {
+            let val = e.target.value;
+            if (isPhone) val = val.replace(/\D/g, '').slice(0, 10);
+            if (isPin) val = val.replace(/\D/g, '').slice(0, 6);
+            setForm((prev) => ({ ...prev, [key]: val }));
+          }}
+          error={formErrors[key]}
+          placeholder={placeholder}
+        />
+      </div>
+    );
+  };
 
   const formSelect = (label: string, key: keyof LeadFormState, options: { value: string; label: string }[], required = false) => (
     <Select
@@ -1339,7 +1436,10 @@ export const Leads: React.FC = () => {
             {renderFormField('Address Line 1', 'addressLine1', false, 'e.g. Plot 42, Sector 17, Main Road')}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {renderFormField('City', 'city', false, 'e.g. Mumbai')}
-              {renderFormField('State', 'state', false, 'e.g. Maharashtra')}
+              {formSelect('State', 'state', [
+                { value: '', label: 'Select State...' },
+                ...INDIAN_STATES.map((s) => ({ value: s, label: s }))
+              ])}
               {renderFormField('PIN Code', 'pincode', false, 'e.g. 400001')}
             </div>
           </div>
@@ -2184,17 +2284,17 @@ export const Leads: React.FC = () => {
         <Table
           dense
           borderless
-          minWidth="1050px"
+          minWidth="960px"
           headers={[
-            { label: 'ID', minWidth: '50px' },
-            { label: 'Institute', minWidth: '170px' },
-            { label: 'Contact Person', minWidth: '140px' },
-            { label: 'Mobile / Email', minWidth: '160px' },
-            { label: 'Source', minWidth: '85px' },
-            { label: 'Plan', minWidth: '100px' },
-            { label: 'Stage / Status', minWidth: '170px' },
-            { label: 'Next Follow-up', minWidth: '125px' },
-            { label: 'Actions', align: 'center', minWidth: '140px' }
+            { label: 'ID', minWidth: '45px' },
+            { label: 'Institute', minWidth: '160px' },
+            { label: 'Contact Person', minWidth: '130px' },
+            { label: 'Mobile / Email', minWidth: '150px' },
+            { label: 'Source', minWidth: '80px' },
+            { label: 'Plan', minWidth: '90px' },
+            { label: 'Stage / Status', minWidth: '150px' },
+            { label: 'Next Follow-up', minWidth: '135px' },
+            { label: 'Actions', align: 'center', minWidth: '120px' }
           ]}
         >
           {isLoading && leads.length === 0 ? (

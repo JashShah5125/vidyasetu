@@ -63,6 +63,7 @@ import { TeacherAssignments } from './components/teacher/TeacherAssignments';
 import { StudentHomework } from './pages/StudentHomework';
 import { StudentDoubts } from './pages/StudentDoubts';
 import { StudentAttendance } from './pages/StudentAttendance';
+import { StudentDashboard } from './pages/StudentDashboard';
 import { TeacherDoubts } from './components/teacher/TeacherDoubts';
 import { TeacherStudents } from './components/teacher/TeacherStudents';
 import { TeacherSchedule } from './components/teacher/TeacherSchedule';
@@ -161,6 +162,9 @@ const getRoleDashboard = (role?: string) => {
       return '/teacher/dashboard';
     case 'finance':
       return '/finance/dashboard';
+    case 'student':
+    case 'parent':
+      return '/dashboard';
     default:
       return '/dashboard';
   }
@@ -192,7 +196,8 @@ const ContentRouter = () => {
       <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={<Navigate to={roleDashboard} replace />} />
       <Route path="/change-password" element={<ChangePassword />} />
-      <Route path="/dashboard" element={isTeacher ? <TeacherDashboard /> : currentUser?.role === 'finance' ? <FinanceDashboard /> : <Dashboard />} />
+      <Route path="/dashboard" element={isStudent ? <StudentDashboard /> : isTeacher ? <TeacherDashboard /> : currentUser?.role === 'finance' ? <FinanceDashboard /> : <Dashboard />} />
+      <Route path="/student/dashboard" element={<StudentDashboard />} />
 
       {/* ── SaaS Admin Routes (/saas/*) ── */}
       <Route path="/saas/dashboard" element={isSaasAdminUser ? <Dashboard /> : <Navigate to={roleDashboard} replace />} />
@@ -244,6 +249,7 @@ const ContentRouter = () => {
       <Route path="/admin/staff/:id" element={<StaffCreate />} />
       <Route path="/admin/fees-master" element={<FeesMaster />} />
       <Route path="/admin/fees" element={<Fees initialTab="record" />} />
+      <Route path="/admin/fees/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/admin/fees/schedule-builder/:studentId" element={<InstallmentScheduleBuilderPage />} />
       <Route path="/admin/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/admin/finance/reconciliation" element={<PaymentReconciliationPage />} />
@@ -297,6 +303,7 @@ const ContentRouter = () => {
       <Route path="/branch/staff/:id" element={<StaffCreate />} />
       <Route path="/branch/fees-master" element={<FeesMaster />} />
       <Route path="/branch/fees" element={<Fees initialTab="record" />} />
+      <Route path="/branch/fees/collect/:id" element={<CollectPaymentActivation />} />
       <Route path="/branch/fees/schedule-builder/:studentId" element={<InstallmentScheduleBuilderPage />} />
       <Route path="/branch/defaulters" element={<Fees initialTab="defaulters" />} />
       <Route path="/branch/finance/reconciliation" element={<PaymentReconciliationPage />} />
@@ -420,7 +427,7 @@ const ContentRouter = () => {
       <Route path="/convert-wizard" element={<LeadsAdmissions initialTab="pipeline" />} />
       <Route path="/attendance" element={isStudent ? <StudentAttendance /> : isTeacher ? <TeacherAttendance /> : <Attendance initialTab="sheet" />} />
       <Route path="/student/attendance" element={<StudentAttendance />} />
-      <Route path="/attendance/lecture/:lectureId" element={<LectureAttendance />} />
+      <Route path="/attendance/lecture/:lectureId" element={isStudent ? <Navigate to="/attendance" replace /> : <LectureAttendance />} />
       <Route path="/assignments" element={isTeacher || currentUser?.role === 'inst-admin' || currentUser?.role === 'branch-admin' ? <TeacherAssignments /> : <Assignments />} />
       <Route path="/exams" element={<ExamMarks />} />
       <Route path="/homework" element={<StudentHomework />} />

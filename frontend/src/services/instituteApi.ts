@@ -13,6 +13,7 @@ export interface InstituteTenant {
   mobile: string;
   address?: string;
   altEmails?: string[];
+  logoUrl?: string | null;
 }
 
 export interface InstituteProfile {
@@ -60,7 +61,8 @@ const mapTenant = (row: any): InstituteTenant => {
     email: row.primary_email || row.contact_email || '',
     mobile: row.owner_mobile || row.contact_phone || '',
     address: row.address_line1 || undefined,
-    altEmails: safeJsonArray(row.alternate_emails)
+    altEmails: safeJsonArray(row.alternate_emails),
+    logoUrl: row.logo_url || row.logoUrl || null
   };
 };
 

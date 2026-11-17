@@ -31,13 +31,23 @@ export const Table: React.FC<TableProps> = ({
   const paddingClass = dense ? 'px-3 py-2.5' : 'px-4 py-3.5';
 
   const renderHeaderCell = (h: TableHeaderItem, i: number) => {
-    const isObj = typeof h === 'object' && h !== null && 'label' in h;
-    const label = isObj ? h.label : h;
-    const align = isObj && h.align ? h.align : 'left';
-    const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
-    const customClass = isObj ? (h.className || '') : '';
-    const style = isObj && h.minWidth ? { minWidth: h.minWidth } : undefined;
     const defaultHeaderFont = headerClassName || 'text-xs font-bold text-slate-600 uppercase tracking-wider';
+
+    if (typeof h === 'string') {
+      return (
+        <th
+          key={i}
+          className={`${paddingClass} ${defaultHeaderFont} select-none bg-slate-50 text-left whitespace-nowrap`}
+        >
+          {h}
+        </th>
+      );
+    }
+
+    const align = h.align || 'left';
+    const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+    const customClass = h.className || '';
+    const style = h.minWidth ? { minWidth: h.minWidth } : undefined;
 
     return (
       <th
@@ -45,7 +55,7 @@ export const Table: React.FC<TableProps> = ({
         style={style}
         className={`${paddingClass} ${defaultHeaderFont} select-none bg-slate-50 ${alignClass} ${customClass} whitespace-nowrap`}
       >
-        {label}
+        {h.label}
       </th>
     );
   };

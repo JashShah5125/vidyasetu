@@ -233,6 +233,7 @@ const login = async (req, res) => {
         // Resolve the requester's organization/tenant name for display (used by
         // the support ticket "Requester Organization" field and general UI).
         let tenantName = null;
+        let tenantLogo = null;
         let branchInfo = null;
         if (!isSaasAdmin && user.tenant_id) {
             const tenant = user.tenant_id === MASTER_TENANT_ID
@@ -251,6 +252,7 @@ const login = async (req, res) => {
                     });
                 }
                 tenantName = tenant.name || null;
+                tenantLogo = tenant.logo_url || null;
             }
 
             if (user.id) {
@@ -314,6 +316,8 @@ const login = async (req, res) => {
                     tenantId: user.tenant_id,
                     isSaasAdmin,
                     tenantName,
+                    tenantLogo,
+                    logoUrl: tenantLogo,
                     branch: branchInfo ? branchInfo.name : null,
                     branchId: branchInfo ? String(branchInfo.id) : null,
                     branchCode: branchInfo ? branchInfo.code : null,

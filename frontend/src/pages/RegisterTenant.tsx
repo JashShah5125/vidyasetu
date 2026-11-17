@@ -118,7 +118,13 @@ export const RegisterTenant: React.FC = () => {
   }, []);
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    let sanitized = value;
+    if (field === 'pincode') {
+      sanitized = sanitized.replace(/\D/g, '').slice(0, 6);
+    } else if (field === 'mobile' || field === 'altMobile') {
+      sanitized = sanitized.replace(/\D/g, '').slice(0, 10);
+    }
+    setFormData(prev => ({ ...prev, [field]: sanitized }));
     setErrorMessage('');
   };
 
@@ -519,10 +525,13 @@ export const RegisterTenant: React.FC = () => {
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            pattern="[0-9]{6}"
                             placeholder="e.g. 411001"
                             value={formData.pincode}
                             onChange={e => handleChange('pincode', e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium"
+                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium font-mono"
                           />
                         </div>
                         <div className="sm:col-span-2">

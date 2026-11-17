@@ -12,6 +12,8 @@ export interface UserProfile {
   branchCode?: string;
   tenantId?: string;
   tenantName?: string;
+  tenantLogo?: string | null;
+  logoUrl?: string | null;
   mustChangePassword?: boolean;
   isImpersonated?: boolean;
   isSaasAdmin?: boolean;

@@ -39,6 +39,16 @@ interface AddStudentFormProps {
   initialLevelId?: number;
 }
 
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi', 'Jammu & Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+];
+
 const EMPTY_FORM: CreateStudentPayload = {
   primary_branch_id: 0,
   full_name: '',
@@ -311,8 +321,14 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
       }
       if (formData.mobile?.trim()) {
         const cleanMobile = formData.mobile.replace(/[^0-9]/g, '');
-        if (cleanMobile.length < 10) {
-          return { isValid: false, error: 'Student Mobile Number must be at least 10 digits.' };
+        if (cleanMobile.length !== 10) {
+          return { isValid: false, error: 'Student Mobile Number must be exactly 10 digits.' };
+        }
+      }
+      if (formData.pincode?.trim()) {
+        const cleanPin = formData.pincode.replace(/[^0-9]/g, '');
+        if (cleanPin.length !== 6) {
+          return { isValid: false, error: 'Pincode must be exactly 6 digits.' };
         }
       }
     }
@@ -321,7 +337,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
         return { isValid: false, error: 'Guardian Full Name is required.' };
       }
       const cleanParentMobile = (formData.guardian_mobile || '').replace(/[^0-9]/g, '');
-      if (!formData.guardian_mobile?.trim() || cleanParentMobile.length < 10) {
+      if (!formData.guardian_mobile?.trim() || cleanParentMobile.length !== 10) {
         return { isValid: false, error: 'Guardian Mobile Number must be a valid 10-digit number.' };
       }
     }
@@ -483,7 +499,15 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Basic Identity</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
                 <Input label="Student Full Name *" placeholder="e.g. Aarav Sharma" value={formData.full_name} onChange={e => set('full_name', e.target.value)} />
-                <Input label="Mobile Number" placeholder="e.g. 9876543210" value={formData.mobile} onChange={e => set('mobile', e.target.value)} />
+                <Input
+                  label="Mobile Number"
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  placeholder="e.g. 9876543210"
+                  value={formData.mobile}
+                  onChange={e => set('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                />
                 <Input label="Email Address" placeholder="e.g. aarav@gmail.com" value={formData.email} onChange={e => set('email', e.target.value)} />
                 <Input label="Date of Birth" type="date" value={formData.dob} onChange={e => set('dob', e.target.value)} />
                 <Select label="Gender" value={formData.gender} onChange={e => set('gender', e.target.value)} options={[
@@ -494,10 +518,12 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
                   { value: 'B-', label: 'B-' }, { value: 'O+', label: 'O+' }, { value: 'O-', label: 'O-' },
                   { value: 'AB+', label: 'AB+' }, { value: 'AB-', label: 'AB-' }
                 ]} />
+                {/* Category (Optional for institutes; uncomment if needed):
                 <Select label="Category" value={formData.category} onChange={e => set('category', e.target.value)} options={[
                   { value: 'General', label: 'General' }, { value: 'OBC', label: 'OBC' },
                   { value: 'SC', label: 'SC' }, { value: 'ST', label: 'ST' }, { value: 'EWS', label: 'EWS' }
                 ]} />
+                */}
               </div>
             </Card>
 
@@ -508,8 +534,22 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
               <Input label="Street / Flat / Colony" placeholder="e.g. Flat 304, Green Acres, MG Road" value={formData.street} onChange={e => set('street', e.target.value)} />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <Input label="City" placeholder="e.g. Pune" value={formData.city} onChange={e => set('city', e.target.value)} />
-                <Input label="State" placeholder="e.g. Maharashtra" value={formData.state} onChange={e => set('state', e.target.value)} />
-                <Input label="Pincode" placeholder="e.g. 411001" value={formData.pincode} onChange={e => set('pincode', e.target.value)} />
+                <Select
+                  label="State"
+                  value={formData.state}
+                  onChange={e => set('state', e.target.value)}
+                  options={[
+                    { value: '', label: 'Select State...' },
+                    ...INDIAN_STATES.map(s => ({ value: s, label: s }))
+                  ]}
+                />
+                <Input
+                  label="Pincode"
+                  maxLength={6}
+                  placeholder="e.g. 411001"
+                  value={formData.pincode}
+                  onChange={e => set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
               </div>
             </Card>
 
@@ -542,7 +582,15 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Parent / Guardian Contact</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
                 <Input label="Guardian Full Name *" placeholder="e.g. Rajesh Sharma" value={formData.guardian_name} onChange={e => set('guardian_name', e.target.value)} />
-                <Input label="Guardian Mobile *" placeholder="e.g. 9876500001" value={formData.guardian_mobile} onChange={e => set('guardian_mobile', e.target.value)} />
+                <Input
+                  label="Guardian Mobile *"
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  placeholder="e.g. 9876500001"
+                  value={formData.guardian_mobile}
+                  onChange={e => set('guardian_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                />
                 <Select label="Relation to Student" value={formData.guardian_relation} onChange={e => set('guardian_relation', e.target.value)} options={[
                   { value: 'Father', label: 'Father' }, { value: 'Mother', label: 'Mother' }, { value: 'Guardian', label: 'Guardian' }
                 ]} />

@@ -404,6 +404,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
     branch: '',
     counsellor: ''
   });
+  const [sameAsStudentMobile, setSameAsStudentMobile] = useState(false);
+  const [sameAsStudentEmail, setSameAsStudentEmail] = useState(false);
 
   // Follow-up Form State
   const [followupForm, setFollowupForm] = useState({
@@ -1053,7 +1055,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       return;
     }
     const cleanMobile = leadForm.mobile?.trim().replace(/\D/g, '') || '';
-    if (cleanMobile.length < 10) {
+    if (cleanMobile.length !== 10) {
       addToast('Please enter a valid 10-digit Student Mobile number.', 'error');
       return;
     }
@@ -1066,7 +1068,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       return;
     }
     const cleanParentMobile = leadForm.parentMobile?.trim().replace(/\D/g, '') || '';
-    if (cleanParentMobile.length < 10) {
+    if (cleanParentMobile.length !== 10) {
       addToast('Please enter a valid 10-digit Parent Mobile number.', 'error');
       return;
     }
@@ -1114,6 +1116,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       await apiCreateEnquiry(payload);
       addToast('New enquiry logged successfully!', 'success');
       handleCloseAddLead();
+      setSameAsStudentMobile(false);
+      setSameAsStudentEmail(false);
       setLeadForm({
         name: '',
         email: '',
@@ -1200,6 +1204,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
   const handleCloseAddLead = () => {
     setShowAddLead(false);
+    setSameAsStudentMobile(false);
+    setSameAsStudentEmail(false);
     if (location.state?.fromDashboard) {
       navigate('/counsellor/dashboard');
     } else {
@@ -1289,9 +1295,19 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 <Input
                   label="Mobile Contact Number *"
                   required
+                  type="tel"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
                   placeholder="10-digit primary mobile"
                   value={leadForm.mobile}
-                  onChange={e => setLeadForm(prev => ({ ...prev, mobile: e.target.value }))}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setLeadForm(prev => ({
+                      ...prev,
+                      mobile: val,
+                      ...(sameAsStudentMobile ? { parentMobile: val } : {})
+                    }));
+                  }}
                 />
                 <Input
                   label="Student Email Address *"
@@ -1299,7 +1315,14 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   type="email"
                   placeholder="aarav.sharma@example.com"
                   value={leadForm.email}
-                  onChange={e => setLeadForm(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setLeadForm(prev => ({
+                      ...prev,
+                      email: val,
+                      ...(sameAsStudentEmail ? { parentEmail: val } : {})
+                    }));
+                  }}
                 />
               </div>
             </div>
@@ -1323,21 +1346,82 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   value={leadForm.parentName}
                   onChange={e => setLeadForm(prev => ({ ...prev, parentName: e.target.value }))}
                 />
-                <Input
-                  label="Parent Mobile Number *"
-                  required
-                  placeholder="Guardian 10-digit mobile"
-                  value={leadForm.parentMobile}
-                  onChange={e => setLeadForm(prev => ({ ...prev, parentMobile: e.target.value }))}
-                />
-                <Input
-                  label="Parent Email Address *"
-                  required
-                  type="email"
-                  placeholder="rajesh.sharma@example.com"
-                  value={leadForm.parentEmail}
-                  onChange={e => setLeadForm(prev => ({ ...prev, parentEmail: e.target.value }))}
-                />
+
+                {/* Parent Mobile with Autofill Checkbox */}
+                <div className="flex flex-col gap-1.5 w-full">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center">
+                      Parent Mobile Number <span className="text-red-500 font-bold ml-1">*</span>
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={sameAsStudentMobile}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setSameAsStudentMobile(checked);
+                          if (checked) {
+                            setLeadForm(prev => ({ ...prev, parentMobile: prev.mobile }));
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-3.5 w-3.5"
+                      />
+                      <span>Same as Student Mobile</span>
+                    </label>
+                  </div>
+                  <Input
+                    required
+                    type="tel"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    placeholder="Guardian 10-digit mobile"
+                    value={leadForm.parentMobile}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setLeadForm(prev => ({ ...prev, parentMobile: val }));
+                      if (sameAsStudentMobile && val !== leadForm.mobile) {
+                        setSameAsStudentMobile(false);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Parent Email with Autofill Checkbox */}
+                <div className="flex flex-col gap-1.5 w-full">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center">
+                      Parent Email Address <span className="text-red-500 font-bold ml-1">*</span>
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={sameAsStudentEmail}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setSameAsStudentEmail(checked);
+                          if (checked) {
+                            setLeadForm(prev => ({ ...prev, parentEmail: prev.email }));
+                          }
+                        }}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer h-3.5 w-3.5"
+                      />
+                      <span>Same as Student Email</span>
+                    </label>
+                  </div>
+                  <Input
+                    required
+                    type="email"
+                    placeholder="rajesh.sharma@example.com"
+                    value={leadForm.parentEmail}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setLeadForm(prev => ({ ...prev, parentEmail: val }));
+                      if (sameAsStudentEmail && val !== leadForm.email) {
+                        setSameAsStudentEmail(false);
+                      }
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1984,7 +2068,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Student Contact Details</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <Input label="Student Name *" required value={fName} onChange={e => setFName(e.target.value)} />
-                      <Input label="Mobile Contact *" required value={fMobile} onChange={e => setFMobile(e.target.value)} />
+                      <Input
+                        label="Mobile Contact *"
+                        required
+                        type="tel"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        placeholder="10-digit primary mobile"
+                        value={fMobile}
+                        onChange={e => setFMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      />
                       <Input label="Student Email" type="email" placeholder="student@example.com" value={fEmail} onChange={e => setFEmail(e.target.value)} />
                     </div>
                   </div>
@@ -1993,7 +2086,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                     <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Parent / Guardian Details</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <Input label="Parent / Guardian Name" placeholder="e.g. Rajesh Sharma" value={fParentName} onChange={e => setFParentName(e.target.value)} />
-                      <Input label="Parent Mobile Number" placeholder="Guardian contact mobile" value={fParentMobile} onChange={e => setFParentMobile(e.target.value)} />
+                      <Input
+                        label="Parent Mobile Number"
+                        type="tel"
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        placeholder="Guardian contact mobile"
+                        value={fParentMobile}
+                        onChange={e => setFParentMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      />
                       <Input label="Parent Email Address" type="email" placeholder="parent@example.com" value={fParentEmail} onChange={e => setFParentEmail(e.target.value)} />
                     </div>
                   </div>
