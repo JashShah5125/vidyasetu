@@ -53,6 +53,33 @@ interface HomeworkFormState {
   existingFiles: string[];
 }
 
+const ensureFilesArray = (files: any): string[] => {
+  if (Array.isArray(files)) {
+    return files.map(f => (typeof f === 'string' ? f : (f?.url || f?.path || String(f)))).filter(Boolean);
+  }
+  if (typeof files === 'string') {
+    const trimmed = files.trim();
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map(f => (typeof f === 'string' ? f : (f?.url || f?.path || String(f)))).filter(Boolean);
+        }
+        if (typeof parsed === 'string' && parsed) return [parsed];
+      } catch {
+        return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+  }
+  return [];
+};
+
+const isViewableInline = (url: string): boolean => {
+  if (!url) return false;
+  const clean = url.split('?')[0].toLowerCase();
+  return ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.txt'].some(ext => clean.endsWith(ext));
+};
+
 const EMPTY_HW_FORM: HomeworkFormState = {
   title: '',
   description: '',
@@ -306,7 +333,7 @@ export const TeacherAssignments: React.FC = () => {
       batchIds: item.batchIds,
       dueDate: item.dueDate || new Date().toISOString().split('T')[0],
       maxMarks: item.maxMarks !== null && item.maxMarks !== undefined ? String(item.maxMarks) : '',
-      existingFiles: item.files || []
+      existingFiles: ensureFilesArray(item.files)
     });
     setNewFiles([]);
     setShowHwForm(true);
@@ -460,6 +487,7 @@ export const TeacherAssignments: React.FC = () => {
         setActiveSubTab('active');
       }
 
+      setNewFiles([]);
       setShowHwForm(false);
       await refreshAll();
     } catch (err: any) {
@@ -920,8 +948,39 @@ export const TeacherAssignments: React.FC = () => {
     addToast('Evaluation roster exported successfully', 'success');
   };
 
+  const handleDownloadFile = async (fileUrl: string, customName?: string) => {
+    if (!fileUrl) return;
+    try {
+      const fileName = customName || fileUrl.split('/').pop() || 'document.pdf';
+      const cleanFileName = decodeURIComponent(fileName);
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = cleanFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.download = customName || fileUrl.split('/').pop() || 'document.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const openDetail = (item: HomeworkItem) => {
-    setShowHwDetail(item);
+    setShowHwDetail({
+      ...item,
+      files: ensureFilesArray(item.files)
+    });
   };
 
   // ─── Full page: Assignment detail (view only) ───────────────────────────────
@@ -1080,20 +1139,44 @@ export const TeacherAssignments: React.FC = () => {
               </div>
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {item.files.map((f, i) => (
-                    <a
-                      key={i}
-                      href={f}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-xl px-4 py-3 text-sm transition-colors group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
-                        <Paperclip size={15} />
+                  {item.files.map((f, i) => {
+                    const isPdf = f.toLowerCase().endsWith('.pdf');
+                    const fileName = f.split('/').pop() || 'document.pdf';
+                    return (
+                      <div
+                        key={i}
+                        className="flex flex-col justify-between p-3.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl transition-all gap-2.5"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}`}>
+                            <FileText size={16} />
+                          </div>
+                          <span className="truncate text-slate-800 text-xs font-semibold" title={fileName}>{fileName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadFile(f, fileName)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 h-7 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                          >
+                            <Download size={12} />
+                            <span>{isPdf ? 'Download PDF' : 'Download'}</span>
+                          </button>
+                          {isViewableInline(f) && (
+                            <a
+                              href={f}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center justify-center gap-1 h-7 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                            >
+                              <Eye size={12} />
+                              <span>View</span>
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      <span className="truncate text-slate-700 group-hover:text-blue-700 font-medium">{f.split('/').pop()}</span>
-                    </a>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1248,21 +1331,42 @@ export const TeacherAssignments: React.FC = () => {
                     Submitted Files & Attachments ({student.files.length}):
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {student.files.map((fileUrl, idx) => (
-                      <a
-                        key={idx}
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-3 p-3.5 bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 rounded-xl text-xs text-purple-700 font-semibold group transition-all"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center flex-shrink-0">
-                          <Paperclip size={15} />
+                    {student.files.map((fileUrl, idx) => {
+                      const isPdf = fileUrl.toLowerCase().endsWith('.pdf');
+                      const fileName = fileUrl.split('/').pop() || 'submission.pdf';
+                      return (
+                        <div
+                          key={idx}
+                          className="flex flex-col justify-between p-3.5 bg-slate-50 hover:bg-purple-50/50 border border-slate-200 hover:border-purple-300 rounded-xl transition-all gap-2"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-rose-100 text-rose-600' : 'bg-purple-100 text-purple-600'}`}>
+                              <FileText size={15} />
+                            </div>
+                            <span className="truncate text-xs font-semibold text-slate-800" title={fileName}>{fileName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(fileUrl, fileName)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 h-7 px-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <Download size={12} />
+                              <span>{isPdf ? 'Download PDF' : 'Download'}</span>
+                            </button>
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center justify-center gap-1 h-7 px-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                            >
+                              <Eye size={12} />
+                              <span>View</span>
+                            </a>
+                          </div>
                         </div>
-                        <span className="truncate flex-1">{fileUrl.split('/').pop()}</span>
-                        <ExternalLink size={14} className="text-slate-400 group-hover:text-purple-600 flex-shrink-0" />
-                      </a>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -2009,29 +2113,73 @@ export const TeacherAssignments: React.FC = () => {
 
                 {(hwForm.existingFiles.length > 0 || newFiles.length > 0) && (
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {hwForm.existingFiles.map((f, i) => (
-                      <div key={`e-${i}`} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
-                        <span className="flex items-center gap-2.5 text-slate-700 truncate font-medium">
-                          <Paperclip size={15} className="text-slate-400 flex-shrink-0" />
-                          <span className="truncate">{f.split('/').pop()}</span>
-                        </span>
-                        <button type="button" className="text-slate-400 hover:text-red-500 p-1 cursor-pointer" onClick={() => setHwForm(prev => ({ ...prev, existingFiles: prev.existingFiles.filter((_, idx) => idx !== i) }))}>
-                          <XCircle size={17} />
-                        </button>
-                      </div>
-                    ))}
-                    {newFiles.map((f, i) => (
-                      <div key={`n-${i}`} className="flex items-center justify-between bg-blue-50/60 border border-blue-200 rounded-xl px-3.5 py-2.5 text-sm">
-                        <span className="flex items-center gap-2.5 text-blue-800 truncate font-medium">
-                          <Paperclip size={15} className="text-blue-500 flex-shrink-0" />
-                          <span className="truncate">{f.name}</span>
-                          <span className="text-[11px] text-blue-500/80 font-normal">({(f.size / 1024).toFixed(1)} KB)</span>
-                        </span>
-                        <button type="button" className="text-blue-400 hover:text-red-500 p-1 cursor-pointer" onClick={() => setNewFiles(prev => prev.filter((_, idx) => idx !== i))}>
-                          <XCircle size={17} />
-                        </button>
-                      </div>
-                    ))}
+                    {hwForm.existingFiles.map((f, i) => {
+                      const isPdf = typeof f === 'string' && f.toLowerCase().endsWith('.pdf');
+                      const fileName = typeof f === 'string' ? (f.split('/').pop() || 'attachment') : 'attachment';
+                      return (
+                        <div key={`e-${i}`} className="flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm transition-colors">
+                          <span className="flex items-center gap-2.5 text-slate-700 truncate font-medium min-w-0 mr-2">
+                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'}`}>
+                              <FileText size={14} />
+                            </span>
+                            <span className="truncate text-xs font-semibold" title={fileName}>{fileName}</span>
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadFile(f, fileName)}
+                              className="text-xs px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-md font-medium cursor-pointer inline-flex items-center gap-1"
+                              title="Download attachment"
+                            >
+                              <Download size={12} />
+                              <span className="hidden sm:inline">Download</span>
+                            </button>
+                            {isViewableInline(f) && (
+                              <a
+                                href={f}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-md font-medium inline-flex items-center gap-1"
+                                title="View in new tab"
+                              >
+                                <Eye size={12} />
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              className="text-slate-400 hover:text-red-500 p-1 cursor-pointer"
+                              onClick={() => setHwForm(prev => ({ ...prev, existingFiles: prev.existingFiles.filter((_, idx) => idx !== i) }))}
+                              title="Remove attachment"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {newFiles.map((f, i) => {
+                      const isPdf = f.name.toLowerCase().endsWith('.pdf');
+                      return (
+                        <div key={`n-${i}`} className="flex items-center justify-between bg-blue-50/70 border border-blue-200 rounded-xl px-3.5 py-2.5 text-sm">
+                          <span className="flex items-center gap-2.5 text-blue-900 truncate font-medium min-w-0 mr-2">
+                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isPdf ? 'bg-rose-100 text-rose-600' : 'bg-blue-200 text-blue-700'}`}>
+                              <FileText size={14} />
+                            </span>
+                            <span className="truncate text-xs font-semibold">{f.name}</span>
+                            <span className="text-[10px] text-blue-600/80 font-normal shrink-0">({(f.size / 1024).toFixed(1)} KB)</span>
+                            <span className="text-[10px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0">New</span>
+                          </span>
+                          <button
+                            type="button"
+                            className="text-blue-400 hover:text-red-500 p-1 cursor-pointer shrink-0"
+                            onClick={() => setNewFiles(prev => prev.filter((_, idx) => idx !== i))}
+                            title="Remove file"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2245,6 +2393,12 @@ export const TeacherAssignments: React.FC = () => {
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border uppercase tracking-wider ${getTypeBadgeColor(assign.assignmentType)}`}>
                         {typeLabel(assign.assignmentType)}
                       </span>
+                      {Array.isArray(assign.files) && assign.files.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200" title={`${assign.files.length} attachment(s)`}>
+                          <Paperclip size={10} />
+                          <span>{assign.files.some(f => String(f).toLowerCase().endsWith('.pdf')) ? 'PDF' : 'Attachment'}</span>
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-left text-slate-700 font-medium text-xs truncate max-w-[160px]" title={assign.subjectName}>

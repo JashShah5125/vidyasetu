@@ -174,7 +174,9 @@ export const assignmentApi = {
 
   async createHomework(payload: HomeworkPayload, files: File[] = []): Promise<{ id: string }> {
     try {
-      const res = await api.post(getBaseUrl(), buildFormData(payload, files));
+      const res = await api.post(getBaseUrl(), buildFormData(payload, files), {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       return res.data.data;
     } catch (err) {
       return handleErr(err);
@@ -183,7 +185,9 @@ export const assignmentApi = {
 
   async updateHomework(id: string, payload: HomeworkPayload, files: File[] = []): Promise<{ id: string }> {
     try {
-      const res = await api.put(`${getBaseUrl()}/${id}`, buildFormData(payload, files));
+      const res = await api.put(`${getBaseUrl()}/${id}`, buildFormData(payload, files), {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       return res.data.data;
     } catch (err) {
       return handleErr(err);

@@ -45,10 +45,17 @@ const formatDueDateTime = (dateVal) => {
 const parseJsonArray = (value) => {
     if (Array.isArray(value)) return value;
     if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return [];
         try {
-            const parsed = JSON.parse(value);
-            return Array.isArray(parsed) ? parsed : [];
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) return parsed;
+            if (typeof parsed === 'string' && parsed) return [parsed];
+            return [];
         } catch (e) {
+            if (trimmed.startsWith('/') || trimmed.startsWith('http') || trimmed.includes('.')) {
+                return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+            }
             return [];
         }
     }
@@ -520,7 +527,7 @@ class TeacherHomeworkService {
         const rawType = String(data.assignmentType ?? data.assignment_type ?? 'assignment').toLowerCase().trim();
         const assignmentType = ['assignment', 'homework', 'exam'].includes(rawType) ? rawType : 'assignment';
 
-        const existingFiles = parseJsonArray(data.files);
+        const existingFiles = parseJsonArray(data.existingFiles ?? data.files);
         const allFiles = Array.from(new Set([...existingFiles, ...uploadedFilePaths]));
 
         const title = String(data.title || '').trim();
@@ -679,7 +686,9 @@ class TeacherHomeworkService {
         const title = data.title !== undefined ? String(data.title).trim() : (homework.title || homework.name);
         const description = data.description !== undefined ? String(data.description).trim() : homework.description;
 
-        const existingFiles = data.files !== undefined ? parseJsonArray(data.files) : parseJsonArray(homework.files);
+        const existingFiles = data.existingFiles !== undefined
+            ? parseJsonArray(data.existingFiles)
+            : (data.files !== undefined ? parseJsonArray(data.files) : parseJsonArray(homework.files));
         const allFiles = Array.from(new Set([...existingFiles, ...uploadedFilePaths]));
 
         const dueDate = data.dueDate ? String(data.dueDate).replace('T', ' ').substring(0, 19) : homework.due_date;

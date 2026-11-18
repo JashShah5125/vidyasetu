@@ -36,16 +36,24 @@ const coerceFiles = (req) => {
     const existingRaw = req.body.existingFiles ?? req.body.files ?? req.body.fileUrls ?? [];
     let existing = [];
     if (typeof existingRaw === 'string') {
-        try {
-            const parsed = JSON.parse(existingRaw);
-            existing = Array.isArray(parsed) ? parsed : existingRaw.split(',').filter(Boolean);
-        } catch (e) {
-            existing = existingRaw.split(',').filter(Boolean);
+        const trimmed = existingRaw.trim();
+        if (trimmed) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                existing = Array.isArray(parsed) ? parsed : (typeof parsed === 'string' ? [parsed] : []);
+            } catch (e) {
+                existing = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+            }
         }
     } else if (Array.isArray(existingRaw)) {
         existing = existingRaw;
     }
-    return [...existing, ...uploaded];
+    const cleanExisting = existing.map(item => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item === 'object') return (item.url || item.path || JSON.stringify(item)).trim();
+        return String(item || '').trim();
+    }).filter(s => s && s !== '[]' && s !== 'null');
+    return Array.from(new Set([...cleanExisting, ...uploaded]));
 };
 
 const parseBatchIds = (req) => {

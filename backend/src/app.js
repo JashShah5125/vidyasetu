@@ -7,7 +7,7 @@ const app = express();
 app.set('trust proxy', true);
 
 // Security and utility middlewares
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -15,8 +15,19 @@ app.use(express.urlencoded({ extended: true }));
 const { PRIMARY_UPLOADS_DIR, FALLBACK_UPLOADS_DIR } = require('./middleware/uploadMiddleware');
 
 // Serve static files from the uploads directory (and fallback if permissions restricted)
-app.use('/uploads', express.static(PRIMARY_UPLOADS_DIR));
-app.use('/uploads', express.static(FALLBACK_UPLOADS_DIR));
+const staticUploadOptions = {
+    setHeaders: (res, filePath) => {
+        const ext = path.extname(filePath).toLowerCase();
+        // Force inline display for PDFs, images, and text so browsers open them in-tab rather than forcing download
+        if (['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.txt'].includes(ext)) {
+            res.setHeader('Content-Disposition', 'inline');
+        }
+    }
+};
+app.use('/uploads/homeworks', express.static(path.join(PRIMARY_UPLOADS_DIR, 'homework'), staticUploadOptions));
+app.use('/uploads/homeworks', express.static(path.join(FALLBACK_UPLOADS_DIR, 'homework'), staticUploadOptions));
+app.use('/uploads', express.static(PRIMARY_UPLOADS_DIR, staticUploadOptions));
+app.use('/uploads', express.static(FALLBACK_UPLOADS_DIR, staticUploadOptions));
 
 // Request Logging Middleware
 app.use((req, res, next) => {

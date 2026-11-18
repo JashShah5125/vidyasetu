@@ -4,17 +4,21 @@ import { Card, CardHeader, CardTitle } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
 import { Pagination } from '../components/ui/Pagination';
-import { 
-  TrendingUp, 
-  Users, 
-  DollarSign, 
+import {
+  TrendingUp,
+  Users,
+  DollarSign,
   Award,
   Filter,
   Calendar,
   ArrowDownLeft,
   ArrowUpRight,
   TrendingDown,
-  Download
+  Download,
+  Wallet,
+  Edit2,
+  X,
+  Check
 } from 'lucide-react';
 import { INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useLocation } from 'react-router-dom';
@@ -301,6 +305,36 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const [activeStatsTab, setActiveStatsTab] = useState<'courses' | 'programs' | 'subjects'>('courses');
   const [reportTab, setReportTab] = useState<'p&l' | 'academic'>(currentUser?.role === 'finance' ? 'p&l' : 'academic');
 
+  // ── Opening & Closing Balance for Institute ──
+  const balanceStorageKey = useMemo(() => {
+    const branchKey = (selectedBranch || 'All').replace(/\s+/g, '_');
+    return `vs_pnl_opening_${branchKey}_${timePeriod}`;
+  }, [selectedBranch, timePeriod]);
+
+  const [openingBalance, setOpeningBalance] = useState<number>(0);
+  const [isEditingOpening, setIsEditingOpening] = useState<boolean>(false);
+  const [tempOpeningInput, setTempOpeningInput] = useState<string>('0');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(balanceStorageKey);
+      const num = saved !== null && saved !== '' ? Number(saved) : 0;
+      setOpeningBalance(isNaN(num) ? 0 : num);
+    } catch {
+      setOpeningBalance(0);
+    }
+  }, [balanceStorageKey]);
+
+  const saveOpeningBalance = () => {
+    const parsed = parseFloat(tempOpeningInput);
+    const valid = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    setOpeningBalance(valid);
+    try {
+      localStorage.setItem(balanceStorageKey, String(valid));
+    } catch { }
+    setIsEditingOpening(false);
+  };
+
   // ── Live MySQL Database States ──
   const [dbExpenses, setDbExpenses] = useState<OtherExpenseRecord[]>([]);
   const [dbIncomes, setDbIncomes] = useState<OtherIncomeRecord[]>([]);
@@ -471,6 +505,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
 
   const netSurplus = totalIncome - totalExpensePnL;
   const netMarginPct = totalIncome > 0 ? ((netSurplus / totalIncome) * 100).toFixed(1) : '0.0';
+  const closingBalance = openingBalance + netSurplus;
 
   const instituteName = analyticsData?.institute?.name || currentUser?.tenantName || (currentUser as any)?.institute || 'Institute Master';
 
@@ -508,7 +543,9 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
       ]),
       ['Total Expenses (B)', 'TOTAL', totalExpensePnL],
       ['Net Surplus (Profit)', 'SUMMARY', netSurplus],
-      ['Profit Margin (%)', 'PERCENTAGE', `${netMarginPct}%`]
+      ['Profit Margin (%)', 'PERCENTAGE', `${netMarginPct}%`],
+      ['Opening Balance', 'BALANCE', openingBalance],
+      ['Closing Balance (Opening + Net Surplus)', 'BALANCE', closingBalance]
     ];
 
     const csvContent = "data:text/csv;charset=utf-8,"
@@ -530,9 +567,9 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
   const availableBranchOptions = currentUser?.role === 'branch-admin'
     ? [{ value: currentUser.branch || '', label: currentUser.branch || '' }]
     : [
-        { value: 'All', label: 'All Branches' },
-        ...branches.map(b => ({ value: b.name, label: b.name }))
-      ];
+      { value: 'All', label: 'All Branches' },
+      ...branches.map(b => ({ value: b.name, label: b.name }))
+    ];
 
   // ----------------------------------------------------
   // DYNAMIC ACADEMIC STATISTICS CALCULATIONS
@@ -576,9 +613,9 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
     const levelPart = parts[parts.length - 1];
     const programPart = parts.slice(parts[0] === '8TH' ? 2 : 1, parts.length - 1).join('-');
 
-    const matchingBatches = batches.filter(b => 
-      b.course === getCourseNameByCode(courseCodePart) && 
-      b.program === programPart && 
+    const matchingBatches = batches.filter(b =>
+      b.course === getCourseNameByCode(courseCodePart) &&
+      b.program === programPart &&
       b.level === levelPart
     );
     const batchNames = matchingBatches.map(b => b.name);
@@ -605,7 +642,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             {mode === 'saas' ? 'Analytics & Reports Desk' : 'Institute Analytics & Reports'}
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            {mode === 'saas' 
+            {mode === 'saas'
               ? 'Review long-term coaching revenue charts, attendance averages, and admission flows.'
               : 'Review revenue metrics, attendance statistics, and admissions across your institute\'s branches.'
             }
@@ -616,15 +653,15 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           {/* Time Period Filter */}
           <div className="flex items-center gap-2">
             <span className="text-slate-500 flex items-center gap-1"><Calendar size={14} /> Time:</span>
-            <Select 
-              value={timePeriod} 
-              onChange={(e) => setTimePeriod(e.target.value as any)} 
+            <Select
+              value={timePeriod}
+              onChange={(e) => setTimePeriod(e.target.value as any)}
               options={[
                 { value: 'day', label: 'Daily' },
                 { value: 'week', label: 'Weekly' },
                 { value: 'month', label: 'Monthly' },
                 { value: 'year', label: 'Yearly' }
-              ]} 
+              ]}
               style={{ padding: '4px 8px', fontSize: '12px', minWidth: '150px' }}
             />
           </div>
@@ -633,15 +670,15 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           {mode === 'saas' ? (
             <div className="flex items-center gap-2">
               <span className="text-slate-500 flex items-center gap-1"><Filter size={14} /> Tenant:</span>
-              <Select 
-                value={selectedTenant} 
-                onChange={(e) => setSelectedTenant(e.target.value)} 
+              <Select
+                value={selectedTenant}
+                onChange={(e) => setSelectedTenant(e.target.value)}
                 options={[
                   { value: 'All', label: 'All Tenants' },
                   { value: 'VS-001', label: 'Apex IIT Academy' },
                   { value: 'VS-002', label: 'Vanguard Classes' },
                   { value: 'VS-003', label: 'Bright Future Tuition' }
-                ]} 
+                ]}
                 style={{ padding: '4px 8px', fontSize: '12px', minWidth: '180px' }}
               />
             </div>
@@ -649,10 +686,10 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             currentUser?.role !== 'finance' && (
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 flex items-center gap-1"><Filter size={14} /> Branch:</span>
-                <Select 
-                  value={selectedBranch} 
-                  onChange={(e) => setSelectedBranch(e.target.value)} 
-                  options={availableBranchOptions} 
+                <Select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  options={availableBranchOptions}
                   style={{ padding: '4px 8px', fontSize: '12px', minWidth: '180px' }}
                   disabled={currentUser?.role === 'branch-admin'}
                 />
@@ -679,11 +716,10 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           <button
             type="button"
             onClick={() => setReportTab('p&l')}
-            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${
-              reportTab === 'p&l'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/20'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-            }`}
+            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${reportTab === 'p&l'
+              ? 'border-blue-600 text-blue-600 bg-blue-50/20'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              }`}
           >
             <TrendingUp size={16} />
             <span>Profit &amp; Loss (P&amp;L) Statement</span>
@@ -691,11 +727,10 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           <button
             type="button"
             onClick={() => setReportTab('academic')}
-            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${
-              reportTab === 'academic'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/20'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-            }`}
+            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${reportTab === 'academic'
+              ? 'border-blue-600 text-blue-600 bg-blue-50/20'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              }`}
           >
             <Award size={16} />
             <span>Academic &amp; Student Operations</span>
@@ -772,9 +807,8 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                       <td className="px-6 py-4 text-center font-mono text-xs text-slate-500">{row.storage}</td>
                       <td className="px-6 py-4 text-center font-medium text-slate-700">{row.users}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                          row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${row.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}>
                           {row.status}
                         </span>
                       </td>
@@ -784,7 +818,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
               </table>
               {saasTenants.length > saasItemsPerPage && (
                 <div className="p-4 border-t border-slate-100 bg-white">
-                  <Pagination 
+                  <Pagination
                     currentPage={saasCurrentPage}
                     totalPages={totalSaasPages}
                     totalItems={saasTenants.length}
@@ -830,9 +864,8 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 </div>
                 <span className="text-[10px] text-slate-400 font-semibold block mt-1">Margin Percentage: {netMarginPct}%</span>
               </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
-                netSurplus >= 0 ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'
-              }`}>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${netSurplus >= 0 ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-red-50 text-red-600 border-red-100'
+                }`}>
                 <TrendingUp size={24} />
               </div>
             </Card>
@@ -848,8 +881,56 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <button 
-                  onClick={handleExportPnL} 
+                {isEditingOpening ? (
+                  <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg">
+                    <span className="text-xs text-slate-400 font-bold">₹</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus
+                      className="w-24 bg-slate-800 text-white border border-slate-600 rounded px-2 py-0.5 text-xs font-mono font-bold outline-none focus:border-emerald-500"
+                      value={tempOpeningInput}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9.]/g, '');
+                        setTempOpeningInput(val);
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveOpeningBalance();
+                        if (e.key === 'Escape') setIsEditingOpening(false);
+                      }}
+                      placeholder="0"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveOpeningBalance}
+                      className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer"
+                      title="Save"
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingOpening(false)}
+                      className="p-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setTempOpeningInput(String(openingBalance || '')); setIsEditingOpening(true); }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 cursor-pointer shadow-xs px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150"
+                    title="Set Opening Balance for the Institute"
+                  >
+                    <Wallet size={14} />
+                    <span>{openingBalance > 0 ? `Opening: ₹${openingBalance.toLocaleString('en-IN')}` : '+ Add Opening Balance'}</span>
+                    <Edit2 size={11} className="text-emerald-200 ml-0.5" />
+                  </button>
+                )}
+                <button
+                  onClick={handleExportPnL}
                   className="bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 flex items-center gap-1.5 cursor-pointer shadow-xs px-3 py-1.5 text-xs font-medium rounded-lg transition-colors duration-150"
                 >
                   <Download size={14} className="text-slate-300" /> Export CSV
@@ -863,6 +944,19 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             <div className="p-6">
               <table className="w-full text-left border-collapse">
                 <tbody>
+                  {/* Opening Balance */}
+                  <tr className="bg-slate-50/90 border-b border-slate-200 hover:bg-slate-100/60 transition-colors">
+                    <td className="px-6 py-3.5 text-sm text-slate-900 font-bold">
+                      <span className="flex items-center gap-2">
+                        <Wallet size={16} className="text-blue-600 stroke-[2.5]" />
+                        <span className="font-bold">Opening Balance</span>
+                      </span>
+                    </td>
+                    <td className="px-6 py-3.5 text-right font-mono font-bold text-slate-900">
+                      ₹{openingBalance.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+
                   {/* Revenue Header */}
                   <tr className="bg-slate-100/80 font-bold border-b border-slate-200 text-slate-800 text-sm uppercase">
                     <td className="px-6 py-3">1. Revenue / Operating Inflows</td>
@@ -899,9 +993,20 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
 
                   {/* Summary row */}
                   <tr className="bg-slate-800 text-white font-bold text-base">
-                    <td className="px-6 py-4 rounded-bl-xl">Net Operating Surplus</td>
-                    <td className={`px-6 py-4 text-right font-mono rounded-br-xl ${netSurplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <td className="px-6 py-4">Net Operating Surplus</td>
+                    <td className={`px-6 py-4 text-right font-mono ${netSurplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       ₹{netSurplus.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+
+                  {/* Closing Balance row */}
+                  <tr className="bg-emerald-50/70 border-t-2 border-emerald-300 font-bold">
+                    <td className="px-6 py-4 text-base text-emerald-950 font-extrabold flex items-center gap-2 rounded-bl-xl">
+                      <Wallet className="text-emerald-700" size={17} />
+                      <span>Closing Balance (Opening + Net Surplus)</span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono text-lg font-extrabold text-emerald-800 rounded-br-xl">
+                      ₹{closingBalance.toLocaleString('en-IN')}
                     </td>
                   </tr>
                 </tbody>
@@ -971,18 +1076,16 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                 <button
                   type="button"
                   onClick={() => setActiveStatsTab('courses')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    activeStatsTab === 'courses' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeStatsTab === 'courses' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
                 >
                   Courses
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveStatsTab('programs')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    activeStatsTab === 'programs' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeStatsTab === 'programs' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
                 >
                   Programs
                 </button>
@@ -1010,9 +1113,8 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                         <td className="px-5 py-3 text-center font-bold text-slate-800">{item.batchesCount}</td>
                         <td className="px-5 py-3 text-center font-bold text-blue-700">{item.studentsCount}</td>
                         <td className="px-5 py-3 text-right">
-                          <span className={`inline-flex px-2 py-0.5 rounded font-bold text-[10px] ${
-                            pct >= 80 ? 'bg-emerald-50 text-emerald-700' : pct >= 50 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                          }`}>
+                          <span className={`inline-flex px-2 py-0.5 rounded font-bold text-[10px] ${pct >= 80 ? 'bg-emerald-50 text-emerald-700' : pct >= 50 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
+                            }`}>
                             {pct}% ({item.studentsCount}/{capacity})
                           </span>
                         </td>

@@ -306,11 +306,11 @@ export const CollectPaymentActivation: React.FC<CollectPaymentActivationProps> =
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mb-1 group"
           >
             <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
-            {isFeeCollection ? 'Back to Fee Collection & Dues' : 'Back to Step 3: Fee Payment & Activation'}
+            {isFeeCollection ? 'Back to Fees' : 'Back to Step 3: Payment'}
           </button>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              {isFeeCollection ? 'Collect Fee Payment' : 'Collect Admission Fee & Activate Student'}
+              {isFeeCollection ? 'Collect Fee' : 'Collect Fee & Activate'}
             </h1>
             <span className="font-mono text-xs font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md">
               {studentCode}
@@ -320,15 +320,9 @@ export const CollectPaymentActivation: React.FC<CollectPaymentActivationProps> =
                 : 'bg-amber-50 text-amber-800 border border-amber-200'
               }`}>
               <Sparkles size={11} className={isFeeCollection ? 'text-emerald-600' : 'text-amber-600'} />
-              {isFeeCollection ? 'Fee Collection & Receipt' : 'Admission Gate: Step 3'}
+              {isFeeCollection ? 'Fee Receipt' : 'Step 3'}
             </span>
           </div>
-          <p className="text-xs text-slate-500">
-            {isFeeCollection
-              ? `Select the fee component being collected to issue an official receipt for ${studentName}.`
-              : `Select the fee component being collected to issue an official receipt and activate ${studentName}’s LMS portal credentials.`
-            }
-          </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">
@@ -494,11 +488,8 @@ export const CollectPaymentActivation: React.FC<CollectPaymentActivationProps> =
             <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-b border-slate-200 py-3.5 px-5">
               <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Wallet className="text-emerald-600" size={16} />
-                <span>Select Payment Component To Collect</span>
+                <span>Payment Component</span>
               </CardTitle>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Choose the payment type to auto-fill the agreed amount, or enter a custom amount.
-              </p>
             </CardHeader>
 
             <div className="p-5 space-y-5">

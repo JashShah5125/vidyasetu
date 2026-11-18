@@ -54,7 +54,7 @@ class TeacherHomeworkController {
         try {
             const tenantId = req.user.tenantId;
             const teacherUserId = req.user.userId || req.user.id;
-            const uploadedFiles = req.files ? req.files.map(f => `/uploads/homeworks/${f.filename}`) : [];
+            const uploadedFiles = req.files ? req.files.map(f => `/uploads/homework/${f.filename}`) : [];
             const data = await teacherHomeworkService.createHomework(tenantId, teacherUserId, req.body, uploadedFiles);
             return res.status(201).json({
                 success: true,
@@ -74,7 +74,7 @@ class TeacherHomeworkController {
         try {
             const tenantId = req.user.tenantId;
             const teacherUserId = req.user.userId || req.user.id;
-            const uploadedFiles = req.files ? req.files.map(f => `/uploads/homeworks/${f.filename}`) : [];
+            const uploadedFiles = req.files ? req.files.map(f => `/uploads/homework/${f.filename}`) : [];
             const data = await teacherHomeworkService.updateHomework(tenantId, teacherUserId, req.params.id, req.body, uploadedFiles);
             return res.json({
                 success: true,

@@ -42,16 +42,28 @@ const formatDueDateTime = (dateVal) => {
 };
 
 const parseJsonArray = (value) => {
-    if (Array.isArray(value)) return value;
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            return [];
+    let result = [];
+    if (Array.isArray(value)) {
+        result = value;
+    } else if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) result = parsed;
+                else if (typeof parsed === 'string' && parsed) result = [parsed];
+            } catch (e) {
+                if (trimmed.startsWith('/') || trimmed.startsWith('http') || trimmed.includes('.')) {
+                    result = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+                }
+            }
         }
     }
-    return [];
+    return result.map(item => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') return item.url || item.path || JSON.stringify(item);
+        return String(item || '');
+    }).filter(Boolean);
 };
 
 const safeNumber = (value) =>
@@ -74,7 +86,7 @@ const ALLOWED_TYPES = ['assignment', 'homework', 'exam'];
 
 const normalizeCreatePayload = (data) => {
     const batchIds = parseJsonArray(data.batch_ids ?? data.batchIds).map(Number).filter(Boolean);
-    const files = parseJsonArray(data.files).map(f => String(f));
+    const files = parseJsonArray(data.files ?? data.existingFiles).map(f => String(f));
     const rawType = String(data.assignment_type ?? data.assignmentType ?? 'assignment').toLowerCase().trim();
     const assignmentType = ALLOWED_TYPES.includes(rawType) ? rawType : 'assignment';
     return {
@@ -789,7 +801,7 @@ const updateHomework = async (tenantId, id, data, userId, accessContext = null) 
             branchId: current.branch_id,
             academicYearId: current.academic_year_id,
             subjectId: current.subject_id,
-            title: current.title,
+            title: current.title || current.name,
             description: current.description,
             assignmentType: entityType,
             batchIds: parseJsonArray(current.batch_ids),
@@ -1571,7 +1583,7 @@ const getStudentHomeworks = async (tenantId, studentId) => {
 
     // Fetch submissions across the 3 tables
     const [hwSubs] = await pool.query(
-        `SELECT homework_id, status, marks_obtained, teacher_feedback, submitted_at
+        `SELECT homework_id, status, marks_obtained, teacher_feedback, submitted_at, files, response_text
            FROM homework_submissions
           WHERE tenant_id = ? AND student_id = ? AND deleted_at IS NULL`,
         [tenantId, Number(studentId)]
@@ -1579,7 +1591,7 @@ const getStudentHomeworks = async (tenantId, studentId) => {
     const hwSubMap = new Map(hwSubs.map(s => [Number(s.homework_id), s]));
 
     const [asgSubs] = await pool.query(
-        `SELECT assignment_id, status, marks_obtained, teacher_feedback, submitted_at
+        `SELECT assignment_id, status, marks_obtained, teacher_feedback, submitted_at, files, response_text
            FROM assignment_submissions
           WHERE tenant_id = ? AND student_id = ? AND deleted_at IS NULL`,
         [tenantId, Number(studentId)]
@@ -1624,7 +1636,9 @@ const getStudentHomeworks = async (tenantId, studentId) => {
                 marksObtained: sub.marks_obtained === null || sub.marks_obtained === undefined ? null : Number(sub.marks_obtained),
                 feedback: sub.teacher_feedback || '',
                 submittedAt: sub.submitted_at || null,
-                isLate: Boolean(r.due_date && sub.submitted_at && new Date(sub.submitted_at) > new Date(r.due_date))
+                isLate: Boolean(r.due_date && sub.submitted_at && new Date(sub.submitted_at) > new Date(r.due_date)),
+                responseText: sub.response_text || '',
+                files: parseJsonArray(sub.files)
             } : null
         };
     });

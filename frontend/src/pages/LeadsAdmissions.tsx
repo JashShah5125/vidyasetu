@@ -2689,7 +2689,6 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-slate-900">Leads &amp; Enquiries</h2>
-          <p className="text-sm text-slate-500 mt-1">Full pipeline lifecycle from initial enquiry to fee activation.</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Filter Toggle Button */}
@@ -2742,7 +2741,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
       </div>
 
       {/* 3-Phase Admissions Lifecycle Pipeline Stepper */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2.5 overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2 overflow-hidden">
         <div className="flex flex-col lg:flex-row items-stretch gap-2">
           {/* Active 3-Step Connected Funnel */}
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2757,7 +2756,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 <button
                   key={p.id}
                   onClick={() => navigate(tabRouteMap[p.id])}
-                  className={`flex flex-col text-left p-3 rounded-xl transition-all cursor-pointer relative group border ${
+                  className={`flex flex-col text-left p-2.5 rounded-xl transition-all cursor-pointer relative group border ${
                     isActive
                       ? 'bg-blue-50/90 border-blue-500 shadow-xs ring-2 ring-blue-500/20'
                       : 'bg-slate-50/60 hover:bg-slate-100/80 border-slate-200/80'
@@ -2769,7 +2768,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       <ChevronRight size={10} />
                     </span>
                   )}
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between">
                     <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
                       isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
                     }`}>
@@ -2781,15 +2780,12 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                       {count}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="flex items-center gap-1.5 mt-2">
                     <Icon size={14} className={isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'} />
                     <span className={`text-xs font-bold leading-tight truncate ${isActive ? 'text-blue-900' : 'text-slate-800'}`}>
                       {p.label}
                     </span>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-0.5 leading-tight truncate">
-                    {p.description}
-                  </span>
                 </button>
               );
             })}
@@ -2799,13 +2795,13 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <div className="lg:w-48 flex shrink-0">
             <button
               onClick={() => navigate(tabRouteMap['all'])}
-              className={`w-full flex flex-col justify-between p-3 rounded-xl transition-all cursor-pointer border text-left group ${
+              className={`w-full flex flex-col justify-between p-2.5 rounded-xl transition-all cursor-pointer border text-left group ${
                 activeTab === 'all'
                   ? 'bg-blue-50/40 border-2 border-blue-600 shadow-xs ring-2 ring-blue-500/10'
                   : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
               }`}
             >
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between">
                 <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
                   activeTab === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
                 }`}>
@@ -2817,43 +2813,15 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                   {stats.totalAllLeads}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-2">
                 <FileText size={14} className={activeTab === 'all' ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'} />
                 <span className={`text-xs font-bold leading-tight truncate ${activeTab === 'all' ? 'text-blue-900' : 'text-slate-800'}`}>
                   All Leads Directory
                 </span>
               </div>
-              <span className="text-[10px] text-slate-500 mt-0.5 leading-tight truncate">
-                Search all historical leads
-              </span>
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Connected Workflow Stage Guidance Banner */}
-      <div className="p-3.5 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-slate-50 border border-blue-100/80 rounded-xl text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-            {activeTab === 'all' ? '★' : activeTab === 'pipeline' ? '1' : activeTab === 'admission' ? '2' : '3'}
-          </div>
-          <div>
-            <span className="font-bold text-slate-900 mr-1.5">
-              {activeTab === 'all' ? 'All Leads Directory' : activeTab === 'pipeline' ? 'Step 1: Enquiries & Nurturing' : activeTab === 'admission' ? 'Step 2: Admission & Batching' : 'Step 3: Fee Payment & Activation'}:
-            </span>
-            <span className="text-slate-600">
-              {activeTab === 'all' && 'Comprehensive historical directory of all leads across every stage in the institution.'}
-              {activeTab === 'pipeline' && 'Qualify incoming leads, schedule demos, log follow-ups, and finalize fee proposals. Click "Enroll Student →" to register immediately.'}
-              {activeTab === 'admission' && 'Review registered students, verify submitted KYC documents, and assign class batches all in one unified onboarding step.'}
-              {activeTab === 'payment' && 'Collect admission fee downpayments or full fees. Recording payment activates LMS portal access and marks student as Active.'}
-            </span>
-          </div>
-        </div>
-        {activeTab !== 'all' && (
-          <span className="text-[11px] font-semibold text-blue-700 shrink-0 self-end sm:self-center bg-blue-100/60 px-2.5 py-1 rounded-md">
-            Sequential Workflow
-          </span>
-        )}
       </div>
 
       {/* ── Active Filters Tag Strip (when collapsed) ──────────────────────────── */}
@@ -3089,8 +3057,8 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { label: 'Total Enquiries', value: stats.totalAllLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
-              { label: 'Active in Pipeline', value: stats.activePipelineCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Converted to Admission', value: stats.convertedCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Active Pipeline', value: stats.activePipelineCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'Converted', value: stats.convertedCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
               { label: 'Closed / Dropped', value: stats.closedCount, color: 'bg-rose-50 border-rose-200', text: 'text-rose-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
@@ -3102,21 +3070,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>All Leads Master Directory</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Complete registry of all student enquiries across every stage — active, in process, converted, and closed.
-                </p>
-              </div>
+              <CardTitle>All Leads</CardTitle>
               <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
-                Showing {filteredLeads.length} leads
+                {filteredLeads.length} leads
               </span>
             </CardHeader>
             <Table
               dense
               minWidth="1140px"
               colWidths={['60px', '210px', '160px', '170px', '130px', '120px', '140px', '130px']}
-              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
+              headers={['ID', 'Student', 'Contact', 'Course', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center' }]}
             >
               {paginatedLeads.map(l => (
                 <tr
@@ -3181,7 +3144,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
               {filteredLeads.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
-                    {leadsLoading ? 'Loading leads...' : 'No leads matching current filters.'}
+                    {leadsLoading ? 'Loading leads...' : 'No leads found.'}
                   </td>
                 </tr>
               )}
@@ -3196,9 +3159,9 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Total Active in Pipeline', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
+              { label: 'Active Pipeline', value: stats.totalLeads, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
               { label: 'New Enquiries', value: stats.newEnquiries, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Follow-up Needed', value: stats.followUp, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Follow-ups', value: stats.followUp, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
               { label: 'Interested / Demo', value: stats.interested + stats.demoScheduled, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
@@ -3210,14 +3173,13 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           {/* Pipeline Stage Queue Chips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Queue View:</span>
             {[
-              { id: 'all', label: `All Active (${stats.totalLeads})` },
-              { id: 'new', label: `New Enquiries (${stats.newEnquiries})` },
-              { id: 'followup', label: `In Follow-up (${stats.followUp})` },
-              { id: 'demo', label: `Demo Scheduled (${stats.demoScheduled})` },
+              { id: 'all', label: `All (${stats.totalLeads})` },
+              { id: 'new', label: `New (${stats.newEnquiries})` },
+              { id: 'followup', label: `Follow-up (${stats.followUp})` },
+              { id: 'demo', label: `Demo (${stats.demoScheduled})` },
               { id: 'interested', label: `Interested (${stats.interested})` },
-              { id: 'fee', label: `Fee Discussion (${stats.feeDiscussionCount})` },
+              { id: 'fee', label: `Fee Plan (${stats.feeDiscussionCount})` },
             ].map(pill => (
               <button
                 key={pill.id}
@@ -3236,21 +3198,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>Active Lead Registrations</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Step 1 queue — qualify leads and advance ready candidates to Step 2 (Fee Discussion) or direct admission.
-                </p>
-              </div>
+              <CardTitle>Active Leads</CardTitle>
               <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
-                Showing {filteredLeads.length} active leads
+                {filteredLeads.length} leads
               </span>
             </CardHeader>
             <Table
               dense
               minWidth="1210px"
               colWidths={['60px', '210px', '160px', '170px', '130px', '120px', '140px', '220px']}
-              headers={['ID', 'Student Name', 'Mobile / Contact', 'Course Interest', 'Branch', 'Stage', 'Counsellor', { label: 'Pipeline Action', align: 'center', minWidth: '220px' }]}
+              headers={['ID', 'Student', 'Contact', 'Course', 'Branch', 'Stage', 'Counsellor', { label: 'Actions', align: 'center', minWidth: '220px' }]}
             >
               {paginatedLeads.map(l => (
                 <tr
@@ -3369,10 +3326,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'All Admitted Students', value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
-              { label: 'Pending KYC Docs', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-              { label: 'Needs Batch Allocation', value: stats.unassignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'KYC Verified & Ready', value: stats.verifiedDocsCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Admitted Students', value: stats.totalStudents, color: 'bg-slate-50 border-slate-200', text: 'text-slate-800' },
+              { label: 'Pending KYC', value: stats.pendingDocs, color: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+              { label: 'Needs Batch', value: stats.unassignedBatchCount, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+              { label: 'KYC Verified', value: stats.verifiedDocsCount, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -3383,12 +3340,11 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           {/* Admission & Batching Sub-filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Queue View:</span>
             {[
-              { id: 'all', label: `All Admitted (${stats.totalStudents})` },
-              { id: 'pending', label: `Pending KYC Docs (${stats.pendingDocs})` },
+              { id: 'all', label: `All (${stats.totalStudents})` },
+              { id: 'pending', label: `Pending KYC (${stats.pendingDocs})` },
               { id: 'unassigned', label: `Needs Batch (${stats.unassignedBatchCount})` },
-              { id: 'verified', label: `KYC Verified (${stats.verifiedDocsCount})` },
+              { id: 'verified', label: `Verified (${stats.verifiedDocsCount})` },
             ].map(pill => (
               <button
                 key={pill.id}
@@ -3407,21 +3363,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>Admission & Batching Management</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Step 2 queue — verify KYC documents and assign class batches. Both actions are managed in this single onboarding hub.
-                </p>
-              </div>
+              <CardTitle>Admission &amp; Batching</CardTitle>
               <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
-                Showing {filteredStudents.length} students
+                {filteredStudents.length} students
               </span>
             </CardHeader>
             <Table
               dense
               minWidth="1180px"
               colWidths={['130px', '200px', '130px', '150px', '160px', '160px', '230px']}
-              headers={['Student ID', 'Student Name', 'Mobile', 'Course & Branch', 'KYC Documents', 'Assigned Batch', { label: 'Pipeline Action', align: 'center', minWidth: '230px' }]}
+              headers={['Student ID', 'Student', 'Contact', 'Course & Branch', 'KYC Status', 'Batch', { label: 'Actions', align: 'center', minWidth: '230px' }]}
             >
               {paginatedStudents.map(s => {
                 const isVerified = s.status === 'Active Student' || s.status === 'Documents Verified' || s.status === 1 || s.status === 5 || s.status === 7 || Boolean(s.isDocVerified);
@@ -3533,7 +3484,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 );
               })}
               {filteredStudents.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading students...' : 'No student records found.'}</td></tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredStudents.length} pageSize={PER_PAGE} onPageChange={setPage} />
@@ -3546,10 +3497,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Pending Payment / Activation', value: stats.pendingPaymentCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
-              { label: 'Active Students Enrolled', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+              { label: 'Pending Activation', value: stats.pendingPaymentCount, color: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
+              { label: 'Enrolled Active', value: stats.activeStudents, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
               { label: 'Fee Collected', value: `₹${stats.feeCollected.toLocaleString()}`, color: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-              { label: 'Outstanding Balance', value: `₹${stats.feeOutstanding.toLocaleString()}`, color: 'bg-red-50 border-red-200', text: 'text-red-600' },
+              { label: 'Outstanding', value: `₹${stats.feeOutstanding.toLocaleString()}`, color: 'bg-red-50 border-red-200', text: 'text-red-600' },
             ].map(s => (
               <div key={s.label} className={`p-4 rounded-xl border ${s.color} text-center shadow-sm`}>
                 <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
@@ -3560,11 +3511,10 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           {/* Payment Activation Sub-filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Activation Queue:</span>
             {[
-              { id: 'pending', label: `Pending Activation (${stats.pendingPaymentCount})` },
-              { id: 'active', label: `Active Students (${stats.activeStudents})` },
-              { id: 'all', label: `All Students (${stats.totalStudents})` },
+              { id: 'pending', label: `Pending (${stats.pendingPaymentCount})` },
+              { id: 'active', label: `Active (${stats.activeStudents})` },
+              { id: 'all', label: `All (${stats.totalStudents})` },
             ].map(pill => (
               <button
                 key={pill.id}
@@ -3583,21 +3533,16 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
 
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle>Fee Activation & Status Ledger</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Step 3 final gate — collect down payment or full fee installment to activate student LMS portal and registration.
-                </p>
-              </div>
+              <CardTitle>Payment &amp; Activation</CardTitle>
               <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg self-start sm:self-center border border-slate-200">
-                Showing {filteredStudents.length} students
+                {filteredStudents.length} students
               </span>
             </CardHeader>
             <Table
               dense
               minWidth="1220px"
               colWidths={['140px', '160px', '120px', '150px', '100px', '100px', '110px', '150px', '200px']}
-              headers={['Student ID', 'Student Name', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Pipeline Action', align: 'center', minWidth: '200px' }]}
+              headers={['Student ID', 'Student', 'Course', 'Batch', 'Total Fee', 'Paid', 'Outstanding', 'Status', { label: 'Actions', align: 'center', minWidth: '200px' }]}
             >
               {paginatedStudents.map(s => {
                 const isActive = s.status === 'Active Student' || s.status === 1 || s.status === '1' || s.status === 'Active';
@@ -3644,7 +3589,7 @@ export const LeadsAdmissions: React.FC<LeadsAdmissionsProps> = ({ initialTab = '
                 );
               })}
               {filteredStudents.length === 0 && (
-                <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading student records from server...' : 'No student records matching current filters.'}</td></tr>
+                <tr><td colSpan={9} className="px-6 py-12 text-center text-sm text-slate-400">{studentsLoading ? 'Loading students...' : 'No student records found.'}</td></tr>
               )}
             </Table>
             <Pagination currentPage={page} totalPages={totalPages} totalItems={filteredStudents.length} pageSize={PER_PAGE} onPageChange={setPage} />

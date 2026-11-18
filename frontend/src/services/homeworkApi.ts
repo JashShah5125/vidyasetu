@@ -6,6 +6,8 @@ export interface HomeworkSubmissionInfo {
   feedback: string;
   submittedAt: string | null;
   isLate: boolean;
+  responseText?: string;
+  files?: string[];
 }
 
 export interface MyHomeworkItem {
@@ -61,7 +63,9 @@ export const homeworkApi = {
       fd.append('responseText', responseText);
       fd.append('existingFiles', JSON.stringify([]));
       files.forEach(f => fd.append('files', f));
-      await api.post(`/student/homework/${id}/submit`, fd);
+      await api.post(`/student/homework/${id}/submit`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
     } catch (err) {
       return handleErr(err);
     }

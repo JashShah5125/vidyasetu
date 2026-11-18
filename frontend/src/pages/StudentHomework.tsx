@@ -8,6 +8,9 @@ import {
   Calendar,
   CheckCircle2,
   ClipboardList,
+  Download,
+  Eye,
+  FileText,
   Loader2,
   Paperclip,
   Send,
@@ -26,6 +29,54 @@ const getStatusBadgeColor = (status: string) => {
   }
 };
 
+const getFileList = (files: any): string[] => {
+  if (!files) return [];
+  if (Array.isArray(files)) return files.filter(Boolean);
+  if (typeof files === 'string') {
+    try {
+      const parsed = JSON.parse(files);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      if (typeof parsed === 'string' && parsed) return [parsed];
+    } catch {
+      return files.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+};
+
+const isPdfFile = (url: string): boolean => {
+  if (!url) return false;
+  const clean = url.split('?')[0].toLowerCase();
+  return clean.endsWith('.pdf');
+};
+
+const isViewableInline = (url: string): boolean => {
+  if (!url) return false;
+  const clean = url.split('?')[0].toLowerCase();
+  return ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.txt'].some(ext => clean.endsWith(ext));
+};
+
+const getFileTypeLabel = (url: string): string => {
+  if (!url) return 'File';
+  const clean = url.split('?')[0].toLowerCase();
+  if (clean.endsWith('.pdf')) return 'PDF Document';
+  if (clean.endsWith('.xlsx') || clean.endsWith('.xls') || clean.endsWith('.csv')) return 'Spreadsheet';
+  if (clean.endsWith('.doc') || clean.endsWith('.docx')) return 'Word Document';
+  if (['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'].some(ext => clean.endsWith(ext))) return 'Image';
+  if (clean.endsWith('.zip') || clean.endsWith('.rar')) return 'Archive ZIP';
+  return 'Resource File';
+};
+
+const getFileDisplayName = (url: string): string => {
+  if (!url) return 'Document';
+  const name = url.split('/').pop() || 'Document';
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
+};
+
 export const StudentHomework: React.FC = () => {
   const { addToast } = useApp();
 
@@ -37,6 +88,43 @@ export const StudentHomework: React.FC = () => {
   const [responseText, setResponseText] = useState<string>('');
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [downloadingUrl, setDownloadingUrl] = useState<string | null>(null);
+
+  const handleDownload = async (fileUrl: string, customName?: string) => {
+    if (!fileUrl) return;
+    setDownloadingUrl(fileUrl);
+    try {
+      const fileName = customName || fileUrl.split('/').pop() || 'document.pdf';
+      const cleanFileName = decodeURIComponent(fileName);
+
+      // Attempt blob download to ensure true browser file download
+      const response = await fetch(fileUrl);
+      if (!response.ok) throw new Error('File download network error');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = cleanFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      addToast(`Downloaded ${cleanFileName}`, 'success');
+    } catch (err) {
+      console.warn('Direct blob download failed, falling back to window anchor:', err);
+      // Fallback: direct browser anchor trigger with download attribute
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.download = customName || fileUrl.split('/').pop() || 'document.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setDownloadingUrl(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -94,6 +182,9 @@ export const StudentHomework: React.FC = () => {
   if (selected) {
     const sub = selected.mySubmission;
     const canSubmit = selected.status === 'Published' && sub?.status !== 'Graded';
+    const teacherFiles = getFileList(selected.files);
+    const subFiles = getFileList(sub?.files);
+
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fade-in pb-12">
         <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
@@ -122,17 +213,75 @@ export const StudentHomework: React.FC = () => {
                 <div className="flex justify-between"><dt className="text-slate-500">Max Marks</dt><dd className="font-medium">{selected.maxMarks ?? '—'}</dd></div>
               </dl>
               {selected.description && (
-                <p className="mt-4 text-sm text-slate-600 leading-relaxed whitespace-pre-line">{selected.description}</p>
+                <p className="mt-4 text-sm text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  {selected.description}
+                </p>
               )}
-              {selected.files.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-bold text-slate-700 mb-2">Attachments</p>
-                  <div className="space-y-2">
-                    {selected.files.map((f, i) => (
-                      <a key={i} href={f} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
-                        <Paperclip size={14} /> {f.split('/').pop()}
-                      </a>
-                    ))}
+
+              {/* Teacher Attachments / Question Paper PDF */}
+              {teacherFiles.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <FileText size={14} className="text-blue-600" />
+                      Teacher Attachments ({teacherFiles.length})
+                    </h4>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {teacherFiles.map((f, i) => {
+                      const isPdf = isPdfFile(f);
+                      const name = getFileDisplayName(f);
+                      const isDownloading = downloadingUrl === f;
+
+                      return (
+                        <div
+                          key={i}
+                          className="p-3 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/90 rounded-xl transition-all space-y-2.5"
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                              isPdf ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'
+                            }`}>
+                              <FileText size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-slate-800 truncate" title={name}>
+                                {name}
+                              </p>
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                                {getFileTypeLabel(f)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(f, name)}
+                              disabled={isDownloading}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                              title="Download to your device"
+                            >
+                              {isDownloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                              <span>{isPdf ? 'Download PDF' : 'Download File'}</span>
+                            </button>
+                            {isViewableInline(f) && (
+                              <a
+                                href={f}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center justify-center gap-1 h-8 px-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                                title="Open in new tab"
+                              >
+                                <Eye size={13} />
+                                <span>View</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -143,7 +292,7 @@ export const StudentHomework: React.FC = () => {
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <CheckCircle2 size={15} className="text-green-600" /> My Submission
                 </h3>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Status</span>
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(sub.status)}`}>{sub.status}</span>
@@ -152,16 +301,41 @@ export const StudentHomework: React.FC = () => {
                     <div className="flex justify-between"><span className="text-slate-500">Marks</span><span className="font-semibold text-slate-900">{sub.marksObtained ?? '—'} {selected.maxMarks ? `/ ${selected.maxMarks}` : ''}</span></div>
                   )}
                   {sub.feedback && (
-                    <p className="text-slate-600 bg-white rounded-lg p-2 border border-slate-100 whitespace-pre-line">" {sub.feedback}"</p>
+                    <p className="text-slate-600 bg-white rounded-lg p-2.5 border border-slate-100 whitespace-pre-line text-xs">"{sub.feedback}"</p>
                   )}
                   <div className="flex justify-between"><span className="text-slate-500">Submitted</span><span className="font-medium">{sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '—'}</span></div>
                   {sub.isLate && <p className="text-xs text-amber-600 font-semibold">Submitted after the due date</p>}
+
+                  {/* Student Submitted Files */}
+                  {subFiles.length > 0 && (
+                    <div className="pt-2.5 border-t border-slate-200/60">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Submitted Files</span>
+                      <div className="space-y-1.5">
+                        {subFiles.map((sf, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5 border border-slate-200 text-xs">
+                            <span className="truncate text-slate-700 flex items-center gap-1.5 font-medium">
+                              <Paperclip size={12} className="text-slate-400" />
+                              {getFileDisplayName(sf)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(sf, getFileDisplayName(sf))}
+                              className="text-blue-600 hover:text-blue-800 p-1 cursor-pointer"
+                              title="Download submitted file"
+                            >
+                              <Download size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             )}
           </div>
 
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-4">
             {canSubmit ? (
               <Card className="p-6">
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
@@ -288,6 +462,27 @@ export const StudentHomework: React.FC = () => {
                     <span className="font-semibold text-green-700">{h.mySubmission.marksObtained}{h.maxMarks ? ` / ${h.maxMarks}` : ''}</span>
                   )}
                 </div>
+
+                {/* Teacher attachment badge & quick download */}
+                {h.files && getFileList(h.files).length > 0 && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                      <FileText size={11} /> {getFileList(h.files).some(isPdfFile) ? 'PDF Attached' : 'File Attached'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const list = getFileList(h.files);
+                        handleDownload(list[0], getFileDisplayName(list[0]));
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      <Download size={12} /> {getFileList(h.files).some(isPdfFile) ? 'Download PDF' : 'Download'}
+                    </button>
+                  </div>
+                )}
+
                 <Button
                   className="w-full mt-4 bg-blue-600 text-white cursor-pointer"
                   onClick={() => openDetail(h)}
