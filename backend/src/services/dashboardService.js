@@ -40,7 +40,7 @@ const generateDateSeries = (fromDateStr, toDateStr) => {
         const d = String(cur.getDate()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
         const weekday = weekdays[cur.getDay()];
-        
+
         const label = dayDiff <= 7 ? weekday : `${cur.getDate()} ${cur.toLocaleString('en-IN', { month: 'short' })}`;
 
         dates.push({
@@ -69,6 +69,13 @@ const mockExpenseBreakdown = (totalExpenses) => {
     }));
 };
 
+const safeDbQuery = (sql, params = [], fallback = []) => {
+    return db.query(sql, params).catch(err => {
+        console.warn("[dashboardService] Query error caught & handled:", err.message);
+        return [fallback, []];
+    });
+};
+
 /**
  * Generic unified dashboard service
  * Serves both Institute Admin (branchId = null or selected) and Branch Admin (branchId = fixed).
@@ -94,9 +101,9 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
         [batchesRows]
     ] = await Promise.all([
         (isBranchAdmin && branchId)
-            ? db.query(`SELECT id, name, code FROM branches WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId, branchId])
-            : db.query(`SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId]),
-        db.query(
+            ? safeDbQuery(`SELECT id, name, code FROM branches WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId, branchId])
+            : safeDbQuery(`SELECT id, name, code FROM branches WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY name ASC`, [tenantId]),
+        safeDbQuery(
             `SELECT MIN(id) AS id, name, status
              FROM academic_years 
              WHERE tenant_id = ? AND deleted_at IS NULL 
@@ -104,12 +111,12 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
              ORDER BY MIN(start_date) DESC`,
             [tenantId]
         ),
-        db.query(`SELECT id, name, code FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`, [tenantId]),
-        db.query(`SELECT id, name, code, course_id FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`, [tenantId]),
-        db.query(`SELECT id, name, code, program_id FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`, [tenantId]),
+        safeDbQuery(`SELECT id, name, code FROM courses WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`, [tenantId]),
+        safeDbQuery(`SELECT id, name, code, course_id FROM programs WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`, [tenantId]),
+        safeDbQuery(`SELECT id, name, code, program_id FROM levels WHERE tenant_id = ? AND deleted_at IS NULL AND is_active = 1 ORDER BY name ASC`, [tenantId]),
         branchId
-            ? db.query(`SELECT id, name, code, level_id, branch_id, academic_year_id FROM batches WHERE tenant_id = ? AND branch_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`, [tenantId, branchId])
-            : db.query(`SELECT id, name, code, level_id, branch_id, academic_year_id FROM batches WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`, [tenantId])
+            ? safeDbQuery(`SELECT id, name, code, level_id, branch_id, academic_year_id FROM batches WHERE tenant_id = ? AND branch_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`, [tenantId, branchId])
+            : safeDbQuery(`SELECT id, name, code, level_id, branch_id, academic_year_id FROM batches WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' ORDER BY name ASC`, [tenantId])
     ]);
 
     // ── Academic filter SQL fragments ──────────────────────────────────
@@ -176,7 +183,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
         [pendingAssignmentsRows],
     ] = await Promise.all([
         // 1. Active students
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt FROM students s
              WHERE s.tenant_id = ? AND s.deleted_at IS NULL
                AND (s.status = 1 OR CAST(s.status AS CHAR) = 'active')
@@ -186,7 +193,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 2. Active staff
-        db.query(
+        safeDbQuery(
             `SELECT
                COUNT(*) AS total,
                SUM(CASE WHEN LOWER(sp.employee_type) LIKE '%teach%' THEN 1 ELSE 0 END) AS teaching,
@@ -198,7 +205,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 3. Real Admissions in selected period
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt FROM students s
              WHERE s.tenant_id = ? AND s.deleted_at IS NULL
                AND DATE(s.created_at) BETWEEN ? AND ?
@@ -208,7 +215,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 3b. Real Admissions in previous equivalent period
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt FROM students s
              WHERE s.tenant_id = ? AND s.deleted_at IS NULL
                AND DATE(s.created_at) BETWEEN ? AND ?
@@ -218,7 +225,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, isoDate(prevFrom), isoDate(prevTo)]
         ),
         // 3c. Real Admissions intake trend dynamically filtered by selected date range
-        db.query(
+        safeDbQuery(
             `SELECT
                DATE_FORMAT(s.created_at, '%b') AS label,
                MONTH(s.created_at) AS mo,
@@ -234,7 +241,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 4. Fee collection in period
-        db.query(
+        safeDbQuery(
             `SELECT COALESCE(SUM(si.paid_amount), 0) AS amount
              FROM student_invoices si
              JOIN students s ON s.id = si.student_id
@@ -247,7 +254,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 4b. Previous equivalent period fee collection
-        db.query(
+        safeDbQuery(
             `SELECT COALESCE(SUM(si.paid_amount), 0) AS amount
              FROM student_invoices si
              JOIN students s ON s.id = si.student_id
@@ -260,7 +267,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, isoDate(prevFrom), isoDate(prevTo)]
         ),
         // 5. Pending & overdue fees (Two-Table Model)
-        db.query(
+        safeDbQuery(
             `SELECT
                sfa.id,
                sfa.gross_amount,
@@ -284,7 +291,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 6. Student attendance today
-        db.query(
+        safeDbQuery(
             `SELECT
                COUNT(DISTINCT ar.student_id) AS present,
                SUM(CASE WHEN ar.status = 0 THEN 1 ELSE 0 END) AS absent,
@@ -297,7 +304,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 7. Student attendance trend
-        db.query(
+        safeDbQuery(
             `SELECT
                DATE_FORMAT(l.lecture_date, '%Y-%m-%d') AS period,
                COUNT(DISTINCT CASE WHEN ar.status IN (1, 2) THEN ar.student_id END) AS attended,
@@ -314,7 +321,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 8. Staff attendance today
-        db.query(
+        safeDbQuery(
             `SELECT
                COUNT(CASE WHEN sa.status = 1 THEN 1 END) AS present,
                COUNT(CASE WHEN sa.status = 0 THEN 1 END) AS absent,
@@ -325,7 +332,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 9. Staff attendance trend
-        db.query(
+        safeDbQuery(
             `SELECT
                DATE_FORMAT(sa.date, '%Y-%m-%d') AS period,
                COUNT(CASE WHEN sa.status = 1 THEN 1 END) AS present,
@@ -339,7 +346,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 10. Students by branch
-        db.query(
+        safeDbQuery(
             `SELECT b.id AS branch_id, b.name AS branch_name,
                COUNT(s.id) AS student_count
              FROM branches b
@@ -353,7 +360,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 11. Fee collection trend
-        db.query(
+        safeDbQuery(
             `SELECT
                DATE_FORMAT(COALESCE(si.payment_date, si.created_at),
                  ${granularity === 'day' ? "'%Y-%m-%d'" : granularity === 'week' ? "'%x-W%v'" : "'%Y-%m'"}) AS period,
@@ -371,7 +378,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 12. Fee status
-        db.query(
+        safeDbQuery(
             `SELECT
                CASE
                  WHEN sfa.status = 'paid' OR sfa.balance_amount = 0 THEN 'paid'
@@ -393,7 +400,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 13. Branch collection
-        db.query(
+        safeDbQuery(
             `SELECT b.id AS branch_id, b.name AS branch_name,
                COALESCE(SUM(si.paid_amount), 0) AS amount
              FROM branches b
@@ -410,7 +417,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to, tenantId]
         ),
         // 14. Branch performance (with real admissions per branch in period)
-        db.query(
+        safeDbQuery(
             `SELECT
                b.id AS branch_id, b.name AS branch_name,
                COUNT(DISTINCT s.id) AS students,
@@ -434,7 +441,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [from, to, from, to, tenantId]
         ),
         // 15. Other income in period
-        db.query(
+        safeDbQuery(
             `SELECT COALESCE(SUM(boi.amount), 0) AS amount
              FROM branch_other_income boi
              WHERE boi.tenant_id = ? AND boi.deleted_at IS NULL
@@ -443,7 +450,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 16. Staff salary total
-        db.query(
+        safeDbQuery(
             `SELECT COALESCE(SUM(sp.salary_amount), 0) AS total_monthly_salary
              FROM staff_profiles sp
              WHERE sp.tenant_id = ? AND sp.deleted_at IS NULL
@@ -452,7 +459,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 17. Operational other expenses by category
-        db.query(
+        safeDbQuery(
             `SELECT boe.category, COALESCE(SUM(boe.amount), 0) AS amount
              FROM branch_other_expenses boe
              WHERE boe.tenant_id = ? AND boe.deleted_at IS NULL
@@ -464,7 +471,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId, from, to]
         ),
         // 18. Fee dues count
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt
              FROM student_fee_assignments sfa
              JOIN student_enrollments se ON se.id = sfa.enrollment_id
@@ -474,7 +481,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 19. Attendance pending
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt
              FROM lectures l
              WHERE l.tenant_id = ? AND l.deleted_at IS NULL
@@ -486,21 +493,21 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 20. Open doubts
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt FROM student_doubts sd
              WHERE sd.tenant_id = ? AND sd.status = 'open' AND sd.deleted_at IS NULL
                ${branchId ? `AND sd.branch_id = ${Number(branchId)}` : ''}`,
             [tenantId]
         ),
         // 21. Teacher tasks pending
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt FROM homeworks h
              WHERE h.tenant_id = ? AND h.status = 'draft' AND h.deleted_at IS NULL
                ${branchId ? `AND h.branch_id = ${Number(branchId)}` : ''}`,
             [tenantId]
         ),
         // 22. Upcoming exams
-        db.query(
+        safeDbQuery(
             `SELECT e.id,
                     e.name AS title,
                     e.subject_id,
@@ -528,7 +535,7 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             [tenantId]
         ),
         // 23. Pending assignments
-        db.query(
+        safeDbQuery(
             `SELECT COUNT(*) AS cnt FROM homeworks h
              WHERE h.tenant_id = ? AND h.assignment_type IN ('homework', 'assignment')
                AND h.status = 'published'

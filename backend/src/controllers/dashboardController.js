@@ -58,7 +58,7 @@ const getInstituteDashboard = async (req, res) => {
         res.status(200).json({ status: 'success', data });
     } catch (error) {
         console.error('Error fetching institute dashboard:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to load institute dashboard data' });
+        res.status(500).json({ status: 'error', message: 'Failed to load institute dashboard data', error: error.message || String(error) });
     }
 };
 
@@ -96,7 +96,7 @@ const getBranchDashboard = async (req, res) => {
         res.status(200).json({ status: 'success', data });
     } catch (error) {
         console.error('Error fetching branch dashboard:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to load branch dashboard data' });
+        res.status(500).json({ status: 'error', message: 'Failed to load branch dashboard data', error: error.message || String(error) });
     }
 };
 
