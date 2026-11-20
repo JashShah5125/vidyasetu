@@ -129,8 +129,8 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
       const payload = res?.data ?? res;
       if (payload && (payload.branches || (payload as any).branch)) {
         setAcademicData(payload);
-        // Auto-select branch if branch admin or only 1 branch exists
-        if (isBranchAdmin || (payload.branches && payload.branches.length === 1)) {
+        // Auto-select branch if branch admin or only 1 branch exists (create mode only to preserve edited branch)
+        if ((isBranchAdmin || (payload.branches && payload.branches.length === 1)) && mode !== 'edit') {
           const autoBranchId = (payload as any).branch?.id || payload.branches?.[0]?.id;
           if (autoBranchId) {
             setFormData(prev => ({
@@ -155,6 +155,22 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
     // Always reload fresh data to ensure programs are current
     loadOptions();
   }, []);
+
+  // Resolve course, program, and level from the batch if not initialized
+  useEffect(() => {
+    if (academicData && formData.batch_id && (!selectedLevelId || !selectedCourseId)) {
+      const batch = (academicData.batches || []).find(b => Number(b.id) === Number(formData.batch_id));
+      if (batch) {
+        const lvlId = Number(batch.level_id);
+        if (!selectedLevelId) setSelectedLevelId(lvlId);
+        const level = (academicData.levels || []).find(l => Number(l.id) === lvlId);
+        if (level) {
+          if (!selectedCourseId && level.course_id) setSelectedCourseId(Number(level.course_id));
+          if (!selectedProgramId && level.program_id) setSelectedProgramId(Number(level.program_id));
+        }
+      }
+    }
+  }, [academicData, formData.batch_id, selectedLevelId, selectedCourseId]);
 
   // ─── Cascading Filters ────────────────────────────────────────────────────
 
@@ -186,11 +202,14 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
     );
   }, [academicData?.batches, formData.primary_branch_id, selectedLevelId]);
 
-  /** Bundles filtered by selected level (all bundles for that level) */
+  /** Bundles filtered by selected level (and branch-compatible) */
   const filteredBundles = useMemo(() => {
     if (!academicData?.bundles || !selectedLevelId) return [];
-    return academicData.bundles.filter(b => Number(b.level_id) === Number(selectedLevelId));
-  }, [academicData?.bundles, selectedLevelId]);
+    return academicData.bundles.filter(b =>
+      Number(b.level_id) === Number(selectedLevelId) &&
+      (!b.branch_id || Number(b.branch_id) === Number(formData.primary_branch_id))
+    );
+  }, [academicData?.bundles, selectedLevelId, formData.primary_branch_id]);
 
   /** Map of subject ID to subject object for lookup */
   const subjectMap = useMemo(() => {
@@ -264,7 +283,72 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }));
 
   const handleBranchChange = (val: string) => {
-    setFormData(prev => ({ ...prev, primary_branch_id: val ? Number(val) : 0, batch_id: 0 }));
+    const newBranchId = val ? Number(val) : 0;
+    if (!newBranchId) {
+      setFormData(prev => ({ ...prev, primary_branch_id: 0, batch_id: 0 }));
+      return;
+    }
+
+    // 1. Check if batches exist in the newly selected branch for the current level
+    const batchesInNewBranchForCurrentLevel = (academicData?.batches || []).filter(
+      b => Number(b.branch_id) === newBranchId && Number(b.level_id) === Number(selectedLevelId)
+    );
+
+    let nextBatchId = 0;
+    let nextLevelId = selectedLevelId;
+    let nextCourseId = selectedCourseId;
+    let nextProgramId = selectedProgramId;
+
+    if (batchesInNewBranchForCurrentLevel.length > 0) {
+      // Keep current course/program/level, automatically choose the first available batch in the new branch
+      nextBatchId = batchesInNewBranchForCurrentLevel[0].id;
+    } else {
+      // If current level does not exist in the new branch, auto-align with first available batch in that branch
+      const allBatchesInNewBranch = (academicData?.batches || []).filter(
+        b => Number(b.branch_id) === newBranchId
+      );
+      if (allBatchesInNewBranch.length > 0) {
+        const firstBatch = allBatchesInNewBranch[0];
+        nextBatchId = firstBatch.id;
+        nextLevelId = firstBatch.level_id;
+
+        const matchedLevel = (academicData?.levels || []).find(l => Number(l.id) === Number(firstBatch.level_id));
+        if (matchedLevel) {
+          if (matchedLevel.program_id) {
+            nextProgramId = matchedLevel.program_id;
+            const matchedProg = (academicData?.programs || []).find(p => Number(p.id) === Number(matchedLevel.program_id));
+            if (matchedProg) nextCourseId = matchedProg.course_id;
+          } else if (matchedLevel.course_id) {
+            nextCourseId = matchedLevel.course_id;
+            nextProgramId = '';
+          }
+        }
+      } else {
+        nextBatchId = 0;
+      }
+    }
+
+    if (nextCourseId !== selectedCourseId) setSelectedCourseId(nextCourseId);
+    if (nextProgramId !== selectedProgramId) setSelectedProgramId(nextProgramId);
+    if (nextLevelId !== selectedLevelId) setSelectedLevelId(nextLevelId);
+
+    // 2. Select compatible bundle for the new branch & level
+    const compatibleBundles = (academicData?.bundles || []).filter(
+      b => (!nextLevelId || Number(b.level_id) === Number(nextLevelId)) &&
+           (!b.branch_id || Number(b.branch_id) === newBranchId)
+    );
+    const existingBundleStillValid = compatibleBundles.some(b => Number(b.id) === Number(formData.bundle_id));
+    const nextBundle = existingBundleStillValid
+      ? compatibleBundles.find(b => Number(b.id) === Number(formData.bundle_id))
+      : (compatibleBundles.length > 0 ? compatibleBundles[0] : null);
+
+    setFormData(prev => ({
+      ...prev,
+      primary_branch_id: newBranchId,
+      batch_id: nextBatchId,
+      bundle_id: nextBundle ? nextBundle.id : prev.bundle_id,
+      gross_amount: nextBundle?.fee_amount && Number(nextBundle.fee_amount) > 0 ? Number(nextBundle.fee_amount) : prev.gross_amount
+    }));
   };
 
   const handleCourseChange = (val: string) => {
@@ -618,7 +702,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
             )}
 
             {/* Error State */}
-            {!loadingOptions && optionsError && (
+            {!loadingOptions && optionsError && !academicData && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle size={16} className="shrink-0 text-red-600" />
@@ -645,7 +729,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
                       <Select
                         label="① Institute Branch *"
                         value={formData.primary_branch_id ? String(formData.primary_branch_id) : ''}
-                        disabled={isBranchAdmin || mode === 'edit'}
+                        disabled={isBranchAdmin}
                         onChange={e => handleBranchChange(e.target.value)}
                         options={
                           isBranchAdmin
@@ -662,7 +746,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
                         }
                       />
                       <p className="text-[10px] text-slate-400">
-                        {isBranchAdmin ? 'Assigned branch from authorized access' : (mode === 'edit' ? 'Branch cannot be modified in edit mode' : 'Select the institute branch')}
+                        {isBranchAdmin ? 'Assigned branch from authorized access' : (mode === 'edit' ? 'Change branch to transfer student to another branch' : 'Select the institute branch')}
                       </p>
                     </div>
 
@@ -1008,17 +1092,7 @@ export const AddStudentForm: React.FC<AddStudentFormProps> = ({
                   </div>
                 </Card>
 
-                {/* Debug panel (only in development) */}
-                {import.meta.env.MODE === 'development' && (
-                  <details className="text-[10px] font-mono text-slate-500 border border-dashed border-slate-200 rounded-lg p-3">
-                    <summary className="cursor-pointer font-bold text-slate-400">Debug Info (dev only)</summary>
-                    <div className="mt-2 space-y-0.5">
-                      <div>Data loaded: courses={academicData.courses?.length}, programs={academicData.programs?.length}, levels={academicData.levels?.length}, batches={academicData.batches?.length}</div>
-                      <div>Selected: branch={formData.primary_branch_id || '—'} | year={formData.academic_year_id || '—'} | course={selectedCourseId || '—'} | program={selectedProgramId || '—'} | level={selectedLevelId || '—'} | batch={formData.batch_id || '—'}</div>
-                      <div>Filtered: programs={filteredPrograms.length} [{filteredPrograms.map(p=>p.name).join(', ')}] | levels={filteredLevels.length} | batches={filteredBatches.length}</div>
-                    </div>
-                  </details>
-                )}
+
               </>
             )}
 

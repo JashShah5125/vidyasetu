@@ -495,7 +495,7 @@ const examModel = {
                 JOIN student_enrollments se ON se.batch_id = eba.batch_id AND se.tenant_id = eba.tenant_id
                 WHERE eba.tenant_id = ?
                   AND se.deleted_at IS NULL
-                  AND se.status IN ('active', 'completed', 'enrolled')
+                  AND (LOWER(COALESCE(se.status, 'active')) IN ('active', 'completed', 'enrolled'))
                 GROUP BY eba.exam_id
             ) se_stats ON se_stats.exam_id = e.id
             ${whereClause}
@@ -870,9 +870,22 @@ const examModel = {
         const exam = await this.getExamById(tenantId, examId, accessContext);
         if (!exam) return null;
 
-        const batchIds = Array.isArray(exam.batch_ids) && exam.batch_ids.length > 0
-            ? exam.batch_ids
-            : (exam.batch_id ? [exam.batch_id] : []);
+        let batchIds = Array.isArray(exam.batch_ids) && exam.batch_ids.length > 0
+            ? exam.batch_ids.map(Number).filter(Boolean)
+            : (exam.batch_id ? [Number(exam.batch_id)] : []);
+
+        if (batchIds.length === 0 && exam.batch) {
+            const batchNames = String(exam.batch).split(',').map(s => s.trim()).filter(Boolean);
+            if (batchNames.length > 0) {
+                const [bRows] = await db.query(
+                    `SELECT id FROM batches WHERE tenant_id = ? AND name IN (?) AND deleted_at IS NULL`,
+                    [tenantId, batchNames]
+                );
+                if (bRows.length) {
+                    batchIds = bRows.map(r => r.id);
+                }
+            }
+        }
 
         if (batchIds.length === 0) {
             return { exam, roster: [] };
@@ -923,7 +936,7 @@ const examModel = {
             WHERE se.tenant_id = ?
               AND se.batch_id IN (?)
               AND se.deleted_at IS NULL
-              AND se.status IN ('active', 'completed', 'enrolled')
+              AND (LOWER(COALESCE(se.status, 'active')) IN ('active', 'completed', 'enrolled'))
             ORDER BY st.full_name ASC
         `;
 
@@ -949,8 +962,10 @@ const examModel = {
                 enrollmentId: s.enrollment_id,
                 studentCode: s.student_code,
                 studentName: s.student_name,
+                name: s.student_name,
                 studentEmail: s.student_email,
                 studentMobile: s.student_mobile,
+                mobile: s.student_mobile,
                 rollNo: s.student_code || `ST-${s.student_id}`,
                 batchId: s.batch_id,
                 batchName: s.batch_name,
@@ -971,7 +986,22 @@ const examModel = {
     /**
      * Save or bulk-update student marks for an exam.
      */
-    async saveExamMarks(tenantId, examId, marksPayload, userId, publish = false) {
+    async saveExamMarks(tenantId, examId, marksPayload, userIdOrOptions, publishOrUserId = false) {
+        let userId = 1;
+        let publish = false;
+        let changeReason = 'Score update';
+
+        if (typeof userIdOrOptions === 'object' && userIdOrOptions !== null) {
+            publish = Boolean(userIdOrOptions.publish);
+            changeReason = userIdOrOptions.changeReason || 'Score update';
+            userId = typeof publishOrUserId === 'number' || typeof publishOrUserId === 'string'
+                ? Number(publishOrUserId)
+                : (userIdOrOptions.userId ? Number(userIdOrOptions.userId) : 1);
+        } else {
+            userId = Number(userIdOrOptions) || 1;
+            publish = Boolean(publishOrUserId);
+        }
+
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();

@@ -501,22 +501,30 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
         ),
         // 22. Upcoming exams
         db.query(
-            `SELECT h.id, h.title, h.assignment_type, h.subject_id,
+            `SELECT e.id,
+                    e.name AS title,
+                    e.subject_id,
                     COALESCE(s.name, 'General') AS subject_name,
                     COALESCE(s.code, '') AS subject_code,
                     COALESCE(br.name, 'All Branches') AS branch_name,
-                    h.due_date,
-                    COALESCE(h.max_marks, 0) AS max_marks,
-                    h.status
-             FROM homeworks h
-             LEFT JOIN subjects s ON s.id = h.subject_id
-             LEFT JOIN branches br ON br.id = h.branch_id
-             WHERE h.tenant_id = ?
-               AND h.assignment_type = 'exam'
-               AND h.deleted_at IS NULL
-               ${branchId ? `AND h.branch_id = ${Number(branchId)}` : ''}
-             ORDER BY h.due_date ASC
-             LIMIT 3`,
+                    e.exam_date AS due_date,
+                    COALESCE(e.total_marks, 0) AS max_marks,
+                    e.status
+             FROM exams e
+             LEFT JOIN subjects s ON s.id = e.subject_id AND s.deleted_at IS NULL
+             LEFT JOIN branches br ON br.id = e.branch_id AND br.deleted_at IS NULL
+             WHERE e.tenant_id = ?
+               AND e.deleted_at IS NULL
+               ${branchId ? `AND (e.branch_id = ${Number(branchId)} OR EXISTS (SELECT 1 FROM exam_batch_assignments eba JOIN batches b ON b.id = eba.batch_id WHERE eba.exam_id = e.id AND b.branch_id = ${Number(branchId)}))` : ''}
+               ${academicYearId ? `AND (e.academic_year_id = ${academicYearId} OR EXISTS (SELECT 1 FROM exam_batch_assignments eba JOIN batches b ON b.id = eba.batch_id WHERE eba.exam_id = e.id AND b.academic_year_id = ${academicYearId}))` : ''}
+               ${courseId ? `AND (e.course_id = ${courseId} OR EXISTS (SELECT 1 FROM exam_batch_assignments eba JOIN batches b ON b.id = eba.batch_id WHERE eba.exam_id = e.id AND (b.course_id = ${courseId} OR b.level_id IN (SELECT lvl.id FROM levels lvl JOIN programs pr ON pr.id = lvl.program_id WHERE pr.course_id = ${courseId}))))` : ''}
+               ${batchId ? `AND EXISTS (SELECT 1 FROM exam_batch_assignments eba WHERE eba.exam_id = e.id AND eba.batch_id = ${batchId})` : ''}
+             ORDER BY 
+               CASE WHEN e.exam_date >= CURDATE() THEN 0 ELSE 1 END ASC,
+               CASE WHEN e.exam_date >= CURDATE() THEN e.exam_date END ASC,
+               e.exam_date DESC,
+               e.id DESC
+             LIMIT 5`,
             [tenantId]
         ),
         // 23. Pending assignments
@@ -856,16 +864,29 @@ const getDashboard = async ({ tenantId, branchId = null, filters = {}, isBranchA
             upcomingExams: (upcomingExamsRows || []).length,
             pendingAssignments: Number(pendingAssignmentsRows[0]?.cnt) || 0
         },
-        upcomingExams: (upcomingExamsRows || []).map(r => ({
-            id: r.id,
-            title: r.title,
-            subjectName: r.subject_name,
-            subjectCode: r.subject_code,
-            branchName: r.branch_name,
-            dueDate: r.due_date,
-            maxMarks: Number(r.max_marks) || 0,
-            status: (r.status === 1 || r.status === '1' || String(r.status).toLowerCase() === 'published') ? 'Published' : (r.status === 2 || r.status === '2' || String(r.status).toLowerCase() === 'closed') ? 'Closed' : 'Draft'
-        }))
+        upcomingExams: (upcomingExamsRows || []).map(r => {
+            const rawStatus = String(r.status || '').trim();
+            const lower = rawStatus.toLowerCase();
+            const isPublished = lower === 'published' || lower === 'marks published' || lower === '1' || lower === 'completed';
+            const statusLabel = isPublished
+                ? 'Published'
+                : (lower === 'marks pending' ? 'Marks Pending' : (lower === 'in progress' || lower === 'in_progress' ? 'In Progress' : (rawStatus || 'Scheduled')));
+
+            const dueDateStr = r.due_date instanceof Date
+                ? r.due_date.toISOString().slice(0, 10)
+                : (r.due_date ? String(r.due_date).slice(0, 10) : null);
+
+            return {
+                id: r.id,
+                title: r.title || 'Untitled Exam',
+                subjectName: r.subject_name || 'General',
+                subjectCode: r.subject_code || '',
+                branchName: r.branch_name || 'All Branches',
+                dueDate: dueDateStr,
+                maxMarks: Number(r.max_marks) || 0,
+                status: statusLabel
+            };
+        })
     };
 };
 

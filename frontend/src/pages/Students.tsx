@@ -393,6 +393,8 @@ export const Students: React.FC = () => {
         onSuccess={() => {
           setEditingStudentId(null);
           setEditingInitialData(null);
+          setSelectedStudentDetail(null);
+          setSelectedStudentId(null);
           fetchRoster();
         }}
         academicOptions={academicOptions}

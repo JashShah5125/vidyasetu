@@ -168,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Lecture Schedule', label: 'Lecture Timetable', path: '/admin/timetable', icon: Calendar },
               { name: 'Mark Attendance', label: 'Attendance Roster', path: '/admin/attendance', icon: CheckSquare },
               { name: 'Academic Calendar', label: 'Academic Calendar', path: '/admin/academic-calendar', icon: CalendarDays },
-              { name: 'Homework & Tasks', label: 'Homework & Tasks', path: '/admin/assignments', icon: BookOpen },
+              { name: 'Homework & Assignments', label: 'Homework & Assignments', path: '/admin/assignments', icon: BookOpen },
               { name: 'Examinations & Marks', label: 'Exams & Marks', path: '/admin/exams', icon: Award }
             ]
           },
@@ -179,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed, 
               { name: 'Fees Master', label: 'Fee Structures', path: '/admin/fees-master', icon: Tag },
               { name: 'Payment Reconciliation', label: 'Payment Reconciliation', path: '/admin/finance/reconciliation', icon: CheckCircle2 },
               { name: 'Staff Salaries', label: 'Expenses & Payroll', path: '/admin/finance/expenses/salaries', icon: CreditCard },
-              { name: 'Financial Reports', label: 'Financial Reports', path: '/reports', icon: BarChart3 }
+              { name: 'P&L Statement', label: 'P&L Statement', path: '/reports', icon: BarChart3 }
             ]
           },
           {

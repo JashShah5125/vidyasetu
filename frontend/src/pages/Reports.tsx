@@ -20,7 +20,6 @@ import {
   X,
   Check
 } from 'lucide-react';
-import { INITIAL_SUBJECTS_MAP } from '../data/mockData';
 import { useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { otherExpenseApi, type OtherExpenseRecord } from '../services/otherExpenseApi';
@@ -293,7 +292,7 @@ interface ReportsProps {
 }
 
 export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
-  const { branches, students, courses, batches, currentUser } = useApp();
+  const { branches, currentUser } = useApp();
   const location = useLocation();
   const [selectedTenant, setSelectedTenant] = useState('All');
   const [selectedBranch, setSelectedBranch] = useState(
@@ -302,8 +301,6 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
       : 'All'
   );
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month' | 'year'>('month');
-  const [activeStatsTab, setActiveStatsTab] = useState<'courses' | 'programs' | 'subjects'>('courses');
-  const [reportTab, setReportTab] = useState<'p&l' | 'academic'>(currentUser?.role === 'finance' ? 'p&l' : 'academic');
 
   // ── Opening & Closing Balance for Institute ──
   const balanceStorageKey = useMemo(() => {
@@ -571,80 +568,18 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
       ...branches.map(b => ({ value: b.name, label: b.name }))
     ];
 
-  // ----------------------------------------------------
-  // DYNAMIC ACADEMIC STATISTICS CALCULATIONS
-  // ----------------------------------------------------
-  const uniquePrograms = Array.from(new Set(batches.map(b => b.program).filter(Boolean))) as string[];
-
-  const courseStats = courses.map(c => {
-    const enrolledCount = students.filter(s => s.course === c.name).length;
-    const courseBatches = batches.filter(b => b.course === c.name).length;
-    return {
-      code: c.code,
-      name: c.name,
-      duration: c.duration,
-      batchesCount: courseBatches,
-      studentsCount: enrolledCount
-    };
-  });
-
-  const programStats = uniquePrograms.map(p => {
-    const programBatches = batches.filter(b => b.program === p);
-    const batchNames = programBatches.map(b => b.name);
-    const enrolledCount = students.filter(s => batchNames.includes(s.batch || '')).length;
-    return {
-      name: p,
-      batchesCount: programBatches.length,
-      studentsCount: enrolledCount
-    };
-  });
-
-  const getCourseNameByCode = (code: string) => {
-    if (code === '8TH-STD') return '8th Standard';
-    if (code === 'JEE-PREP') return 'JEE Prep Course';
-    if (code === 'NEET-PREM') return 'NEET Batch Premium';
-    if (code === 'FOUND-10') return 'Class 10 Foundation';
-    return code;
-  };
-
-  const subjectStats = Object.keys(INITIAL_SUBJECTS_MAP).flatMap(key => {
-    const parts = key.split('-');
-    const courseCodePart = parts[0] === '8TH' ? '8TH-STD' : parts[0] === 'JEE' ? 'JEE-PREP' : parts[0] === 'NEET' ? 'NEET-PREM' : 'FOUND-10';
-    const levelPart = parts[parts.length - 1];
-    const programPart = parts.slice(parts[0] === '8TH' ? 2 : 1, parts.length - 1).join('-');
-
-    const matchingBatches = batches.filter(b =>
-      b.course === getCourseNameByCode(courseCodePart) &&
-      b.program === programPart &&
-      b.level === levelPart
-    );
-    const batchNames = matchingBatches.map(b => b.name);
-    const enrolledCount = students.filter(s => batchNames.includes(s.batch || '')).length;
-
-    const subjectsList = INITIAL_SUBJECTS_MAP[key] || [];
-    return subjectsList.map(item => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      type: item.type,
-      course: getCourseNameByCode(courseCodePart),
-      program: programPart,
-      studentsCount: enrolledCount
-    }));
-  });
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-slate-900">
-            {mode === 'saas' ? 'Analytics & Reports Desk' : 'Institute Analytics & Reports'}
+            {mode === 'saas' ? 'Analytics & Reports Desk' : 'P&L Reports'}
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             {mode === 'saas'
               ? 'Review long-term coaching revenue charts, attendance averages, and admission flows.'
-              : 'Review revenue metrics, attendance statistics, and admissions across your institute\'s branches.'
+              : 'Review revenue metrics, expense outflows, and profit & loss statements across your institute\'s branches.'
             }
           </p>
         </div>
@@ -709,34 +644,6 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
           </button>
         </div>
       </div>
-
-      {/* Report Type Tabs */}
-      {mode !== 'saas' && (
-        <div className="flex border-b border-slate-200 gap-2">
-          <button
-            type="button"
-            onClick={() => setReportTab('p&l')}
-            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${reportTab === 'p&l'
-              ? 'border-blue-600 text-blue-600 bg-blue-50/20'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-              }`}
-          >
-            <TrendingUp size={16} />
-            <span>Profit &amp; Loss (P&amp;L) Statement</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setReportTab('academic')}
-            className={`flex items-center gap-2 py-3 px-5 border-b-2 font-bold text-sm transition-all cursor-pointer ${reportTab === 'academic'
-              ? 'border-blue-600 text-blue-600 bg-blue-50/20'
-              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-              }`}
-          >
-            <Award size={16} />
-            <span>Academic &amp; Student Operations</span>
-          </button>
-        </div>
-      )}
 
       {mode === 'saas' ? (
         <div className="space-y-6">
@@ -830,7 +737,7 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
             </div>
           </Card>
         </div>
-      ) : reportTab === 'p&l' ? (
+      ) : (
         <div className="space-y-6 animate-fade-in">
           {/* P&L Cards summary */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -1003,124 +910,12 @@ export const Reports: React.FC<ReportsProps> = ({ mode = 'institute' }) => {
                   <tr className="bg-emerald-50/70 border-t-2 border-emerald-300 font-bold">
                     <td className="px-6 py-4 text-base text-emerald-950 font-extrabold flex items-center gap-2 rounded-bl-xl">
                       <Wallet className="text-emerald-700" size={17} />
-                      <span>Closing Balance (Opening + Net Surplus)</span>
+                      <span>Closing Balance</span>
                     </td>
                     <td className="px-6 py-4 text-right font-mono text-lg font-extrabold text-emerald-800 rounded-br-xl">
                       ₹{closingBalance.toLocaleString('en-IN')}
                     </td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        /* Academic Operations & Roster Analysis View */
-        <div className="space-y-6 animate-fade-in">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Students</span>
-                <div className="text-3xl font-display font-extrabold text-blue-600 mt-1">{students.length}</div>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Enrolled across all courses</span>
-              </div>
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
-                <Users size={22} />
-              </div>
-            </Card>
-
-            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Courses</span>
-                <div className="text-3xl font-display font-extrabold text-indigo-600 mt-1">{courses.length}</div>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Academic curricula</span>
-              </div>
-              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
-                <Award size={22} />
-              </div>
-            </Card>
-
-            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Classroom Batches</span>
-                <div className="text-3xl font-display font-extrabold text-emerald-600 mt-1">{batches.length}</div>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Active class cohorts</span>
-              </div>
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
-                <TrendingUp size={22} />
-              </div>
-            </Card>
-
-            <Card className="p-5 border border-slate-200 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Avg Batch Size</span>
-                <div className="text-3xl font-display font-extrabold text-purple-600 mt-1">
-                  {batches.length > 0 ? Math.round(students.length / batches.length) : 0}
-                </div>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-1">Students / cohort</span>
-              </div>
-              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center border border-purple-100">
-                <Award size={22} />
-              </div>
-            </Card>
-          </div>
-
-          {/* Course & Program Stats Table */}
-          <Card className="border border-slate-200 shadow-sm overflow-hidden">
-            <CardHeader className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold text-slate-900">Course &amp; Batch Enrollment Roster</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">Enrollment strength and cohort allocation breakdown</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveStatsTab('courses')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeStatsTab === 'courses' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                >
-                  Courses
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveStatsTab('programs')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeStatsTab === 'programs' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                >
-                  Programs
-                </button>
-              </div>
-            </CardHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                    <th className="px-5 py-3">{activeStatsTab === 'courses' ? 'Course Title' : 'Program Name'}</th>
-                    <th className="px-5 py-3">Code / ID</th>
-                    <th className="px-5 py-3 text-center">Active Batches</th>
-                    <th className="px-5 py-3 text-center">Enrolled Students</th>
-                    <th className="px-5 py-3 text-right">Capacity Utilization</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {(activeStatsTab === 'courses' ? courseStats : programStats).map((item: any, idx) => {
-                    const capacity = (item.batchesCount || 1) * 40;
-                    const pct = Math.min(100, Math.round((item.studentsCount / capacity) * 100));
-                    return (
-                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-5 py-3 font-semibold text-slate-900">{item.name}</td>
-                        <td className="px-5 py-3 font-mono text-slate-500">{item.code || 'PRG-' + (idx + 1)}</td>
-                        <td className="px-5 py-3 text-center font-bold text-slate-800">{item.batchesCount}</td>
-                        <td className="px-5 py-3 text-center font-bold text-blue-700">{item.studentsCount}</td>
-                        <td className="px-5 py-3 text-right">
-                          <span className={`inline-flex px-2 py-0.5 rounded font-bold text-[10px] ${pct >= 80 ? 'bg-emerald-50 text-emerald-700' : pct >= 50 ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'
-                            }`}>
-                            {pct}% ({item.studentsCount}/{capacity})
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
                 </tbody>
               </table>
             </div>

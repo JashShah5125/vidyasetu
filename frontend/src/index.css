@@ -4,6 +4,10 @@
 
 @layer base {
 
+  html {
+    font-size: 17px;
+  }
+
   body,
   html {
     @apply bg-slate-50 text-slate-900 font-sans antialiased;
@@ -157,4 +161,33 @@ svg *:focus,
 svg *:focus-visible {
   outline: none !important;
   box-shadow: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOBAL LEGIBILITY FLOOR FOR MICRO-TEXT
+   Calibrated so small texts are comfortable to read while fitting in one line
+   ───────────────────────────────────────────────────────────────────────────── */
+.text-\[8px\] {
+  font-size: 10px !important;
+  line-height: 1rem !important;
+}
+
+.text-\[9px\] {
+  font-size: 11px !important;
+  line-height: 1.1rem !important;
+}
+
+.text-\[10px\] {
+  font-size: 11.5px !important;
+  line-height: 1.15rem !important;
+}
+
+.text-\[11px\] {
+  font-size: 12px !important;
+  line-height: 1.2rem !important;
+}
+
+.text-xs {
+  font-size: 0.765rem !important; /* exactly 13px at 17px root */
+  line-height: 1.25rem !important;
 }

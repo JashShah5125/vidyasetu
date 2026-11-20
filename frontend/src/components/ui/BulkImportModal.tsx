@@ -111,6 +111,11 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
 
         // Map row to headers
         const item: any = {};
+        csvHeaders.forEach((h, hIdx) => {
+          let val = rowValues[hIdx] || '';
+          val = val.replace(/^["']|["']$/g, '').trim();
+          item[h] = val;
+        });
         sampleHeaders.forEach((header) => {
           const idx = csvHeaders.indexOf(header.toLowerCase());
           if (idx !== -1) {
@@ -118,7 +123,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
             // Strip leading/trailing quotes
             val = val.replace(/^["']|["']$/g, '').trim();
             item[header] = val;
-          } else {
+          } else if (item[header] === undefined) {
             item[header] = '';
           }
         });

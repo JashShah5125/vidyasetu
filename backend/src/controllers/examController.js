@@ -164,8 +164,8 @@ const examController = {
                 tenantId,
                 req.params.id,
                 payload,
-                { publish: Boolean(publish), changeReason },
-                userId
+                Number(userId) || 1,
+                Boolean(publish)
             );
 
             res.status(200).json({

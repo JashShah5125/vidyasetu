@@ -5,9 +5,6 @@ import type { DashboardHeaderFilters, DatePreset } from './header/DashboardHeade
 import DashboardHeader from './header/DashboardHeader';
 import ExecutiveKpiRow from './kpis/ExecutiveKpiRow';
 import AttentionSection from './attention/AttentionSection';
-import StudentAttendanceChart from './attendance/StudentAttendanceChart';
-import StaffAttendanceChart from './attendance/StaffAttendanceChart';
-import AdmissionsTrendChart from './growth/AdmissionsTrendChart';
 import UpcomingExamsTable from './academic/UpcomingExamsTable';
 import IncomeExpenseChart from './finance/IncomeExpenseChart';
 import ExpenseBreakdownChart from './finance/ExpenseBreakdownChart';
@@ -172,20 +169,13 @@ const InstituteDashboard: React.FC = () => {
       {/* ── Section 2: Actionable Operations Alerts ─────────────────── */}
       <AttentionSection data={data?.attentionRequired} loading={loading} />
 
-      {/* ── Section 3: Attendance Turnout & Intake Trend ────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <StudentAttendanceChart data={data?.studentAttendance} loading={loading} />
-        <StaffAttendanceChart data={data?.staffAttendance} loading={loading} />
-        <AdmissionsTrendChart data={data?.admissionsTrend} loading={loading} />
-      </div>
-
-      {/* ── Section 4: Financial Inflows & Outflows ──────────────────── */}
+      {/* ── Section 3: Financial Inflows & Outflows ──────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <IncomeExpenseChart data={data?.financialOverview} loading={loading} />
         <ExpenseBreakdownChart data={data?.expenseBreakdown} loading={loading} />
       </div>
 
-      {/* ── Section 5: Upcoming Examinations (Top 3 Date-wise) ──────── */}
+      {/* ── Section 4: Upcoming Examinations (Top 3 Date-wise) ──────── */}
       <UpcomingExamsTable data={data?.upcomingExams} loading={loading} />
     </div>
   );

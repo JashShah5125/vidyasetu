@@ -1095,13 +1095,17 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
         }
 
         // 4. Dynamic Partial Update on `student_enrollments` table
+        const newBranchId = (accessContext?.scope !== 'BRANCH' && (updateData.primary_branch_id !== undefined || updateData.branch_id !== undefined))
+            ? Number(updateData.primary_branch_id || updateData.branch_id)
+            : null;
+
         const enrollmentFields = ['batch_id', 'bundle_id', 'subject_selection_type', 'custom_subject_ids', 'academic_year_id'];
-        const hasEnrollmentUpdates = enrollmentFields.some(f => updateData[f] !== undefined);
+        const hasEnrollmentUpdates = enrollmentFields.some(f => updateData[f] !== undefined) || newBranchId !== null;
 
         let effectiveEnrollmentId = null;
         if (hasEnrollmentUpdates) {
             const [existingEnrollments] = await connection.query(
-                `SELECT id, batch_id FROM student_enrollments WHERE student_id = ? AND tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
+                `SELECT id, batch_id, branch_id FROM student_enrollments WHERE student_id = ? AND tenant_id = ? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`,
                 [id, tenantId]
             );
 
@@ -1119,6 +1123,7 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
                 const eSets = [];
                 const eVals = [];
                 if (updateData.batch_id !== undefined) { eSets.push(`batch_id = ?`); eVals.push(updateData.batch_id); }
+                if (newBranchId !== null) { eSets.push(`branch_id = ?`); eVals.push(newBranchId); }
                 if (bundleId !== undefined) { eSets.push(`bundle_id = ?`); eVals.push(bundleId); }
                 if (selectionType !== undefined) { eSets.push(`subject_selection_type = ?`); eVals.push(selectionType); }
                 if (customSubjectIds !== undefined) { eSets.push(`custom_subject_ids = ?`); eVals.push(customSubjectIds); }
@@ -1136,7 +1141,7 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
                 }
             } else if (updateData.batch_id && updateData.academic_year_id) {
                 const [stBranch] = await connection.query(`SELECT primary_branch_id FROM students WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
-                const effectiveBranchId = (accessContext && accessContext.authorizedBranchId) || (stBranch[0]?.primary_branch_id) || 1;
+                const effectiveBranchId = newBranchId || (accessContext && accessContext.authorizedBranchId) || (stBranch[0]?.primary_branch_id) || 1;
                 const [enrollmentRes] = await connection.query(`
                     INSERT INTO student_enrollments (
                         tenant_id, branch_id, student_id, batch_id, bundle_id, subject_selection_type, custom_subject_ids, academic_year_id, enrolled_date, status, created_by, updated_by
@@ -1190,6 +1195,43 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
                     ]);
                 }
             }
+
+            // If branch was updated, synchronize all student-related branch records across tables
+            if (newBranchId !== null) {
+                // Synchronize all enrollments for this student
+                await connection.query(
+                    `UPDATE student_enrollments SET branch_id = ?, updated_by = ?, updated_at = NOW() WHERE student_id = ? AND tenant_id = ? AND deleted_at IS NULL`,
+                    [newBranchId, updatedBy, id, tenantId]
+                );
+
+                // Synchronize student fee contracts
+                await connection.query(
+                    `UPDATE student_fee_assignments SET branch_id = ?, updated_by = ?, updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+                    [newBranchId, updatedBy, id, tenantId]
+                );
+
+                // Synchronize student invoices
+                await connection.query(
+                    `UPDATE student_invoices SET branch_id = ?, updated_by = ?, updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+                    [newBranchId, updatedBy, id, tenantId]
+                );
+
+                // Synchronize admissions
+                await connection.query(
+                    `UPDATE admissions SET branch_id = ?, updated_by = ?, updated_at = NOW() WHERE student_id = ? AND tenant_id = ?`,
+                    [newBranchId, updatedBy, id, tenantId]
+                );
+
+                // Synchronize user_branch_access if user account exists
+                const [stUser] = await connection.query(`SELECT user_id FROM students WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
+                if (stUser.length > 0 && stUser[0].user_id) {
+                    const uId = stUser[0].user_id;
+                    const [ubaRows] = await connection.query(`SELECT id FROM user_branch_access WHERE user_id = ? AND tenant_id = ?`, [uId, tenantId]);
+                    if (ubaRows.length > 0) {
+                        await connection.query(`UPDATE user_branch_access SET branch_id = ?, is_primary = 1 WHERE user_id = ? AND tenant_id = ?`, [newBranchId, uId, tenantId]);
+                    }
+                }
+            }
         }
 
         // 5. Dynamic Partial Update on \`student_fee_assignments\` table
@@ -1222,20 +1264,22 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
                 const feeStatus = balanceAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid');
 
                 await connection.query(`
-                    UPDATE student_fee_assignments SET
-                        enrollment_id = COALESCE(?, enrollment_id),
-                        gross_amount = ?,
-                        total_concession = ?,
-                        net_amount = ?,
-                        down_payment = ?,
-                        installment_count = ?,
-                        installment_amount = ?,
-                        balance_amount = ?,
-                        status = ?,
-                        updated_by = ?,
-                        updated_at = NOW()
-                    WHERE id = ? AND tenant_id = ?
-                `, [
+                        UPDATE student_fee_assignments SET
+                            branch_id = COALESCE(?, branch_id),
+                            enrollment_id = COALESCE(?, enrollment_id),
+                            gross_amount = ?,
+                            total_concession = ?,
+                            net_amount = ?,
+                            down_payment = ?,
+                            installment_count = ?,
+                            installment_amount = ?,
+                            balance_amount = ?,
+                            status = ?,
+                            updated_by = ?,
+                            updated_at = NOW()
+                        WHERE id = ? AND tenant_id = ?
+                    `, [
+                    newBranchId,
                     effectiveEnrollmentId,
                     grossAmount,
                     discountAmount,
@@ -1261,15 +1305,15 @@ const updateStudent = async (tenantId, id, updateData, updatedBy = 1, accessCont
                 const balanceAmount = Math.max(0, netAmount - paidAmount);
                 const feeStatus = balanceAmount === 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid');
                 const [stBranch] = await connection.query(`SELECT primary_branch_id FROM students WHERE id = ? AND tenant_id = ?`, [id, tenantId]);
-                const effectiveBranchId = (accessContext && accessContext.authorizedBranchId) || (stBranch[0]?.primary_branch_id) || 1;
+                const effectiveBranchId = newBranchId || (accessContext && accessContext.authorizedBranchId) || (stBranch[0]?.primary_branch_id) || 1;
 
                 const [feeRes] = await connection.query(`
-                    INSERT INTO student_fee_assignments (
-                        tenant_id, branch_id, student_id, enrollment_id, gross_amount, total_concession, net_amount,
-                        down_payment, installment_count, installment_amount,
-                        paid_amount, balance_amount, status, created_by, updated_by
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [
+                        INSERT INTO student_fee_assignments (
+                            tenant_id, branch_id, student_id, enrollment_id, gross_amount, total_concession, net_amount,
+                            down_payment, installment_count, installment_amount,
+                            paid_amount, balance_amount, status, created_by, updated_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [
                     tenantId,
                     effectiveBranchId,
                     id,

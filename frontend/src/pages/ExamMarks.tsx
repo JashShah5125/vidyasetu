@@ -16,6 +16,7 @@ import {
   Clock,
   Award,
   Download,
+  Upload,
   Trash2,
   Send,
   RefreshCw,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import examApi from '../services/examApi';
 import type { ExamRecord, ExamRosterStudent, ExamType } from '../services/examApi';
+import { BulkImportModal } from '../components/ui/BulkImportModal';
 
 const EXAM_TYPES: ExamType[] = [
   'Daily Test',
@@ -40,7 +42,7 @@ const EXAM_TYPES: ExamType[] = [
 ];
 
 export const ExamMarks: React.FC = () => {
-  const { branches, courses, batches, currentUser } = useApp();
+  const { branches, courses, batches, students, currentUser } = useApp();
 
   // Active Tab: 'registry' (Test Catalog) or 'grade' (Scoring Sheet)
   const [activeTab, setActiveTab] = useState<'registry' | 'grade'>('registry');
@@ -77,6 +79,7 @@ export const ExamMarks: React.FC = () => {
   const [localAbsents, setLocalAbsents] = useState<{ [studentId: string]: boolean }>({});
   const [isSaved, setIsSaved] = useState(false);
   const [savingMarks, setSavingMarks] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
 
   // Schedule Test Modal State
   const [showAddExamModal, setShowAddExamModal] = useState(false);
@@ -123,6 +126,23 @@ export const ExamMarks: React.FC = () => {
   const uniqueLevels = useMemo(() => Array.from(new Set(batches.map(b => b.level).filter(Boolean))) as string[], [batches]);
   const uniqueYears = useMemo(() => Array.from(new Set(batches.map(b => b.academicYear).filter(Boolean))) as string[], [batches]);
 
+  // Flexible helper to test if an exam belongs to a batch
+  const doesExamMatchBatch = useCallback((exam: ExamRecord, batchName: string) => {
+    if (!batchName || batchName === 'All') return true;
+    const examBatch = (exam.batch || exam.batch_name || '').trim();
+    if (!examBatch) return false;
+    if (examBatch.toLowerCase() === batchName.toLowerCase()) return true;
+    const parts = examBatch.split(',').map(s => s.trim().toLowerCase());
+    if (parts.includes(batchName.toLowerCase())) return true;
+    const matchedBatchObj = batches.find(b => b.name === batchName);
+    if (matchedBatchObj?.id) {
+      const bidStr = String(matchedBatchObj.id);
+      if (String(exam.batch_id) === bidStr) return true;
+      if (Array.isArray(exam.batch_ids) && exam.batch_ids.map(String).includes(bidStr)) return true;
+    }
+    return false;
+  }, [batches]);
+
   // Filter batches by selected hierarchy
   const availableBatches = useMemo(() => {
     return batches.filter(b => {
@@ -136,35 +156,37 @@ export const ExamMarks: React.FC = () => {
     });
   }, [batches, selectedBranch, selectedCourse, selectedProgram, selectedLevel, selectedYear]);
 
-  // Synchronize batch when filters update
+  // Synchronize batch when hierarchy filters update, preserving 'All'
   useEffect(() => {
-    if (availableBatches.length > 0) {
+    if (selectedBatch && selectedBatch !== 'All') {
       const isBatchAvailable = availableBatches.some(b => b.name === selectedBatch);
       if (!isBatchAvailable) {
-        setSelectedBatch(availableBatches[0].name);
+        setSelectedBatch('All');
       }
-    } else {
-      setSelectedBatch('');
     }
   }, [availableBatches, selectedBatch]);
 
-  // Filter exams available for the selected batch
+  // Filter exams available for the selected batch & filters
   const availableExamsForBatch = useMemo(() => {
-    if (!selectedBatch) return [];
-    return examList.filter(e => e.batch === selectedBatch);
-  }, [examList, selectedBatch]);
+    return examList.filter(e => {
+      const matchBatch = selectedBatch === 'All' || doesExamMatchBatch(e, selectedBatch);
+      const examBranch = e.branch || e.branch_name;
+      const matchBranch = selectedBranch === 'All' || !examBranch || examBranch === selectedBranch;
+      const examCourse = e.course || e.course_name;
+      const matchCourse = selectedCourse === 'All' || !examCourse || examCourse === selectedCourse;
+      return matchBatch && matchBranch && matchCourse;
+    });
+  }, [examList, selectedBatch, selectedBranch, selectedCourse, doesExamMatchBatch]);
 
-  // Synchronize active exam when batch changes
+  // Synchronize active exam: only reset if the selected exam no longer exists in examList
   useEffect(() => {
-    if (availableExamsForBatch.length > 0) {
-      const isCurrentExamValid = availableExamsForBatch.some(e => String(e.id) === String(selectedExamId));
-      if (!isCurrentExamValid) {
-        setSelectedExamId(String(availableExamsForBatch[0].id));
+    if (selectedExamId) {
+      const exists = examList.some(e => String(e.id) === String(selectedExamId));
+      if (!exists) {
+        setSelectedExamId('');
       }
-    } else {
-      setSelectedExamId('');
     }
-  }, [availableExamsForBatch, selectedExamId]);
+  }, [selectedExamId, examList]);
 
   // Active selected exam object
   const activeExam = useMemo(() => {
@@ -187,11 +209,62 @@ export const ExamMarks: React.FC = () => {
         const res = await examApi.getExamRoster(selectedExamId);
         if (isCancelled) return;
 
-        setRosterStudents(res.roster || []);
+        const rawRoster = res?.roster || [];
+        let studentsList: ExamRosterStudent[] = rawRoster.map((r: any) => ({
+          studentId: String(r.studentId || r.student_id || r.id),
+          rawStudentId: r.studentId || r.student_id || r.id,
+          studentCode: r.studentCode || r.student_code || r.rollNo || String(r.studentId || ''),
+          name: r.name || r.studentName || r.student_name || r.full_name || '—',
+          mobile: r.mobile || r.studentMobile || r.student_mobile || '',
+          parentMobile: r.parentMobile || r.parent_mobile || '',
+          admissionDate: r.admissionDate || '',
+          branch: r.branch || r.branchName || r.branch_name || activeExam?.branch || '',
+          course: r.course || r.courseName || r.course_name || activeExam?.course || '',
+          batch: r.batch || r.batchName || r.batch_name || activeExam?.batch || '',
+          marksObtained: r.marksObtained !== undefined && r.marksObtained !== null ? Number(r.marksObtained) : null,
+          isAbsent: Boolean(r.isAbsent || r.is_absent),
+          isPassed: r.isPassed ?? null,
+          percentage: r.percentage !== undefined && r.percentage !== null ? Number(r.percentage) : null,
+          grade: r.grade || '',
+          status: (r.status || (r.isAbsent ? 'Absent' : (r.isPassed ? 'Passed' : (r.marksObtained !== null ? 'Failed' : 'TBD')))) as any,
+          remarks: r.remarks || ''
+        }));
+
+        // If backend returned empty roster, fallback to local AppContext students for this exam's batch
+        if (studentsList.length === 0 && activeExam) {
+          const matchedStudents = students.filter(st => {
+            if (!activeExam.batch) return true;
+            return doesExamMatchBatch(activeExam, st.batch || '');
+          });
+
+          if (matchedStudents.length > 0) {
+            studentsList = matchedStudents.map(st => ({
+              studentId: st.id,
+              studentCode: st.id,
+              name: st.name,
+              mobile: st.mobile || '',
+              parentMobile: st.parentMobile || '',
+              admissionDate: '',
+              branch: st.branch || activeExam.branch || '',
+              course: st.course || activeExam.course || '',
+              batch: st.batch || activeExam.batch || '',
+              marksObtained: (activeExam.studentMarks && activeExam.studentMarks[st.id] !== undefined)
+                ? Number(activeExam.studentMarks[st.id])
+                : null,
+              isAbsent: false,
+              isPassed: null,
+              percentage: null,
+              grade: '',
+              status: 'TBD' as const
+            }));
+          }
+        }
+
+        setRosterStudents(studentsList);
         const marksInit: { [studentId: string]: string } = {};
         const absentsInit: { [studentId: string]: boolean } = {};
 
-        (res.roster || []).forEach(s => {
+        studentsList.forEach(s => {
           marksInit[s.studentId] = s.marksObtained !== null && s.marksObtained !== undefined ? String(s.marksObtained) : '';
           absentsInit[s.studentId] = Boolean(s.isAbsent);
         });
@@ -213,7 +286,7 @@ export const ExamMarks: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [selectedExamId]);
+  }, [selectedExamId, activeExam, students, doesExamMatchBatch]);
 
   // Mark changes handler with max-mark clamping
   const handleMarkChange = (studentId: string, value: string) => {
@@ -286,20 +359,43 @@ export const ExamMarks: React.FC = () => {
     }
   };
 
+  // Select an exam from dropdown and synchronize filters
+  const handleExamSelect = (newExamId: string) => {
+    setSelectedExamId(newExamId);
+    if (!newExamId) return;
+    const examObj = examList.find(e => String(e.id) === newExamId);
+    if (examObj) {
+      if (examObj.batch) {
+        const primary = examObj.batch.split(',')[0].trim();
+        if (batches.some(b => b.name === primary)) {
+          setSelectedBatch(primary);
+        }
+      }
+      if (examObj.branch && branches.some(b => b.name === examObj.branch)) {
+        setSelectedBranch(examObj.branch);
+      }
+      if (examObj.course && courses.some(c => c.name === examObj.course)) {
+        setSelectedCourse(examObj.course);
+      }
+    }
+  };
+
   // Direct trigger from Test Registry to Grade screen
   const triggerGradeExam = (exam: ExamRecord) => {
-    const matchedBatch = batches.find(b => b.name === exam.batch);
-    if (matchedBatch) {
-      setSelectedBranch(matchedBatch.branch || 'Mumbai West');
-      setSelectedCourse(matchedBatch.course || 'All');
-      setSelectedProgram(matchedBatch.program || 'All');
-      setSelectedLevel(matchedBatch.level || 'All');
-      setSelectedYear(matchedBatch.academicYear || 'All');
-      setSelectedBatch(exam.batch || matchedBatch.name);
-    } else if (exam.batch) {
-      setSelectedBatch(exam.batch);
-    }
     setSelectedExamId(String(exam.id));
+    if (exam.batch) {
+      const primaryBatch = exam.batch.split(',')[0].trim();
+      const matchedBatch = batches.find(b => b.name === primaryBatch);
+      if (matchedBatch) {
+        setSelectedBranch(matchedBatch.branch || 'All');
+        setSelectedCourse(matchedBatch.course || 'All');
+        setSelectedBatch(matchedBatch.name);
+      } else {
+        setSelectedBatch(primaryBatch);
+      }
+    } else {
+      setSelectedBatch('All');
+    }
     setActiveTab('grade');
   };
 
@@ -393,6 +489,78 @@ export const ExamMarks: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Bulk Import Marks from CSV
+  const handleBulkImportMarks = (importedRows: any[]) => {
+    if (!activeExam || rosterStudents.length === 0) return;
+
+    let matchedCount = 0;
+    const newMarks = { ...localMarks };
+    const newAbsents = { ...localAbsents };
+
+    importedRows.forEach(row => {
+      const rowKeys = Object.keys(row);
+      const findVal = (possibleNames: string[]) => {
+        for (const name of possibleNames) {
+          const matchedKey = rowKeys.find(k => k.trim().toLowerCase() === name.toLowerCase());
+          if (matchedKey && row[matchedKey] !== undefined && row[matchedKey] !== null && String(row[matchedKey]).trim() !== '') {
+            return String(row[matchedKey]).trim();
+          }
+        }
+        return null;
+      };
+
+      const rawId = findVal(['Student ID', 'StudentId', 'StudentID', 'ID']);
+      const rawCode = findVal(['Student Code', 'StudentCode', 'Code', 'Roll No', 'Roll Number']);
+      const rawName = findVal(['Student Name', 'StudentName', 'Name', 'Full Name']);
+      const rawScore = findVal(['Marks Obtained', 'Marks', 'Score', 'MarksObtained', 'Mark']);
+      const rawAttendance = findVal(['Attendance Status', 'Attendance', 'Status']);
+
+      // Match student from candidate roster
+      const student = rosterStudents.find(s => {
+        if (rawId && (String(s.studentId).toLowerCase() === rawId.toLowerCase() || String(s.rawStudentId) === rawId)) return true;
+        if (rawCode && s.studentCode && s.studentCode.toLowerCase() === rawCode.toLowerCase()) return true;
+        if (rawName && s.name && s.name.trim().toLowerCase() === rawName.trim().toLowerCase()) return true;
+        return false;
+      });
+
+      if (student) {
+        matchedCount++;
+        const sId = student.studentId;
+
+        const isAbsent = rawAttendance
+          ? ['absent', 'a', 'ab'].includes(rawAttendance.toLowerCase())
+          : false;
+
+        if (isAbsent) {
+          newAbsents[sId] = true;
+          newMarks[sId] = '';
+        } else {
+          newAbsents[sId] = false;
+          if (rawScore !== null) {
+            let scoreNum = parseFloat(rawScore);
+            if (!isNaN(scoreNum)) {
+              if (scoreNum < 0) scoreNum = 0;
+              if (scoreNum > activeExam.totalMarks) scoreNum = activeExam.totalMarks;
+              newMarks[sId] = String(scoreNum);
+            }
+          }
+        }
+      }
+    });
+
+    if (matchedCount > 0) {
+      setLocalMarks(newMarks);
+      setLocalAbsents(newAbsents);
+      setIsSaved(false);
+      setSuccessMessage(`Successfully imported marks for ${matchedCount} student${matchedCount !== 1 ? 's' : ''}! Review the scores below and save draft or publish.`);
+      setTimeout(() => setSuccessMessage(''), 6000);
+    } else {
+      setErrorMessage('No matching students found in the uploaded CSV. Please ensure Student ID or Student Code matches this batch roster.');
+      setTimeout(() => setErrorMessage(''), 6000);
+    }
+    setIsBulkImportOpen(false);
   };
 
   // Handle Schedule Exam Form Submit
@@ -913,19 +1081,37 @@ export const ExamMarks: React.FC = () => {
               options={[{ value: 'All', label: 'All Courses' }, ...uniqueCourses.map(c => ({ value: c, label: c }))]}
             />
             <Select
-              label="Target Batch *"
+              label="Target Batch"
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
-              options={availableBatches.map(b => ({ value: b.name, label: b.name }))}
-              disabled={availableBatches.length === 0}
+              options={[
+                { value: 'All', label: `All Batches (${examList.length} tests)` },
+                ...availableBatches.map(b => {
+                  const testCount = examList.filter(e => doesExamMatchBatch(e, b.name)).length;
+                  return {
+                    value: b.name,
+                    label: `${b.name} (${testCount} test${testCount === 1 ? '' : 's'})`
+                  };
+                })
+              ]}
             />
             <Select
               label="Select Evaluation Exam *"
               value={selectedExamId}
-              onChange={(e) => setSelectedExamId(e.target.value)}
+              onChange={(e) => handleExamSelect(e.target.value)}
               options={[
-                { value: '', label: availableExamsForBatch.length ? 'Select Exam' : 'No tests in this batch' },
-                ...availableExamsForBatch.map(e => ({ value: String(e.id), label: `${e.name} (${e.totalMarks} marks)` }))
+                {
+                  value: '',
+                  label: availableExamsForBatch.length
+                    ? 'Select Exam to Grade'
+                    : selectedBatch !== 'All'
+                    ? `No tests in ${selectedBatch} (Switch to All Batches)`
+                    : 'No scheduled tests found'
+                },
+                ...availableExamsForBatch.map(e => ({
+                  value: String(e.id),
+                  label: `${e.name} — ${e.batch || 'All'} (${e.totalMarks} marks)`
+                }))
               ]}
               disabled={availableExamsForBatch.length === 0}
             />
@@ -934,51 +1120,82 @@ export const ExamMarks: React.FC = () => {
           {/* Roster & Marks Sheet */}
           {activeExam ? (
             <Card>
-              <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-xl">Evaluation Sheet: {activeExam.name}</CardTitle>
-                    {renderStatusBadge(activeExam.status)}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1 font-medium flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span>Batch: <strong>{activeExam.batch}</strong></span>
-                    <span>•</span>
-                    <span>Subject: <strong>{activeExam.subject}</strong></span>
-                    <span>•</span>
-                    <span>Max Marks: <strong>{activeExam.totalMarks}</strong></span>
-                    <span>•</span>
-                    <span>Passing: <strong>{activeExam.passingMarks}</strong></span>
-                    <span>•</span>
-                    <span>Class Avg: <strong className="text-indigo-600">{activeExam.average || 'TBD'}</strong></span>
+              <CardHeader className="p-4 sm:p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExamId('')}
+                    title="Back to test list"
+                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer shrink-0"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-lg">Evaluation Sheet: {activeExam.name}</CardTitle>
+                      {renderStatusBadge(activeExam.status)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 font-medium flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                      <span>Batch: <strong className="text-slate-700">{activeExam.batch}</strong></span>
+                      <span>•</span>
+                      <span>Subject: <strong className="text-slate-700">{activeExam.subject}</strong></span>
+                      <span>•</span>
+                      <span>Max: <strong className="text-slate-700">{activeExam.totalMarks}</strong></span>
+                      <span>•</span>
+                      <span>Pass: <strong className="text-slate-700">{activeExam.passingMarks}</strong></span>
+                      <span>•</span>
+                      <span>Avg: <strong className="text-indigo-600">{activeExam.average || 'TBD'}</strong></span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    onClick={() => setIsBulkImportOpen(true)}
+                    variant="secondary"
+                    size="sm"
+                    className="flex items-center gap-1 text-xs font-semibold cursor-pointer h-8 px-2.5"
+                    disabled={rosterStudents.length === 0}
+                  >
+                    <Upload size={13} /> Bulk Import
+                  </Button>
                   <Button
                     onClick={handleExportCSV}
                     variant="secondary"
                     size="sm"
-                    className="flex items-center gap-1 text-xs"
+                    className="flex items-center gap-1 text-xs font-semibold cursor-pointer h-8 px-2.5"
                     disabled={rosterStudents.length === 0}
                   >
-                    <Download size={14} /> Export CSV
+                    <Download size={13} /> Export CSV
                   </Button>
                 </div>
               </CardHeader>
 
               {rosterLoading ? (
-                <div className="py-16 text-center text-slate-400 font-medium">
+                <div className="py-12 text-center text-slate-400 font-medium">
                   <RefreshCw className="animate-spin inline-block mr-2" size={18} />
                   Loading candidate roster for this examination...
                 </div>
               ) : rosterStudents.length === 0 ? (
-                <div className="py-14 text-center text-slate-400">
+                <div className="py-12 text-center text-slate-400">
                   <p className="font-semibold text-slate-600">No active students enrolled in this batch.</p>
                   <p className="text-xs text-slate-400 mt-1">Enroll students into this batch to enter marks.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table headers={['Student ID', 'Student Name', 'Attendance Status', 'Marks Obtained', 'Percentage', 'Grade', 'Result Status']}>
+                  <Table
+                    headers={[
+                      { label: 'Student ID', minWidth: '130px' },
+                      { label: 'Student Name', minWidth: '220px' },
+                      { label: 'Attendance', minWidth: '95px', align: 'center' },
+                      { label: 'Marks Obtained', minWidth: '140px', align: 'center' },
+                      { label: 'Percentage', minWidth: '85px', align: 'center' },
+                      { label: 'Grade', minWidth: '65px', align: 'center' },
+                      { label: 'Result Status', minWidth: '95px', align: 'center' }
+                    ]}
+                    dense={true}
+                    colWidths={['14%', '32%', '12%', '18%', '9%', '6%', '9%']}
+                  >
                     {rosterStudents.map((s, idx) => {
                       const isAbsent = Boolean(localAbsents[s.studentId]);
                       const scoreStr = localMarks[s.studentId] || '';
@@ -1026,18 +1243,17 @@ export const ExamMarks: React.FC = () => {
 
                       return (
                         <tr key={s.studentId || idx} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-6 py-4 font-mono font-bold text-xs text-slate-600">
+                          <td className="px-3 py-2.5 font-mono font-bold text-xs text-slate-700 whitespace-nowrap">
                             {s.studentCode || s.studentId}
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="font-semibold text-slate-800 block">{s.name}</span>
-                            {s.mobile && <span className="text-xs text-slate-400">{s.mobile}</span>}
+                          <td className="px-3 py-2.5 font-semibold text-xs text-slate-800 whitespace-nowrap">
+                            {s.name || (s as any).studentName || '—'}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleToggleAbsent(s.studentId)}
-                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer border ${
                                 isAbsent
                                   ? 'bg-amber-500 text-white border-amber-600'
                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
@@ -1046,8 +1262,8 @@ export const ExamMarks: React.FC = () => {
                               {isAbsent ? 'Absent' : 'Present'}
                             </button>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            <div className="inline-flex items-center justify-center gap-1.5">
                               <input
                                 type="number"
                                 min={0}
@@ -1056,7 +1272,7 @@ export const ExamMarks: React.FC = () => {
                                 value={scoreStr}
                                 placeholder={isAbsent ? 'Absent' : '0.00'}
                                 onChange={(e) => handleMarkChange(s.studentId, e.target.value)}
-                                className={`w-28 border rounded-lg px-3 py-1.5 text-sm font-medium outline-none focus:ring-1 transition-all ${
+                                className={`w-20 border rounded-md px-2 py-1 text-xs font-medium text-center outline-none focus:ring-1 transition-all ${
                                   isAbsent
                                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200'
                                     : 'border-slate-300 text-slate-800 focus:border-indigo-500 focus:ring-indigo-200'
@@ -1067,15 +1283,15 @@ export const ExamMarks: React.FC = () => {
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 font-mono text-sm font-semibold text-slate-700">
+                          <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-700 text-center whitespace-nowrap">
                             {pctStr}
                           </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-block px-2 py-0.5 rounded text-xs font-bold font-mono bg-slate-100 text-slate-700">
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-slate-100 text-slate-700">
                               {gradeStr}
                             </span>
                           </td>
-                          <td className="px-6 py-4">{badge}</td>
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">{badge}</td>
                         </tr>
                       );
                     })}
@@ -1083,9 +1299,19 @@ export const ExamMarks: React.FC = () => {
 
                   {/* Actions Footer */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-50 border-t border-slate-200">
-                    <span className="text-xs text-slate-500">
-                      Roster: {rosterStudents.length} candidate(s) enrolled
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setSelectedExamId('')}
+                        className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                      >
+                        <ArrowLeft size={14} /> Back to Tests
+                      </Button>
+                      <span className="text-xs text-slate-500">
+                        Roster: {rosterStudents.length} candidate(s) enrolled
+                      </span>
+                    </div>
                     <div className="flex items-center gap-3">
                       <Button
                         type="button"
@@ -1109,18 +1335,104 @@ export const ExamMarks: React.FC = () => {
                 </div>
               )}
             </Card>
+          ) : availableExamsForBatch.length === 0 ? (
+            <Card>
+              <div className="py-14 text-center text-slate-500 animate-fade-in max-w-md mx-auto">
+                <span className="text-4xl block mb-2">📋</span>
+                <p className="font-bold text-slate-800 text-base">
+                  No tests scheduled for {selectedBatch !== 'All' ? `batch "${selectedBatch}"` : 'selected filters'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1 mb-5">
+                  Select "All Batches" to browse all {examList.length} exams, or schedule a new test for this batch.
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setSelectedBatch('All')}
+                    className="text-xs font-semibold"
+                  >
+                    View All {examList.length} Tests
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setExamBatch(selectedBatch !== 'All' ? selectedBatch : (availableBatches[0]?.name || ''));
+                      setShowAddExamModal(true);
+                    }}
+                    className="text-xs font-semibold"
+                  >
+                    + Schedule New Test
+                  </Button>
+                </div>
+              </div>
+            </Card>
           ) : (
             <Card>
-              <div className="py-16 text-center text-slate-400 animate-fade-in">
-                <span className="text-4xl block mb-3">📝</span>
-                <p className="font-semibold text-slate-600">No batch evaluation test chosen.</p>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                  Please select a batch and an exam from the selectors above to load the student scoring roster.
-                </p>
+              <div className="p-6">
+                <div className="text-center py-6 border-b border-slate-100">
+                  <span className="text-3xl block mb-2">📝</span>
+                  <h3 className="text-base font-bold text-slate-800">Select an Exam to Begin Grading</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Choose an evaluation test from the dropdown above, or click on any test below to load its scoring roster.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-5">
+                  {availableExamsForBatch.slice(0, 9).map(e => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => handleExamSelect(String(e.id))}
+                      className="text-left p-3.5 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-700 truncate">
+                          {e.name}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-slate-100 text-slate-600">
+                          {e.totalMarks}M
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1.5 font-medium">
+                        <span>Batch: <strong className="text-slate-700">{e.batch || 'All'}</strong></span>
+                        <span>•</span>
+                        <span>{e.subject || 'General'}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </Card>
           )}
         </div>
+      )}
+
+      {/* Bulk Import Marks Modal */}
+      {activeExam && (
+        <BulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          title={`Bulk Import Marks: ${activeExam.name}`}
+          description={`Upload a CSV spreadsheet containing candidate marks for ${activeExam.name} (Max Marks: ${activeExam.totalMarks}, Passing Marks: ${activeExam.passingMarks}). You can download the pre-filled template below, enter scores, and upload.`}
+          sampleHeaders={['Student ID', 'Student Code', 'Student Name', 'Attendance Status', 'Marks Obtained']}
+          sampleRows={
+            rosterStudents.length > 0
+              ? rosterStudents.slice(0, 5).map((s, idx) => [
+                  s.studentId,
+                  s.studentCode || `STU-${idx + 1}`,
+                  s.name,
+                  'Present',
+                  String(Math.min(activeExam.totalMarks, Math.round(activeExam.totalMarks * 0.8)))
+                ])
+              : [
+                  ['1524-553214', 'STU-001', 'Rahul Sharma', 'Present', '22'],
+                  ['1035-102836', 'STU-002', 'Ananya Patel', 'Present', '19'],
+                  ['1042-882194', 'STU-003', 'Aditya Verma', 'Absent', '0']
+                ]
+          }
+          onImport={handleBulkImportMarks}
+        />
       )}
     </div>
   );

@@ -92,7 +92,7 @@ const AttentionSection: React.FC<AttentionSectionProps> = ({ data, loading }) =>
               className="group relative border border-slate-200/80 hover:border-slate-300 rounded-xl p-3 bg-slate-50/50 hover:bg-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/50 cursor-pointer flex flex-col justify-between overflow-hidden"
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-bold text-slate-700 group-hover:text-slate-950 transition-colors">{tile.label}</span>
+                <span className="text-xs font-bold text-slate-700 group-hover:text-slate-950 transition-colors whitespace-nowrap">{tile.label}</span>
                 <div className={`w-7 h-7 rounded-lg ${tile.bg} ${tile.color} border ${tile.border} flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-2xs`}>
                   <Icon size={14} className="transition-transform duration-300 group-hover:scale-105" />
                 </div>
@@ -101,11 +101,16 @@ const AttentionSection: React.FC<AttentionSectionProps> = ({ data, loading }) =>
                 <span className="text-xl font-extrabold text-slate-900 tracking-tight">
                   {loading ? '...' : count.toLocaleString('en-IN')}
                 </span>
-                <span className="text-[10px] font-semibold text-slate-400 group-hover:text-slate-800 flex items-center gap-0.5 transition-all">
-                  View <ArrowRight size={10} className="transition-transform duration-200 group-hover:translate-x-1" />
+                <span className="text-[11px] font-semibold text-slate-500 group-hover:text-slate-800 flex items-center gap-0.5 transition-all whitespace-nowrap">
+                  View <ArrowRight size={11} className="transition-transform duration-200 group-hover:translate-x-1" />
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 group-hover:text-slate-500 transition-colors mt-1 leading-tight">{tile.description}</p>
+              <p
+                className="text-[11.5px] text-slate-500 group-hover:text-slate-700 transition-colors mt-1 font-medium whitespace-nowrap truncate leading-snug"
+                title={tile.description}
+              >
+                {tile.description}
+              </p>
             </div>
           );
         })}
